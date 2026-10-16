@@ -19,8 +19,11 @@ import { isTipoNegociacao100CompraVenda } from '@/lib/kanban/tipo-negociacao-ter
 export type NegocioDraftKanban = {
   tipo_aquisicao_terreno: string;
   valor_terreno: string;
+  divida_terreno: string;
   vgv_pretendido: string;
   produto_modelo_casa: string;
+  custo_obra: string;
+  divida_obra: string;
   link_pasta_drive: string;
   link_bca: string;
   link_gbox: string;
@@ -43,8 +46,11 @@ export function negocioDraftVazio(): NegocioDraftKanban {
   return {
     tipo_aquisicao_terreno: '',
     valor_terreno: '',
+    divida_terreno: '',
     vgv_pretendido: '',
     produto_modelo_casa: '',
+    custo_obra: '',
+    divida_obra: '',
     link_pasta_drive: '',
     link_bca: '',
     link_gbox: '',
@@ -74,8 +80,11 @@ export function negocioDraftFromProcesso(
   return {
     tipo_aquisicao_terreno: tipo,
     valor_terreno: moedaCampoValorInicial(proc.valor_terreno),
+    divida_terreno: moedaCampoValorInicial(proc.divida_terreno),
     vgv_pretendido: moedaCampoValorInicial(proc.vgv_pretendido),
     produto_modelo_casa: proc.produto_modelo_casa ?? '',
+    custo_obra: moedaCampoValorInicial(proc.custo_obra),
+    divida_obra: moedaCampoValorInicial(proc.divida_obra),
     link_pasta_drive: proc.link_pasta_drive ?? '',
     link_bca: proc.link_bca ?? '',
     link_gbox: proc.link_gbox ?? '',

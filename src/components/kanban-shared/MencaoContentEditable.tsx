@@ -44,8 +44,16 @@ function textoAntesDoCursor(el: HTMLElement): string {
 
 function atualizarAnchor(el: HTMLElement): AnchorRect {
   const rect = el.getBoundingClientRect();
+  const GAP = 4;
+  // max-h-52 = 208px; estimativa generosa para caber a lista
+  const DROPDOWN_HEIGHT = 216;
+  const spaceBelow = window.innerHeight - rect.bottom - GAP;
+  const top =
+    spaceBelow >= DROPDOWN_HEIGHT
+      ? rect.bottom + GAP
+      : Math.max(GAP, rect.top - DROPDOWN_HEIGHT - GAP);
   return {
-    top: rect.bottom + 4,
+    top,
     left: rect.left,
     width: Math.max(rect.width, 256),
   };

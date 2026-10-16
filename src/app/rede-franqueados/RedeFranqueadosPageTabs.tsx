@@ -1,11 +1,10 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { RedeFranqueadoRowDb } from '@/lib/rede-franqueados';
 import type { RedeLoteadorRow } from '@/lib/rede-loteadores';
 import type { RedeCorretorRow } from '@/lib/rede-corretores';
-import { RedeDashboard } from './RedeDashboard';
 import { RedeFranqueadosTabelaComBusca } from './RedeFranqueadosTabelaComBusca';
 import { RedeLoteadoresTabelaComBusca } from './RedeLoteadoresTabelaComBusca';
 import { RedeCorretoresTabelaComBusca } from './RedeCorretoresTabelaComBusca';
@@ -13,15 +12,15 @@ import { CadastrosEmpresasTabelaComBusca } from './CadastrosEmpresasTabelaComBus
 import { CadastrosMoniCapitalTabelaComBusca } from './CadastrosMoniCapitalTabelaComBusca';
 import { CondominiosTabelaComBusca } from './CondominiosTabelaComBusca';
 import { ImobEmpreendimentosTabelaComBusca } from './ImobEmpreendimentosTabelaComBusca';
+import {
+  QualificacaoRespostasTabela,
+} from './QualificacaoRespostasTabela';
+import type { QualificacaoTabelaLinha } from '@/lib/qualificacao-tabela';
 import { buildCadastrosEmpresasLinhas, type FranqueadoEmpresaRow } from '@/lib/franqueado-empresas';
 import { buildCadastrosEmpresasLinhasComSpe, type FranqueadoSpeRow } from '@/lib/franqueado-spe';
 import type { CondominioRow } from '@/lib/condominios';
 import type { MoniCapitalCadastroRow } from '@/lib/moni-capital-cadastros';
 import type { ImobEmpreendimentoRow } from '@/lib/imob-empreendimentos';
-import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
-import { PipelineAnalisesView } from '@/components/pipeline/PipelineAnalisesView';
-import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoading';
-import { usePipelineDatasetLazy } from '@/components/pipeline/usePipelineDatasetLazy';
 import { ImportarRedeCSVButton } from './ImportarRedeCSVButton';
 import { ImportarEntidadeCSVButton } from './ImportarEntidadeCSVButton';
 import { ExportarRedeCSVButton } from './ExportarRedeCSVButton';
@@ -47,10 +46,8 @@ import {
 import { NovoCadastroMoniCapitalModal } from './NovoCadastroMoniCapitalModal';
 
 type TabId =
-  | 'visao'
-  | 'pipeline'
-  | 'analises'
   | 'franqueados'
+  | 'qualificacao'
   | 'loteadores'
   | 'corretores'
   | 'empresas'
@@ -66,19 +63,23 @@ const TAB_ALIASES: Record<string, TabId> = {
   corretor: 'corretores',
 };
 
-const TAB_VISAO: { id: TabId; label: string } = { id: 'visao', label: 'Visão geral' };
-const TAB_PIPELINE: { id: TabId; label: string } = { id: 'pipeline', label: 'Pipeline da rede' };
-const TAB_ANALISES: { id: TabId; label: string } = { id: 'analises', label: 'Análises' };
 const TAB_FRANQ: { id: TabId; label: string } = { id: 'franqueados', label: 'Rede de Franqueados' };
+const TAB_QUAL: { id: TabId; label: string } = { id: 'qualificacao', label: 'Qualificação' };
 const TAB_LOTE: { id: TabId; label: string } = { id: 'loteadores', label: 'Rede de Loteadores' };
 const TAB_CORR: { id: TabId; label: string } = { id: 'corretores', label: 'Cadastro de Corretor' };
 const TAB_EMP: { id: TabId; label: string } = { id: 'empresas', label: 'Cadastros de Empresas' };
 const TAB_MC: { id: TabId; label: string } = { id: 'moni-capital', label: 'Cadastros Moní Capital' };
 const TAB_COND: { id: TabId; label: string } = { id: 'condominios', label: 'Condomínios' };
-const TAB_IMOB: { id: TabId; label: string } = { id: 'imob-empreendimentos', label: 'Cadastro de Empreendimentos' };
+const TAB_IMOB: { id: TabId; label: string } = {
+  id: 'imob-empreendimentos',
+  label: 'Cadastro de Empreendimentos',
+};
 
 type Props = {
   rows: RedeFranqueadoRowDb[];
+  ultimoPreenchimentoQualificacao?: Record<string, string>;
+  linhasQualificacao?: QualificacaoTabelaLinha[];
+  qualificacaoLoadError?: boolean;
   loteadoresRows: RedeLoteadorRow[] | null;
   corretoresRows: RedeCorretorRow[] | null;
   showStaffTabs: boolean;
@@ -94,11 +95,14 @@ type Props = {
   canManageCondominios: boolean;
   canManageFranqueados: boolean;
   maskSensitiveColumns: boolean;
-  showDashboard: boolean;
+  showDashboard?: boolean; // mantido por compatibilidade, não usado
 };
 
 export function RedeFranqueadosPageTabs({
   rows,
+  ultimoPreenchimentoQualificacao = {},
+  linhasQualificacao = [],
+  qualificacaoLoadError = false,
   loteadoresRows,
   corretoresRows,
   showStaffTabs,
@@ -114,21 +118,14 @@ export function RedeFranqueadosPageTabs({
   canManageCondominios,
   canManageFranqueados,
   maskSensitiveColumns,
-  showDashboard,
 }: Props) {
-  const showPipelineTab = showStaffTabs;
-  const showAnalisesTab = showStaffTabs;
-
   const tabs = [
-    ...(showDashboard ? [TAB_VISAO] : []),
-    ...(showPipelineTab ? [TAB_PIPELINE] : []),
-    ...(showAnalisesTab ? [TAB_ANALISES] : []),
     TAB_FRANQ,
-    ...(showStaffTabs ? [TAB_LOTE, TAB_CORR, TAB_EMP, TAB_MC, TAB_IMOB] : []),
+    ...(showStaffTabs ? [TAB_QUAL, TAB_LOTE, TAB_CORR, TAB_EMP, TAB_MC, TAB_IMOB] : []),
     ...(showCondominiosTab ? [TAB_COND] : []),
   ];
 
-  const defaultTab: TabId = showDashboard ? 'visao' : 'franqueados';
+  const defaultTab: TabId = 'franqueados';
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loteadorCreateTick, setLoteadorCreateTick] = useState(0);
@@ -147,12 +144,6 @@ export function RedeFranqueadosPageTabs({
     tabCandidate && tabs.some((t) => t.id === tabCandidate)
       ? (tabCandidate as TabId)
       : defaultTab;
-
-  const pipelineTabAtivo = resolvedTab === 'pipeline' || resolvedTab === 'analises';
-  const { dataset: pipelineDataset, loading: pipelineLoading, error: pipelineError } = usePipelineDatasetLazy({
-    mode: 'franqueadora',
-    enabled: showStaffTabs && pipelineTabAtivo,
-  });
 
   function handleTabClick(tabId: TabId) {
     const params = new URLSearchParams(searchParams.toString());
@@ -200,64 +191,13 @@ export function RedeFranqueadosPageTabs({
       </div>
 
       <div className="mt-8" role="tabpanel">
-        {resolvedTab === 'visao' && showDashboard ? <RedeDashboard rows={rows} /> : null}
-
-        {resolvedTab === 'pipeline' && showPipelineTab ? (
-          <section className="space-y-4">
-            <div>
-              <h2
-                className="text-xl font-semibold tracking-tight"
-                style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
-              >
-                Pipeline da rede
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-                Cards ativos em todos os funis, consolidados por unidade de franquia.
-              </p>
-            </div>
-            {pipelineLoading ? (
-              <PipelineDatasetLoading />
-            ) : pipelineError ? (
-              <p className="text-sm" style={{ color: 'var(--moni-status-overdue-text)' }}>
-                {pipelineError}
-              </p>
-            ) : pipelineDataset ? (
-              <PipelineCardsView mode="rede" dataset={pipelineDataset} defaultGroupBy="franquia" />
-            ) : null}
-          </section>
-        ) : null}
-
-        {resolvedTab === 'analises' && showAnalisesTab ? (
-          <section className="space-y-4">
-            <div>
-              <h2
-                className="text-xl font-semibold tracking-tight"
-                style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}
-              >
-                Análises
-              </h2>
-              <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-                Travamentos, gargalos de fase, benchmark por unidade, conversão e Sirene.
-              </p>
-            </div>
-            {pipelineLoading ? (
-              <PipelineDatasetLoading label="Carregando análises…" />
-            ) : pipelineError ? (
-              <p className="text-sm" style={{ color: 'var(--moni-status-overdue-text)' }}>
-                {pipelineError}
-              </p>
-            ) : pipelineDataset ? (
-              <PipelineAnalisesView dataset={pipelineDataset} />
-            ) : null}
-          </section>
-        ) : null}
-
         {resolvedTab === 'franqueados' ? (
           <section className="space-y-4">
             <RedeFranqueadosTabelaComBusca
               rows={rows}
               canEditRows={canManageFranqueados}
               maskSensitiveColumns={maskSensitiveColumns}
+              ultimoPreenchimentoQualificacao={ultimoPreenchimentoQualificacao}
             >
               {canManageFranqueados ? (
                 <>
@@ -267,6 +207,15 @@ export function RedeFranqueadosPageTabs({
               ) : null}
               <ExportarRedeCSVButton rows={rows} maskSensitiveColumns={maskSensitiveColumns} />
             </RedeFranqueadosTabelaComBusca>
+          </section>
+        ) : null}
+
+        {resolvedTab === 'qualificacao' && showStaffTabs ? (
+          <section className="space-y-4">
+            <QualificacaoRespostasTabela
+              linhas={linhasQualificacao}
+              loadError={qualificacaoLoadError}
+            />
           </section>
         ) : null}
 

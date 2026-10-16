@@ -110,6 +110,11 @@ export function KanbanBoard({
   const [filtros, setFiltros] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
   const [filtrosDraft, setFiltrosDraft] = useState<KanbanBoardFiltros>(KANBAN_BOARD_FILTROS_DEFAULT);
   const [buscaCard, setBuscaCard] = useState('');
+  const [buscaCardDebounced, setBuscaCardDebounced] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setBuscaCardDebounced(buscaCard), 200);
+    return () => clearTimeout(t);
+  }, [buscaCard]);
   const [filtrosOpen, setFiltrosOpen] = useState(false);
   const isMarketing = isMarketingKanbanId(kanbanId);
   const isProgramacao = kanbanId === KANBAN_IDS.MARKETING_PROGRAMACAO;
@@ -442,7 +447,7 @@ export function KanbanBoard({
   }, [poolStatus, faseMap, kanbanId, kanbanNome, nomeDbParaLazy, hipotesesOrdemMin]);
 
   const cardsFiltrados = useMemo(() => {
-    const busca = buscaCard.trim();
+    const busca = buscaCardDebounced.trim();
     const fasesOrd = fases.filter((f) => f.ativo !== false);
     const ordemMin = fasesOrd.length > 0 ? Math.min(...fasesOrd.map((f) => f.ordem)) : 1;
     return poolStatus.filter((c) => {
@@ -471,7 +476,7 @@ export function KanbanBoard({
     filtros,
     faseMap,
     currentUserId,
-    buscaCard,
+    buscaCardDebounced,
     textoBuscaPorCardId,
     isMarketing,
     mktStatus,

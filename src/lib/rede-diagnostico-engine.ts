@@ -72,7 +72,8 @@ export function npsCategoria(nps: number | null | undefined): NpsCategoria | nul
 
 // ─── ENGAJAMENTO ─────────────────────────────────────────────────────────────
 
-/** Pesos: D×40% + C×35% + K×25%, normalizado de 0–2 para 0–100%. */
+/** Pesos: D×40% + K×35% + C×25%, normalizado de 0–2 para 0–100%.
+ *  K = Conhecimento (35%) · C = Comportamento (25%) */
 export function calcEngajamento(
   row: Pick<RedeFranqueadoRowDb, 'status_franquia' | 'diag_adormecido' | 'diag_d' | 'diag_c' | 'diag_k'>,
 ): number | null {
@@ -82,8 +83,9 @@ export function calcEngajamento(
   if (diag_c === null || diag_c === undefined) return null;
   if (diag_k === null || diag_k === undefined) return null;
   // Escala 0–2: 0=Não tem, 1=Moderado, 2=Tem
-  const raw = (Number(diag_d) * 0.4 + Number(diag_c) * 0.35 + Number(diag_k) * 0.25) / 2;
-  return Math.round(raw * 1000) / 10;
+  // K = Conhecimento × 35%  |  C = Comportamento × 25%
+  const raw = (Number(diag_d) * 0.4 + Number(diag_k) * 0.35 + Number(diag_c) * 0.25) / 2;
+  return Math.round(raw * 100);
 }
 
 export function engajamentoColor(score: number): DiagEngColor {
@@ -141,8 +143,12 @@ export function calcIndicador(
   return 'abaixo';
 }
 
-// ─── PRIORIDADE ──────────────────────────────────────────────────────────────
+// ─── PRIORIDADE E GRUPO — DEPRECIADOS ────────────────────────────────────────
+// O sistema migrou para filtros por dimensão (D, K, C, relação, indicador).
+// Estas funções são mantidas apenas para retrocompatibilidade com componentes
+// que ainda as importam. Não usar em código novo.
 
+/** @deprecated Usar filtros por dimensão. */
 export function calcPriority(
   row: Pick<
     RedeFranqueadoRowDb,
@@ -171,8 +177,7 @@ export function calcPriority(
   return 'P6';
 }
 
-// ─── GRUPO DE AÇÃO ───────────────────────────────────────────────────────────
-
+/** @deprecated Usar filtros por dimensão. */
 export function calcGrupo(
   row: Pick<
     RedeFranqueadoRowDb,
@@ -263,6 +268,9 @@ export type RedeMetricas = {
   avgEng: number | null;
   engLabel: string;
   engColor: DiagEngColor | null;
+  avgD: number | null;
+  avgK: number | null;
+  avgC: number | null;
   relStatus: 'Saudável' | 'Atenção' | 'Crítica' | 'Não aferida';
   relColor: string;
   avgNps: number | null;
@@ -273,28 +281,47 @@ export type RedeMetricas = {
   emTransferencia: number;
   adormecidas: number;
   p1Count: number;
+  totalDiagBase: number;
+  aferidos: number;
+  indRitmo: number;
+  indProximo: number;
+  indRegular: number;
+  indAbaixo: number;
 };
 
 export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
+  // Base para Rede Ativa: exclui encerrados, em transferência e adormecidos
   const ativas = rows.filter((r) => !isStatusNC(r) && !isAdormecido(r));
+  // Base para métricas (Engajamento, Relação, Contratos, Alertas): exclui só encerrados e em transferência
+  const contabilizaveis = rows.filter((r) => !isStatusNC(r));
 
-  const engs = ativas.map(calcEngajamento).filter((e): e is number => e !== null);
-  const avgEng = engs.length > 0 ? Math.round(engs.reduce((a, b) => a + b, 0) / engs.length) : null;
+  // avgEng calculado direto dos campos D/K/C para incluir adormecidos (mesma base dos percentuais)
+  const engRows = contabilizaveis.filter(
+    (r) => r.diag_d !== null && r.diag_d !== undefined &&
+           r.diag_k !== null && r.diag_k !== undefined &&
+           r.diag_c !== null && r.diag_c !== undefined,
+  );
+  const avgEng = engRows.length > 0
+    ? Math.round(
+        engRows.reduce((a, r) => a + (Number(r.diag_d) * 0.4 + Number(r.diag_k) * 0.35 + Number(r.diag_c) * 0.25) / 2, 0)
+        / engRows.length * 100,
+      )
+    : null;
 
-  const npsRows = ativas.filter((r) => r.diag_nps !== null && r.diag_nps !== undefined);
+  const npsRows = contabilizaveis.filter((r) => r.diag_nps !== null && r.diag_nps !== undefined);
   const avgNps =
     npsRows.length > 0
       ? parseFloat((npsRows.reduce((a, r) => a + Number(r.diag_nps), 0) / npsRows.length).toFixed(1))
       : null;
 
-  const csatRows = ativas.filter((r) => r.diag_csat !== null && r.diag_csat !== undefined);
+  const csatRows = contabilizaveis.filter((r) => r.diag_csat !== null && r.diag_csat !== undefined);
   const avgCsat =
     csatRows.length > 0
       ? parseFloat((csatRows.reduce((a, r) => a + Number(r.diag_csat), 0) / csatRows.length).toFixed(1))
       : null;
 
   const relCounts = { saudavel: 0, atencao: 0, critica: 0 };
-  ativas.forEach((r) => {
+  contabilizaveis.forEach((r) => {
     const rel = calcRelacao(r);
     if (rel in relCounts) relCounts[rel as keyof typeof relCounts]++;
   });
@@ -311,24 +338,61 @@ export function calcRedeMetricas(rows: RedeFranqueadoRowDb[]): RedeMetricas {
     }
   }
 
-  const ctRows = ativas.filter((r) => r.diag_contratos_12m !== null && r.diag_contratos_12m !== undefined);
+  const dRows = contabilizaveis.filter((r) => r.diag_d !== null && r.diag_d !== undefined);
+  const avgD = dRows.length > 0 ? Math.round((dRows.reduce((a, r) => a + Number(r.diag_d), 0) / dRows.length / 2) * 100) : null;
+
+  const kRows = contabilizaveis.filter((r) => r.diag_k !== null && r.diag_k !== undefined);
+  const avgK = kRows.length > 0 ? Math.round((kRows.reduce((a, r) => a + Number(r.diag_k), 0) / kRows.length / 2) * 100) : null;
+
+  const cRows = contabilizaveis.filter((r) => r.diag_c !== null && r.diag_c !== undefined);
+  const avgC = cRows.length > 0 ? Math.round((cRows.reduce((a, r) => a + Number(r.diag_c), 0) / cRows.length / 2) * 100) : null;
+
+  const ctRows = contabilizaveis.filter((r) => r.diag_contratos_12m !== null && r.diag_contratos_12m !== undefined);
   const totalContratos = ctRows.reduce((a, r) => a + Number(r.diag_contratos_12m), 0);
-  const totalMeta = ctRows.length * 4;
+  const totalMeta = ctRows.reduce((a, r) => a + Number(r.diag_ano_meta ?? 4), 0);
 
   return {
     totalAtiva: ativas.length,
     avgEng,
     engLabel: avgEng !== null ? engajamentoLabel(avgEng, true) : '—',
     engColor: avgEng !== null ? engajamentoColor(avgEng) : null,
+    avgD,
+    avgK,
+    avgC,
     relStatus,
     relColor,
     avgNps,
     avgCsat,
     totalContratos,
     totalMeta,
-    inadimplentes: rows.filter((r) => r.diag_adimplente === false).length,
-    emTransferencia: rows.filter((r) => isStatusNC(r)).length,
-    adormecidas: rows.filter((r) => isAdormecido(r)).length,
-    p1Count: rows.filter((r) => calcPriority(r) === 'P1').length,
+    // diag_adimplencia (string) é gravado pelo sync da planilha Google Sheets.
+    // diag_adimplente (boolean legado) não é mais atualizado — ignorar.
+    inadimplentes: contabilizaveis.filter((r) => (r as unknown as { diag_adimplencia?: string | null }).diag_adimplencia === 'inad').length,
+    emTransferencia: rows.filter((r) => {
+      const n = normStatusFranquia(r.status_franquia);
+      return n.includes('transferencia');
+    }).length,
+    adormecidas: contabilizaveis.filter((r) => isAdormecido(r)).length,
+    p1Count: contabilizaveis.filter((r) => calcPriority(r) === 'P1').length,
+    totalDiagBase: ativas.length,
+    aferidos: ativas.filter((r) => r.diag_d !== null && r.diag_d !== undefined).length,
+    // calcIndicador exclui adormecidos via isExcluido — calculamos direto para incluí-los
+    ...(() => {
+      const toInd = (r: RedeFranqueadoRowDb) => {
+        if (r.diag_contratos_12m === null || r.diag_contratos_12m === undefined) return null;
+        const meta = Number(r.diag_ano_meta ?? 4);
+        const pct = (Number(r.diag_contratos_12m) / meta) * 100;
+        if (pct >= 100) return 'ritmo';
+        if (pct >= 75) return 'proximo';
+        if (pct >= 50) return 'regular';
+        return 'abaixo';
+      };
+      return {
+        indRitmo: contabilizaveis.filter((r) => toInd(r) === 'ritmo').length,
+        indProximo: contabilizaveis.filter((r) => toInd(r) === 'proximo').length,
+        indRegular: contabilizaveis.filter((r) => toInd(r) === 'regular').length,
+        indAbaixo: contabilizaveis.filter((r) => toInd(r) === 'abaixo').length,
+      };
+    })(),
   };
 }

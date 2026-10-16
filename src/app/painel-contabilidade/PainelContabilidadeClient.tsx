@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
 import { Search } from 'lucide-react';
 import type { CardStatusFilter, CardTagFilter, ProcessoCard } from '@/app/steps-viabilidade/StepsKanbanColumn';
 import { StepsKanbanColumn } from '@/app/steps-viabilidade/StepsKanbanColumn';
@@ -29,17 +30,18 @@ function cardCumpreBusca(p: ProcessoCard, buscaNorm: string): boolean {
 
 export function PainelContabilidadeClient({ byEtapa, initialOpenProcessId }: Props) {
   const [busca, setBusca] = useState('');
+  const debouncedBusca = useDebounce(busca);
   const [statusFilter, setStatusFilter] = useState<CardStatusFilter>('ativos');
   const [tagFilter, setTagFilter] = useState<CardTagFilter>('todas');
 
   const filtered = useMemo(() => {
-    const buscaNorm = normalizarParaBusca(busca);
+    const buscaNorm = normalizarParaBusca(debouncedBusca);
     return {
       contabilidade_incorporadora: (byEtapa.contabilidade_incorporadora ?? []).filter((p) => cardCumpreBusca(p, buscaNorm)),
       contabilidade_spe: (byEtapa.contabilidade_spe ?? []).filter((p) => cardCumpreBusca(p, buscaNorm)),
       contabilidade_gestora: (byEtapa.contabilidade_gestora ?? []).filter((p) => cardCumpreBusca(p, buscaNorm)),
     };
-  }, [busca, byEtapa]);
+  }, [debouncedBusca, byEtapa]);
 
   const colIncorp = PAINEL_COLUMNS.find((c) => c.key === 'contabilidade_incorporadora');
   const colSpe = PAINEL_COLUMNS.find((c) => c.key === 'contabilidade_spe');

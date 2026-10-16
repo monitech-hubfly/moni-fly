@@ -3,8 +3,8 @@
 import {
   formatCidadeEstadoCondominio,
   formatCondominioInteiro,
-  formatCondominioMoeda,
   formatEnderecoNumero,
+  formatTicketCadastro,
   type CondominioRow,
 } from '@/lib/condominios';
 import type { CondominioFormDraft } from '@/lib/condominios-form';
@@ -23,6 +23,14 @@ type Props = {
   /** Omitir bloco de prazos (ex.: painel do card já renderiza seção editável separada). */
   omitPrazos?: boolean;
 };
+
+function formatDateBr(iso: string | null | undefined): string {
+  const s = (iso ?? '').trim().slice(0, 10);
+  if (!s) return '';
+  const [y, m, d] = s.split('-');
+  if (!y || !m || !d) return s;
+  return `${d}/${m}/${y}`;
+}
 
 function FieldView({ label, value }: { label: string; value: string }) {
   return (
@@ -48,18 +56,32 @@ export function CondominioCamposForm({
         <FieldView label="Endereço + Nº" value={formatEnderecoNumero(row.endereco, row.numero)} />
         <FieldView label="Cidade / Estado" value={formatCidadeEstadoCondominio(row.cidade, row.estado)} />
         <FieldView label="Descrição breve" value={row.descricao_breve ?? ''} />
-        <FieldView label="Ticket médio lote" value={formatCondominioMoeda(row.ticket_medio_lote)} />
-        <FieldView label="Ticket médio casas" value={formatCondominioMoeda(row.ticket_medio_casas)} />
-        <FieldView
-          label="Ticket médio casas (R$/m²)"
-          value={formatCondominioMoeda(row.ticket_medio_casas_rsm2)}
-        />
+        <FieldView label="Ticket médio lote" value={formatTicketCadastro(row.ticket_medio_lote)} />
+        <FieldView label="Ticket médio casas" value={formatTicketCadastro(row.ticket_medio_casas)} />
+        <FieldView label="Valor Tx Condomínio" value={formatTicketCadastro(row.valor_tx_condominio)} />
         <FieldView
           label="Est. casas vendidas/ano"
           value={formatCondominioInteiro(row.estimativa_casas_vendidas_ano)}
         />
         <FieldView label="Extrato — Como eram essas casas" value={row.extrato_como_eram_casas ?? ''} />
         <FieldView label="Extrato — Tempo para vender" value={row.extrato_tempo_venda ?? ''} />
+        <FieldView label="Data de lançamento (vendas de lote)" value={formatDateBr(row.data_lancamento_vendas)} />
+        <FieldView
+          label="Data liberação TVO (permissão de construir casas)"
+          value={formatDateBr(row.data_liberacao_tvo)}
+        />
+        <FieldView label="Quantidade de lotes" value={formatCondominioInteiro(row.quantidade_lotes)} />
+        <FieldView label="Metragem dos lotes (média ou faixas)" value={row.metragem_lotes ?? ''} />
+        <FieldView
+          label="Metragem / tipologia média das casas (média ou faixas)"
+          value={row.metragem_casas ?? ''}
+        />
+        <FieldView
+          label="Planta cadastral do condomínio / lotes com medidas (frente e lateral)"
+          value={row.planta_cadastral ?? ''}
+        />
+        <FieldView label="Manual de obras" value={row.manual_obras ?? ''} />
+        <FieldView label="Exemplo / links de casas concorrentes" value={row.casas_concorrentes ?? ''} />
         {!omitPrazos ? (
           <div
             className="col-span-2 pt-2"
@@ -150,33 +172,30 @@ export function CondominioCamposForm({
         <span className="text-[11px] font-medium text-stone-500">Ticket médio lote</span>
         <input
           type="text"
-          inputMode="decimal"
           value={draft.ticket_medio_lote}
           onChange={(e) => onChange({ ticket_medio_lote: e.target.value })}
           className={inputCls}
-          placeholder="R$"
+          placeholder="Valor ou faixa"
         />
       </label>
       <label className="block">
         <span className="text-[11px] font-medium text-stone-500">Ticket médio casas</span>
         <input
           type="text"
-          inputMode="decimal"
           value={draft.ticket_medio_casas}
           onChange={(e) => onChange({ ticket_medio_casas: e.target.value })}
           className={inputCls}
-          placeholder="R$"
+          placeholder="Valor ou faixa"
         />
       </label>
       <label className="block">
-        <span className="text-[11px] font-medium text-stone-500">Ticket médio casas (R$/m²)</span>
+        <span className="text-[11px] font-medium text-stone-500">Valor Tx Condomínio</span>
         <input
           type="text"
-          inputMode="decimal"
-          value={draft.ticket_medio_casas_rsm2}
-          onChange={(e) => onChange({ ticket_medio_casas_rsm2: e.target.value })}
+          value={draft.valor_tx_condominio}
+          onChange={(e) => onChange({ valor_tx_condominio: e.target.value })}
           className={inputCls}
-          placeholder="R$/m²"
+          placeholder="Valor ou faixa"
         />
       </label>
       <label className="block">
@@ -205,6 +224,88 @@ export function CondominioCamposForm({
           value={draft.extrato_tempo_venda}
           onChange={(e) => onChange({ extrato_tempo_venda: e.target.value })}
           className={inputCls}
+        />
+      </label>
+      <label className="block">
+        <span className="text-[11px] font-medium text-stone-500">Data de lançamento (vendas de lote)</span>
+        <input
+          type="date"
+          value={draft.data_lancamento_vendas}
+          onChange={(e) => onChange({ data_lancamento_vendas: e.target.value })}
+          className={inputCls}
+        />
+      </label>
+      <label className="block">
+        <span className="text-[11px] font-medium text-stone-500">
+          Data liberação TVO (permissão de construir casas)
+        </span>
+        <input
+          type="date"
+          value={draft.data_liberacao_tvo}
+          onChange={(e) => onChange({ data_liberacao_tvo: e.target.value })}
+          className={inputCls}
+        />
+      </label>
+      <label className="block">
+        <span className="text-[11px] font-medium text-stone-500">Quantidade de lotes</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={draft.quantidade_lotes}
+          onChange={(e) => onChange({ quantidade_lotes: e.target.value })}
+          className={inputCls}
+        />
+      </label>
+      <label className="block">
+        <span className="text-[11px] font-medium text-stone-500">Metragem dos lotes (média ou faixas)</span>
+        <input
+          type="text"
+          value={draft.metragem_lotes}
+          onChange={(e) => onChange({ metragem_lotes: e.target.value })}
+          className={inputCls}
+        />
+      </label>
+      <label className="col-span-2 block">
+        <span className="text-[11px] font-medium text-stone-500">
+          Metragem / tipologia média das casas (média ou faixas)
+        </span>
+        <input
+          type="text"
+          value={draft.metragem_casas}
+          onChange={(e) => onChange({ metragem_casas: e.target.value })}
+          className={inputCls}
+        />
+      </label>
+      <label className="col-span-2 block">
+        <span className="text-[11px] font-medium text-stone-500">
+          Planta cadastral do condomínio / lotes com medidas (frente e lateral)
+        </span>
+        <input
+          type="text"
+          value={draft.planta_cadastral}
+          onChange={(e) => onChange({ planta_cadastral: e.target.value })}
+          className={inputCls}
+          placeholder="Link ou referência"
+        />
+      </label>
+      <label className="col-span-2 block">
+        <span className="text-[11px] font-medium text-stone-500">Manual de obras</span>
+        <input
+          type="text"
+          value={draft.manual_obras}
+          onChange={(e) => onChange({ manual_obras: e.target.value })}
+          className={inputCls}
+          placeholder="Link ou referência"
+        />
+      </label>
+      <label className="col-span-2 block">
+        <span className="text-[11px] font-medium text-stone-500">Exemplo / links de casas concorrentes</span>
+        <input
+          type="text"
+          value={draft.casas_concorrentes}
+          onChange={(e) => onChange({ casas_concorrentes: e.target.value })}
+          className={inputCls}
+          placeholder="Links"
         />
       </label>
       <div className="col-span-2 border-t border-stone-100 pt-2">

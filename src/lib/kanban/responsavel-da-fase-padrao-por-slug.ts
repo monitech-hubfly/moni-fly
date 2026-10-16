@@ -21,24 +21,28 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   hipoteses: 'franqueado',
 
   // Funil Portfólio
-  step_2: 'moni',
-  aprovacao_moni_novo_negocio: 'moni',
-  step_3: 'franqueado', // Enviar Opção
+  step_2: 'franqueado', // Nova Hipótese
+  aprovacao_moni_novo_negocio: 'moni', // Análise de Nova Hipótese
+  revisao_hipotese: 'franqueado',
+  step_3: 'moni', // Enviar Opção
   juridico_opcao: 'moni',
   assinaturas_opcao: 'franqueado',
   opcao_assinada: 'moni',
   step_4: 'franqueado',
   pre_comite: 'moni',
+  revisoes_pre_comite: 'franqueado',
   acoplamento: 'moni',
+  enviar_acoplamento_frank: 'moni',
   step_5: 'moni',
-  revisoes_comite: 'moni',
-  segundo_comite: 'moni',
-  cto_condicoes_precedentes: 'franqueado', // Enviar Cto c/ Precedentes
+  revisoes_comite: 'franqueado',
+  segundo_comite: 'moni', // Demais Comitês
+  cto_condicoes_precedentes: 'moni', // Enviar Cto c/ Precedentes
   juridico_cto_precedentes: 'moni',
   assinaturas_cto_precedentes: 'franqueado',
   cto_precedentes_assinado: 'moni',
+  iniciar_abertura_empresas: 'moni',
   step_6: 'moni',
-  step_7: 'franqueado', // Enviar Contrato s/ Precedentes
+  step_7: 'moni', // Enviar Contrato s/ Precedentes
   juridico_contrato: 'moni',
   assinaturas_contrato: 'franqueado',
   contrato_s_precedentes_assinado: 'moni',
@@ -69,6 +73,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   co_envio_cashme: 'moni',
   co_outro_parceiro: 'moni',
   co_documentacao_alvara: 'moni',
+  co_aguardando_alvara_transferencia: 'moni',
   co_validacao_contrato: 'moni',
   co_contrato_assinaturas: 'moni',
   co_followup_cartorio: 'moni',
@@ -96,6 +101,8 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   loteador_cadastro: 'moni',
   r1_conceito_moni_inc: 'moni',
   nda_moni_inc: 'moni',
+  assinaturas_nda_moni_inc: 'moni',
+  nda_assinado_moni_inc: 'moni',
   opcao_moni_inc: 'moni',
   aguardando_ficha_moni_inc: 'moni',
   novo_produto_moni_inc: 'moni',
@@ -106,13 +113,18 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   r2_plano_teorico_moni_inc: 'moni',
   revisoes_moni_inc: 'moni',
   acoplamento_gbox_moni_inc: 'moni',
+  enviar_acoplamento_loteador: 'moni',
   comite_moni_inc: 'moni',
   revisoes_pos_comite_moni_inc: 'moni',
+  demais_comites_moni_inc: 'moni',
   cto_precedentes_moni_inc: 'moni',
   diligencia_moni_inc: 'moni',
   cto_showroom_moni_inc: 'moni',
   passagem_waysers_moni_inc: 'moni',
+  enviar_cto_parceria_moni_inc: 'moni',
   contrato_parceria_moni_inc: 'moni',
+  assinaturas_cto_parceria_moni_inc: 'moni',
+  cto_parceria_assinado_moni_inc: 'moni',
   assinados_moni_inc: 'moni',
   // Legado (fases desativadas / slug antigo)
   batalha_casas_moni_inc: 'moni',
@@ -132,8 +144,16 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   em_obra: 'franqueado',
   operacoes_entregue: 'franqueado',
 
-  // Funil Jurídico
+  // Funil Jurídico — 8 fases canônicas (migration 565/566/572)
   juridico_recebimento: 'moni',
+  juridico_analise_inicial: 'moni',
+  juridico_alteracoes_respostas: 'moni',
+  juridico_enviado_parceiro: 'moni',
+  juridico_subir_assinatura: 'moni',
+  juridico_aguardando_assinaturas: 'moni',
+  juridico_pos_assinatura: 'moni',
+  juridico_atendimentos_concluidos: 'moni',
+  // Legado (fases desativadas)
   juridico_analise: 'moni',
   juridico_diligencia: 'moni',
   juridico_parecer: 'moni',

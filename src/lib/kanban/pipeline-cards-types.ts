@@ -209,7 +209,7 @@ export type PipelineCardsDataset = {
   historico?: PipelineEsteiraHistoricoPorCard;
   /** Linhas da calculadora por grupo de negócio (Portfólio + Pré Obra e Obra vinculados). */
   esteiraCalculadora?: PipelineEsteiraCalculadoraPorGrupo;
-  /** Dados extras para visão franqueadora / aba Análises (degrada se ausente). */
+  /** Dados extras para visão franqueadora (degrada se ausente). */
   enrichment?: PipelineFranqueadoraEnrichment | null;
 };
 

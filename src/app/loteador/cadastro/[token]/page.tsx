@@ -41,7 +41,7 @@ export default async function LoteadorIntakePublicoPage({ params }: Props) {
 
   return (
     <main className="min-h-screen px-4 py-12" style={{ background: 'var(--moni-surface-50)' }}>
-      <div className="mx-auto w-full max-w-xl">
+      <div className="mx-auto w-full max-w-3xl">
         <div className="mb-8 text-center">
           <p
             className="text-xs font-semibold uppercase tracking-widest"
@@ -56,7 +56,7 @@ export default async function LoteadorIntakePublicoPage({ params }: Props) {
             Cadastro de loteador
           </h1>
           <p className="mt-2 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-            Preencha os dados abaixo. Cada envio cria um cadastro novo.
+            Preencha os dados abaixo. Cada envio cria o loteador, o condomínio já vinculado e um card novo.
           </p>
         </div>
 

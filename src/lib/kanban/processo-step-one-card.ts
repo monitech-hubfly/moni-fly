@@ -96,8 +96,11 @@ export async function criarProcessoStepOneMinimo(
 const NEGOCIO_COPY_FIELDS = [
   'tipo_aquisicao_terreno',
   'valor_terreno',
+  'divida_terreno',
   'vgv_pretendido',
   'produto_modelo_casa',
+  'custo_obra',
+  'divida_obra',
   'link_pasta_drive',
   'link_bca',
   'link_gbox',

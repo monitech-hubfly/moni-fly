@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { BarChart3, CheckCircle2, Download, X } from 'lucide-react';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
@@ -1002,10 +1003,12 @@ function Header({ nome }: { nome: string }) {
       className="flex items-center justify-between px-4 py-3"
       style={{ background: 'var(--moni-green-800)', color: 'var(--moni-surface-0)' }}
     >
-      <img
+      <Image
         src="/logo-moni-branco-crop.png"
         alt="Moní"
-        style={{ height: '32px', display: 'block' }}
+        width={85}
+        height={32}
+        style={{ display: 'block' }}
       />
       <span className="max-w-[60%] truncate text-[11px] opacity-80" style={{ fontFamily: 'var(--moni-font-sans)' }}>
         {nome}

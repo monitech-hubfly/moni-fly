@@ -74,8 +74,16 @@ function franquiaCountsFromMap(
 
 function cardTemCampoConfirmacao(
   c: PainelCardDTO,
-  flag: 'opcao_assinada' | 'comite_aprovado' | 'contrato_assinado',
-  emField: 'opcao_assinada_em' | 'comite_aprovado_em' | 'contrato_assinado_em',
+  flag:
+    | 'opcao_assinada'
+    | 'comite_aprovado'
+    | 'contrato_assinado'
+    | 'portfolio_cto_precedentes_assinado',
+  emField:
+    | 'opcao_assinada_em'
+    | 'comite_aprovado_em'
+    | 'contrato_assinado_em'
+    | 'portfolio_cto_precedentes_assinado_em',
   sinceMs: number | null,
 ): boolean {
   if (c[flag] !== true) return false;
@@ -106,7 +114,16 @@ function computeContratosAssinados(
   const porFranquiaMap = new Map<string, { label: string; quantidade: number }>();
   let total = 0;
   for (const c of cards) {
-    if (!cardTemCampoConfirmacao(c, 'contrato_assinado', 'contrato_assinado_em', sinceMs)) continue;
+    if (
+      !cardTemCampoConfirmacao(
+        c,
+        'portfolio_cto_precedentes_assinado',
+        'portfolio_cto_precedentes_assinado_em',
+        sinceMs,
+      )
+    ) {
+      continue;
+    }
     total += 1;
     bumpFranquiaCount(porFranquiaMap, c);
   }
@@ -126,7 +143,14 @@ function computeComiteParaContratoTaxa(
     if (cardTemCampoConfirmacao(c, 'comite_aprovado', 'comite_aprovado_em', sinceMs)) {
       numerador += 1;
     }
-    if (cardTemCampoConfirmacao(c, 'contrato_assinado', 'contrato_assinado_em', sinceMs)) {
+    if (
+      cardTemCampoConfirmacao(
+        c,
+        'portfolio_cto_precedentes_assinado',
+        'portfolio_cto_precedentes_assinado_em',
+        sinceMs,
+      )
+    ) {
       denominador += 1;
     }
   }

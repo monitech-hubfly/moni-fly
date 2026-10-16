@@ -10,6 +10,7 @@ import {
   aplicarOverlayAncoraOcultarFasesAnteriores,
   aplicarPrazoOpcaoCalculadoraLinhas,
   aplicarDatasAprovacaoPreObraCalculadora,
+  aplicarRelogioFaseAtualPorEntrada,
   enriquecerLinhasCalculadoraComCusto,
   enriquecerLinhasCalculadoraComResponsavelDaFase,
   normalizarIntervaloDatasCalculadoraLinhas,
@@ -229,7 +230,7 @@ export async function montarCalculadoraPack(
             ? filterOperacoesCalculadoraFases(fasesKanban)
             : fasesKanban;
 
-  linhas = aplicarDatasAprovacaoPreObraCalculadora(
+  const linhasComPrazos = aplicarDatasAprovacaoPreObraCalculadora(
     normalizarIntervaloDatasCalculadoraLinhas(
       (() => {
         const comComiteCtoDil = aplicarEncadeamentoComiteCtoDiligenciaNasLinhas(
@@ -276,6 +277,12 @@ export async function montarCalculadoraPack(
     ),
     { dataAprovacaoCondominio, dataAprovacaoPrefeitura },
     cardCalcInput,
+  );
+  linhas = aplicarRelogioFaseAtualPorEntrada(
+    linhasComPrazos,
+    cardCalcInput,
+    undefined,
+    overrides,
   );
 
   const fasesMeta = new Map<string, KanbanFase>();

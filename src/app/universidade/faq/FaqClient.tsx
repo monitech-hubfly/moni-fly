@@ -1,326 +1,298 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { ChevronDown, Search, Eye, Clock, Star, LifeBuoy, AlertCircle, X } from 'lucide-react';
-import type { FaqArticleView, FaqCategory } from '@/lib/faq/types';
-import { buscarArtigos, realceSegmentos } from '@/lib/faq/search';
-import { incrementarViewFaq, registrarBuscaFaq } from '@/lib/faq/actions';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Search } from 'lucide-react';
+import { recordFaqSearch, searchFaqArticles } from '@/lib/actions/faq-actions';
+import type { FaqArticle, FaqCategory } from '@/types/faq';
+import { FaqArticlePanel } from './FaqArticlePanel';
+import { FaqCategoryCard } from './FaqCategoryCard';
 
-const PROSE =
-  'max-w-none space-y-3 text-sm leading-relaxed text-stone-800 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:mt-4 [&_h2]:text-[15px] [&_h2]:font-semibold [&_h2]:text-stone-900 [&_h2:first-child]:mt-0 [&_li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-5';
+const CHIPS = ['Carta Fiança', 'Hub Fly', 'Alvará', 'Terrenista', 'Sirene', 'Habite-se'] as const;
 
-type Props = {
-  categorias: FaqCategory[];
-  artigos: FaqArticleView[];
-  erro?: boolean;
-};
+type Voto = 'sim' | 'nao';
 
-function Realce({ texto, termo }: { texto: string; termo: string }) {
-  if (!termo.trim()) return <>{texto}</>;
-  const segs = realceSegmentos(texto, termo);
-  return (
-    <>
-      {segs.map((s, i) =>
-        s.match ? (
-          <mark key={i} className="rounded bg-amber-100 px-0.5 text-stone-900">
-            {s.texto}
-          </mark>
-        ) : (
-          <span key={i}>{s.texto}</span>
-        ),
-      )}
-    </>
-  );
+function regexTermo(termo: string): RegExp | null {
+  const mapa: Record<string, string> = {
+    a: '[aáàâãä]',
+    e: '[eéèêë]',
+    i: '[iíìîï]',
+    o: '[oóòôõö]',
+    u: '[uúùûü]',
+    c: '[cç]',
+  };
+  const corpo = [...termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()]
+    .map((char) => {
+      if (mapa[char]) return mapa[char];
+      return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    })
+    .join('');
+  if (!corpo.trim()) return null;
+  return new RegExp(`(${corpo})`, 'gi');
 }
 
-export function FaqClient({ categorias, artigos, erro }: Props) {
-  const [query, setQuery] = useState('');
-  const [debounced, setDebounced] = useState('');
-  const [carregando, setCarregando] = useState(false);
-  const [catAtiva, setCatAtiva] = useState<string | null>(null); // slug da categoria
-  const [aberto, setAberto] = useState<string | null>(null); // id do artigo aberto no accordion
-  const viewsRegistradas = useRef<Set<string>>(new Set());
-
-  // debounce da busca
-  useEffect(() => {
-    setCarregando(true);
-    const t = setTimeout(() => {
-      setDebounced(query);
-      setCarregando(false);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [query]);
-
-  const buscando = debounced.trim().length >= 2;
-
-  const resultados = useMemo(() => {
-    if (!buscando) return null;
-    return buscarArtigos(artigos, debounced).map((r) => r.artigo);
-  }, [artigos, debounced, buscando]);
-
-  // registra a busca (métrica independente)
-  useEffect(() => {
-    if (!buscando) return;
-    const count = resultados?.length ?? 0;
-    void registrarBuscaFaq(debounced, count);
-  }, [debounced, buscando, resultados]);
-
-  const destaques = useMemo(() => artigos.filter((a) => a.is_featured).slice(0, 6), [artigos]);
-  const maisAcessadas = useMemo(
-    () => [...artigos].sort((a, b) => b.view_count - a.view_count).filter((a) => a.view_count > 0).slice(0, 5),
-    [artigos],
-  );
-  const recentes = useMemo(
-    () =>
-      [...artigos]
-        .sort((a, b) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')))
-        .slice(0, 5),
-    [artigos],
-  );
-
-  const listaBase = useMemo(() => {
-    if (buscando) return resultados ?? [];
-    if (catAtiva) return artigos.filter((a) => a.category_slug === catAtiva);
-    return artigos;
-  }, [buscando, resultados, catAtiva, artigos]);
-
-  const contagemPorCat = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const a of artigos) {
-      if (!a.category_slug) continue;
-      m.set(a.category_slug, (m.get(a.category_slug) ?? 0) + 1);
+function destacar(texto: string, termo: string) {
+  const regra = regexTermo(termo);
+  if (!regra) return texto;
+  const partes = texto.split(regra);
+  return partes.map((parte, indice) => {
+    if (indice % 2 === 1) {
+      return (
+        <mark key={`${indice}-${parte}`} className="bg-[var(--moni-gold-100)] text-[var(--moni-text-primary)]">
+          {parte}
+        </mark>
+      );
     }
-    return m;
-  }, [artigos]);
+    return parte;
+  });
+}
 
-  function abrir(id: string) {
-    setAberto((cur) => {
-      const novo = cur === id ? null : id;
-      if (novo && !viewsRegistradas.current.has(novo)) {
-        viewsRegistradas.current.add(novo);
-        void incrementarViewFaq(novo);
+export function FaqClient({
+  categories,
+  articles,
+  erro,
+}: {
+  categories: FaqCategory[];
+  articles: FaqArticle[];
+  erro: boolean;
+}) {
+  const buscaRef = useRef<HTMLInputElement>(null);
+  const [consulta, setConsulta] = useState('');
+  const [resultados, setResultados] = useState<FaqArticle[] | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const [artigoAberto, setArtigoAberto] = useState<FaqArticle | null>(null);
+  const [painelAberto, setPainelAberto] = useState(false);
+  const [votos, setVotos] = useState<Record<string, Voto>>({});
+
+  const porCategoria = useMemo(() => {
+    const mapa = new Map<string, FaqArticle[]>();
+    for (const artigo of articles) {
+      const lista = mapa.get(artigo.categoria_id) ?? [];
+      lista.push(artigo);
+      mapa.set(artigo.categoria_id, lista);
+    }
+    return mapa;
+  }, [articles]);
+
+  const nomeCategoria = useCallback(
+    (categoriaId: string) => categories.find((categoria) => categoria.id === categoriaId)?.nome ?? '',
+    [categories],
+  );
+
+  const fecharPainel = useCallback(() => {
+    setPainelAberto(false);
+    window.setTimeout(() => setArtigoAberto(null), 200);
+  }, []);
+
+  function abrirArtigo(artigo: FaqArticle) {
+    setArtigoAberto(artigo);
+    window.requestAnimationFrame(() => setPainelAberto(true));
+  }
+
+  useEffect(() => {
+    const aoTeclar = (evento: KeyboardEvent) => {
+      if ((evento.metaKey || evento.ctrlKey) && evento.key.toLowerCase() === 'k') {
+        evento.preventDefault();
+        buscaRef.current?.focus();
+        buscaRef.current?.select();
       }
-      return novo;
-    });
-  }
+    };
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+  }, []);
 
-  const chamadoHref = '/sirene';
+  useEffect(() => {
+    const termo = consulta.trim();
+    if (!termo) {
+      setResultados(null);
+      setBuscando(false);
+      return;
+    }
 
-  if (erro) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-16">
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-8 text-center">
-          <AlertCircle className="h-8 w-8 text-red-600" aria-hidden />
-          <p className="text-sm font-medium text-red-800">Não foi possível carregar a FAQ agora.</p>
-          <p className="text-sm text-red-700">Tente recarregar a página. Se o problema persistir, abra um chamado.</p>
-          <Link href={chamadoHref} className="mt-2 rounded-lg bg-moni-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
-            Abrir chamado
-          </Link>
-        </div>
-      </div>
-    );
-  }
+    let ativo = true;
+    setBuscando(true);
+    const ultimo = { termo: '', total: -1 };
+
+    const timerBusca = window.setTimeout(() => {
+      void searchFaqArticles(termo)
+        .then((lista) => {
+          if (!ativo) return;
+          setResultados(lista);
+          setBuscando(false);
+          ultimo.termo = termo;
+          ultimo.total = lista.length;
+        })
+        .catch(() => {
+          if (!ativo) return;
+          setResultados([]);
+          setBuscando(false);
+          ultimo.termo = termo;
+          ultimo.total = 0;
+        });
+    }, 300);
+
+    const timerRegistro = window.setTimeout(() => {
+      const limite = Date.now() + 4000;
+      const registrar = () => {
+        if (!ativo) return;
+        if (ultimo.termo === termo && ultimo.total >= 0) {
+          void recordFaqSearch(termo, ultimo.total);
+          return;
+        }
+        if (Date.now() > limite) return;
+        window.setTimeout(registrar, 80);
+      };
+      registrar();
+    }, 500);
+
+    return () => {
+      ativo = false;
+      window.clearTimeout(timerBusca);
+      window.clearTimeout(timerRegistro);
+    };
+  }, [consulta]);
+
+  const modoBusca = consulta.trim().length > 0;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-4 py-8">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-stone-900">FAQ da Universidade Moní</h1>
-        <p className="mt-1 max-w-2xl text-sm text-stone-600">
-          Encontre respostas rápidas sobre o modelo Casa Moní, processos, documentos, ferramentas e operação da sua
-          unidade.
-        </p>
-      </header>
-
-      {/* Busca em destaque */}
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" aria-hidden />
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Digite uma pergunta ou assunto. Ex.: ITBI, permuta, BCA, crédito, obra..."
-          className="w-full rounded-xl border border-stone-300 bg-white py-3.5 pl-12 pr-11 text-sm text-stone-900 shadow-sm outline-none placeholder:text-stone-400 focus:border-moni-primary focus:ring-2 focus:ring-moni-primary/20"
-          aria-label="Buscar na FAQ"
-        />
-        {query ? (
-          <button
-            type="button"
-            onClick={() => setQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
-            aria-label="Limpar busca"
-          >
-            <X className="h-4 w-4" aria-hidden />
-          </button>
-        ) : null}
-      </div>
-
-      {/* Estado inicial: categorias + destaques + listas auxiliares */}
-      {!buscando ? (
-        <>
-          <section aria-labelledby="cats-heading" className="space-y-3">
-            <h2 id="cats-heading" className="text-sm font-semibold text-stone-800">
-              Categorias
-            </h2>
-            <div className="flex flex-wrap gap-2">
+    <div className="min-h-full bg-[var(--moni-surface-50)]">
+      <section className="px-4 pb-8 pt-10 sm:pt-14">
+        <div className="mx-auto max-w-3xl text-center">
+          <h1 className="font-[family-name:var(--moni-font-display)] text-[length:var(--moni-text-3xl)] font-semibold leading-tight text-[var(--moni-text-primary)]">
+            Como podemos ajudar?
+          </h1>
+          <p className="mt-2 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-tertiary)]">
+            Base de conhecimento Moní para franqueados
+          </p>
+          <label className="relative mx-auto mt-6 block max-w-xl">
+            <span className="sr-only">Buscar na Central de Ajuda</span>
+            <Search
+              className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--moni-text-tertiary)]"
+              aria-hidden
+            />
+            <input
+              ref={buscaRef}
+              value={consulta}
+              onChange={(evento) => setConsulta(evento.target.value)}
+              placeholder="Busque por tema, dúvida ou palavra"
+              className="h-12 w-full rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] pl-11 pr-16 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-base)] text-[var(--moni-text-primary)] shadow-[var(--moni-shadow-sm)] outline-none placeholder:text-[var(--moni-text-tertiary)] focus:shadow-[var(--moni-shadow-md)]"
+            />
+            {consulta ? (
               <button
                 type="button"
-                onClick={() => setCatAtiva(null)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  catAtiva === null ? 'bg-moni-primary text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                }`}
+                onClick={() => setConsulta('')}
+                aria-label="Limpar busca"
+                className="absolute right-3 top-1/2 inline-flex min-h-11 min-w-11 -translate-y-1/2 items-center justify-center text-[var(--moni-text-tertiary)]"
               >
-                Todas ({artigos.length})
+                ✕
               </button>
-              {categorias.map((c) => {
-                const n = contagemPorCat.get(c.slug) ?? 0;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setCatAtiva(c.slug)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                      catAtiva === c.slug ? 'bg-moni-primary text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                    }`}
-                    title={c.description ?? undefined}
-                  >
-                    {c.name} {n > 0 ? `(${n})` : ''}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {catAtiva === null && destaques.length > 0 ? (
-            <section aria-labelledby="destaques-heading" className="space-y-3">
-              <h2 id="destaques-heading" className="flex items-center gap-2 text-sm font-semibold text-stone-800">
-                <Star className="h-4 w-4 text-amber-500" aria-hidden /> Perguntas em destaque
-              </h2>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {destaques.map((a) => (
-                  <Link
-                    key={a.id}
-                    href={`/universidade/faq/${a.slug}`}
-                    className="flex flex-col rounded-xl border border-stone-200 bg-white p-4 text-left shadow-sm transition hover:shadow-md"
-                  >
-                    <span className="text-[11px] font-medium uppercase tracking-wide text-stone-500">
-                      {a.category_name ?? 'Geral'}
-                    </span>
-                    <span className="mt-1 text-sm font-semibold leading-snug text-stone-900">{a.question}</span>
-                  </Link>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {catAtiva === null && (maisAcessadas.length > 0 || recentes.length > 0) ? (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              {maisAcessadas.length > 0 ? (
-                <section className="space-y-2">
-                  <h2 className="flex items-center gap-2 text-sm font-semibold text-stone-800">
-                    <Eye className="h-4 w-4 text-stone-500" aria-hidden /> Mais acessadas
-                  </h2>
-                  <ul className="space-y-1.5">
-                    {maisAcessadas.map((a) => (
-                      <li key={a.id}>
-                        <Link href={`/universidade/faq/${a.slug}`} className="text-sm text-moni-primary hover:underline">
-                          {a.question}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
-              <section className="space-y-2">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-stone-800">
-                  <Clock className="h-4 w-4 text-stone-500" aria-hidden /> Atualizadas recentemente
-                </h2>
-                <ul className="space-y-1.5">
-                  {recentes.map((a) => (
-                    <li key={a.id}>
-                      <Link href={`/universidade/faq/${a.slug}`} className="text-sm text-moni-primary hover:underline">
-                        {a.question}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </div>
-          ) : null}
-        </>
-      ) : null}
-
-      {/* Contador de resultados / carregando */}
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-stone-500" aria-live="polite">
-          {carregando
-            ? 'Buscando…'
-            : buscando
-              ? `${listaBase.length} resultado${listaBase.length === 1 ? '' : 's'} para “${debounced}”`
-              : catAtiva
-                ? `${listaBase.length} pergunta${listaBase.length === 1 ? '' : 's'} nesta categoria`
-                : `${listaBase.length} pergunta${listaBase.length === 1 ? '' : 's'} no total`}
-        </p>
-      </div>
-
-      {/* Lista (accordion) */}
-      {listaBase.length === 0 && !carregando ? (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-stone-300 bg-stone-50 p-10 text-center">
-          <p className="text-sm font-medium text-stone-700">Nenhuma pergunta encontrada para “{debounced}”.</p>
-          <p className="text-sm text-stone-500">Tente outros termos ou abra um chamado para falar com o time Moní.</p>
-          <Link href={chamadoHref} className="mt-1 inline-flex items-center gap-2 rounded-lg bg-moni-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
-            <LifeBuoy className="h-4 w-4" aria-hidden /> Abrir chamado
-          </Link>
+            ) : (
+              <kbd className="pointer-events-none absolute right-4 top-1/2 hidden -translate-y-1/2 rounded-[var(--moni-radius-sm)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] px-1.5 py-0.5 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-xs)] text-[var(--moni-text-tertiary)] sm:inline">
+                ⌘K
+              </kbd>
+            )}
+          </label>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {CHIPS.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => setConsulta(chip)}
+                className="inline-flex min-h-11 items-center rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-secondary)] transition-colors duration-200 hover:bg-[var(--moni-surface-100)]"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
         </div>
-      ) : (
-        <ul className="space-y-2">
-          {listaBase.map((a) => {
-            const ativo = aberto === a.id;
-            return (
-              <li key={a.id} className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                <button
-                  type="button"
-                  onClick={() => abrir(a.id)}
-                  className="flex w-full items-start justify-between gap-3 p-4 text-left hover:bg-stone-50"
-                  aria-expanded={ativo}
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16">
+        {erro ? (
+          <p className="text-center font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-base)] text-[var(--moni-text-secondary)]">
+            Não foi possível carregar a base de conhecimento agora.
+          </p>
+        ) : null}
+
+        {modoBusca ? (
+          <div className="mx-auto max-w-3xl">
+            {buscando && resultados == null ? (
+              <p className="font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-tertiary)]">
+                Buscando...
+              </p>
+            ) : null}
+            {resultados && resultados.length === 0 ? (
+              <div className="rounded-[var(--moni-radius-lg)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] p-6 text-center">
+                <p className="font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-base)] text-[var(--moni-text-secondary)]">
+                  Nenhum artigo encontrado para essa busca.
+                </p>
+                <Link
+                  href="/sirene/novo"
+                  className="mt-4 inline-flex min-h-11 items-center font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] font-medium text-[var(--moni-navy-800)] underline"
                 >
-                  <span className="min-w-0 flex-1">
-                    <span className="text-[11px] font-medium uppercase tracking-wide text-stone-500">
-                      {a.category_name ?? 'Geral'}
-                    </span>
-                    <span className="mt-0.5 block text-sm font-semibold text-stone-900">
-                      <Realce texto={a.question} termo={buscando ? debounced : ''} />
-                    </span>
-                    {!ativo && a.short_answer ? (
-                      <span className="mt-1 block line-clamp-2 text-xs text-stone-500">{a.short_answer}</span>
-                    ) : null}
-                  </span>
-                  <ChevronDown
-                    className={`mt-0.5 h-5 w-5 shrink-0 text-stone-400 transition ${ativo ? 'rotate-180' : ''}`}
-                    aria-hidden
-                  />
-                </button>
-                {ativo ? (
-                  <div className="border-t border-stone-100 p-4">
-                    <div className={PROSE}>
-                      <ReactMarkdown>{a.answer}</ReactMarkdown>
-                    </div>
-                    <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-stone-100 pt-3 text-xs">
-                      <Link href={`/universidade/faq/${a.slug}`} className="font-semibold text-moni-primary hover:underline">
-                        Abrir página completa
-                      </Link>
-                      <Link href={chamadoHref} className="inline-flex items-center gap-1.5 text-stone-500 hover:text-stone-800">
-                        <LifeBuoy className="h-3.5 w-3.5" aria-hidden /> Abrir chamado
-                      </Link>
-                    </div>
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                  Abrir chamado no Sirene
+                </Link>
+              </div>
+            ) : null}
+            {resultados && resultados.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {resultados.map((artigo) => (
+                  <li key={artigo.id}>
+                    <button
+                      type="button"
+                      onClick={() => abrirArtigo(artigo)}
+                      className="flex min-h-11 w-full flex-col items-start gap-1 rounded-[var(--moni-radius-lg)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] px-4 py-3 text-left shadow-[var(--moni-shadow-sm)] transition-shadow duration-200 hover:shadow-[var(--moni-shadow-md)]"
+                    >
+                      <span className="font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-xs)] text-[var(--moni-text-tertiary)]">
+                        {nomeCategoria(artigo.categoria_id)}
+                      </span>
+                      <span className="font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-base)] font-medium text-[var(--moni-text-primary)]">
+                        {destacar(artigo.pergunta, consulta)}
+                      </span>
+                      {artigo.resposta_resumida ? (
+                        <span className="line-clamp-2 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-secondary)]">
+                          {destacar(artigo.resposta_resumida, consulta)}
+                        </span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {categories.map((categoria) => (
+              <FaqCategoryCard
+                key={categoria.id}
+                categoria={categoria}
+                artigos={porCategoria.get(categoria.id) ?? []}
+                onAbrir={abrirArtigo}
+              />
+            ))}
+            <article className="flex h-full flex-col justify-between rounded-[var(--moni-radius-lg)] bg-[var(--moni-navy-800)] p-5 text-[var(--moni-text-inverse)] shadow-[var(--moni-shadow-card)]">
+              <h2 className="font-[family-name:var(--moni-font-display)] text-[length:var(--moni-text-xl)] font-semibold leading-tight">
+                Não encontrou o que precisa?
+              </h2>
+              <Link
+                href="/sirene/novo"
+                className="mt-6 inline-flex min-h-11 items-center justify-center rounded-[var(--moni-radius-md)] bg-[var(--moni-gold-400)] px-4 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] font-medium text-[var(--moni-navy-800)]"
+              >
+                Abrir chamado no Sirene
+              </Link>
+            </article>
+          </div>
+        )}
+      </section>
+
+      <FaqArticlePanel
+        artigo={artigoAberto}
+        categoriaNome={artigoAberto ? nomeCategoria(artigoAberto.categoria_id) : ''}
+        aberto={painelAberto}
+        voto={artigoAberto ? (votos[artigoAberto.id] ?? null) : null}
+        onFechar={fecharPainel}
+        onVoto={(articleId, voto) => setVotos((atual) => ({ ...atual, [articleId]: voto }))}
+      />
     </div>
   );
 }

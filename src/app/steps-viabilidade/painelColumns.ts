@@ -49,12 +49,12 @@ export interface PainelColumnDef {
 
 export const PAINEL_COLUMNS: PainelColumnDef[] = [
   { key: 'step_1', title: 'Step 1: Mapeamento da Região', hrefBase: '/step-one' },
-  { key: 'step_2', title: 'Novo Negócio', hrefBase: '/step-2', slaDiasUteis: 2 },
-  { key: 'aprovacao_moni_novo_negocio', title: 'Análise de Novo Negócio', slaDiasUteis: 2 },
-  { key: 'step_3', title: 'Enviar Opção', hrefBase: '/step-3', slaDiasUteis: 3 },
+  { key: 'step_2', title: 'Em Estudo', hrefBase: '/step-2', slaDiasUteis: 2 },
+  { key: 'aprovacao_moni_novo_negocio', title: 'Análise de Nova Hipótese', slaDiasUteis: 2 },
+  { key: 'step_3', title: 'Enviar Opção', hrefBase: '/step-3', slaDiasUteis: 1 },
   {
     key: 'step_4',
-    title: 'Check Legal e Crédito',
+    title: 'Checks Legal, Diligência e Revisões',
     parallelGroup: 'step4_acoplamento',
     hrefBase: '/painel',
     slaDiasUteis: 3,
@@ -66,14 +66,14 @@ export const PAINEL_COLUMNS: PainelColumnDef[] = [
     hrefBase: '/acoplamento-pl',
     slaDiasUteis: 5,
   },
-  { key: 'step_5', title: 'Comitê', hrefBase: '/step-5', slaDiasUteis: 5 },
-  { key: 'cto_condicoes_precedentes', title: 'Enviar Cto c/ Precedentes', slaDiasUteis: 7 },
+  { key: 'step_5', title: 'Comitê', hrefBase: '/step-5', slaDiasUteis: 3 },
+  { key: 'cto_condicoes_precedentes', title: 'Enviar Cto c/ Precedentes', slaDiasUteis: 1 },
   { key: 'step_6', title: 'Diligência', hrefBase: '/step-6', slaDiasUteis: 10 },
   {
     key: 'step_7',
     title: 'Enviar Contrato s/ Precedentes',
     hrefBase: '/step-7',
-    slaDiasUteis: 3,
+    slaDiasUteis: 1,
   },
   /** @deprecated coluna legada — fase Portfólio inativa desde migration 560 */
   { key: 'captacao_moni_capital', title: 'Captação Moní Capital (inativa)', slaDiasUteis: 30 },

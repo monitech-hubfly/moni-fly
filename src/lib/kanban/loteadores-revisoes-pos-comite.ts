@@ -1,4 +1,4 @@
-/** Checklist da fase «Revisões» (pós-Comitê) — Funil Loteadores. */
+/** Checklist da fase «Revisões Comitê» — Funil Loteadores. */
 
 import { isLoteadoresChecklistCampoVisivel } from '@/lib/kanban/loteadores-checklist-visibilidade';
 

@@ -18,7 +18,7 @@ export const LOTEADORES_ASSINOU_NOME_POR_SLUG: Readonly<Record<string, string>> 
   [FASE_SLUGS.LOTEADORES_OPCAO]: 'Opção',
   [FASE_SLUGS.LOTEADORES_CTO_PRECEDENTES]: 'Cto c/ Precedentes',
   [FASE_SLUGS.LOTEADORES_CTO_SHOWROOM]: 'Cto Showroom',
-  [FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA]: 'Cto de Parceria',
+  [FASE_SLUGS.LOTEADORES_CTO_PARCERIA_ASSINADO]: 'Cto de Parceria',
 };
 
 export function loteadoresAssinouTituloPorSlug(slug: string | null | undefined): string | null {

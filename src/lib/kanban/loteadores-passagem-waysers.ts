@@ -1,4 +1,4 @@
-/** Checklist da fase «Passagem para Waysers» — Funil Loteadores. */
+/** Checklist da fase «Passagem IMOB» — Funil Loteadores. */
 
 import { isLoteadoresChecklistCampoVisivel } from '@/lib/kanban/loteadores-checklist-visibilidade';
 

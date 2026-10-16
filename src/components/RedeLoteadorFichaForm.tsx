@@ -1,7 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { ExternalLink, Paperclip } from 'lucide-react';
 import { RedeDocsSecaoColapsavel } from '@/app/rede-franqueados/[id]/rede-docs-secao-colapsavel';
+import { SearchableSelect } from '@/components/SearchableSelect';
+import { listarCondominiosCadastro } from '@/lib/actions/kanban-card-condominio';
+import { CAMPOS_EXIBICAO_CONDOMINIO } from '@/lib/condominio-campos-exibicao';
+import type { CondominioRow } from '@/lib/condominios';
 import type { RedeLoteadorFichaDraft } from '@/lib/rede-loteador-ficha-draft';
 import { UFS_BRASIL } from '@/lib/uf';
 
@@ -89,6 +94,19 @@ function AnexoField({
   );
 }
 
+function ResumoCondominioVinculado({ row, sidebar }: { row: CondominioRow; sidebar: boolean }) {
+  return (
+    <dl className={sidebar ? 'mt-2 space-y-1.5' : 'mt-3 grid gap-2 sm:grid-cols-2'}>
+      {CAMPOS_EXIBICAO_CONDOMINIO.map((campo) => (
+        <div key={campo.key}>
+          <dt className={sidebar ? sidebarLabelCls : labelCls}>{campo.label}</dt>
+          <dd className={sidebar ? 'text-[11px] text-stone-800' : 'text-sm text-stone-800'}>{campo.valor(row)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 type Props = {
   draft: RedeLoteadorFichaDraft;
   onChange: (patch: Partial<RedeLoteadorFichaDraft>) => void;
@@ -96,6 +114,10 @@ type Props = {
   sectionIdPrefix?: string;
   /** `sidebar`: coluna esquerda do card (uma coluna, tipografia compacta). */
   layout?: 'default' | 'sidebar';
+  /** Lista já carregada (formulário externo). Sem isso, busca o cadastro da sessão. */
+  condominiosIniciais?: CondominioRow[];
+  /** No card, o condomínio fica em «Dados do Condomínio». */
+  ocultarCondominio?: boolean;
 };
 
 export function RedeLoteadorFichaForm({
@@ -104,10 +126,26 @@ export function RedeLoteadorFichaForm({
   showStatus = true,
   sectionIdPrefix = 'loteador',
   layout = 'default',
+  condominiosIniciais,
+  ocultarCondominio = false,
 }: Props) {
   const sidebar = layout === 'sidebar';
   const inputCls = sidebar ? sidebarInputCls : redeLoteadorInputCls;
   const gridCls = sidebar ? 'grid gap-2' : 'grid gap-3 sm:grid-cols-2';
+  const [condominios, setCondominios] = useState<CondominioRow[]>(condominiosIniciais ?? []);
+
+  useEffect(() => {
+    if (condominiosIniciais || ocultarCondominio) return;
+    let cancelado = false;
+    void listarCondominiosCadastro().then((rows) => {
+      if (!cancelado) setCondominios(rows);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [condominiosIniciais, ocultarCondominio]);
+
+  const condominioVinculado = condominios.find((c) => c.id === draft.condominio_id) ?? null;
 
   const set = <K extends keyof RedeLoteadorFichaDraft>(k: K, v: RedeLoteadorFichaDraft[K]) => {
     onChange({ [k]: v });
@@ -115,7 +153,7 @@ export function RedeLoteadorFichaForm({
 
   return (
     <div className={sidebar ? 'space-y-2' : 'space-y-4'}>
-      <Field label="Nome do loteador *" sidebar={sidebar}>
+      <Field label="Nome Loteadora *" sidebar={sidebar}>
         <input
           type="text"
           value={draft.nome}
@@ -124,16 +162,15 @@ export function RedeLoteadorFichaForm({
         />
       </Field>
 
-      {!sidebar ? (
-        <div className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50/50 p-4 sm:grid-cols-2">
-          <Field label="CNPJ">
-            <input type="text" value={draft.cnpj} onChange={(e) => set('cnpj', e.target.value)} className={redeLoteadorInputCls} />
+      <div className={sidebar ? gridCls : 'grid gap-3 rounded-lg border border-stone-200 bg-stone-50/50 p-4 sm:grid-cols-2'}>
+          <Field label="CNPJ Loteadora" sidebar={sidebar}>
+            <input type="text" value={draft.cnpj} onChange={(e) => set('cnpj', e.target.value)} className={inputCls} />
           </Field>
-          <Field label="Cidade (loteador)">
-            <input type="text" value={draft.cidade} onChange={(e) => set('cidade', e.target.value)} className={redeLoteadorInputCls} />
+          <Field label="Cidade Loteadora" sidebar={sidebar}>
+            <input type="text" value={draft.cidade} onChange={(e) => set('cidade', e.target.value)} className={inputCls} />
           </Field>
-          <Field label="Estado (loteador)">
-            <select value={draft.estado} onChange={(e) => set('estado', e.target.value)} className={redeLoteadorInputCls}>
+          <Field label="Estado Loteadora" sidebar={sidebar}>
+            <select value={draft.estado} onChange={(e) => set('estado', e.target.value)} className={inputCls}>
               <option value="">UF</option>
               {UFS_BRASIL.map((uf) => (
                 <option key={uf.sigla} value={uf.sigla}>
@@ -143,8 +180,8 @@ export function RedeLoteadorFichaForm({
             </select>
           </Field>
           {showStatus ? (
-            <Field label="Status">
-              <select value={draft.status} onChange={(e) => set('status', e.target.value as typeof draft.status)} className={redeLoteadorInputCls}>
+            <Field label="Status" sidebar={sidebar}>
+              <select value={draft.status} onChange={(e) => set('status', e.target.value as typeof draft.status)} className={inputCls}>
                 <option value="ativo">Ativo</option>
                 <option value="inativo">Inativo</option>
                 <option value="em_analise">Em análise</option>
@@ -152,7 +189,6 @@ export function RedeLoteadorFichaForm({
             </Field>
           ) : null}
         </div>
-      ) : null}
 
       <RedeDocsSecaoColapsavel
         titulo="Informações do Parceiro"
@@ -196,186 +232,71 @@ export function RedeLoteadorFichaForm({
         </div>
       </RedeDocsSecaoColapsavel>
 
+      {ocultarCondominio ? null : (
       <RedeDocsSecaoColapsavel
         titulo="Informações do Condomínio"
         sectionId={`${sectionIdPrefix}-condominio`}
         compact={sidebar}
       >
-        <div className={gridCls}>
-          <Field label="Nome do condomínio" sidebar={sidebar}>
-            <input
-              type="text"
-              value={draft.condominio_nome}
-              onChange={(e) => set('condominio_nome', e.target.value)}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="Data de lançamento / TVO" sidebar={sidebar}>
-            <input
-              type="date"
-              value={draft.condominio_data_lancamento}
-              onChange={(e) => set('condominio_data_lancamento', e.target.value)}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="Cidade" sidebar={sidebar}>
-            <input
-              type="text"
-              value={draft.condominio_cidade}
-              onChange={(e) => set('condominio_cidade', e.target.value)}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="Estado" sidebar={sidebar}>
-            <select value={draft.estado} onChange={(e) => set('estado', e.target.value)} className={inputCls}>
-              <option value="">UF</option>
-              {UFS_BRASIL.map((uf) => (
-                <option key={uf.sigla} value={uf.sigla}>
-                  {uf.sigla}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Quantidade de lotes" sidebar={sidebar}>
-            <input
-              type="number"
-              min={0}
-              value={draft.condominio_qtd_lotes}
-              onChange={(e) => set('condominio_qtd_lotes', e.target.value)}
-              className={inputCls}
-            />
-          </Field>
-          <Field
-            label="Preço dos lotes"
-            hint="Média ou faixas de preço"
-            sidebar={sidebar}
-          >
-            <textarea
-              rows={2}
-              value={draft.condominio_preco_lotes}
-              onChange={(e) => set('condominio_preco_lotes', e.target.value)}
-              className={`${inputCls} resize-y`}
-            />
-          </Field>
-          <Field label="Metragem dos lotes" hint="Média ou faixas" sidebar={sidebar}>
-            <textarea
-              rows={2}
-              value={draft.condominio_metragem_lotes}
-              onChange={(e) => set('condominio_metragem_lotes', e.target.value)}
-              className={`${inputCls} resize-y`}
-            />
-          </Field>
-          <Field label="Preço de casas" hint="Média ou faixas de preço" sidebar={sidebar}>
-            <textarea
-              rows={2}
-              value={draft.condominio_preco_casas}
-              onChange={(e) => set('condominio_preco_casas', e.target.value)}
-              className={`${inputCls} resize-y`}
-            />
-          </Field>
-          <Field label="Metragem / tipologia média das casas" hint="Média ou faixas" sidebar={sidebar}>
-            <textarea
-              rows={2}
-              value={draft.condominio_metragem_casas}
-              onChange={(e) => set('condominio_metragem_casas', e.target.value)}
-              className={`${inputCls} resize-y`}
-            />
-          </Field>
-        </div>
-        <div className="mt-2 space-y-2">
-          <AnexoField
-            label="Planta cadastral do condomínio / lotes com medidas (frente e lateral)"
-            value={draft.anexo_planta_cadastral}
-            onChange={(v) => set('anexo_planta_cadastral', v)}
-            sidebar={sidebar}
+        <Field label="Condomínio" sidebar={sidebar}>
+          <SearchableSelect
+            value={draft.condominio_id}
+            onChange={(id) => {
+              const escolhido = condominios.find((c) => c.id === id);
+              onChange({
+                condominio_id: id,
+                condominio_nome: escolhido?.nome ?? '',
+              });
+            }}
+            options={condominios.map((c) => ({
+              value: c.id,
+              label: c.cidade ? `${c.nome} · ${c.cidade}` : c.nome,
+            }))}
+            emptyOption={{ value: '', label: 'Nenhum condomínio vinculado' }}
+            placeholder="Vincular condomínio do cadastro"
+            searchPlaceholder="Buscar condomínio"
+            size={sidebar ? 'sm' : 'md'}
+            menuPortal={sidebar}
+            aria-label="Condomínio vinculado"
           />
-          <AnexoField
-            label="Manual de obras"
-            value={draft.anexo_manual_obras}
-            onChange={(v) => set('anexo_manual_obras', v)}
-            sidebar={sidebar}
-          />
-          <AnexoField
-            label="Exemplo / links de casas concorrentes (se houver)"
-            value={draft.anexo_casas_concorrentes}
-            onChange={(v) => set('anexo_casas_concorrentes', v)}
-            multiline
-            sidebar={sidebar}
-          />
-        </div>
+        </Field>
+        {condominioVinculado ? (
+          <ResumoCondominioVinculado row={condominioVinculado} sidebar={sidebar} />
+        ) : draft.condominio_nome.trim() ? (
+          <p className={sidebar ? 'mt-2 text-[11px] text-stone-600' : 'mt-2 text-sm text-stone-600'}>
+            Nome informado antes do vínculo: {draft.condominio_nome.trim()}
+          </p>
+        ) : null}
       </RedeDocsSecaoColapsavel>
+      )}
 
       <RedeDocsSecaoColapsavel
         titulo="Informações de venda e carteira"
         sectionId={`${sectionIdPrefix}-carteira`}
         compact={sidebar}
       >
-        <div className={sidebar ? 'grid gap-2' : 'grid gap-3 sm:grid-cols-2'}>
-          <Field label="Lotes disponíveis para venda" sidebar={sidebar}>
+        <div className={gridCls}>
+          <Field label="Quantos lotes tem disponíveis para venda?" sidebar={sidebar}>
             <input
               type="number"
               min={0}
+              step={1}
               value={draft.carteira_lotes_disponiveis}
               onChange={(e) => set('carteira_lotes_disponiveis', e.target.value)}
               className={inputCls}
             />
           </Field>
-          <Field label="Lotes vendidos e quitados (sem casa construída)" sidebar={sidebar}>
+          <Field label="Quantos lotes foram vendidos e sem casa construída ainda?" sidebar={sidebar}>
             <input
               type="number"
               min={0}
+              step={1}
               value={draft.carteira_lotes_vendidos_quitados}
               onChange={(e) => set('carteira_lotes_vendidos_quitados', e.target.value)}
               className={inputCls}
             />
           </Field>
-          <Field label="Lotes em quitação — carteira curta" sidebar={sidebar}>
-            <input
-              type="number"
-              min={0}
-              value={draft.carteira_carteira_curta_qtd}
-              onChange={(e) => set('carteira_carteira_curta_qtd', e.target.value)}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="Lotes em quitação — carteira longa" sidebar={sidebar}>
-            <input
-              type="number"
-              min={0}
-              value={draft.carteira_longa_qtd}
-              onChange={(e) => set('carteira_longa_qtd', e.target.value)}
-              className={inputCls}
-            />
-          </Field>
         </div>
-        <Field
-          label="Financiamento padrão — carteira curta (entrada e prestação)"
-          sidebar={sidebar}
-        >
-          <textarea
-            rows={2}
-            value={draft.carteira_curta_financiamento}
-            onChange={(e) => set('carteira_curta_financiamento', e.target.value)}
-            className={`${inputCls} resize-y`}
-          />
-        </Field>
-        <Field
-          label="Financiamento padrão — carteira longa (entrada e prestação)"
-          sidebar={sidebar}
-        >
-          <textarea
-            rows={2}
-            value={draft.carteira_longa_financiamento}
-            onChange={(e) => set('carteira_longa_financiamento', e.target.value)}
-            className={`${inputCls} resize-y`}
-          />
-        </Field>
-        <AnexoField
-          label="Tabelas de preço de lotes"
-          value={draft.anexo_tabela_precos}
-          onChange={(v) => set('anexo_tabela_precos', v)}
-          sidebar={sidebar}
-        />
       </RedeDocsSecaoColapsavel>
 
       <RedeDocsSecaoColapsavel

@@ -25,7 +25,9 @@ export type RedeLoteadorRow = {
   interlocutor_cargo: string | null;
   interlocutor_telefone: string | null;
   interlocutor_email: string | null;
-  /** Condomínio prospectado (Grupo 2) */
+  /** Condomínio do cadastro central */
+  condominio_id: string | null;
+  /** Condomínio prospectado (Grupo 2) — texto legado; o vínculo vigente é condominio_id */
   condominio_nome: string | null;
   condominio_data_lancamento: string | null;
   condominio_cidade: string | null;
@@ -53,6 +55,17 @@ export type RedeLoteadorRow = {
   criado_por?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  /** Diagnóstico */
+  diag_d: number | null;
+  diag_nps: number | null;
+  diag_csat: number | null;
+  diag_adormecido: boolean;
+  diag_proxima_acao: string | null;
+  diag_ultimo_contato: string | null;
+  diag_ultima_aval: string | null;
+  diag_avaliado_por: string | null;
+  diag_tend_rel: string | null;
+  diag_grupo_sec: string | null;
 };
 
 export const REDE_LOTEADOR_STATUS_LABEL: Record<RedeLoteadorStatus, string> = {
@@ -177,6 +190,7 @@ function mapRow(r: Record<string, unknown>): RedeLoteadorRow {
     interlocutor_cargo: (r.interlocutor_cargo as string | null) ?? null,
     interlocutor_telefone: (r.interlocutor_telefone as string | null) ?? null,
     interlocutor_email: (r.interlocutor_email as string | null) ?? null,
+    condominio_id: (r.condominio_id as string | null) ?? null,
     condominio_nome: (r.condominio_nome as string | null) ?? null,
     condominio_data_lancamento: parseDateOrNull(r.condominio_data_lancamento),
     condominio_cidade: (r.condominio_cidade as string | null) ?? null,
@@ -203,6 +217,16 @@ function mapRow(r: Record<string, unknown>): RedeLoteadorRow {
     criado_por: (r.criado_por as string | null) ?? null,
     created_at: (r.created_at as string | null) ?? null,
     updated_at: (r.updated_at as string | null) ?? null,
+    diag_d: r.diag_d !== undefined && r.diag_d !== null ? Number(r.diag_d) : null,
+    diag_nps: r.diag_nps !== undefined && r.diag_nps !== null ? Number(r.diag_nps) : null,
+    diag_csat: r.diag_csat !== undefined && r.diag_csat !== null ? Number(r.diag_csat) : null,
+    diag_adormecido: r.diag_adormecido === true,
+    diag_proxima_acao: (r.diag_proxima_acao as string | null) ?? null,
+    diag_ultimo_contato: parseDateOrNull(r.diag_ultimo_contato),
+    diag_ultima_aval: parseDateOrNull(r.diag_ultima_aval),
+    diag_avaliado_por: (r.diag_avaliado_por as string | null) ?? null,
+    diag_tend_rel: (r.diag_tend_rel as string | null) ?? null,
+    diag_grupo_sec: (r.diag_grupo_sec as string | null) ?? null,
   };
 }
 
@@ -280,6 +304,7 @@ export type RedeLoteadorPatch = {
   interlocutor_cargo?: string | null;
   interlocutor_telefone?: string | null;
   interlocutor_email?: string | null;
+  condominio_id?: string | null;
   condominio_nome?: string | null;
   condominio_data_lancamento?: string | null;
   condominio_cidade?: string | null;
@@ -301,4 +326,17 @@ export type RedeLoteadorPatch = {
   campo_livre?: string | null;
   anexo_material_extra?: string | null;
   ultima_atualizacao_por?: string | null;
+};
+
+export type RedeLoteadorDiagPatch = {
+  diag_d?: number | null;
+  diag_nps?: number | null;
+  diag_csat?: number | null;
+  diag_adormecido?: boolean;
+  diag_proxima_acao?: string | null;
+  diag_ultimo_contato?: string | null;
+  diag_ultima_aval?: string | null;
+  diag_avaliado_por?: string | null;
+  diag_tend_rel?: string | null;
+  diag_grupo_sec?: string | null;
 };

@@ -16,6 +16,7 @@ function rotuloTipo(tipo: string): string {
   if (tipo === 'sla_atividade_atrasado') return 'Atividade atrasada';
   if (tipo === 'sla_atividade_atencao') return 'Atividade em atenção';
   if (tipo === 'status_preenchimento_lembrete') return 'Lembrete de entrega';
+  if (tipo === 'novo_franqueado_rede') return 'Novo franqueado';
   return tipo;
 }
 
@@ -241,7 +242,11 @@ export default async function AlertasPage({
             </Link>
           </div>
           {naoLidasNaVisao > 0 && (
-            <MarcarTodosLidoButton categoriaAtiva={String(categoriaAtiva)} />
+            <MarcarTodosLidoButton
+                categoriaAtiva={String(categoriaAtiva)}
+                prioridadeAtiva="todas"
+                contagemNaoLidas={{ critico: 0, importante: 0, informativo: naoLidasNaVisao, total: naoLidasNaVisao }}
+              />
           )}
         </div>
 

@@ -22,18 +22,13 @@ import {
   ScoreCell,
   IndCell,
   AdimplenciaCell,
-  GrupoCell,
-  PriorityBadge,
-  PerfilCell,
   TendCell,
   PmaCell,
 } from '@/components/diagnostico-rede/cells';
 import { DiagnosticoHeaderTh } from '@/components/diagnostico-rede/DiagnosticoHeaderTh';
 import {
-  DiagnosticoInlineComputed,
   DiagnosticoInlineCsat,
   DiagnosticoInlineDim,
-  DiagnosticoInlineExtras,
   DiagnosticoInlineIndicador,
   DiagnosticoInlineAdimplencia,
   DiagnosticoInlineNps,
@@ -261,6 +256,7 @@ function rowAsDiagSource(r: RedeFranqueadoRowDb, statusOverride?: string | null)
     diag_adormecido: r.diag_adormecido === true,
     diag_adimplente:
       r.diag_adimplente === true ? true : r.diag_adimplente === false ? false : null,
+    diag_adimplencia: r.diag_adimplencia ?? null,
     diag_ultimo_contato: r.diag_ultimo_contato ?? null,
     diag_ultima_aval: r.diag_ultima_aval ?? null,
     diag_avaliado_por: r.diag_avaliado_por ?? null,
@@ -334,6 +330,8 @@ type Props = {
   buscaResetKey?: string;
   /** Exibe labels internos no diagnóstico (ex.: "Alta Prontidão" em vez de "Alta Capacidade"). */
   internalView?: boolean;
+  /** Data do último formulário de qualificação, por id da rede. */
+  ultimoPreenchimentoQualificacao?: Record<string, string>;
 };
 
 function toInputDate(val: string | null | undefined): string {
@@ -362,6 +360,7 @@ export function TabelaRedeFranqueadosEditavel({
   buscaAtiva = false,
   buscaResetKey = '',
   internalView = false,
+  ultimoPreenchimentoQualificacao = {},
 }: Props) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -593,6 +592,13 @@ export function TabelaRedeFranqueadosEditavel({
               >
                 K
               </DiagnosticoHeaderTh>
+              <th
+                className={`${redeTh} border-t-[3px] border-t-purple-600 bg-purple-50`}
+                style={{ minWidth: 110 }}
+                scope="col"
+              >
+                Qualificação
+              </th>
 
               {/* ── Diagnóstico: Relação ── */}
               <DiagnosticoHeaderTh
@@ -627,27 +633,6 @@ export function TabelaRedeFranqueadosEditavel({
               </DiagnosticoHeaderTh>
 
               {/* ── Diagnóstico: Gestão ── */}
-              <DiagnosticoHeaderTh
-                tooltipKey="prio"
-                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                style={{ minWidth: 60 }}
-              >
-                Prio.
-              </DiagnosticoHeaderTh>
-              <DiagnosticoHeaderTh
-                tooltipKey="perfil"
-                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                style={{ minWidth: 140 }}
-              >
-                Perfil
-              </DiagnosticoHeaderTh>
-              <DiagnosticoHeaderTh
-                tooltipKey="grupo"
-                className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
-                style={{ minWidth: 155 }}
-              >
-                Grupo
-              </DiagnosticoHeaderTh>
               <DiagnosticoHeaderTh
                 tooltipKey="tendencia"
                 className={`${redeTh} border-t-[3px] border-t-stone-500 bg-stone-50`}
@@ -834,7 +819,7 @@ export function TabelaRedeFranqueadosEditavel({
                     {isEditing ? (
                       <DiagnosticoInlineScore row={diagSource} draft={diagDraft} internalView={internalView} />
                     ) : (
-                      <ScoreCell score={calcEngajamento(r)} internalView={internalView} />
+                      <ScoreCell score={calcEngajamento(r)} internalView={internalView} adormecido={isAdormecido(r)} />
                     )}
                   </td>
                   <td className="px-3 py-2.5 align-top">
@@ -857,6 +842,28 @@ export function TabelaRedeFranqueadosEditavel({
                     ) : (
                       <DimCell val={r.diag_k} desc={r.diag_k_desc} />
                     )}
+                  </td>
+                  <td className="px-3 py-2.5 align-top">
+                    <div className="flex flex-col items-start gap-1">
+                      <Link
+                        href={`/rede-franqueados/${r.id}/formulario-qualificacao`}
+                        className="inline-flex items-center gap-1 text-xs text-purple-700 underline underline-offset-2 hover:text-purple-900"
+                      >
+                        <FileText size={12} />
+                        Formulário
+                      </Link>
+                      {ultimoPreenchimentoQualificacao[r.id] ? (
+                        <span
+                          className="text-[11px] leading-none"
+                          style={{
+                            color: 'var(--moni-text-tertiary)',
+                            fontFamily: 'var(--moni-font-sans)',
+                          }}
+                        >
+                          {ultimoPreenchimentoQualificacao[r.id]}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
 
                   {/* ── Diagnóstico: Relação ── */}
@@ -887,35 +894,11 @@ export function TabelaRedeFranqueadosEditavel({
                     {isEditing ? (
                       <DiagnosticoInlineAdimplencia draft={diagDraft} setDraft={setDiagDraft} />
                     ) : (
-                      <AdimplenciaCell adimplente={r.diag_adimplente ?? null} />
+                      <AdimplenciaCell value={r.diag_adimplencia ?? null} />
                     )}
                   </td>
 
                   {/* ── Diagnóstico: Gestão ── */}
-                  <td className="px-3 py-2.5 align-top">
-                    {isEditing ? (
-                      <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="prio" />
-                    ) : (
-                      <PriorityBadge row={r} />
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 align-top">
-                    {isEditing ? (
-                      <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="perfil" internalView={internalView} />
-                    ) : (
-                      <PerfilCell row={r} internalView={internalView} />
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 align-top">
-                    {isEditing ? (
-                      <div>
-                        <DiagnosticoInlineComputed row={diagSource} draft={diagDraft} kind="grupo" />
-                        <DiagnosticoInlineExtras draft={diagDraft} setDraft={setDiagDraft} />
-                      </div>
-                    ) : (
-                      <GrupoCell row={r} />
-                    )}
-                  </td>
                   <td className="px-3 py-2.5 align-top">
                     {isEditing ? (
                       <DiagnosticoInlineTendencias draft={diagDraft} setDraft={setDiagDraft} />

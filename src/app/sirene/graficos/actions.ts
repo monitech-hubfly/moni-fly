@@ -67,12 +67,14 @@ function isoDate(d: Date): string {
 // ─── Tipos exportados ────────────────────────────────────────────────────────
 
 export type ChamadoSemAceiteRow = {
-  id: number;
+  topico_id: number;
+  chamado_id: number;
   numero: number;
   titulo: string | null;
-  criado_em: string;
-  dias_uteis: number;
-  aberto_por_nome: string | null;
+  responsavel_id: string | null;
+  responsavel_nome: string | null;
+  topico_criado_em: string;
+  dias_aguardando: number;
   arquivado: boolean;
 };
 
@@ -244,6 +246,7 @@ export async function buscarDetalheChamados(
         .select('id, numero, incendio, tema, status, created_at, data_conclusao, aberto_por')
         .neq('status', 'concluido')
         .eq('arquivado', false)
+        .not('aberto_por', 'is', null)  // exclui legados
         .order('created_at', { ascending: false });
       if (error) return { ok: false, error: error.message };
 
@@ -262,24 +265,66 @@ export async function buscarDetalheChamados(
     }
 
     if (filtro.tipo === 'sem_aceite') {
-      const { data: rows, error } = await admin
-        .from('sirene_chamados')
-        .select('id, numero, incendio, tema, status, created_at, data_conclusao, aberto_por')
-        .eq('status', 'nao_iniciado')
+      // Tópicos com atribuicao_status = pendente_aceite (chamados não arquivados e não concluídos)
+      const { data: topicos, error } = await admin
+        .from('sirene_topicos')
+        .select('id, chamado_id, atribuicao_status, responsavel_nome, responsavel_id, created_at')
+        .eq('atribuicao_status', 'pendente_aceite')
         .eq('arquivado', false)
         .order('created_at', { ascending: true });
       if (error) return { ok: false, error: error.message };
 
-      const chamados = rows ?? [];
-      const ids = chamados.map((c) => (c as { id: number }).id);
-      const extras = await resolveNomesChamados(ids);
+      const chamadoIds = [...new Set((topicos ?? []).map((t) => (t as { chamado_id: number }).chamado_id))];
+      const chamadoInfoById2 = new Map<number, { numero: number; titulo: string | null }>();
+      if (chamadoIds.length > 0) {
+        const { data: chams } = await admin
+          .from('sirene_chamados')
+          .select('id, numero, incendio, tema, arquivado, status')
+          .in('id', chamadoIds)
+          .eq('arquivado', false)
+          .neq('status', 'concluido');
+        for (const c of chams ?? []) {
+          const cr = c as { id: number; numero: number; incendio?: string | null; tema?: string | null };
+          chamadoInfoById2.set(cr.id, { numero: cr.numero, titulo: cr.incendio?.trim() || cr.tema?.trim() || null });
+        }
+      }
+
+      // Resolve nomes dos responsáveis
+      const drRespIds = [...new Set((topicos ?? []).map((t) => (t as { responsavel_id?: string | null }).responsavel_id).filter((x): x is string => x != null))];
+      const drRespNomes = new Map<string, string>();
+      if (drRespIds.length > 0) {
+        const { data: profs } = await admin.from('profiles').select('id, nome_completo').in('id', drRespIds);
+        for (const p of profs ?? []) {
+          const pr = p as { id: string; nome_completo?: string | null };
+          if (pr.nome_completo) drRespNomes.set(pr.id, pr.nome_completo);
+        }
+      }
+
+      const rows: DetalheTopicoRow[] = (topicos ?? [])
+        .filter((t) => chamadoInfoById2.has((t as { chamado_id: number }).chamado_id))
+        .map((t) => {
+          const tr = t as { id: number; chamado_id: number; atribuicao_status: string; responsavel_nome?: string | null; responsavel_id?: string | null; created_at: string };
+          const chamInfo = chamadoInfoById2.get(tr.chamado_id);
+          return {
+            topico_id: tr.id,
+            chamado_id: tr.chamado_id,
+            chamado_numero: chamInfo?.numero ?? 0,
+            chamado_titulo: chamInfo?.titulo ?? null,
+            atribuicao_status: tr.atribuicao_status,
+            responsavel_nome: tr.responsavel_id
+              ? (drRespNomes.get(tr.responsavel_id) ?? tr.responsavel_nome ?? null)
+              : (tr.responsavel_nome ?? null),
+            criado_em: tr.created_at,
+            dias_espera_uteis: diasUteisDe(new Date(tr.created_at), now),
+          };
+        });
 
       return {
         ok: true,
         data: {
-          tipo: 'chamados',
-          titulo: `${chamados.length} chamados sem aceite`,
-          rows: chamados.map((c) => chamadoParaRow(c as Parameters<typeof chamadoParaRow>[0], extras.get((c as { id: number }).id) ?? { aberto_por_nome: null, responsavel_nome: null })),
+          tipo: 'topicos',
+          titulo: `${rows.length} tópico${rows.length !== 1 ? 's' : ''} aguardando aceite`,
+          rows,
         },
       };
     }
@@ -545,42 +590,69 @@ export async function buscarDadosGraficos(mes?: string): Promise<
     const fimMes = new Date(ano, mesNum + 1, 0, 23, 59, 59, 999);
     const fimMesEfetivo = fimMes < hoje ? fimMes : hoje;
 
-    // ── 1. Chamados sem aceite ────────────────────────────────────────────────
-    const { data: semAceiteRows, error: e1 } = await admin
-      .from('sirene_chamados')
-      .select('id, numero, incendio, tema, created_at, aberto_por, arquivado')
-      .eq('status', 'nao_iniciado')
+    // ── 1. Tópicos aguardando aceite (atribuicao_status = pendente_aceite) ──────
+    const { data: pendentesRows, error: e1 } = await admin
+      .from('sirene_topicos')
+      .select('id, created_at, arquivado, responsavel_id, responsavel_nome, chamado_id')
+      .eq('atribuicao_status', 'pendente_aceite')
       .order('created_at', { ascending: true });
     if (e1) return { ok: false, error: e1.message };
 
     const now = new Date();
 
-    const abrIds = [...new Set(
-      (semAceiteRows ?? [])
-        .map((r) => (r as { aberto_por?: string | null }).aberto_por)
-        .filter((x): x is string => x != null),
-    )];
-    const nomeById = new Map<string, string>();
-    if (abrIds.length > 0) {
-      const { data: profs } = await admin.from('profiles').select('id, full_name').in('id', abrIds);
-      for (const p of profs ?? []) {
-        const pr = p as { id: string; full_name?: string | null };
-        if (pr.full_name) nomeById.set(pr.id, pr.full_name);
+    // Buscar info dos chamados vinculados (para filtrar arquivados/concluídos)
+    const pendChamadoIds = [...new Set((pendentesRows ?? []).map((r) => (r as { chamado_id: number }).chamado_id))];
+    const pendChamadoInfo = new Map<number, { numero: number; titulo: string | null; arquivado: boolean; status: string }>();
+    if (pendChamadoIds.length > 0) {
+      const { data: pendChams } = await admin
+        .from('sirene_chamados')
+        .select('id, numero, incendio, tema, arquivado, status')
+        .in('id', pendChamadoIds);
+      for (const c of pendChams ?? []) {
+        const cr = c as { id: number; numero: number; incendio?: string | null; tema?: string | null; arquivado?: boolean | null; status: string };
+        pendChamadoInfo.set(cr.id, {
+          numero: cr.numero,
+          titulo: cr.incendio?.trim() || cr.tema?.trim() || null,
+          arquivado: Boolean(cr.arquivado),
+          status: cr.status,
+        });
       }
     }
 
-    const semAceite: ChamadoSemAceiteRow[] = (semAceiteRows ?? []).map((r) => {
-      const cr = r as { id: number; numero: number; incendio?: string | null; tema?: string | null; created_at: string; aberto_por?: string | null; arquivado?: boolean | null };
-      return {
-        id: cr.id,
-        numero: cr.numero,
-        titulo: cr.incendio?.trim() || cr.tema?.trim() || null,
-        criado_em: cr.created_at,
-        dias_uteis: diasUteisDe(new Date(cr.created_at), now),
-        aberto_por_nome: cr.aberto_por ? (nomeById.get(cr.aberto_por) ?? null) : null,
-        arquivado: Boolean(cr.arquivado),
-      };
-    });
+    // Buscar nomes dos responsáveis via profiles
+    const pendRespIds = [...new Set((pendentesRows ?? []).map((r) => (r as { responsavel_id?: string | null }).responsavel_id).filter((x): x is string => x != null))];
+    const pendNomeById = new Map<string, string>();
+    if (pendRespIds.length > 0) {
+      const { data: pendProfs } = await admin.from('profiles').select('id, nome_completo').in('id', pendRespIds);
+      for (const p of pendProfs ?? []) {
+        const pr = p as { id: string; nome_completo?: string | null };
+        if (pr.nome_completo) pendNomeById.set(pr.id, pr.nome_completo);
+      }
+    }
+
+    const semAceite: ChamadoSemAceiteRow[] = (pendentesRows ?? [])
+      .filter((r) => {
+        const chamInfo = pendChamadoInfo.get((r as { chamado_id: number }).chamado_id);
+        // Exclui chamados arquivados ou já concluídos
+        return chamInfo && !chamInfo.arquivado && chamInfo.status !== 'concluido';
+      })
+      .map((r) => {
+        const tr = r as { id: number; created_at: string; arquivado?: boolean | null; responsavel_id?: string | null; responsavel_nome?: string | null; chamado_id: number };
+        const chamInfo = pendChamadoInfo.get(tr.chamado_id)!;
+        return {
+          topico_id: tr.id,
+          chamado_id: tr.chamado_id,
+          numero: chamInfo.numero,
+          titulo: chamInfo.titulo,
+          responsavel_id: tr.responsavel_id ?? null,
+          responsavel_nome: tr.responsavel_id
+            ? (pendNomeById.get(tr.responsavel_id) ?? tr.responsavel_nome ?? null)
+            : (tr.responsavel_nome ?? null),
+          topico_criado_em: tr.created_at,
+          dias_aguardando: diasUteisDe(new Date(tr.created_at), now),
+          arquivado: Boolean(tr.arquivado),
+        };
+      });
 
     // ── 2. Chamados abertos/concluídos no mês ────────────────────────────────
     const { data: abertosRows, error: e2 } = await admin
@@ -616,6 +688,8 @@ export async function buscarDadosGraficos(mes?: string): Promise<
       .from('sirene_chamados')
       .select('id', { count: 'exact', head: true })
       .neq('status', 'concluido')
+      .eq('arquivado', false)
+      .not('aberto_por', 'is', null)
       .lt('created_at', inicioMes.toISOString());
 
     let acumulado = acumuladoBase ?? 0;
@@ -918,11 +992,13 @@ export async function buscarDadosGraficos(mes?: string): Promise<
 
     // ── 7. KPIs de hoje ──────────────────────────────────────────────────────
     const hojeStr = isoDate(new Date());
+    // Exclui legados (aberto_por IS NULL) do total em aberto
     const totalAberto = (await admin
       .from('sirene_chamados')
       .select('id', { count: 'exact', head: true })
       .neq('status', 'concluido')
-      .eq('arquivado', false)).count ?? 0;
+      .eq('arquivado', false)
+      .not('aberto_por', 'is', null)).count ?? 0;
 
     const abriosHoje = abertosPorDia.get(hojeStr) ?? 0;
     const concluidosHoje = concluidosPorDia.get(hojeStr) ?? 0;

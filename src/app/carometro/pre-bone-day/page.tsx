@@ -885,10 +885,14 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
       <div className="flex items-start gap-2 px-3 py-2.5 flex-wrap border-b border-gray-100">
         {meta.is_chave && <span className="text-sm">🔑</span>}
         <TipoBadge tipo={meta.tipo} />
-        <span className={`text-sm font-medium text-gray-800 flex-1 leading-snug ${meta.status === 'concluido' ? 'line-through text-gray-400' : ''}`}>
+        {meta.status === 'arquivado' && (
+          <span className="moni-tag-arquivado text-[10px] px-1.5 py-0.5 rounded flex-shrink-0">Arquivada</span>
+        )}
+        <span className={`text-sm font-medium flex-1 leading-snug ${meta.status === 'concluido' ? 'line-through text-gray-400' : meta.status === 'arquivado' ? 'text-gray-400' : 'text-gray-800'}`}>
           {meta.descricao}
         </span>
         {(() => {
+          if (meta.status === 'arquivado') return null;
           const isProjeto = meta.tipo?.toLowerCase() === 'atingivel - projeto';
           const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id);
           const ismine = resps.some(r => r.profile_id === currentUserId);
@@ -930,6 +934,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
         <div className="flex items-center gap-1 flex-shrink-0">
           {/* Botão individual: qualquer um que assumiu pode concluir sua parte */}
           {(() => {
+            if (meta.status === 'arquivado') return null;
             const resps = objetivoResponsaveis.filter(r => r.objetivo_id === meta.id);
             const minhaEntrada = resps.find(r => r.profile_id === currentUserId);
             if (!minhaEntrada) return null;
@@ -949,11 +954,11 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
               </button>
             );
           })()}
-          {podeEditarMeta && (
+          {podeEditarMeta && meta.status !== 'arquivado' && (
             <button type="button" onClick={() => setEditandoMeta(v => !v)} title="Editar meta"
               className={`text-sm transition-colors ${editandoMeta ? 'text-blue-600' : 'text-blue-400 hover:text-blue-600'}`}>✎</button>
           )}
-          {isAdmin && (
+          {isAdmin && meta.status !== 'arquivado' && (
             <>
               {meta.status !== 'concluido' && meta.tipo?.toLowerCase() !== 'recorrente' && (
                 <button type="button" onClick={() => setConfirmConc(true)} title="Encerrar meta globalmente"
@@ -1174,7 +1179,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
   objetivoResponsaveis: ObjetivoResponsavel[];
   atividades: AgendaMacroItem[]; semanas: number[]; isAdmin: boolean; currentUserId: string | null; mes: string; areaId: string;
   onAdd: (profileId: string, acoId: string, semana: number, horas: number, objetivoId: string | null) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onDelete: (id: string, grupoId: string | null) => Promise<void>;
   onAddLivre: (profileId: string, nome: string, semanas: number[], horasPorSemana: Record<number, number>, objetivoId: string | null) => Promise<void>;
 }) {
   // Pode editar: admin pode qualquer card; usuário comum pode apenas o próprio
@@ -1526,7 +1531,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
                               {atv.tempo_estimado_horas ? `${atv.tempo_estimado_horas}h` : '—'}
                             </span>
                             {podeEditar && (
-                              <button type="button" onClick={() => onDelete(atv.id)}
+                              <button type="button" onClick={() => onDelete(atv.id, atv.recorrencia_grupo_id ?? null)}
                                 className="text-red-400 hover:text-red-600 text-[10px]">✕</button>
                             )}
                           </div>
@@ -1599,7 +1604,7 @@ function AgendaMacroPessoa({ pessoa, comportamentos, metas, objetivoResponsaveis
                               {atv.tempo_estimado_horas ? `${atv.tempo_estimado_horas}h` : '—'}
                             </span>
                             {podeEditar && (
-                              <button type="button" onClick={() => onDelete(atv.id)}
+                              <button type="button" onClick={() => onDelete(atv.id, atv.recorrencia_grupo_id ?? null)}
                                 className="text-red-400 hover:text-red-600 text-[10px]">✕</button>
                             )}
                           </div>
@@ -1864,9 +1869,24 @@ function PreBoneDayPageContent() {
     const { error: e } = await supabase.from('objetivos')
       .update({ status: 'concluido', concluido_em: new Date().toISOString() }).eq('id', id);
     if (e) { console.error('[ConcluirMeta]', e); return; }
+    // Auto-fill 100% nos indicadores ativos da meta ao concluir (admin)
+    if (currentUserId) {
+      const semana = isoWeek(new Date());
+      const anoAtual = new Date().getFullYear();
+      const { data: indsParaFill } = await supabase
+        .from('indicadores').select('id').eq('objetivo_id', id).eq('ativo', true);
+      for (const ind of (indsParaFill ?? []) as { id: string }[]) {
+        const { data: existing } = await supabase.from('indicador_lancamentos').select('id')
+          .eq('indicador_id', ind.id).eq('semana', semana).eq('semana_ano', anoAtual).maybeSingle();
+        if (!existing) {
+          await supabase.from('indicador_lancamentos')
+            .insert({ indicador_id: ind.id, semana, semana_ano: anoAtual, valor: '100', profile_id: currentUserId });
+        }
+      }
+    }
     LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id, operacao: 'UPDATE', descricao: 'Meta encerrada globalmente' });
     recarregar();
-  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, recarregar, currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Conclusão individual (per-user): marca/desmarca a própria participação
   const handleConcluirMetaIndividual = useCallback(async (id: string, reabrir = false) => {
@@ -1876,6 +1896,21 @@ function PreBoneDayPageContent() {
       .update({ concluido: !reabrir, concluido_em: reabrir ? null : new Date().toISOString() })
       .eq('objetivo_id', id).eq('profile_id', user.id);
     if (e) { console.error('[ConcluirMetaIndividual]', e); return; }
+    // Auto-fill 100% nos indicadores ao concluir individualmente
+    if (!reabrir) {
+      const semana = isoWeek(new Date());
+      const anoAtual = new Date().getFullYear();
+      const { data: indsParaFill } = await supabase
+        .from('indicadores').select('id').eq('objetivo_id', id).eq('ativo', true);
+      for (const ind of (indsParaFill ?? []) as { id: string }[]) {
+        const { data: existing } = await supabase.from('indicador_lancamentos').select('id')
+          .eq('indicador_id', ind.id).eq('semana', semana).eq('semana_ano', anoAtual).maybeSingle();
+        if (!existing) {
+          await supabase.from('indicador_lancamentos')
+            .insert({ indicador_id: ind.id, semana, semana_ano: anoAtual, valor: '100', profile_id: user.id });
+        }
+      }
+    }
     LOG({ modulo: 'Planejamento', entidade: 'objetivo_responsaveis', entidade_id: id,
       operacao: 'UPDATE', descricao: reabrir ? 'Meta reaberta (individual)' : 'Meta concluída (individual)' });
     recarregar();
@@ -1913,21 +1948,35 @@ function PreBoneDayPageContent() {
         tempo_estimado_horas: horas, origem: 'pre_bone_day', pre_bone_day_mes: mes,
         comportamento_chave: false, objetivo_id: objetivoId })
       .select('id').single();
-    if (e) { console.error('[AddAtividade] Falha no INSERT gantt_planejamento:', e); return; }
+    if (e) { console.error('[AddAtividade] Falha no INSERT gantt_planejamento:', e); alert('Não foi possível salvar a atividade. Tente novamente em instantes.'); return; }
     LOG({ modulo: 'Planejamento', entidade: 'gantt_planejamento',
       entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT',
       descricao: `Atividade Boné Day inserida S${semana}` });
     recarregar();
   }, [supabase, areaId, effectiveProfileId, mes, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleDeleteAtividade = useCallback(async (id: string) => {
-    const { error: e } = await supabase.from('gantt_planejamento').delete().eq('id', id);
-    if (e) { console.error('[DeleteAtividade]', e); return; }
+  const handleDeleteAtividade = useCallback(async (id: string, grupoId: string | null) => {
+    if (grupoId) {
+      // Recorrente: apaga todas as semanas do mesmo grupo de uma vez
+      const { error: e } = await supabase.from('gantt_planejamento').delete().eq('recorrencia_grupo_id', grupoId);
+      if (e) { console.error('[DeleteAtividade grupo]', e); return; }
+    } else {
+      const { error: e } = await supabase.from('gantt_planejamento').delete().eq('id', id);
+      if (e) { console.error('[DeleteAtividade]', e); return; }
+    }
     recarregar();
   }, [supabase, recarregar]);
 
   const handleAddAtividadeLivre = useCallback(async (profileId: string, nome: string, semanas: number[], horasPorSemana: Record<number, number>, objetivoId: string | null) => {
-    if (!areaId || semanas.length === 0) return;
+    if (!areaId) {
+      console.error('[AddLivre] areaId nulo ao salvar — área não carregada', { semanas, nome });
+      alert('Área não carregada. Aguarde alguns segundos e tente novamente, ou recarregue a página.');
+      return;
+    }
+    if (semanas.length === 0) {
+      alert('Nenhuma semana selecionada.');
+      return;
+    }
     const pidValido = effectiveProfileId ?? profileId;
     const isRecorrente = semanas.length > 1;
     const grupoId = isRecorrente ? crypto.randomUUID() : null;
@@ -1948,7 +1997,12 @@ function PreBoneDayPageContent() {
     }));
 
     const { data: ins, error: e } = await supabase.from('gantt_planejamento').insert(rows).select('id');
-    if (e) { console.error('[AddLivre] gantt:', e); return; }
+    if (e) { console.error('[AddLivre] gantt:', e); alert('Não foi possível salvar a atividade. Tente novamente em instantes.'); return; }
+    if (!ins || (ins as unknown[]).length === 0) {
+      console.error('[AddLivre] INSERT retornou 0 linhas sem erro', { rows });
+      alert('Atividade não foi salva. Verifique sua conexão e tente novamente.');
+      return;
+    }
     const ids = (ins as { id: unknown }[]).map(r => String(r.id)).join(', ');
     LOG({ modulo: 'Planejamento', entidade: 'gantt_planejamento',
       entidade_id: ids, operacao: 'INSERT',

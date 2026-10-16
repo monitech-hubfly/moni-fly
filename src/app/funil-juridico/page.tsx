@@ -1,12 +1,13 @@
 /**
  * Kanban **Funil Jurídico** (`kanbans.nome`): nativo (`kanban_cards`).
- * Acesso: team e admin (Frank bloqueado pelo middleware + guard da página).
+ * Acesso: papel cru admin ou team, o mesmo dos Pontos Jurídicos.
+ * Frank, franqueado, consultor e supervisor não entram.
  */
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { renderKanbanDatabasePage } from '@/components/kanban-shared/renderKanbanDatabasePage';
 import { guardLoginRequired } from '@/lib/auth-guard';
-import { normalizeAccessRole } from '@/lib/authz';
+import { podeLerPontosJuridicos } from '@/lib/kanban/juridico-pontos';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -31,8 +32,8 @@ export default async function FunilJuridicoPage({
     .select('role')
     .eq('id', user.id)
     .maybeSingle();
-  const role = normalizeAccessRole((profile as { role?: string | null } | null)?.role);
-  if (role !== 'admin' && role !== 'team') {
+  const role = (profile as { role?: string | null } | null)?.role;
+  if (!podeLerPontosJuridicos(role)) {
     redirect('/hub-funis');
   }
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { memo } from 'react';
+
 import type { DragEvent } from 'react';
 import type { PastelariaCardView } from '@/lib/pastelaria/api-client';
 import { formatEstimativa } from '@/lib/pastelaria/api-client';
@@ -53,7 +55,7 @@ function formatHorasTotal(total: number): string {
   return `${Number(total.toFixed(2))}h`;
 }
 
-export function PastelariaCard({
+function PastelariaCardInner({
   card,
   coluna,
   loggedUserName,
@@ -185,3 +187,4 @@ export function PastelariaCard({
     </article>
   );
 }
+export const PastelariaCard = memo(PastelariaCardInner);

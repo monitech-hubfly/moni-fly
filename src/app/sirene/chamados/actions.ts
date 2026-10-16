@@ -338,6 +338,7 @@ export type ComentarioCardSireneRow = {
   texto: string;
   created_at: string;
   autor_nome: string | null;
+  autor_id: string | null;
 };
 
 export async function listarComentariosCardSirene(
@@ -379,6 +380,7 @@ export async function listarComentariosCardSirene(
     texto: htmlComentarioParaTextoPlano(String((r as { conteudo?: string }).conteudo ?? '')),
     created_at: String((r as { created_at?: string }).created_at ?? ''),
     autor_nome: r.autor_id ? nomes.get(String(r.autor_id)) ?? null : null,
+    autor_id: r.autor_id ? String(r.autor_id) : null,
   }));
 
   return { ok: true, items };
@@ -458,9 +460,40 @@ export async function listarComentariosSireneChamado(
     texto: htmlComentarioParaTextoPlano(String((r as { conteudo?: string }).conteudo ?? '')),
     created_at: String((r as { created_at?: string }).created_at ?? ''),
     autor_nome: r.autor_id ? nomes.get(String(r.autor_id)) ?? null : null,
+    autor_id: r.autor_id ? String(r.autor_id) : null,
   }));
 
   return { ok: true, items };
+}
+
+export async function excluirComentarioChamado(
+  comentarioId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const id = String(comentarioId ?? '').trim();
+  if (!id) return { ok: false, error: 'Comentário inválido.' };
+
+  const { data: row, error: fetchErr } = await supabase
+    .from('kanban_card_comentarios')
+    .select('id, autor_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (fetchErr) return { ok: false, error: fetchErr.message };
+  if (!row) return { ok: false, error: 'Comentário não encontrado.' };
+  if (String((row as { autor_id?: string | null }).autor_id ?? '') !== user.id) {
+    return { ok: false, error: 'Só quem escreveu o comentário pode excluí-lo.' };
+  }
+
+  const { error } = await supabase
+    .from('kanban_card_comentarios')
+    .delete()
+    .eq('id', id)
+    .eq('autor_id', user.id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 export async function publicarComentarioSireneChamado(
@@ -519,7 +552,7 @@ export async function buscarDadosModalChamado(
 
   const { data: chamado, error: chamadoErr } = await supabase
     .from('sirene_chamados')
-    .select('id, numero, incendio, status, created_at, aberto_por, frank_id, frank_nome, te_trata, trava, arquivado, prioridade')
+    .select('id, numero, incendio, status, created_at, aberto_por, frank_id, frank_nome, te_trata, trava, arquivado, prioridade, abertura_responsavel_nome')
     .eq('id', chamadoId)
     .maybeSingle();
 
@@ -530,13 +563,14 @@ export async function buscarDadosModalChamado(
     created_at: string; aberto_por: string | null; frank_id: string | null;
     frank_nome: string | null; te_trata: boolean | null; trava: boolean | null;
     arquivado: boolean | null; prioridade: string | null;
+    abertura_responsavel_nome: string | null;
   };
 
   // Usa admin client para evitar bloqueio de RLS na leitura de kanban_atividades
   const admin = createAdminClient();
   const { data: ka } = await admin
     .from('kanban_atividades')
-    .select('id, card_id, responsavel_id, responsavel_nome, responsaveis_ids, times_ids, responsavel_nome_texto, criado_por, origem')
+    .select('id, card_id, responsavel_id, responsaveis_ids, times_ids, responsavel_nome_texto, criado_por, origem')
     .eq('sirene_chamado_id', chamadoId)
     .limit(1)
     .maybeSingle();
@@ -546,6 +580,22 @@ export async function buscarDadosModalChamado(
     responsaveis_ids: string[] | null; times_ids: string[] | null; responsavel_nome_texto: string | null;
     criado_por: string | null; origem: string | null;
   } | null;
+
+  // Resolve o nome de quem abriu o chamado:
+  // 1) usa abertura_responsavel_nome se preenchido
+  // 2) caso nulo, busca full_name/email em profiles via aberto_por (UUID)
+  let abertoPorNome: string | null = c.abertura_responsavel_nome?.trim() || null;
+  if (!abertoPorNome && c.aberto_por) {
+    const { data: perfil } = await admin
+      .from('profiles')
+      .select('full_name, email')
+      .eq('id', c.aberto_por)
+      .maybeSingle();
+    if (perfil) {
+      const p = perfil as { full_name?: string | null; email?: string | null };
+      abertoPorNome = p.full_name?.trim() || p.email?.trim() || null;
+    }
+  }
 
   const row: import('./InteracoesLista').InteracaoSireneRow = {
     id:                     kaRow?.id ?? `chamado-${chamadoId}`,
@@ -580,6 +630,7 @@ export async function buscarDadosModalChamado(
     sirene_arquivado:       Boolean(c.arquivado),
     criado_por:             kaRow?.criado_por ?? c.aberto_por ?? null,
     sirene_prioridade:      c.prioridade ?? null,
+    sirene_abertura_responsavel_nome: abertoPorNome,
   };
 
   return { ok: true, row };

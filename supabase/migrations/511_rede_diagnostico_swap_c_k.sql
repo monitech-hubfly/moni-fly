@@ -1,0 +1,9 @@
+-- Migration 511: NÃO APLICAR — noop intencional
+--
+-- A UI já usava C = Comportamento / K = Conhecimento quando os dados foram inseridos,
+-- portanto as colunas diag_c e diag_k no banco já estão semanticamente corretas:
+--   diag_c → Comportamento (peso 25% no score)
+--   diag_k → Conhecimento  (peso 35% no score)
+--
+-- A correção necessária foi apenas no engine (weights em calcEngajamento),
+-- feita diretamente em src/lib/rede-diagnostico-engine.ts sem migration de banco.

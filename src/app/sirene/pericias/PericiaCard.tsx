@@ -1,5 +1,7 @@
 'use client'
 
+import { memo } from 'react';
+
 // components/sirene/pericias/PericiaCard.tsx
 
 import { AlertTriangle, MessageSquare, PenLine } from 'lucide-react'
@@ -49,7 +51,7 @@ function ultimaOcorrencia(updatedAt: string): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function PericiaCard({ pericia, posicao, onClick }: PericiaCardProps) {
+function PericiaCardInner({ pericia, posicao, onClick }: PericiaCardProps) {
   const temRecidiva = pericia.recidivas_count > 0
 
   return (
@@ -143,4 +145,5 @@ export default function PericiaCard({ pericia, posicao, onClick }: PericiaCardPr
   )
 
 }
-
+const PericiaCard = memo(PericiaCardInner);
+export default PericiaCard;

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
+import { useDebounce } from '@/hooks/useDebounce';
 import { SlidersHorizontal, X } from 'lucide-react';
 import {
   ordenarRedePorNFranquia,
@@ -12,34 +13,29 @@ import { TabelaRedeFranqueadosEditavel } from '@/components/TabelaRedeFranqueado
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca';
 import { DiagnosticoRedeSumario } from '@/components/diagnostico-rede/DiagnosticoRedeSumario';
 import {
-  calcPriority,
   calcRelacao,
   calcIndicador,
   calcEngajamento,
-  calcGrupo,
   isAdormecido,
   isStatusNC,
-  type DiagPriority,
-  type DiagGrupo,
 } from '@/lib/rede-diagnostico-engine';
 
 // ─── Tipos de filtro ─────────────────────────────────────────────────────────
 
 const TODOS = 'TODOS' as const;
 
-const PRIORITIES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'AD', 'NC'] as const;
-type PrioFilter = (typeof PRIORITIES)[number] | typeof TODOS;
-
 type Filtros = {
   // Operacionais
   status: string;
   modalidade: string;
   uf: string;
-  adimplencia: 'ok' | 'inad' | 'na' | typeof TODOS;
+  regional: string;
+  areaAtuacao: string;
+  dataContrato: string;   // 'YYYY-MM' | TODOS
+  dataExpiracao: string;  // 'YYYY-MM' | TODOS
+  adimplencia: 'ok' | 'inad' | 'em_transferencia' | 'na' | typeof TODOS;
   proximaAcao: 'sim' | 'nao' | typeof TODOS;
-  // Prioridade
-  prioridade: PrioFilter;
-  // Diagnóstico
+  // Diagnóstico — dimensões
   score: 'alta' | 'desenv' | 'evolucao' | 'estrut' | 'na' | typeof TODOS;
   dimD: '2' | '1' | '0' | 'na' | typeof TODOS;
   dimC: '2' | '1' | '0' | 'na' | typeof TODOS;
@@ -49,7 +45,6 @@ type Filtros = {
   tendEng: '↑' | '→' | '↓' | typeof TODOS;
   tendRel: '↑' | '→' | '↓' | typeof TODOS;
   tendInd: '↑' | '→' | '↓' | typeof TODOS;
-  grupo: DiagGrupo | typeof TODOS;
   avaliadoEm: '30' | '60' | '90' | 'sem' | typeof TODOS;
 };
 
@@ -57,9 +52,12 @@ const FILTROS_INICIAIS: Filtros = {
   status: TODOS,
   modalidade: TODOS,
   uf: TODOS,
+  regional: TODOS,
+  areaAtuacao: TODOS,
+  dataContrato: TODOS,
+  dataExpiracao: TODOS,
   adimplencia: TODOS,
   proximaAcao: TODOS,
-  prioridade: TODOS,
   score: TODOS,
   dimD: TODOS,
   dimC: TODOS,
@@ -69,7 +67,6 @@ const FILTROS_INICIAIS: Filtros = {
   tendEng: TODOS,
   tendRel: TODOS,
   tendInd: TODOS,
-  grupo: TODOS,
   avaliadoEm: TODOS,
 };
 
@@ -110,11 +107,36 @@ function aplicarFiltros(rows: RedeFranqueadoRowDb[], f: Filtros): RedeFranqueado
       if (estado !== f.uf) return false;
     }
 
+    // Regional
+    if (f.regional !== TODOS) {
+      if (String((r as unknown as { regional?: string | null }).regional ?? '').trim() !== f.regional) return false;
+    }
+
+    // Área de Atuação — verifica se a cidade selecionada está em qualquer parte do campo
+    if (f.areaAtuacao !== TODOS) {
+      const cidades = String((r as unknown as { area_atuacao?: string | null }).area_atuacao ?? '')
+        .split(';').map((c) => c.trim());
+      if (!cidades.includes(f.areaAtuacao)) return false;
+    }
+
+    // Data de Ass. Contrato (mês/ano)
+    if (f.dataContrato !== TODOS) {
+      const d = (r as unknown as { data_ass_contrato?: string | null }).data_ass_contrato;
+      if (!d || !String(d).startsWith(f.dataContrato)) return false;
+    }
+
+    // Data de Expiração da Franquia (mês/ano)
+    if (f.dataExpiracao !== TODOS) {
+      const d = (r as unknown as { data_expiracao_franquia?: string | null }).data_expiracao_franquia;
+      if (!d || !String(d).startsWith(f.dataExpiracao)) return false;
+    }
+
     // Adimplência
     if (f.adimplencia !== TODOS) {
-      if (f.adimplencia === 'ok' && r.diag_adimplente !== true) return false;
-      if (f.adimplencia === 'inad' && r.diag_adimplente !== false) return false;
-      if (f.adimplencia === 'na' && r.diag_adimplente !== null && r.diag_adimplente !== undefined) return false;
+      if (f.adimplencia === 'ok' && r.diag_adimplencia !== 'ok') return false;
+      if (f.adimplencia === 'inad' && r.diag_adimplencia !== 'inad') return false;
+      if (f.adimplencia === 'em_transferencia' && r.diag_adimplencia !== 'em_transferencia') return false;
+      if (f.adimplencia === 'na' && r.diag_adimplencia !== null && r.diag_adimplencia !== undefined) return false;
     }
 
     // Próxima ação
@@ -123,9 +145,6 @@ function aplicarFiltros(rows: RedeFranqueadoRowDb[], f: Filtros): RedeFranqueado
       if (f.proximaAcao === 'sim' && !tem) return false;
       if (f.proximaAcao === 'nao' && tem) return false;
     }
-
-    // Prioridade
-    if (f.prioridade !== TODOS && calcPriority(r) !== f.prioridade) return false;
 
     // Score faixa
     if (f.score !== TODOS) {
@@ -167,9 +186,6 @@ function aplicarFiltros(rows: RedeFranqueadoRowDb[], f: Filtros): RedeFranqueado
     if (f.tendEng !== TODOS && r.diag_tend_eng !== f.tendEng) return false;
     if (f.tendRel !== TODOS && r.diag_tend_rel !== f.tendRel) return false;
     if (f.tendInd !== TODOS && r.diag_tend_ind !== f.tendInd) return false;
-
-    // Grupo de ação
-    if (f.grupo !== TODOS && calcGrupo(r) !== f.grupo) return false;
 
     // Avaliado nos últimos X dias
     if (f.avaliadoEm !== TODOS) {
@@ -235,9 +251,9 @@ const TEND_OPTS = [
 
 const DIM_OPTS = [
   TODOS_OPT,
-  { value: '2' as const, label: '2 · Tem' },
-  { value: '1' as const, label: '1 · Moderado' },
-  { value: '0' as const, label: '0 · Não tem' },
+  { value: '2' as const, label: 'Saudável (2)' },
+  { value: '1' as const, label: 'Atenção (1)' },
+  { value: '0' as const, label: 'Crítico (0)' },
   NA_OPT,
 ];
 
@@ -248,6 +264,7 @@ type Props = {
   canEditRows?: boolean;
   maskSensitiveColumns?: boolean;
   internalView?: boolean;
+  ultimoPreenchimentoQualificacao?: Record<string, string>;
   children?: ReactNode;
 };
 
@@ -256,9 +273,11 @@ export function RedeFranqueadosTabelaComBusca({
   canEditRows,
   maskSensitiveColumns,
   internalView = false,
+  ultimoPreenchimentoQualificacao = {},
   children,
 }: Props) {
   const [busca, setBusca] = useState('');
+  const debouncedBusca = useDebounce(busca);
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_INICIAIS);
   const [painelAberto, setPainelAberto] = useState(false);
 
@@ -273,35 +292,67 @@ export function RedeFranqueadosTabelaComBusca({
   const rowsComCadastro = useMemo(() => filtrarLinhasEmBrancoRedeFranqueados(rows), [rows]);
 
   // Opções dinâmicas derivadas dos dados
-  const { modalidades, ufs, statusOptions } = useMemo(() => {
+  const { modalidades, ufs, regionais, areasAtuacao, datasContrato, datasExpiracao, statusOptions } = useMemo(() => {
     const modSet = new Set<string>();
     const ufSet = new Set<string>();
+    const regSet = new Set<string>();
+    const areaSet = new Set<string>();
+    const ctSet = new Set<string>();
+    const expSet = new Set<string>();
     const statusSet = new Set<string>();
+
+    const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    function yyyymmLabel(val: string): string {
+      const [y, m] = val.split('-');
+      const mes = MESES_PT[parseInt(m, 10) - 1] ?? m;
+      return `${mes}/${y}`;
+    }
+
     rowsComCadastro.forEach((r) => {
-      const mod = String((r as unknown as { modalidade?: string | null }).modalidade ?? '').trim();
+      const rr = r as unknown as Record<string, string | null | undefined>;
+      const mod = String(rr.modalidade ?? '').trim();
       if (mod) modSet.add(mod);
-      const uf = String(r.estado_casa_frank ?? (r as unknown as { estado?: string | null }).estado ?? '').trim();
+      const uf = String(r.estado_casa_frank ?? rr.estado ?? '').trim();
       if (uf) ufSet.add(uf);
+      const reg = String(rr.regional ?? '').trim();
+      if (reg) regSet.add(reg);
+      // Explodir por cidade individual (separadas por ";")
+      String(rr.area_atuacao ?? '').split(';').forEach((c) => {
+        const cidade = c.trim();
+        if (cidade) areaSet.add(cidade);
+      });
+      const ct = String(rr.data_ass_contrato ?? '').slice(0, 7); // YYYY-MM
+      if (ct.length === 7) ctSet.add(ct);
+      const exp = String(rr.data_expiracao_franquia ?? '').slice(0, 7);
+      if (exp.length === 7) expSet.add(exp);
       const st = String(r.status_franquia ?? '').trim();
       if (st) statusSet.add(st);
     });
+
+    const sortedDates = (s: Set<string>) =>
+      [TODOS_OPT, ...[...s].sort().map((v) => ({ value: v, label: yyyymmLabel(v) }))];
+
     return {
       modalidades: [TODOS_OPT, ...[...modSet].sort().map((m) => ({ value: m, label: m }))],
       ufs: [TODOS_OPT, ...[...ufSet].sort().map((u) => ({ value: u, label: u }))],
+      regionais: [TODOS_OPT, ...[...regSet].sort().map((v) => ({ value: v, label: v }))],
+      areasAtuacao: [TODOS_OPT, ...[...areaSet].sort().map((v) => ({ value: v, label: v }))],
+      datasContrato: sortedDates(ctSet),
+      datasExpiracao: sortedDates(expSet),
       statusOptions: statusSet,
     };
   }, [rowsComCadastro]);
 
   const rowsFiltradas = useMemo(() => {
-    const q = busca.trim();
+    const q = debouncedBusca.trim();
     let base = q
       ? rowsComCadastro.filter((r) => redeFranqueadoRowMatchesBusca(r, q))
       : rowsComCadastro;
     base = aplicarFiltros(base, filtros);
     return ordenarRedePorNFranquia(base);
-  }, [rowsComCadastro, busca, filtros]);
+  }, [rowsComCadastro, debouncedBusca, filtros]);
 
-  const nAtivos = filtrosAtivos(filtros) + (busca.trim() ? 1 : 0);
+  const nAtivos = filtrosAtivos(filtros) + (debouncedBusca.trim() ? 1 : 0);
   const buscaAtiva = nAtivos > 0;
 
   return (
@@ -333,24 +384,6 @@ export function RedeFranqueadosTabelaComBusca({
             </span>
           ) : null}
         </button>
-
-        {/* Chips de prioridade */}
-        <div className="flex flex-wrap gap-1">
-          {([TODOS, ...PRIORITIES] as const).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setFiltro('prioridade', p)}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                filtros.prioridade === p
-                  ? 'bg-stone-700 text-white'
-                  : 'border border-stone-300 bg-white text-stone-600 hover:bg-stone-50'
-              }`}
-            >
-              {p === TODOS ? 'Todas' : p}
-            </button>
-          ))}
-        </div>
 
         {buscaAtiva ? (
           <button
@@ -413,6 +446,30 @@ export function RedeFranqueadosTabelaComBusca({
                 options={ufs}
               />
               <FilterSelect
+                label="Regional"
+                value={filtros.regional}
+                onChange={(v) => setFiltro('regional', v)}
+                options={regionais}
+              />
+              <FilterSelect
+                label="Área de Atuação"
+                value={filtros.areaAtuacao}
+                onChange={(v) => setFiltro('areaAtuacao', v)}
+                options={areasAtuacao}
+              />
+              <FilterSelect
+                label="Ass. Contrato"
+                value={filtros.dataContrato}
+                onChange={(v) => setFiltro('dataContrato', v)}
+                options={datasContrato}
+              />
+              <FilterSelect
+                label="Expiração Franquia"
+                value={filtros.dataExpiracao}
+                onChange={(v) => setFiltro('dataExpiracao', v)}
+                options={datasExpiracao}
+              />
+              <FilterSelect
                 label="Adimplência"
                 value={filtros.adimplencia}
                 onChange={(v) => setFiltro('adimplencia', v)}
@@ -420,6 +477,7 @@ export function RedeFranqueadosTabelaComBusca({
                   TODOS_OPT,
                   { value: 'ok', label: 'OK — Adimplente' },
                   { value: 'inad', label: 'Inadimplente' },
+                  { value: 'em_transferencia', label: 'Em Transferência' },
                   NA_OPT,
                 ]}
               />
@@ -474,26 +532,11 @@ export function RedeFranqueadosTabelaComBusca({
                 onChange={(v) => setFiltro('indicador', v)}
                 options={[
                   TODOS_OPT,
-                  { value: 'ritmo', label: 'No ritmo' },
-                  { value: 'proximo', label: 'Próximo' },
-                  { value: 'regular', label: 'Regular' },
-                  { value: 'abaixo', label: 'Abaixo' },
+                  { value: 'ritmo', label: 'Saudável — No ritmo' },
+                  { value: 'proximo', label: 'Atenção — Próximo' },
+                  { value: 'regular', label: 'Atenção — Regular' },
+                  { value: 'abaixo', label: 'Crítico — Abaixo' },
                   NA_OPT,
-                ]}
-              />
-              <FilterSelect
-                label="Grupo de Ação"
-                value={filtros.grupo}
-                onChange={(v) => setFiltro('grupo', v)}
-                options={[
-                  TODOS_OPT,
-                  { value: 'GA1', label: 'GA1 · Estruturação Financeira' },
-                  { value: 'GA2', label: 'GA2 · Ativação e Execução' },
-                  { value: 'GA3', label: 'GA3 · Recuperação da Relação' },
-                  { value: 'GA4', label: 'GA4 · Desenvolvimento e Capacitação' },
-                  { value: 'GA5', label: 'GA5 · Conversão e Resultado' },
-                  { value: 'GA6', label: 'GA6 · Aceleração' },
-                  { value: 'GA7', label: 'GA7 · Gestão de Adormecidos' },
                 ]}
               />
               <FilterSelect
@@ -524,6 +567,7 @@ export function RedeFranqueadosTabelaComBusca({
         buscaAtiva={buscaAtiva}
         buscaResetKey={JSON.stringify(filtros) + busca}
         internalView={internalView}
+        ultimoPreenchimentoQualificacao={ultimoPreenchimentoQualificacao}
       />
     </div>
   );

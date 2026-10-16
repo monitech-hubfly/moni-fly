@@ -1,0 +1,496 @@
+{
+  "meta": {
+    "gerado_em": "2026-09-17",
+    "descricao": "Artigos novos para as 8 categorias vazias — gerados pelo B3 Audit. Inserir no banco faq_articles após revisão. DEV primeiro, PROD somente com confirmação.",
+    "total_categorias": 8,
+    "total_artigos": 48
+  },
+  "artigos_novos": [
+
+    {
+      "categoria": "Terrenos",
+      "ordem_categoria": 1,
+      "artigos": [
+        {
+          "pergunta": "Quais são os critérios mínimos para um terreno ser considerado elegível pela Moní?",
+          "resposta_resumida": "O terreno deve estar em área urbana consolidada, ter acesso a rua pavimentada, frente mínima de 12m, área a partir de 300m², topografia viável para construção e documentação regularizada (matrícula limpa ou sanável).",
+          "resposta_completa": "## Critérios mínimos de elegibilidade de terreno\n\nA Moní utiliza uma matriz de elegibilidade técnica e jurídica para avaliar se um terreno pode entrar no processo de permuta. Os critérios abaixo são verificados na fase de **Pré-Batalha** (Step One).\n\n### Critérios técnicos\n\n| Critério | Mínimo exigido |\n|----------|----------------|\n| Área total | ≥ 300 m² |\n| Frente para logradouro | ≥ 12 m |\n| Acesso | Rua pavimentada ou com pavimentação prevista |\n| Topografia | Sem corte excessivo (declividade até 15%) |\n| Zoneamento | Residencial unifamiliar ou multifamiliar de baixa densidade |\n\n### Critérios jurídicos\n\n- Matrícula atualizada no Cartório de Registro de Imóveis\n- Ausência de ônus reais impeditivos (hipoteca, usufruto ativo, penhora não sanável)\n- Proprietário capaz e com poder de disposição\n- IPTU em dia (ou acordo formalizado)\n\n### Sobre a documentação\n\nPendências jurídicas **não eliminam automaticamente** o terreno — o Jurídico Moní avalia caso a caso a viabilidade de saneamento. Terrenos com inventário em aberto, meação ou múltiplos proprietários podem ser elegíveis com prazo de regularização compatível.\n\n> **Importante:** a elegibilidade definitiva é validada após o BCA (Business Case Analysis) e a aprovação do Comitê interno.",
+          "palavras_chave": ["critérios terreno", "elegibilidade terreno", "área mínima", "frente mínima", "documentação terreno", "matrícula"],
+          "sinonimos": ["requisitos do terreno", "terreno aceito pela Moní", "critério de avaliação de lote"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        },
+        {
+          "pergunta": "Como funciona a prospecção de terrenos no modelo Moní?",
+          "resposta_resumida": "O franqueado é o responsável pela prospecção ativa de terrenos em seu território. Ele identifica oportunidades, apresenta ao terrenista o modelo Moní e, se houver interesse, cadastra o lead no Hub Fly para iniciar o funil Step One.",
+          "resposta_completa": "## Prospecção de terrenos — papel do franqueado\n\nNo modelo Moní, a **prospecção de terrenos** é responsabilidade do franqueado. O franqueado atua como o elo entre o proprietário do terreno (terrenista) e a estrutura técnica e jurídica da Moní.\n\n### Fluxo de prospecção\n\n1. **Identificação:** franqueado mapeia terrenos no seu território por zoneamento, visitas, indicações e pesquisa imobiliária\n2. **Abordagem:** apresenta o modelo de permuta Moní ao terrenista\n3. **Qualificação:** verifica critérios básicos de elegibilidade (área, frente, documentação)\n4. **Cadastro no Hub Fly:** abre card no Funil Step One com dados do terreno e terrenista\n5. **Análise Moní:** time interno valida viabilidade técnica, jurídica e financeira\n6. **Apresentação formal:** BCA e reunião com o terrenista\n\n### Ferramentas de apoio\n\n- **Mapa de Competidores** (etapa Step One): levantamento de oferta residencial na região\n- **Configurador de Casas**: simulação de viabilidade antes da proposta\n- **Material de apresentação Moní**: disponível no Hub Fly > Repositório\n\n### Dicas de prospecção\n\n- Priorize terrenos em condomínios fechados ou loteamentos com demanda comprovada\n- Verifique o Comunicado de Uso antes de prospectar (mapa de restrições de concorrência)\n- Registre todos os contatos no Hub Fly — o histórico protege sua prospecção\n\n> **Dúvidas sobre abordagem ao terrenista?** Consulte o material de Sales Enablement no Repositório ou abra chamado no Sirene.",
+          "palavras_chave": ["prospecção terreno", "funil step one", "terrenista", "território franqueado", "mapa competidores", "lead terreno"],
+          "sinonimos": ["busca de terrenos", "como encontrar terrenos", "captação de terrenos"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O que é o BCA e como ele avalia a viabilidade do terreno?",
+          "resposta_resumida": "O BCA (Business Case Analysis) é o documento técnico-financeiro que valida se a permuta é viável para todos os lados. Ele considera VGV, custo de obra, parcela de permuta, margem da Moní e retorno ao terrenista. É gerado no Step One e apresentado no Comitê.",
+          "resposta_completa": "## BCA — Business Case Analysis\n\nO BCA é o **documento de viabilidade econômica** que resume se um negócio Moní deve avançar para contrato. Ele é preparado pelo time técnico com base nos dados coletados no Step One.\n\n### O que o BCA calcula\n\n| Componente | Descrição |\n|------------|----------|\n| **VGV (Valor Geral de Vendas)** | Receita total estimada com a venda das casas |\n| **Custo de obra** | Estimativa de construção por m² × unidades |\n| **Permuta ao terrenista** | Número e tipologia de unidades que serão entregues |\n| **Margem operacional** | Retorno esperado para a Moní |\n| **Cronograma financeiro** | Estimativa de desembolso e retorno por fase |\n\n### Como o BCA é gerado\n\n1. Franqueado preenche dados de condomínio, lote, número de casas e pesquisa de mercado no Step One\n2. Sistema aplica modelo financeiro padrão Moní\n3. BCA é gerado em PDF pelo Hub Fly\n4. Documento é apresentado ao terrenista e validado internamente no Comitê\n\n### Resultado do BCA\n\n- **BCA aprovado:** negócio avança para fase de contrato (Portfolio)\n- **BCA reprovado:** negócio encerrado ou renegociado (novo BCA)\n- **BCA condicional:** aprovado com ajuste de número de casas ou formato de permuta\n\n> **Importante:** o BCA é uma estimativa; valores definitivos são validados no Acoplamento (modelagem financeira final com o Gbox).",
+          "palavras_chave": ["BCA", "business case analysis", "viabilidade terreno", "VGV", "permuta casas", "comitê", "modelo financeiro"],
+          "sinonimos": ["análise de viabilidade", "estudo financeiro terreno", "relatório BCA"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        },
+        {
+          "pergunta": "Quais certidões e documentos o terrenista precisa apresentar?",
+          "resposta_resumida": "O terrenista deve apresentar matrícula atualizada, IPTU quitado, certidões negativas de débito (Receita Federal, FGTS, Estadual, Municipal), certidão de ônus reais, documentos pessoais e, se pessoa jurídica, contrato social e CNPJ regularizado.",
+          "resposta_completa": "## Documentação do terrenista — checklist completo\n\nA lista abaixo é o **checklist padrão Moní** para instrução do processo. O Jurídico avalia cada caso e pode solicitar documentação complementar.\n\n### Documentos do imóvel\n\n- [ ] Matrícula atualizada (emitida há no máximo 30 dias)\n- [ ] Certidão de ônus reais\n- [ ] Certidão de propriedade e de transmissão\n- [ ] IPTU quitado (últimos 5 anos) ou certidão negativa municipal de débitos imobiliários\n- [ ] Planta do lote aprovada (se disponível)\n\n### Certidões do proprietário (pessoa física)\n\n- [ ] RG e CPF\n- [ ] Comprovante de estado civil (certidão de casamento atualizada ou declaração de solteiro)\n- [ ] Certidão negativa de débitos — Receita Federal (CPF)\n- [ ] Certidão negativa de débitos — FGTS (CNPJ ou CPF)\n- [ ] Certidão negativa de débitos estaduais\n- [ ] Certidão negativa de débitos municipais\n- [ ] Certidão de distribuição de ações cíveis (foro da comarca do imóvel)\n- [ ] Certidão de distribuição de ações criminais (se aplicável)\n\n### Certidões extras — pessoa jurídica\n\n- [ ] Contrato social ou estatuto atualizado com última alteração\n- [ ] CNPJ regularizado na Receita Federal\n- [ ] Certidão de regularidade FGTS (CNPJ da empresa)\n- [ ] Certidão negativa de débitos estadual e municipal da PJ\n- [ ] Ata de assembleia com poderes para o representante assinar\n\n### Prazos\n\nCertidões negativas têm validade de **60 a 180 dias** conforme o órgão emissor. O Jurídico orienta quais precisam ser renovadas antes da assinatura do contrato.\n\n> **Dúvida sobre documentação específica?** Abra um chamado no Sirene → área Jurídico.",
+          "palavras_chave": ["certidões terrenista", "documentos terreno", "matrícula", "certidão negativa", "checklist terrenista", "documentação contrato"],
+          "sinonimos": ["papéis do dono do terreno", "documentos necessários para permuta", "certidões imóvel"],
+          "area_responsavel": "Jurídico",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O que pode desqualificar um terreno no processo Moní?",
+          "resposta_resumida": "Terrenos em área de preservação permanente, com litigância judicial grave, localização fora do zoneamento residencial, topografia inviável, acesso exclusivo por servidão não regularizada ou com pendências jurídicas insanáveis no prazo do projeto são os principais motivos de desqualificação.",
+          "resposta_completa": "## Fatores de desqualificação de terreno\n\nMesmo que o terrenista tenha interesse, alguns fatores técnicos ou jurídicos tornam a operação inviável. Conhecê-los antecipadamente evita esforço desnecessário.\n\n### Desqualificadores técnicos\n\n| Fator | Motivo |\n|-------|--------|\n| Área de Preservação Permanente (APP) | Não pode ser construído (Código Florestal) |\n| Zoneamento não residencial | Licença de obra residencial negada pela prefeitura |\n| Declividade > 25% sem terraplanagem viável | Inviabilidade construtiva e financeira |\n| Área < 300 m² ou frente < 10 m | Não comporta projeto-padrão Moní |\n| Acesso exclusivo por servidão de passagem informal | Risco jurídico para registro e financiamento |\n\n### Desqualificadores jurídicos\n\n| Fator | Motivo |\n|-------|--------|\n| Litígio judicial em fase avançada (penhora, arresto) | Impede alienação ou oneração |\n| Inventário em curso sem prazo de conclusão | Bloqueia a assinatura do contrato |\n| Débitos com valor superior ao VGV previsto | Inviabilidade econômica |\n| Terrenista com restrição de crédito grave | Risco de execução da Carta Fiança |\n| Imóvel em área de marinha (SPU) | Necessita autorização federal — prazo incompatível |\n\n### Situações analisadas caso a caso\n\n- **Meação:** cônjuge pode ser incluído no contrato — não desqualifica, mas exige anuência\n- **Múltiplos proprietários:** negócio possível com todas as assinaturas\n- **Hipoteca:** pode ser quitada com parte do negócio — viabilidade avaliada pelo Jurídico\n\n> **Dúvida sobre terreno específico?** Apresente ao time Operações via Hub Fly ou abra chamado no Sirene antes de avançar com o terrenista.",
+          "palavras_chave": ["desqualificação terreno", "terreno inviável", "app preservação permanente", "zoneamento", "litígio imóvel", "pendência jurídica terreno"],
+          "sinonimos": ["terreno reprovado", "por que terreno não passa", "impedimento de terreno"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O que é o Comunicado de Uso e como ele afeta a prospecção?",
+          "resposta_resumida": "O Comunicado de Uso é o documento que define o território de atuação do franqueado, incluindo restrições de sobreposição com outras franquias. Prospectar fora do território ou em área com exclusividade de outro franqueado viola o COF e deve ser consultado antes de qualquer abordagem.",
+          "resposta_completa": "## Comunicado de Uso — território e restrições\n\nO **Comunicado de Uso** faz parte da Circular de Oferta de Franquia (COF) e delimita onde o franqueado pode prospectar e operar sem conflito com outras unidades Moní.\n\n### O que ele define\n\n- **Território exclusivo:** área geográfica primária do franqueado\n- **Área de influência:** zona secundária onde a atuação é permitida mas sem exclusividade\n- **Restrições:** localizações onde outro franqueado tem prioridade\n\n### Impacto na prospecção de terrenos\n\n1. **Antes de abordar** um terrenista, verifique se o terreno está dentro do seu território\n2. Se o terreno estiver em área de outro franqueado, você **não pode prospectar** sem autorização\n3. Em caso de dúvida, consulte o time de Operações — a delimitação pode ter versões atualizadas\n\n### Como consultar\n\n- O mapa de territórios está disponível no Hub Fly > Repositório > COF e Contratos\n- Em caso de sobreposição, acione o Sirene → área Operações\n\n### Consequências do descumprimento\n\nProspectar em território de outro franqueado caracteriza **infração contratual** e pode resultar em advertência, mediação obrigatória ou rescisão de contrato conforme o COF.\n\n> **Sempre consulte o mapa de territórios antes de iniciar uma prospecção nova.**",
+          "palavras_chave": ["comunicado de uso", "território franqueado", "COF", "exclusividade territorio", "sobreposição franquias", "restrição prospecção"],
+          "sinonimos": ["mapa de território", "área de atuação franquia", "exclusividade de território"],
+          "area_responsavel": "Jurídico",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        }
+      ]
+    },
+
+    {
+      "categoria": "Aprovações e Pré-Obra",
+      "ordem_categoria": 2,
+      "artigos": [
+        {
+          "pergunta": "O que é o Projeto Legal e qual é o papel do franqueado nessa etapa?",
+          "resposta_resumida": "O Projeto Legal é o conjunto de documentos técnicos (planta, memorial descritivo, ART/RRT) submetido à prefeitura para aprovação da construção. O franqueado acompanha o andamento via Hub Fly; a execução técnica é responsabilidade do time de Projetos da Moní.",
+          "resposta_completa": "## Projeto Legal — o que é e quem faz\n\nO **Projeto Legal** é a etapa de aprovação da construção junto à prefeitura municipal. Sem ele, nenhuma obra pode começar legalmente.\n\n### Quem faz o quê\n\n| Responsável | Atividade |\n|-------------|----------|\n| **Time Projetos Moní** | Elabora e assina o projeto (plantas, memorial, ART/RRT) |\n| **Prefeitura** | Analisa e aprova (ou solicita adequações) |\n| **Franqueado** | Acompanha status no Hub Fly; conecta com o Condomínio quando necessário |\n| **Condomínio** | Aprova internamente antes da submissão à prefeitura (em alguns casos) |\n\n### Fases do Projeto Legal no Hub Fly\n\n1. **Nova demanda** — projeto criado pelo time Operações\n2. **Em elaboração** — equipe de engenharia prepara documentação\n3. **Aguardando aprovação condomínio** — síndico / administradora analisa (quando aplicável)\n4. **Submetido à prefeitura** — protocolo registrado\n5. **Em análise** — prazo varia por município (15–90 dias úteis)\n6. **Aprovado** — alvará de construção emitido\n7. **Adequações solicitadas** — prefeitura pede alterações; volta para elaboração\n\n### O que o franqueado deve fazer\n\n- Acompanhar o card no Hub Fly > Funil Projeto Legal\n- Avisar o time Projetos sobre exigências específicas do condomínio\n- Facilitar acesso a documentos do terreno quando solicitado\n- Não protocolar diretamente nada na prefeitura sem orientação Moní\n\n> **Prazo médio:** 30–90 dias úteis dependendo do município. Veja status atualizado no seu card.",
+          "palavras_chave": ["projeto legal", "aprovação prefeitura", "planta obra", "ART", "RRT", "memorial descritivo", "funil projeto legal"],
+          "sinonimos": ["aprovação de projeto", "licença de construção", "projeto arquitetônico aprovação"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        },
+        {
+          "pergunta": "Como funciona a aprovação pelo condomínio e qual é o prazo típico?",
+          "resposta_resumida": "A aprovação do condomínio é obtida junto ao síndico ou administradora antes da submissão à prefeitura. O franqueado é o responsável por facilitar essa comunicação. O prazo típico é de 15 a 30 dias, dependendo da convocação de assembleia ou reunião de diretoria.",
+          "resposta_completa": "## Aprovação pelo condomínio\n\nEm empreendimentos dentro de condomínios fechados ou loteamentos com regras internas, a **aprovação do condomínio** é obrigatória antes (ou em paralelo) à aprovação da prefeitura.\n\n### Por que o condomínio precisa aprovar?\n\n- A obra impacta as áreas comuns, estética e normas internas\n- Muitos condomínios têm **Padrão Construtivo** definido em convenção\n- A aprovação interna gera anuência formal (documento que pode ser exigido pela prefeitura)\n\n### Processo típico\n\n1. **Franqueado apresenta** o projeto ao síndico ou administradora\n2. **Assembleia ou reunião de diretoria** analisa e vota\n3. **Documento de anuência** emitido pelo condomínio\n4. Time Projetos Moní inclui anuência no processo de aprovação municipal\n\n### Prazos\n\n| Situação | Prazo estimado |\n|----------|----------------|\n| Aprovação por reunião de diretoria | 7–15 dias |\n| Aprovação por assembleia convocada | 20–45 dias |\n| Condomínio com regras rígidas ou padrão exigente | 30–60 dias |\n\n### Dicas para agilizar\n\n- Apresente o projeto ao síndico informalmente antes da reunião oficial\n- Destaque benefícios para o condomínio (valorização, padrão visual)\n- Leve o material visual Moní (renders, catálogo de casas)\n- Se houver objeções, envolva o time Operações antes de negociar alterações\n\n> **Atenção:** qualquer compromisso de alteração no projeto com o condomínio deve ser comunicado ao time Projetos antes de ser firmado.",
+          "palavras_chave": ["aprovação condomínio", "síndico", "anuência condomínio", "assembleia", "padrão construtivo", "aprovação interna"],
+          "sinonimos": ["ok do condomínio", "aprovação pelo síndico", "anuência do condomínio"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "Quanto tempo leva para obter o alvará de construção?",
+          "resposta_resumida": "O prazo para emissão do alvará varia de 30 a 90 dias úteis, dependendo do município, da complexidade do projeto e da fila da prefeitura. Municípios com aprovação digital costumam ser mais ágeis. O Hub Fly exibe o status em tempo real no card de Projeto Legal.",
+          "resposta_completa": "## Alvará de construção — prazo e processo\n\nO **alvará de construção** é a autorização oficial da prefeitura para iniciar as obras. Ele é emitido após a aprovação do Projeto Legal.\n\n### Fatores que influenciam o prazo\n\n| Fator | Impacto |\n|-------|--------|\n| Município com sistema digital (e-obra, Aprova Digital) | Reduz o prazo em 30–50% |\n| Complexidade do projeto (nº de unidades, metragem) | Mais unidades = análise mais longa |\n| Fila da prefeitura no período | Pode duplicar o prazo em épocas de pico |\n| Exigências de adequação | Cada rodada de adequação adiciona 15–30 dias |\n| Documentação incompleta na submissão | Atraso imediato |\n\n### Prazo médio por perfil de município\n\n| Perfil | Prazo estimado |\n|--------|---------------|\n| Município digital com processo ágil | 20–40 dias úteis |\n| Município médio porte | 40–70 dias úteis |\n| Município com alta demanda ou processo lento | 70–120 dias úteis |\n\n### O que acontece enquanto aguarda?\n\n- O card permanece na fase **\"Submetido à prefeitura\"** no Funil Projeto Legal\n- O time Projetos acompanha ativamente e registra atualizações no card\n- O franqueado é notificado via Hub Fly quando há movimentação\n- A obra **não pode começar** antes da emissão do alvará — iniciar sem alvará é infração\n\n### Posso acelerar?\n\nEm alguns municípios é possível pedir Alvará por Risco, que autoriza início de fundação enquanto o projeto final é analisado. O time Projetos avalia essa possibilidade caso a caso.\n\n> **Fique de olho:** aprovações demoradas são normais — não é necessário acionar a Moní antes de 45 dias sem resposta da prefeitura. Após esse prazo, abra chamado no Sirene.",
+          "palavras_chave": ["alvará construção", "prazo aprovação", "prefeitura", "projeto legal aprovado", "licença obra", "alvará por risco"],
+          "sinonimos": ["licença para construir", "autorização de obra", "tempo de aprovação prefeitura"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O que é o Planialtimétrico e quando ele é necessário?",
+          "resposta_resumida": "O Planialtimétrico é o levantamento topográfico do terreno — mede cotas, declividade, confrontações e limites. É obrigatório para projetos Moní e deve ser realizado por engenheiro ou geógrafo habilitado antes da elaboração do Projeto Legal.",
+          "resposta_completa": "## Planialtimétrico — levantamento topográfico\n\nO **levantamento planialtimétrico** é o documento técnico que mapeia as características físicas do terreno: dimensões, declividade, cotas e confrontações.\n\n### Por que é obrigatório?\n\n- A prefeitura exige em projetos com área > 500 m² ou terrenos inclinados\n- Sem ele, o projeto de implantação (posicionamento das casas) não pode ser elaborado\n- Definir movimentação de terra (terraplanagem) corretamente evita surpresas no custo de obra\n\n### O que o planialtimétrico mostra?\n\n- Limites e confrontações do terreno (com os vizinhos e via pública)\n- Cotas de nível (elevação de cada ponto do terreno)\n- Declividade predominante\n- Posição de árvores, muros e edificações existentes\n- Afastamentos exigidos por lei (recuos, APP, servidões)\n\n### Quem contrata?\n\nA Moní coordena e indica profissional habilitado. Em alguns casos, o franqueado pode contratar diretamente mediante orientação do time Projetos.\n\n### Quando é solicitado no Hub Fly?\n\nO planialtimétrico aparece como item de checklist na fase **Planialtimétrico** do Funil Operações. O arquivo deve ser enviado ao time Projetos via Hub Fly antes do avanço de fase.\n\n> **Custo:** geralmente entre R$ 800 e R$ 3.000 dependendo da área e município. Esse custo faz parte das despesas pré-obra do empreendimento.",
+          "palavras_chave": ["planialtimétrico", "levantamento topográfico", "topografia terreno", "cotas terreno", "declividade", "projeto legal"],
+          "sinonimos": ["levantamento do terreno", "topo do lote", "estudo topográfico"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "Quando a Moní aciona a garantidora e como o processo de crédito é liberado para início de obra?",
+          "resposta_resumida": "A liberação do crédito de obra (Cash Me) é acionada após a aprovação do alvará de construção. O time de Crédito Moní analisa documentação, valida o BCA final e aciona a garantidora. A obra só começa após a liberação da primeira tranche.",
+          "resposta_completa": "## Liberação do crédito para início de obra\n\nAntes de a obra começar, é necessário que o **crédito de obra** esteja formalizado e a primeira tranche disponível. Esse processo ocorre no Funil Crédito Obra (Cash Me) do Hub Fly.\n\n### Sequência de eventos\n\n1. **Alvará emitido** — Projeto Legal concluído; Funil Operações avança\n2. **Abertura automática Cash Me** — o Hub Fly cria o card no Funil Crédito Obra\n3. **Documentação solicitada** — time Crédito solicita documentos do terreno e do processo\n4. **Análise de crédito** — parceiro financeiro (Cash Me) analisa viabilidade\n5. **Aprovação de crédito** — negócio aprovado pela instituição\n6. **Assinatura do contrato de crédito** — franqueado e/ou SPE assina\n7. **Primeira tranche liberada** — valor disponível para início de fundação e mobilização\n\n### O que pode atrasar a liberação?\n\n- Documentação incompleta do terreno ou processo\n- Inconsistências no BCA ou projeto\n- Pendências jurídicas identificadas na due diligence do credor\n- Demora na assinatura do contrato SPE\n\n### Tranches subsequentes\n\nApós a primeira tranche (mobilização + fundação), as demais são liberadas conforme cronograma de obra e medições de avanço físico.\n\n> **Acompanhe** o status do seu crédito no Funil Crédito Obra no Hub Fly. Dúvidas sobre documentação: Sirene → área Crédito.",
+          "palavras_chave": ["crédito obra", "cash me", "tranche", "liberação obra", "financiamento obra", "início de obra"],
+          "sinonimos": ["liberação de financiamento", "crédito para construção", "aprovação de crédito de obra"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        }
+      ]
+    },
+
+    {
+      "categoria": "Obra",
+      "ordem_categoria": 3,
+      "artigos": [
+        {
+          "pergunta": "Qual é o cronograma típico de uma obra Moní e quais são as etapas?",
+          "resposta_resumida": "Uma obra Moní tem duração típica de 4 a 6 meses, dividida em: mobilização e fundação (mês 1), estrutura e alvenaria (meses 1-2), instalações e cobertura (meses 2-3), revestimento e acabamento (meses 3-4) e finalização e Habite-se (meses 4-5).",
+          "resposta_completa": "## Cronograma de obra Moní\n\nAs obras Moní seguem um cronograma-padrão, com variações conforme número de unidades, tipo de terreno e disponibilidade de material. O prazo de **4 a 6 meses** é referência para empreendimentos de até 10 unidades.\n\n### Fases da obra\n\n| Fase | Duração estimada | Atividades principais |\n|------|-----------------|----------------------|\n| **1. Mobilização e fundação** | Semanas 1–4 | Limpeza do terreno, terraplanagem, cravação de estacas, radier ou sapatas |\n| **2. Estrutura e alvenaria** | Semanas 3–8 | Laje, pilares, paredes, estrutura de cobertura |\n| **3. Instalações e cobertura** | Semanas 6–12 | Elétrica, hidráulica, esgoto, telhado |\n| **4. Revestimento e acabamento** | Semanas 10–18 | Reboco, piso, azulejo, esquadrias, pintura |\n| **5. Finalização e entrega** | Semanas 16–20 | Louças, ferragens, limpeza final, vistoria, Habite-se |\n\n### O que afeta o prazo?\n\n- **Número de unidades:** mais casas = mais tempo\n- **Chuvas:** podem paralisar fundação e estrutura\n- **Disponibilidade de material:** atrasos em fornecimento\n- **Aprovação de tranches:** liberação atrasada de crédito pausar obra\n- **Mão de obra local:** disponibilidade na região\n\n### Como acompanhar no Hub Fly\n\n- O card do seu empreendimento no Funil Operações exibe a fase atual\n- Fotos de avanço são registradas periodicamente\n- O franqueado pode solicitar relatório de obra ao time Operações\n\n> **Atraso identificado?** Abra chamado no Sirene → área Operações com foto e descrição do problema.",
+          "palavras_chave": ["cronograma obra", "etapas obra", "duração obra", "fundação", "alvenaria", "acabamento", "4 meses obra"],
+          "sinonimos": ["fases da construção", "tempo de obra", "prazo de construção"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        },
+        {
+          "pergunta": "Quem contrata e gerencia os fornecedores durante a obra?",
+          "resposta_resumida": "A contratação e o gerenciamento de fornecedores (empreiteiras, materiais) são responsabilidade do time de Operações da Moní (parceiro Wayser ou equipe própria). O franqueado não contrata diretamente — seu papel é acompanhar o andamento e comunicar problemas.",
+          "resposta_completa": "## Fornecedores de obra — quem contrata?\n\nNo modelo Moní, a **gestão de fornecedores e empreiteiras** é centralizada no time de Operações, não no franqueado. Isso garante padrão construtivo, controle de custo e responsabilidade jurídica.\n\n### Responsabilidades\n\n| Quem | O que faz |\n|------|-----------|\n| **Time Operações Moní** | Seleciona, contrata e gerencia empreiteira e fornecedores |\n| **Parceiro Wayser** | Gestão técnica de obra (quando aplicável) |\n| **Franqueado** | Acompanha, comunica e facilita acesso ao terreno |\n| **Franqueado NÃO faz** | Contratar empreiteiro diretamente, pagar fornecedores, alterar projeto |\n\n### Por que é centralizado?\n\n- Padronização do processo construtivo\n- Economia de escala em compra de materiais\n- Responsabilidade técnica sob ART do engenheiro Moní\n- Controle financeiro integrado ao crédito de obra (Cash Me)\n\n### O que o franqueado deve fazer durante a obra?\n\n1. **Facilitar acesso** ao terreno para a equipe de obra\n2. **Comunicar ao síndico** o início das obras e apresentar documentação\n3. **Acompanhar no Hub Fly** o avanço de fase e relatórios\n4. **Reportar problemas visíveis** (paralisação sem aviso, conflito com vizinhos) via Sirene\n5. **Não interferir** diretamente nas decisões técnicas da empreiteira\n\n### Posso indicar um fornecedor local?\n\nSim, mas como **sugestão** ao time Operações — não como contratação direta. O time avalia se o fornecedor atende os critérios Moní antes de qualquer engajamento.\n\n> **Problema na obra?** Registre com foto no Sirene → área Operações. Não tente resolver diretamente com o empreiteiro sem alinhamento com a Moní.",
+          "palavras_chave": ["fornecedores obra", "empreiteira", "wayser", "gestão de obra", "contratação construção", "quem gerencia a obra"],
+          "sinonimos": ["quem cuida da obra", "responsável pela construção", "gestão de empreiteira"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O que acontece se a obra atrasar? Quais são os impactos e como é tratado?",
+          "resposta_resumida": "Atrasos de obra são gerenciados pelo time de Operações. O franqueado deve comunicar qualquer paralisação ou problema imediatamente via Sirene. O prazo de entrega ao terrenista é protegido pela Carta Fiança. Atrasos prolongados acionam protocolo de recuperação de cronograma.",
+          "resposta_completa": "## Atrasos de obra — o que acontece?\n\nAtrasos fazem parte da construção civil. A Moní tem processos para gerenciar e minimizar o impacto nos compromissos com o terrenista e no crédito.\n\n### Tipos de atraso\n\n| Tipo | Exemplo | Tratamento |\n|------|---------|------------|\n| **Técnico** | Problema no solo, chuva excessiva | Replanejamento pelo time Operações |\n| **Financeiro** | Tranche atrasada, saldo insuficiente | Acionamento do parceiro Cash Me |\n| **Administrativo** | Embargos, notificação do condomínio | Acionamento do Jurídico |\n| **Logístico** | Falta de material, empreiteiro paralisado | Substituição ou negociação pelo time Operações |\n\n### Impactos de atraso\n\n- **Para o terrenista:** a **Carta Fiança** garante indenização caso o prazo contratual não seja cumprido — é a proteção jurídica do terrenista\n- **Para o crédito:** tranches podem ser bloqueadas até regularização do cronograma\n- **Para o franqueado:** atraso prolongado pode gerar obrigações de comunicação formal ao terrenista\n\n### O que o franqueado deve fazer ao identificar atraso?\n\n1. **Fotografar** e **registrar** a situação\n2. **Abrir chamado no Sirene** → área Operações com evidências\n3. **Não comunicar prazo** ao terrenista antes de alinhar com o time Operações\n4. Aguardar o plano de recuperação do time\n\n### O terrenista pode acionar a Carta Fiança por atraso?\n\nSim, se o prazo contratual for ultrapassado sem resolução. A Moní monitora esse risco ativamente e aciona protocolos preventivos antes de qualquer acionamento da garantidora.\n\n> **Lembre-se:** comunicação precoce evita problemas maiores. Qualquer sinal de atraso deve ser reportado no mesmo dia.",
+          "palavras_chave": ["atraso de obra", "paralisação obra", "cronograma atrasado", "carta fiança", "impacto atraso", "comunicação terrenista"],
+          "sinonimos": ["obra parada", "obra atrasada", "atraso na construção"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "Como funciona o acompanhamento da obra pelo Hub Fly?",
+          "resposta_resumida": "O franqueado acompanha sua obra pelo card no Funil Operações no Hub Fly. O card exibe a fase atual, checklist de etapas, histórico de movimentações e relatórios de avanço. Comentários e fotos podem ser adicionados pelo time Operações.",
+          "resposta_completa": "## Acompanhamento de obra pelo Hub Fly\n\nO **Hub Fly** é o canal oficial de acompanhamento da sua obra. Toda a comunicação operacional e os marcos de evolução são registrados no card do seu empreendimento.\n\n### Onde encontrar no Hub Fly?\n\n- Menu lateral > **Operações**\n- Localize o card do seu empreendimento (busque pelo nome do condomínio ou lote)\n- Acesse o card para ver detalhes completos\n\n### O que o card de Operações mostra?\n\n| Campo | O que mostra |\n|-------|-------------|\n| **Fase atual** | Etapa de obra em andamento |\n| **Checklist** | Itens concluídos e pendentes para avançar de fase |\n| **Histórico** | Registro de todas as movimentações de fase |\n| **Comentários** | Atualizações do time Operações, fotos, relatórios |\n| **Paralelas** | Status de Crédito, Jurídico, Projeto Legal linkados |\n| **SLA** | Se o prazo da fase está dentro ou fora do limite |\n\n### Como receber atualizações?\n\n- O Hub Fly envia notificações quando o card muda de fase ou há comentários\n- Verifique as notificações no sino (🔔) na barra superior\n- Fotos de avanço físico são postadas como comentários pelo time Operações\n\n### Posso adicionar comentários no card?\n\nSim — você pode registrar observações, perguntas ou informações relevantes diretamente no card. O time Operações é notificado automaticamente.\n\n> **Para suporte urgente** (paralisação, embargo, acidente), use o Sirene em vez de comentário no card.",
+          "palavras_chave": ["acompanhamento obra", "hub fly obra", "funil operações", "card operações", "status obra", "notificação obra"],
+          "sinonimos": ["como ver minha obra", "como acompanhar a construção", "status da obra hub fly"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O que é o Habite-se e como ele é obtido?",
+          "resposta_resumida": "O Habite-se é o documento emitido pela prefeitura que certifica que a obra foi concluída conforme o projeto aprovado e que o imóvel está apto para ser habitado. É obrigatório para registrar e transferir as unidades ao terrenista. A Moní é responsável por obtê-lo.",
+          "resposta_completa": "## Habite-se — o que é e por que importa\n\nO **Habite-se** (ou Certificado de Conclusão de Obra) é emitido pela prefeitura após vistoria técnica que confirma que a obra foi executada de acordo com o projeto aprovado.\n\n### Por que o Habite-se é fundamental?\n\n- **Sem Habite-se**, o imóvel não pode ser registrado, vendido ou financiado\n- É necessário para **averbação das unidades** no Cartório de Imóveis\n- Sem averbação, as unidades do terrenista não podem ser transferidas legalmente\n- É exigido pelos bancos em qualquer financiamento imobiliário das casas\n\n### Quem obtém o Habite-se?\n\nO time de Operações (engenheiros responsáveis) é quem solicita e acompanha a emissão. O franqueado não precisa ir à prefeitura.\n\n### Processo para obtenção\n\n1. **Conclusão da obra** — todas as etapas físicas concluídas\n2. **Solicitação do Habite-se** pelo responsável técnico (engenheiro/arquiteto Moní)\n3. **Vistoria da prefeitura** — fiscal verifica conformidade com o projeto\n4. **Adequações (se houver)** — small correções solicitadas pela fiscalização\n5. **Emissão do Habite-se** — documento oficial disponível\n6. **Averbação no cartório** — registro das unidades individuais\n\n### Prazo típico\n\n- Solicitação + vistoria: 15 a 45 dias úteis\n- Emissão após vistoria aprovada: 5–15 dias úteis\n\n### Impacto no crédito\n\nA liberação da última tranche do crédito de obra é condicionada à apresentação do Habite-se (ou equivalente) em algumas modalidades. Verifique com o time de Crédito.\n\n> **O Habite-se é o marco de conclusão da obra.** A partir dele, as unidades podem ser entregues e registradas.",
+          "palavras_chave": ["habite-se", "conclusão de obra", "certificado obra", "averbação", "prefeitura habite-se", "registro imóvel"],
+          "sinonimos": ["certificado de conclusão", "licença de habitação", "auto de conclusão"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        }
+      ]
+    },
+
+    {
+      "categoria": "Tecnologia e Hub Fly",
+      "ordem_categoria": 4,
+      "artigos": [
+        {
+          "pergunta": "Como faço para acessar o Hub Fly pela primeira vez?",
+          "resposta_resumida": "O acesso ao Hub Fly é feito pelo link enviado por e-mail pela equipe Moní após a assinatura do contrato de franquia. Você cria sua senha no primeiro acesso. Em caso de problemas, acione o Sirene ou entre em contato com o time de Expansão.",
+          "resposta_completa": "## Primeiro acesso ao Hub Fly\n\nO Hub Fly é a plataforma operacional Moní — onde você acompanha seus negócios, se comunica com o time e acessa materiais de apoio.\n\n### Como receber o acesso\n\n1. Após assinatura do contrato de franquia, o time Moní cria seu perfil\n2. Você recebe um e-mail com o link de convite\n3. Clique no link e defina sua senha (mínimo 8 caracteres)\n4. Acesse em **[link do Hub Fly]** — salve nos favoritos\n\n### Dispositivos compatíveis\n\n- **Desktop (recomendado):** Chrome, Edge ou Safari atualizados\n- **Mobile:** funcional pelo navegador do celular\n- Não há app nativo — use o navegador\n\n### E se o e-mail de convite não chegou?\n\n1. Verifique a caixa de spam\n2. Confirme com o seu contato Moní se o convite foi enviado para o e-mail correto\n3. Peça reenvio via Sirene → área Suporte → acesso Hub Fly\n\n### Dúvidas mais comuns no primeiro acesso\n\n| Problema | Solução |\n|----------|--------|\n| Senha esquecida | Clique em \"Esqueci minha senha\" na tela de login |\n| Acesso negado | Perfil pode estar como *pending* — aguarde aprovação Moní |\n| Não encontra o menu | Verifique se está logado com o e-mail correto |\n| Tela em branco | Limpe o cache ou use aba anônima |\n\n> **Ainda sem acesso?** Abra chamado no Sirene ou envie e-mail para o seu executivo de expansão.",
+          "palavras_chave": ["primeiro acesso hub fly", "login hub fly", "convite hub fly", "senha hub fly", "acesso plataforma"],
+          "sinonimos": ["como entrar no hub fly", "cadastro hub fly", "criar conta hub fly"],
+          "area_responsavel": "Tecnologia",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        },
+        {
+          "pergunta": "Como funciona o Kanban no Hub Fly e o que os cards representam?",
+          "resposta_resumida": "O Kanban é o sistema de gestão de negócios do Hub Fly. Cada card representa um empreendimento em andamento. As colunas representam as etapas do processo. Você avança o card conforme o negócio evolui, e cada fase tem checklists e SLAs definidos.",
+          "resposta_completa": "## Kanban — seu painel de negócios\n\nO Kanban é a principal ferramenta de acompanhamento de negócios do Hub Fly. É a visão consolidada de todos os seus empreendimentos e em qual etapa cada um está.\n\n### Conceitos básicos\n\n| Elemento | O que é |\n|----------|---------|\n| **Card** | Um empreendimento ou processo específico |\n| **Coluna (fase)** | A etapa atual do processo |\n| **Checklist** | Itens que precisam ser concluídos antes de avançar |\n| **SLA** | Prazo para essa fase (indicado pela bolinha de cor) |\n| **Comentários** | Histórico de comunicação do card |\n\n### Indicadores de SLA (bolinhas)\n\n- 🟢 **Verde:** dentro do prazo\n- 🟡 **Amarelo:** atenção — prazo próximo\n- 🔴 **Vermelho:** SLA vencido — ação necessária\n\n### Principais funis disponíveis\n\n| Funil | O que mostra |\n|-------|--------------|\n| **Step One** | Prospecção e viabilidade de terrenos |\n| **Portfólio** | Negócios aprovados em andamento |\n| **Operações** | Empreendimentos em obra |\n| **Crédito Obra** | Status do financiamento de obra |\n\n### O que o franqueado pode fazer no Kanban?\n\n- Visualizar a fase atual de cada negócio\n- Adicionar comentários e arquivos no card\n- Responder checklists da fase\n- Ver histórico completo do negócio\n- Consultar materiais e instruções por fase\n\n### O que o franqueado NÃO deve fazer?\n\n- Mover cards de fase sem aprovação do time responsável\n- Arquivar ou excluir cards por conta própria\n\n> **Dúvida em um card específico?** Use o campo de comentários do card — o time Moní é notificado automaticamente.",
+          "palavras_chave": ["kanban hub fly", "card negócio", "funil", "fase kanban", "sla kanban", "checklist fase"],
+          "sinonimos": ["quadro de negócios", "painel kanban", "cards hub fly", "como funciona o kanban"],
+          "area_responsavel": "Tecnologia",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O que é o Sirene e quando devo usá-lo?",
+          "resposta_resumida": "O Sirene é o sistema de chamados do Hub Fly — a central de suporte e comunicação oficial com o time Moní. Use o Sirene para dúvidas, solicitações, problemas técnicos e qualquer demanda que precise de resposta formal. É preferível a WhatsApp ou e-mail avulso.",
+          "resposta_completa": "## Sirene — central de chamados e suporte\n\nO **Sirene** é o canal oficial de comunicação entre franqueados e o time Moní. Ele garante rastreabilidade, SLA e histórico de todas as solicitações.\n\n### Quando usar o Sirene?\n\n- Dúvidas jurídicas, operacionais ou financeiras\n- Solicitações de documentos ou aprovações\n- Problemas na plataforma Hub Fly\n- Relato de problemas na obra\n- Questionamentos sobre contratos ou cláusulas\n- Solicitações de reunião ou alinhamento específico\n\n### Como abrir um chamado\n\n1. Acesse Hub Fly → **Sirene** no menu lateral\n2. Clique em **Novo chamado**\n3. Selecione a **área responsável** (Jurídico, Operações, Crédito, Tecnologia, etc.)\n4. Escreva o assunto e a descrição detalhada\n5. Anexe documentos ou fotos se necessário\n6. Confirme e aguarde o retorno no próprio chamado\n\n### SLA de resposta por área\n\n| Área | Tempo esperado |\n|------|---------------|\n| Operações | Até 48 horas úteis |\n| Jurídico | Até 72 horas úteis |\n| Crédito | Até 48 horas úteis |\n| Tecnologia/Suporte | Até 24 horas úteis |\n\n### Por que usar o Sirene em vez de WhatsApp?\n\n- Fica registrado — não se perde em conversas informais\n- Garante resposta dentro do SLA\n- Histórico acessível a qualquer momento\n- O time inteiro pode ver e assumir o chamado se o responsável estiver ausente\n\n> **Urgente?** Marque o chamado como alta prioridade. Para emergências (paralisação de obra, embargo, acidente), ligue diretamente para o executivo responsável.",
+          "palavras_chave": ["sirene", "chamado", "suporte hub fly", "central de atendimento", "abrir chamado", "comunicação moní"],
+          "sinonimos": ["como abrir chamado", "suporte moní", "onde pedir ajuda", "central de chamados"],
+          "area_responsavel": "Tecnologia",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        },
+        {
+          "pergunta": "Como atualizo meus dados de perfil no Hub Fly?",
+          "resposta_resumida": "Você pode atualizar nome, foto e telefone diretamente em Perfil no menu do Hub Fly. Para alterar e-mail ou papel/acesso, é necessário solicitar via Sirene ao time de Tecnologia, pois essas informações são vinculadas ao seu login e contrato.",
+          "resposta_completa": "## Atualizar perfil no Hub Fly\n\n### O que você pode alterar sozinho\n\n- Nome de exibição\n- Foto de perfil\n- Telefone de contato\n- Preferências de notificação\n\n### Como acessar o perfil\n\n1. Clique no seu **avatar** no canto superior direito\n2. Selecione **Meu Perfil** ou **Configurações**\n3. Edite os campos disponíveis\n4. Salve as alterações\n\n### O que precisa de solicitação via Sirene\n\n| Dado | Por quê precisa de Sirene? |\n|------|---------------------------|\n| **E-mail de login** | Vinculado ao contrato e autenticação |\n| **Papel (role)** | Apenas administradores Moní podem alterar |\n| **Acesso a funis específicos** | Controlado pela equipe de T.I. |\n| **Desativar ou transferir conta** | Envolve contrato e confidencialidade |\n\n### Minha conta foi bloqueada — o que fazer?\n\nContas bloqueadas aparecem com mensagem \"acesso negado\" no login. Isso pode ocorrer por:\n- Contrato suspenso ou em processo de revisão\n- Erro de autenticação repetido\n- Ação administrativa\n\nNesse caso, abra chamado no Sirene → área Tecnologia ou entre em contato com seu executivo Moní.\n\n> **Dica:** mantenha seu telefone e e-mail atualizados — são os canais usados para notificações e recuperação de senha.",
+          "palavras_chave": ["perfil hub fly", "atualizar dados", "foto perfil", "email login", "configurações hub fly", "conta bloqueada"],
+          "sinonimos": ["meus dados hub fly", "editar perfil", "como mudar meu nome hub fly"],
+          "area_responsavel": "Tecnologia",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "Não consigo acessar um funil ou card no Hub Fly — o que fazer?",
+          "resposta_resumida": "Problemas de acesso a funis ou cards geralmente indicam que seu perfil não tem permissão para aquela seção, ou que o card está vinculado a outra unidade. Verifique se está logado com o e-mail correto e, se o problema persistir, abra chamado no Sirene → Tecnologia.",
+          "resposta_completa": "## Problemas de acesso no Hub Fly\n\n### Possíveis causas\n\n| Sintoma | Causa mais provável |\n|---------|--------------------|\n| Funil não aparece no menu | Seu perfil não tem acesso àquele funil |\n| Card não encontrado | Card arquivado, concluído ou de outra unidade |\n| Erro \"Sem permissão\" | Tentativa de acessar área restrita (admin/equipe Moní) |\n| Tela em branco | Cache desatualizado ou problema de sessão |\n| Login não funciona | Senha expirada ou conta bloqueada |\n\n### Soluções rápidas\n\n1. **Faça logout e login novamente** — resolve 80% dos casos de cache\n2. **Limpe o cache do navegador** (Ctrl+Shift+Delete)\n3. **Use aba anônima** para testar sem cache\n4. **Confirme o e-mail de login** — é possível ter duas contas com e-mails diferentes\n5. **Verifique o menu lateral** — alguns funis só aparecem após o franqueado ter um card ativo naquele funil\n\n### O card sumiu — o que aconteceu?\n\n- Cards **arquivados** ficam ocultos por padrão — use o filtro \"Arquivados\" no Kanban\n- Cards **concluídos** ficam no histórico\n- Se realmente não encontrar, abra chamado no Sirene com o nome do empreendimento e número do card (se souber)\n\n### Quando acionar o Sirene?\n\n- Após tentar as soluções acima sem sucesso\n- Quando precisar de acesso a funil específico que não aparece no seu perfil\n- Quando identificar bug ou comportamento inesperado na plataforma\n\n> **Detalhes úteis no chamado:** informe o navegador usado, captura de tela do erro e o que você estava tentando fazer.",
+          "palavras_chave": ["acesso hub fly", "erro hub fly", "funil não aparece", "card sumiu", "permissão hub fly", "bug hub fly"],
+          "sinonimos": ["não consigo entrar no hub fly", "problema de acesso", "hub fly não funciona"],
+          "area_responsavel": "Tecnologia",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        }
+      ]
+    },
+
+    {
+      "categoria": "Entrega e Pós-Obra",
+      "ordem_categoria": 5,
+      "artigos": [
+        {
+          "pergunta": "Como funciona o protocolo de entrega das unidades ao terrenista?",
+          "resposta_resumida": "A entrega das unidades ao terrenista segue um protocolo formal: vistoria técnica com laudo, assinatura do Termo de Recebimento, entrega das chaves e início do período de garantia. O time de Operações coordena e o franqueado participa presencialmente.",
+          "resposta_completa": "## Protocolo de entrega ao terrenista\n\nA entrega das unidades é um momento formal e importante — marca o cumprimento do compromisso de permuta e inicia o período de garantia.\n\n### Etapas do protocolo de entrega\n\n1. **Conclusão da obra** — Habite-se emitido e averbação em andamento\n2. **Agendamento da vistoria** — time Operações agenda com o terrenista\n3. **Vistoria técnica** — engenheiro Moní e terrenista percorrem as unidades\n4. **Laudo de vistoria** — documento formal com itens verificados e pendências (se houver)\n5. **Resolução de pendências** — itens do laudo sanados pelo time Operações\n6. **Assinatura do Termo de Recebimento** — terrenista confirma recebimento das unidades\n7. **Entrega das chaves** — entrega formal com registro fotográfico\n8. **Início da garantia** — a partir da assinatura do termo\n\n### Papel do franqueado na entrega\n\n- Participar da vistoria e da assinatura\n- Facilitar comunicação com o terrenista\n- Garantir que o terrenista entende o processo de garantia pós-entrega\n- Registrar a entrega com fotos para o Hub Fly\n\n### E se o terrenista recusar o recebimento?\n\nRecusa pode ocorrer por pendências identificadas na vistoria. O time Operações avalia cada item:\n- Pendências procedentes: sanadas pelo time de obra\n- Pendências improcedentes: alinhamento técnico com o terrenista via time Jurídico\n\n> **Importante:** a entrega formal com Termo assinado protege a Moní e o franqueado de disputas futuras. Não pule essa etapa.",
+          "palavras_chave": ["entrega unidades", "protocolo entrega", "vistoria entrega", "termo de recebimento", "chave terrenista", "conclusão permuta"],
+          "sinonimos": ["entregar casas ao terrenista", "finalização do negócio", "entrega das casas"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        },
+        {
+          "pergunta": "O que é averbação e por que é necessária antes da venda das unidades?",
+          "resposta_resumida": "Averbação é o registro da conclusão da obra na matrícula do imóvel no Cartório de Registro de Imóveis. Sem averbação, as unidades não podem ser vendidas ou financiadas. O prazo médio é de 30 a 60 dias após o Habite-se.",
+          "resposta_completa": "## Averbação — o que é e por que importa\n\n**Averbação** é o ato cartorário que registra na matrícula do imóvel que a construção foi concluída conforme aprovado. Sem esse registro, a unidade não existe juridicamente como imóvel independente.\n\n### Por que a averbação é obrigatória?\n\n- Sem averbação, o imóvel não pode ser vendido com escritura\n- Bancos não financiam imóvei sem averbação atualizada\n- O terrenista não pode transferir legalmente sua unidade\n- Sem ela, o imóvel não tem ITBI calculado corretamente\n\n### Processo de averbação\n\n1. **Habite-se emitido** — documento base para a averbação\n2. **Cálculo de ITBI** — imposto municipal sobre transmissão de bens imóveis\n3. **Solicitação ao Cartório** — pelo engenheiro responsável ou advogado Moní\n4. **Análise cartorial** — cartório confere conformidade do projeto aprovado vs. construído\n5. **Emissão da matrícula atualizada** — imóvel aparece como \"construção averbada\"\n\n### Prazo típico\n\n- Protocolo + análise: 15–45 dias úteis\n- Emissão: 5–15 dias após aprovação\n\n### Quem faz a averbação no modelo Moní?\n\nO time Jurídico / Operações coordena o processo de averbação. O franqueado não precisa ir ao cartório.\n\n### Posso vender as unidades antes da averbação?\n\nNão é recomendado. Venda sem averbação pode ser feita por Contrato de Compra e Venda Particular, mas gera riscos para o comprador (sem acesso a financiamento bancário) e expõe o vendedor a disputas. Aguarde a averbação sempre que possível.\n\n> **Acompanhe o status** da averbação no card do seu empreendimento no Funil Operações.",
+          "palavras_chave": ["averbação", "matrícula atualizada", "cartório", "habite-se", "venda unidade", "registro obra"],
+          "sinonimos": ["registrar obra no cartório", "averbação de construção", "como averbar imóvel"],
+          "area_responsavel": "Jurídico",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "Quais são os prazos de garantia das casas entregues?",
+          "resposta_resumida": "As casas Moní seguem os prazos legais do CDC e da NBR 15575: 5 anos para estrutura, 3 anos para impermeabilização, 1 a 2 anos para instalações e acabamento, e 90 dias para vícios aparentes. O franqueado deve orientar o terrenista sobre como acionar a garantia.",
+          "resposta_completa": "## Garantias das unidades Moní\n\nAs casas entregues têm garantias legais definidas pelo Código de Defesa do Consumidor e pela Norma de Desempenho NBR 15575. O franqueado deve conhecer esses prazos para orientar o terrenista e os compradores.\n\n### Prazos de garantia por sistema\n\n| Sistema construtivo | Prazo | Base legal |\n|--------------------|----|--------|\n| Estrutura e fundação | **5 anos** | NBR 15575 |\n| Impermeabilização (telhado, banheiro, laje) | **3 anos** | NBR 15575 |\n| Instalações elétricas e hidráulicas | **2 anos** | NBR 15575 |\n| Revestimentos, piso, pintura | **1 ano** | CDC |\n| Vícios aparentes (visíveis na entrega) | **90 dias** | CDC |\n\n### O que a garantia cobre?\n\n- Defeitos construtivos decorrentes da execução da obra\n- Falhas em materiais instalados pela construtora\n- Problemas ocultos que se manifestam após a entrega\n\n### O que a garantia NÃO cobre?\n\n- Danos causados por uso inadequado\n- Reformas feitas sem autorização\n- Problemas causados por terceiros (inquilinos, vizinhos)\n- Desgaste natural pelo uso\n\n### Como acionar a garantia?\n\n1. O terrenista (ou comprador) abre chamado via Hub Fly ou contata o franqueado\n2. Franqueado registra a solicitação no Sirene → área Moní Care / Pós-Obra\n3. Equipe técnica Moní realiza vistoria\n4. Reparo realizado pela equipe responsável dentro do prazo\n\n> **Dica:** entregue ao terrenista o Manual do Proprietário com os prazos e os cuidados de manutenção — isso previne acionamentos indevidos.",
+          "palavras_chave": ["garantia casas", "prazo garantia", "NBR 15575", "CDC", "vícios construtivos", "defeito obra", "garantia 5 anos"],
+          "sinonimos": ["tempo de garantia", "garantia da construção", "defeito após entrega"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O que acontece com o acerto financeiro após a entrega das unidades?",
+          "resposta_resumida": "Após a entrega, ocorre o acerto financeiro final: liquidação do crédito de obra, quitação de eventuais custos extras com o terrenista e fechamento contábil do empreendimento. O time Financeiro / Jurídico conduz esse processo com o franqueado.",
+          "resposta_completa": "## Acerto financeiro pós-entrega\n\nA entrega das unidades não encerra todas as obrigações financeiras. Há um processo de **acerto final** que envolve crédito, contabilidade e eventuais ajustes de permuta.\n\n### O que compõe o acerto final?\n\n| Item | Responsável | Timing |\n|------|------------|-------|\n| Liquidação do saldo do crédito de obra | Time Crédito + Cash Me | Após Habite-se |\n| Apuração de custos excedentes de obra | Operações + Contabilidade | Após conclusão física |\n| Ajuste de unidades de permuta (se houve variação) | Jurídico | Na entrega |\n| Fechamento da SPE (se aplicável) | Jurídico / Contabilidade | Após averbação |\n| Distribuição de resultados ao franqueado | Financeiro | Conforme contrato |\n\n### O franqueado recebe quanto e quando?\n\nO retorno financeiro ao franqueado depende do modelo contratado e do desempenho do empreendimento. O time Financeiro apresenta o demonstrativo de resultado após o fechamento contábil.\n\n### Há custos extras que podem surgir?\n\nSim — imprevistos de obra, variações de material ou adequações técnicas podem gerar custos além do BCA inicial. Esses são discutidos e formalizados durante a obra pelo time Operações. Surpresas pós-entrega são raras quando o acompanhamento foi feito corretamente.\n\n### Como acompanhar?\n\n- Painel Contabilidade no Hub Fly (para usuários com acesso)\n- Comunicação direta com o time Financeiro via Sirene\n\n> **Dúvidas sobre seu resultado financeiro?** Abra chamado no Sirene → área Financeiro / Contabilidade.",
+          "palavras_chave": ["acerto financeiro", "resultado empreendimento", "liquidação crédito", "fechamento spe", "retorno franqueado", "contabilidade pós-obra"],
+          "sinonimos": ["fechamento financeiro", "quanto recebo como franqueado", "resultado do negócio"],
+          "area_responsavel": "Financeiro",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O terrenista pode vender a unidade recebida antes do Habite-se?",
+          "resposta_resumida": "Tecnicamente sim, por contrato particular (promessa de compra e venda), mas sem o Habite-se o comprador não consegue financiamento bancário e a escritura não pode ser lavrada. O ideal é aguardar a averbação. O Jurídico Moní pode orientar sobre opções intermediárias.",
+          "resposta_completa": "## Venda das unidades antes do Habite-se\n\nEssa é uma dúvida frequente dos terrenistas: podem vender a unidade recebida na permuta antes da obra terminar?\n\n### Situações possíveis\n\n| Momento | O que é possível | Limitações |\n|---------|-----------------|----------|\n| **Antes do Habite-se** | Contrato de promessa de compra e venda | Sem escritura, sem financiamento bancário |\n| **Após Habite-se, antes da averbação** | Promessa + início de processo de averbação | Financiamento limitado a alguns bancos |\n| **Após averbação** | Escritura definitiva + qualquer financiamento | Situação ideal |\n\n### Riscos de vender antes do Habite-se\n\n- O comprador não consegue financiamento imobiliário convencional (CEF, bancos)\n- Se a obra tiver problemas, o comprador está exposto\n- Litígios futuros são mais comuns em transações pré-Habite-se\n- O ITBI não pode ser calculado definitivamente\n\n### O que o franqueado deve orientar?\n\n- Recomende ao terrenista aguardar o Habite-se para uma venda mais segura\n- Se ele insistir em vender antes, oriente-o a buscar assessoria jurídica própria\n- O Jurídico Moní não representa o terrenista nessa transação — ele precisa de advogado particular\n\n### A Moní precisa autorizar a venda?\n\nA Moní não interfere na liberdade do terrenista de negociar suas unidades após a entrega. Porém, qualquer alteração no processo de averbação pode ser afetada.\n\n> **Dúvida jurídica específica sobre a situação do terrenista?** Consulte o Jurídico Moní via Sirene — eles podem orientar o que é possível dentro do contexto do contrato.",
+          "palavras_chave": ["venda antes habite-se", "terrenista vender casa", "promessa compra venda", "escritura imóvel", "financiamento habite-se"],
+          "sinonimos": ["posso vender antes do habite-se", "vender unidade antes de terminar", "negociar casa em construção"],
+          "area_responsavel": "Jurídico",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        }
+      ]
+    },
+
+    {
+      "categoria": "Moní Care",
+      "ordem_categoria": 6,
+      "artigos": [
+        {
+          "pergunta": "O que é o Moní Care e como ele funciona?",
+          "resposta_resumida": "O Moní Care é o programa de pós-entrega e suporte ao terrenista da Moní. Ele garante que problemas pós-entrega sejam atendidos dentro dos prazos de garantia, com canal dedicado, vistoria técnica e acompanhamento até a resolução.",
+          "resposta_completa": "## Moní Care — suporte pós-entrega\n\nO **Moní Care** é o programa de atendimento pós-obra da Moní. Seu objetivo é garantir que o terrenista tenha suporte adequado após receber as unidades e que eventuais problemas construtivos sejam resolvidos dentro dos prazos legais de garantia.\n\n### O que o Moní Care cobre?\n\n- Atendimento a manifestações patológicas (infiltrações, trincas, falhas de instalação)\n- Vistorias técnicas de garantia\n- Coordenação de reparos com a equipe de obra responsável\n- Orientação ao terrenista sobre uso correto e manutenção\n\n### O que o Moní Care NÃO cobre?\n\n- Danos por uso inadequado ou reforma não autorizada\n- Problemas em áreas do condomínio não relacionadas ao empreendimento Moní\n- Desgaste natural esperado para o tempo de uso\n\n### Canal de acionamento\n\n- **Terrenista:** contata o franqueado ou acessa diretamente o Hub Fly (se tiver acesso ao portal)\n- **Franqueado:** abre chamado no Sirene → área Moní Care\n- **Moní Care:** agenda vistoria e coordena o reparo\n\n### Prazos de atendimento\n\n| Tipo de problema | Prazo de primeiro atendimento |\n|------------------|-------------------------------|\n| Urgência (vazamento ativo, risco estrutural) | Até 48 horas |\n| Defeito grave (infiltração, fissura estrutural) | Até 5 dias úteis |\n| Defeito leve (pintura, acabamento) | Até 15 dias úteis |\n\n> **Para acionamentos de garantia:** sempre registre via Sirene com fotos e descrição — isso agiliza a triagem e o agendamento da vistoria.",
+          "palavras_chave": ["moní care", "pós-entrega", "garantia pós-obra", "suporte terrenista", "vistoria garantia", "reparo pós-obra"],
+          "sinonimos": ["atendimento pós-entrega", "suporte de garantia", "assistência técnica moní"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        },
+        {
+          "pergunta": "Como o terrenista deve acionar o Moní Care após problemas na unidade?",
+          "resposta_resumida": "O terrenista deve contatar o franqueado, que abre o chamado no Sirene. Alternativamente, se o terrenista tiver acesso ao Hub Fly, pode abrir diretamente. Em casos de urgência (vazamento ativo, risco de segurança), o franqueado deve acionar imediatamente o time Operações por telefone.",
+          "resposta_completa": "## Como o terrenista aciona o Moní Care\n\n### Fluxo padrão de acionamento\n\n1. **Terrenista identifica o problema** e contata o franqueado\n2. **Franqueado documenta** com fotos e descrição detalhada\n3. **Franqueado abre chamado** no Sirene → área Moní Care\n4. **Moní Care** faz triagem do chamado (urgência vs. rotina)\n5. **Agendamento de vistoria técnica** com o terrenista\n6. **Laudo de vistoria** define se é garantia ou responsabilidade do terrenista\n7. **Reparo realizado** (se for garantia) com confirmação do terrenista\n\n### Informações essenciais no chamado\n\n- Nome do empreendimento e unidade afetada\n- Tipo de problema (infiltração, elétrico, estrutural, acabamento)\n- Data em que o problema foi identificado\n- Fotos/vídeos do problema\n- Se já houve reformas ou alterações na unidade\n\n### Casos de urgência\n\nProblemas que colocam em risco a segurança ou causam dano progressivo:\n- Vazamentos ativos (água, esgoto)\n- Falhas elétricas com risco de curto ou incêndio\n- Fissuras estruturais visíveis\n\nNesses casos: **ligue para o executivo responsável** e **abra o chamado em paralelo** — não aguarde só o Sirene.\n\n### O terrenista pode me acionar diretamente sem passar pela Moní?\n\nNão recomendado — o franqueado não tem autonomia para prometer reparos ou contratar serviços de garantia sem aprovação da Moní. Sempre canalize pelo processo oficial.\n\n> **Guarde bem:** o Termo de Recebimento assinado na entrega define o início dos prazos de garantia. Problemas relatados depois dos prazos não são cobertos.",
+          "palavras_chave": ["acionar garantia", "como reclamar problema", "chamado pós-entrega", "vistoria garantia", "terrenista problema"],
+          "sinonimos": ["como pedir reparo moní", "problema na casa entregue", "reclamação pós-obra"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O franqueado tem alguma responsabilidade no pós-entrega?",
+          "resposta_resumida": "Sim. O franqueado é o ponto de contato do terrenista e responsável por registrar chamados de garantia no Sirene, facilitar o acesso para vistorias e acompanhar a resolução. Ele não é o responsável técnico pela execução dos reparos — isso é do time Operações.",
+          "resposta_completa": "## Responsabilidades do franqueado no pós-entrega\n\nApós a entrega das unidades, o relacionamento com o terrenista não termina — e o franqueado é a figura central nessa continuidade.\n\n### O que o franqueado deve fazer\n\n| Responsabilidade | Detalhe |\n|------------------|---------|\n| **Ponto de contato** | Receber dúvidas e reclamações do terrenista |\n| **Registro de chamados** | Abrir chamado no Sirene para cada demanda pós-entrega |\n| **Facilitação de vistoria** | Articular acesso do técnico Moní à unidade |\n| **Acompanhamento** | Monitorar resolução e confirmar satisfação do terrenista |\n| **Orientação** | Explicar prazos de garantia e o processo ao terrenista |\n\n### O que o franqueado NÃO deve fazer\n\n- Contratar empreiteiro ou mão-de-obra por conta própria para reparos\n- Prometer prazos de reparo sem alinhar com a Moní\n- Ignorar reclamações do terrenista (risco jurídico e de imagem)\n- Aceitar ou rejeitar a garantia sem parecer técnico da Moní\n\n### O relacionamento pós-entrega importa?\n\nMuito. O terrenista satisfeito é fonte de indicações de novos terrenos e franqueados. O terrenista insatisfeito pode gerar reclamações públicas, disputas jurídicas e impacto na reputação da franquia. Trate cada chamado de garantia com seriedade e agilidade.\n\n> **Dica:** visite o terrenista 30 e 90 dias após a entrega para uma vistoria preventiva. Isso demonstra cuidado e antecipa problemas antes que se agravem.",
+          "palavras_chave": ["responsabilidade franqueado pós-entrega", "papel franqueado garantia", "relacionamento pós-obra", "terrenista satisfeito"],
+          "sinonimos": ["o que o franqueado faz depois da entrega", "franqueado e garantia", "responsabilidade após obra"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O Moní Care cobre problemas causados por inquilinos ou compradores das unidades?",
+          "resposta_resumida": "Não. O Moní Care atende exclusivamente o terrenista (proprietário original das unidades na permuta). Problemas causados por inquilinos, compradores ou reformas realizadas após a entrega não são cobertos pela garantia Moní.",
+          "resposta_completa": "## Moní Care — quem é coberto?\n\n### Beneficiário da garantia\n\nO beneficiário direto da garantia Moní é o **terrenista** — a pessoa que recebeu as unidades na permuta. A garantia está vinculada ao **imóvel e ao uso original**, não ao proprietário atual.\n\n### Casos cobertos\n\n- Defeitos construtivos identificados pelo terrenista (proprietário original)\n- Manifestações patológicas dentro dos prazos legais\n- Problemas decorrentes da execução da obra que o terrenista relata\n\n### Casos NÃO cobertos\n\n| Situação | Por que não é coberto? |\n|----------|------------------------|\n| Dano causado por inquilino | Responsabilidade do inquilino ou do terrenista como locador |\n| Reforma não autorizada | Altera a construção original, invalida garantia para o trecho reformado |\n| Dano por mau uso | Ex.: entupimento por descarte inadequado, sobrecarga elétrica |\n| Problema identificado após venda | Garantia foi transferida, mas o novo proprietário precisa buscar o vendedor |\n| Desgaste natural | Pintura que desbota, dobradiças desgastadas — manutenção normal |\n\n### E se o terrenista vendeu a unidade?\n\nA garantia construtiva legal (CDC + NBR 15575) segue o imóvel, mas quem aciona é o **novo proprietário**, que deve buscar o terrenista (vendedor) e/ou a construtora. O canal Moní Care atende preferencialmente o terrenista original — novos compradores devem ser encaminhados ao Jurídico para avaliação caso a caso.\n\n> **Oriente o terrenista:** ao vender a unidade, recomende que inclua no contrato de venda a transmissão dos direitos de garantia ao comprador, com referência ao Manual do Proprietário.",
+          "palavras_chave": ["garantia inquilino", "quem tem direito garantia", "moní care quem pode usar", "transferência garantia", "venda unidade garantia"],
+          "sinonimos": ["garantia para comprador", "locatário e garantia", "responsabilidade pós-venda unidade"],
+          "area_responsavel": "Jurídico",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        }
+      ]
+    },
+
+    {
+      "categoria": "Licenciamento e Marca",
+      "ordem_categoria": 7,
+      "artigos": [
+        {
+          "pergunta": "O franqueado pode usar a marca Moní em suas comunicações e materiais?",
+          "resposta_resumida": "Sim, dentro das diretrizes do Manual de Marca Moní. O franqueado pode usar o logotipo, cores e templates aprovados para comunicações locais. O uso em outdoor, site próprio, redes sociais e materiais impressos deve seguir os padrões definidos — sem alterações na identidade visual.",
+          "resposta_completa": "## Uso da marca Moní pelo franqueado\n\nComo franqueado, você tem o **direito de usar a marca Moní** em suas comunicações, mas esse uso é regrado pelas diretrizes do Manual de Marca e do COF.\n\n### O que você pode usar\n\n- Logotipo Moní nas versões aprovadas (primário, secundário, monocromático)\n- Paleta de cores oficial\n- Templates de apresentação, folder e proposta (disponíveis no Hub Fly)\n- Nome \"Franqueado Moní\" ou \"Parceiro Moní\" em cartão de visitas e e-mail\n- Material de apoio à prospecção de terrenistas\n\n### O que exige aprovação prévia da Moní\n\n- Outdoor ou banner físico com a marca\n- Site ou landing page local com a marca Moní\n- Campanha de mídia paga (Google Ads, Meta) com identidade Moní\n- Vídeo institucional ou depoimento em nome da Moní\n- Qualquer material novo não previsto nos templates\n\n### O que é proibido\n\n- Alterar o logotipo (cores, proporções, tipografia)\n- Criar identidade visual paralela misturando Moní com outras marcas pessoais\n- Usar a marca Moní para negócios não relacionados à franquia\n- Associar a marca a causas políticas ou posicionamentos polêmicos\n\n### Como acessar os materiais\n\nHub Fly > Repositório > Manual de Marca e Templates\n\n### Preciso de material que não existe?\n\nAbra chamado no Sirene → área Marketing. O time avalia a produção ou aprovação de material personalizado.\n\n> **Lembre:** a marca Moní é um ativo compartilhado. Seu uso adequado valoriza sua franquia e protege a reputação de toda a rede.",
+          "palavras_chave": ["uso da marca moní", "logotipo moní", "identidade visual", "manual de marca", "material marketing", "franqueado marca"],
+          "sinonimos": ["posso usar a marca moní", "como usar o logo moní", "comunicação com a marca"],
+          "area_responsavel": "Marketing",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        },
+        {
+          "pergunta": "Como funciona o licenciamento da marca e o que diz o COF sobre isso?",
+          "resposta_resumida": "O licenciamento da marca Moní é definido no Contrato de Franquia e na Circular de Oferta de Franquia (COF). O franqueado tem autorização temporária e territorial para usar a marca enquanto o contrato estiver ativo. Ao encerrar o contrato, todo uso deve cessar imediatamente.",
+          "resposta_completa": "## Licenciamento da marca Moní\n\n### O que é o licenciamento?\n\nO licenciamento é a **autorização formal** que a Moní concede ao franqueado para usar sua marca, metodologia e know-how durante a vigência do contrato. Não é uma venda ou cessão — você usa, mas a Moní continua sendo a proprietária.\n\n### O que o COF define sobre licenciamento\n\n- **Territorialidade:** a licença é válida apenas para o território definido no contrato\n- **Temporalidade:** vigente durante o contrato de franquia\n- **Sublicenciamento:** proibido — você não pode licenciar a marca para terceiros\n- **Uso vinculado ao objeto:** somente para atividades previstas no contrato de franquia\n\n### O que acontece ao encerrar o contrato?\n\nAo término ou rescisão do contrato:\n- **Todo uso da marca deve cessar imediatamente**\n- Materiais físicos com a marca devem ser retirados de circulação\n- Sites e redes sociais com a marca Moní devem ser atualizados ou desativados\n- O não cumprimento pode gerar ação por uso indevido de marca registrada\n\n### A marca Moní é registrada?\n\nSim. A marca Moní está registrada no INPI (Instituto Nacional da Propriedade Industrial). Uso não autorizado por terceiros pode ser combatido judicialmente.\n\n### Posso criar um nome fantasia local?\n\nNão é recomendado sem aprovação da Moní. Qualquer variante local do nome deve ser previamente aprovada pelo time Jurídico.\n\n> **Dúvidas sobre seu direito de uso?** Consulte o COF disponível no Hub Fly > Repositório ou abra chamado no Sirene → área Jurídico.",
+          "palavras_chave": ["licenciamento marca", "COF franquia", "contrato franquia marca", "INPI", "encerramento contrato marca", "uso autorizado marca"],
+          "sinonimos": ["licença de uso da marca", "direito de usar o nome moní", "contrato de marca franquia"],
+          "area_responsavel": "Jurídico",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "Posso criar redes sociais com a marca Moní para minha unidade?",
+          "resposta_resumida": "Sim, com aprovação e seguindo as diretrizes do Manual de Marca. O perfil deve identificar claramente que é uma unidade franqueada (não a Moní nacional), usar os templates aprovados e não publicar conteúdo fora das diretrizes editoriais. Envie o handle para o time Marketing registrar.",
+          "resposta_completa": "## Redes sociais com a marca Moní\n\n### Posso criar perfil local?\n\nSim — perfis locais são permitidos e até incentivados para fortalecer a presença regional. Porém, há regras que devem ser seguidas.\n\n### Regras para perfis locais\n\n| Item | Regra |\n|------|-------|\n| **Nome do perfil** | Ex.: \"Moní [Cidade]\" ou \"Moní Unidade [Nome]\" — nunca só \"Moní\" |\n| **Bio/descrição** | Identificar como unidade franqueada, não como a empresa nacional |\n| **Logotipo** | Usar versão aprovada do Manual de Marca |\n| **Paleta de cores** | Seguir identidade visual Moní |\n| **Conteúdo** | Usar templates e tipos de post aprovados |\n| **Posicionamento** | Não publicar sobre política, religião ou temas controversos |\n\n### O que publicar?\n\n- Lançamento de empreendimentos\n- Progresso de obras (com aprovação do time Operações para fotos)\n- Depoimentos de terrenistas (com autorização formal por escrito)\n- Conteúdo sobre o modelo Moní, benefícios da permuta\n- Datas comemorativas no formato dos templates\n\n### O que NÃO publicar?\n\n- Informações financeiras específicas (VGV, taxas de retorno) sem aprovação\n- Fotos de terrenos em negociação antes da assinatura\n- Conteúdo sobre processo judicial ou disputas\n- Críticas a concorrentes ou comparações não autorizadas\n\n### Como registrar o perfil com a Moní?\n\nEnvie o handle (@ do perfil) via Sirene → área Marketing. O time registra e pode fornecer suporte de conteúdo.\n\n> **Dica:** siga o perfil nacional da Moní e faça repost do conteúdo aprovado — é a forma mais segura e rápida de manter o feed ativo.",
+          "palavras_chave": ["redes sociais moní", "instagram moní franqueado", "perfil local moní", "marketing digital franquia", "publicar moní"],
+          "sinonimos": ["criar instagram moní", "fazer redes sociais como franqueado", "social media moní"],
+          "area_responsavel": "Marketing",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "O franqueado pode fazer campanhas de mídia paga usando a marca Moní?",
+          "resposta_resumida": "Sim, com aprovação prévia da Moní. Campanhas de Google Ads, Meta Ads ou qualquer mídia paga com a marca Moní devem seguir as diretrizes de copy e criativo aprovados. O investimento é do franqueado, mas o conteúdo precisa ser validado antes de ir ao ar.",
+          "resposta_completa": "## Mídia paga com a marca Moní\n\n### Posso fazer campanhas locais?\n\nSim — o franqueado pode investir em mídia paga para sua unidade usando a marca Moní. Isso é especialmente útil para **prospecção de terrenistas** na região.\n\n### O que precisa de aprovação prévia?\n\n- Textos dos anúncios (copy)\n- Criativos (imagens, vídeos, artes)\n- Página de destino (landing page) com a marca\n- Configuração da conta de anúncios (para garantir alinhamento com a marca nacional)\n\n### Como solicitar aprovação?\n\n1. Crie o rascunho do criativo usando os templates do Hub Fly\n2. Abra chamado no Sirene → área Marketing com o material em anexo\n3. O time Marketing revisa e aprova ou solicita ajustes\n4. Após aprovação, o anúncio pode ir ao ar\n\n### Quanto investir?\n\nNão há valor mínimo exigido, mas o time Marketing pode indicar benchmarks por cidade e objetivo de campanha. O ROI típico de prospecção de terrenistas varia por região.\n\n### A Moní contribui com o investimento em mídia?\n\nVerifique no seu contrato e no COF — alguns modelos preveem fundo de marketing cooperado. Consulte o time Financeiro via Sirene.\n\n### Posso usar o Google Meu Negócio com a marca?\n\nSim, é recomendado cadastrar sua unidade no Google Meu Negócio com o nome \"Moní [Cidade]\". Isso melhora a presença local. Envie o link do perfil para o time Marketing registrar.\n\n> **Atenção:** nunca veicule anúncios sem aprovação — anúncios fora das diretrizes de marca podem gerar notificação e obrigação de remoção imediata.",
+          "palavras_chave": ["mídia paga moní", "anúncio franqueado", "google ads moní", "meta ads franquia", "campanha local", "prospecção terrenista ads"],
+          "sinonimos": ["fazer anúncios moní", "publicidade paga franquia", "impulsionar posts moní"],
+          "area_responsavel": "Marketing",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        }
+      ]
+    },
+
+    {
+      "categoria": "Suporte e Comunidade",
+      "ordem_categoria": 8,
+      "artigos": [
+        {
+          "pergunta": "Quais são os canais oficiais de suporte da Moní para o franqueado?",
+          "resposta_resumida": "Os canais oficiais são: Sirene (chamados formais no Hub Fly), WhatsApp do executivo responsável (urgências), e-mail institucional Moní e o Hub Fly (materiais, kanban e documentação). Comunicações informais via WhatsApp pessoal não geram SLA garantido.",
+          "resposta_completa": "## Canais oficiais de suporte Moní\n\n### Canal principal — Sirene (Hub Fly)\n\nO **Sirene** é o canal oficial e prioritário para todas as solicitações:\n\n- Dúvidas e consultas por área (Jurídico, Operações, Crédito, Tecnologia, Marketing)\n- Solicitações formais de documentos e aprovações\n- Registro de problemas e reclamações\n- Demandas de garantia pós-obra\n\n**SLA garantido:** respostas dentro de 24–72 horas úteis dependendo da área\n\n### Canais complementares\n\n| Canal | Quando usar | SLA |\n|-------|-------------|-----|\n| **WhatsApp do executivo** | Urgências que não podem esperar o Sirene | Sem SLA formal |\n| **E-mail institucional** | Comunicações formais documentadas | Variável |\n| **Hub Fly (comentários no card)** | Dúvidas ligadas a um negócio específico | Variável |\n\n### O que NÃO é canal oficial\n\n- WhatsApp pessoal de colaboradores Moní que você eventualmente conhece\n- Redes sociais da Moní (@moníoficial, etc.)\n- Ligação direta sem agendamento prévio\n\n### Por que usar o Sirene em vez de WhatsApp?\n\n1. **Histórico** — tudo fica registrado, acessível a qualquer tempo\n2. **SLA** — o Sirene tem prazo garantido; WhatsApp não\n3. **Redistribuição** — se o responsável estiver ausente, outra pessoa assume\n4. **Evidência** — em disputas, o Sirene é referência; WhatsApp pode ser desconsiderado\n\n> **Dica de ouro:** comece sempre pelo Sirene. Use o WhatsApp só para sinalizar urgência de um chamado que já está aberto.",
+          "palavras_chave": ["canais suporte moní", "sirene suporte", "whatsapp moní", "contato moní", "como falar com a moní"],
+          "sinonimos": ["como entrar em contato com a moní", "telefone moní", "suporte franqueado moní"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": true,
+          "status": "published"
+        },
+        {
+          "pergunta": "Existe uma comunidade de franqueados Moní e como me engajo?",
+          "resposta_resumida": "Sim. A Moní mantém comunidade no Hub Fly e canais de WhatsApp para troca entre franqueados. Há também encontros periódicos (convenções e webinars). Acesse o Hub Fly > Comunidade ou consulte seu executivo para entrar nos grupos.",
+          "resposta_completa": "## Comunidade Moní — rede de franqueados\n\n### Por que a comunidade importa?\n\nA troca entre franqueados é um dos recursos mais valiosos da rede. Colegas com mais tempo de operação já resolveram problemas que você pode estar enfrentando — aprender com eles economiza tempo e dinheiro.\n\n### Espaços de comunidade\n\n| Canal | O que acontece lá |\n|-------|------------------|\n| **Hub Fly > Comunidade** | Fórum de discussão, dúvidas e compartilhamento de experiências |\n| **Grupos de WhatsApp** | Comunicação rápida entre franqueados de uma mesma região ou perfil |\n| **Convenção Moní** | Encontro anual presencial — estratégia, treinamentos e networking |\n| **Webinars Moní** | Treinamentos online periódicos — operações, jurídico, vendas |\n\n### Como participar?\n\n1. **Hub Fly:** acesse o menu Comunidade (ou Repositório, dependendo da versão) diretamente pela plataforma\n2. **Grupos de WhatsApp:** solicite ao seu executivo o link dos grupos da sua região\n3. **Convenção:** aguarde convocação via Hub Fly e e-mail\n4. **Webinars:** acompanhe a agenda no Hub Fly > Universidade\n\n### O que compartilhar na comunidade?\n\n- Boas práticas de prospecção\n- Dúvidas operacionais (sem dados confidenciais de terceiros)\n- Experiências com terrenistas e condomínios\n- Indicações de fornecedores locais\n\n### Regras da comunidade\n\n- Respeito entre membros\n- Não publicar documentos confidenciais da Moní\n- Não usar o espaço para críticas públicas à franqueadora\n- Informações operacionais sensíveis → Sirene, não comunidade\n\n> **Novos franqueados:** o time de Expansão apresenta você à comunidade na integração. Se não aconteceu, peça ao seu executivo.",
+          "palavras_chave": ["comunidade franqueados", "rede moní", "grupos whatsapp moní", "convenção moní", "hub fly comunidade", "troca franqueados"],
+          "sinonimos": ["fórum franqueados moní", "grupos moní", "rede de franqueados"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "Como reporto um bug ou sugestão de melhoria para o Hub Fly?",
+          "resposta_resumida": "Bugs no Hub Fly devem ser reportados via Sirene → área Tecnologia, com descrição do problema, capturas de tela e passos para reproduzir. Sugestões de melhoria podem ser enviadas pelo mesmo canal ou pela seção de Feedback do Hub Fly, quando disponível.",
+          "resposta_completa": "## Reportar bugs e sugestões no Hub Fly\n\n### Como reportar um bug\n\n1. **Abra o Sirene** → Novo chamado → área **Tecnologia**\n2. Assunto: \"[Bug] [Nome da funcionalidade] — [Resumo do problema]\"\n3. Descreva:\n   - O que você estava tentando fazer\n   - O que aconteceu (comportamento incorreto)\n   - O que esperava que acontecesse\n   - Navegador e dispositivo usados\n4. Anexe **capturas de tela ou gravação de tela** (fundamental para diagnóstico)\n5. Se o bug ocorre sempre ou só às vezes (intermitente)\n\n### Informações úteis para o diagnóstico\n\n| Informação | Como coletar |\n|------------|-------------|\n| Navegador e versão | Chrome > ⋮ > Ajuda > Sobre o Google Chrome |\n| URL onde o bug ocorre | Copie da barra de endereço |\n| Mensagem de erro | Tire screenshot da tela completa |\n| Hora do ocorrido | Informe no chamado |\n\n### Como enviar sugestões de melhoria\n\n- **Sirene** → área Tecnologia ou Produto\n- Assunto: \"[Sugestão] [Funcionalidade] — [Resumo da ideia]\"\n- Descreva o problema que a melhoria resolveria e sua ideia de solução\n- O time de Produto avalia e prioriza no backlog\n\n### O que acontece depois do chamado?\n\n- O time de Tecnologia confirma o recebimento\n- Bugs críticos (que bloqueiam operação) têm prioridade alta\n- Bugs leves entram no ciclo regular de desenvolvimento\n- Sugestões são avaliadas para o roadmap do produto\n\n> **Sua contribuição importa:** o Hub Fly é construído também com o feedback dos franqueados. Não hesite em reportar.",
+          "palavras_chave": ["bug hub fly", "reportar problema", "sugestão hub fly", "melhoria plataforma", "erro hub fly", "feedback hub fly"],
+          "sinonimos": ["reportar erro hub fly", "como melhorar hub fly", "bug no sistema"],
+          "area_responsavel": "Tecnologia",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "Qual é o SLA de resposta do time Moní para chamados no Sirene?",
+          "resposta_resumida": "O SLA de resposta varia por área: Tecnologia responde em até 24h úteis, Operações e Crédito em até 48h úteis, e Jurídico em até 72h úteis. Chamados marcados como urgentes têm prioridade. Se o SLA for ultrapassado sem resposta, você pode escalar o chamado.",
+          "resposta_completa": "## SLA de resposta — Sirene\n\nO **SLA (Service Level Agreement)** é o prazo de resposta esperado por área. Ele contabiliza **horas úteis** (seg–sex, 9h–18h, exceto feriados nacionais).\n\n### SLA por área\n\n| Área | Primeiro contato | Resolução estimada |\n|------|-----------------|-------------------|\n| **Tecnologia / Suporte Hub Fly** | Até 24h úteis | 48–72h úteis |\n| **Operações** | Até 48h úteis | Variável por complexidade |\n| **Crédito** | Até 48h úteis | Variável por complexidade |\n| **Jurídico** | Até 72h úteis | Variável por complexidade |\n| **Marketing** | Até 48h úteis | Variável por complexidade |\n\n### Chamados urgentes\n\nMarque o chamado como **Alta Prioridade** quando:\n- Há paralisação total de operação\n- O problema impede assinar um contrato iminente\n- Há risco jurídico imediato\n- Há problema de segurança na obra\n\nChamados urgentes têm monitoramento especial e podem ter SLA menor.\n\n### O que fazer se o SLA for ultrapassado?\n\n1. **Adicione um comentário** no chamado pedindo atualização\n2. **Sinalize ao seu executivo** via WhatsApp com o número do chamado\n3. **Escale** — mencione que o SLA foi ultrapassado; isso sobe o nível de prioridade\n\n### O que pode afetar o SLA?\n\n- Período de alto volume (convenção, fim de mês)\n- Chamado com informações incompletas (sem foto, sem descrição clara)\n- Dependência de terceiros (prefeitura, cartório, instituição financeira)\n\n> **Para agilizar qualquer chamado:** quanto mais completo for o relato inicial (com fotos, contexto e o que já foi tentado), mais rápida é a resolução.",
+          "palavras_chave": ["SLA sirene", "prazo resposta moní", "tempo de atendimento", "urgente sirene", "escalar chamado", "SLA jurídico"],
+          "sinonimos": ["quanto tempo para responder", "prazo de atendimento moní", "SLA de chamado"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        },
+        {
+          "pergunta": "Posso indicar outro franqueado para a rede Moní e existe algum benefício por isso?",
+          "resposta_resumida": "Sim. A Moní tem um programa de indicação de franqueados. Se o indicado assinar o contrato e concluir a integração, o indicador pode receber benefícios definidos no programa vigente. Consulte as condições atuais com o time de Expansão via Sirene.",
+          "resposta_completa": "## Programa de indicação de franqueados\n\n### Como funciona a indicação?\n\n1. Você identifica alguém com perfil de franqueado Moní (empreendedor com capacidade financeira e interesse em imóveis)\n2. Apresenta o modelo e indica formalmente via Sirene → área Expansão\n3. O time de Expansão entra em contato e conduz o processo seletivo\n4. Se o indicado fechar o contrato, você é registrado como indicador\n\n### Qual é o perfil ideal para indicar?\n\n- Empreendedor com capital disponível para o investimento inicial\n- Conhecimento ou interesse no mercado imobiliário local\n- Boa reputação na praça (perfil para trabalhar com terrenistas e fornecedores)\n- Capacidade de dedicação full-time ao negócio\n\n### Quais são os benefícios para o indicador?\n\nOs benefícios variam conforme o programa vigente e podem incluir:\n- Redução de royalties por período determinado\n- Crédito em fundo de marketing\n- Benefício financeiro direto\n\n**Consulte o time de Expansão** para as condições atuais — os benefícios podem ser ajustados periodicamente.\n\n### Como registrar a indicação?\n\n1. Abra chamado no Sirene → área **Expansão**\n2. Informe nome, contato e contexto do indicado\n3. Aguarde o time contatar e registrar a indicação em seu nome\n\n> **Importante:** a indicação só é válida se registrada **antes** do primeiro contato formal do indicado com a Moní. Indicações post-facto não são reconhecidas.",
+          "palavras_chave": ["indicar franqueado", "programa indicação", "indicação moní", "expansão franquia", "benefício indicação"],
+          "sinonimos": ["recomendar franqueado moní", "indicar parceiro moní", "programa de referral moní"],
+          "area_responsavel": "Operações",
+          "visibilidade": "frank",
+          "destaque": false,
+          "status": "published"
+        }
+      ]
+    }
+
+  ]
+}

@@ -43,6 +43,35 @@ async function jaNotificadoNasUltimas24h(
   return Boolean(data?.id);
 }
 
+async function carregarSlaNotificadosRecentes(
+  db: ReturnType<typeof createAdminClient>,
+  cardIds: string[],
+): Promise<Set<string> | null> {
+  const ids = [...new Set(cardIds.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) return new Set();
+  const desde = new Date(Date.now() - JANELA_DEDUPE_HORAS * 60 * 60 * 1000).toISOString();
+  const seen = new Set<string>();
+  const pageSize = 1000;
+  for (let from = 0; from < 20000; from += pageSize) {
+    const { data, error } = await db
+      .from('sirene_notificacoes')
+      .select('user_id, referencia_card_id')
+      .eq('tipo', TIPO_SLA_VENCIDO)
+      .in('referencia_card_id', ids)
+      .gte('created_at', desde)
+      .range(from, from + pageSize - 1);
+    if (error) return null;
+    const rows = data ?? [];
+    for (const row of rows) {
+      const uid = String((row as { user_id?: string }).user_id ?? '').trim();
+      const cardId = String((row as { referencia_card_id?: string }).referencia_card_id ?? '').trim();
+      if (uid && cardId) seen.add(`${uid}|${cardId}`);
+    }
+    if (rows.length < pageSize) break;
+  }
+  return seen;
+}
+
 /**
  * Notifica responsáveis (franqueado do card) quando o SLA da fase atual está vencido.
  * Deduplica por card + usuário + tipo nas últimas 24h.
@@ -70,6 +99,7 @@ export async function notificarCardsComSlaVencido(): Promise<void> {
     return;
   }
 
+  const pendentes: Array<{ row: CardSlaRow; faseNome: string; diasAtraso: number; responsavelId: string }> = [];
   for (const raw of cards ?? []) {
     const row = raw as CardSlaRow;
     const faseNode = Array.isArray(row.kanban_fases) ? row.kanban_fases[0] : row.kanban_fases;
@@ -86,13 +116,29 @@ export async function notificarCardsComSlaVencido(): Promise<void> {
     const responsavelId = String(row.franqueado_id ?? '').trim();
     if (!responsavelId) continue;
 
-    const duplicada = await jaNotificadoNasUltimas24h(db, row.id, responsavelId);
+    pendentes.push({
+      row,
+      faseNome: String(faseNode?.nome ?? 'fase atual').trim(),
+      diasAtraso: diasUteisAtraso(enteredAt, slaDias),
+      responsavelId,
+    });
+  }
+
+  const jaNotificados = await carregarSlaNotificadosRecentes(
+    db,
+    pendentes.map((p) => p.row.id),
+  );
+
+  for (const item of pendentes) {
+    const { row, responsavelId } = item;
+    const chave = `${responsavelId}|${row.id}`;
+    const duplicada = jaNotificados
+      ? jaNotificados.has(chave)
+      : await jaNotificadoNasUltimas24h(db, row.id, responsavelId);
     if (duplicada) continue;
 
-    const faseNome = String(faseNode?.nome ?? 'fase atual').trim();
     const tituloCard = String(row.titulo ?? 'Sem título').trim() || 'Sem título';
-    const diasAtraso = diasUteisAtraso(enteredAt, slaDias);
-    const texto = `Card ${tituloCard} está ${diasAtraso} dias úteis atrasado na fase ${faseNome}`;
+    const texto = `Card ${tituloCard} está ${item.diasAtraso} dias úteis atrasado na fase ${item.faseNome}`;
 
     const { error: insErr } = await db.from('sirene_notificacoes').insert({
       user_id: responsavelId,
@@ -106,6 +152,8 @@ export async function notificarCardsComSlaVencido(): Promise<void> {
 
     if (insErr) {
       console.error('[sla-alertas] insert notificação:', insErr.message, row.id);
+    } else {
+      jaNotificados?.add(chave);
     }
   }
 }

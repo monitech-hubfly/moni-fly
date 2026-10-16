@@ -5,12 +5,10 @@ import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 const TABS_BASE = [
-  { href: '/sirene', label: 'Dashboard' },
   { href: '/sirene/chamados', label: 'Chamados' },
   { href: '/sirene/relatorio', label: 'Relatório' },
   { href: '/sirene/proximas-atividades', label: 'Próximas Atividades' },
   { href: '/sirene/pericias', label: 'Perícias (Caneta Verde)' },
-  { href: '/sirene/graficos', label: 'Gráficos' },
 ] as const;
 
 type Props = {
@@ -33,23 +31,15 @@ export function SireneShell({ userName, isBombeiro, children }: Props) {
   const tabs = [...TABS_BASE];
 
   const tabAtivo =
-    pathname === '/sirene'
-      ? '/sirene'
-      : pathname?.startsWith('/sirene/chamados')
-        ? '/sirene/chamados'
-        : pathname?.startsWith('/sirene/relatorio')
-          ? '/sirene/relatorio'
-          : pathname?.startsWith('/sirene/proximas-atividades')
+    pathname?.startsWith('/sirene/chamados')
+      ? '/sirene/chamados'
+      : pathname?.startsWith('/sirene/relatorio')
+        ? '/sirene/relatorio'
+        : pathname?.startsWith('/sirene/proximas-atividades')
           ? '/sirene/proximas-atividades'
           : pathname?.startsWith('/sirene/pericias')
-          ? '/sirene/pericias'
-          : pathname?.startsWith('/sirene/graficos')
-          ? '/sirene/graficos'
-          : pathname?.startsWith('/sirene/monitor')
-            ? '/sirene/monitor'
-            : pathname?.startsWith('/sirene/kanban')
-              ? '/sirene'
-              : '/sirene';
+            ? '/sirene/pericias'
+            : '/sirene/chamados';
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--moni-surface-50)' }}>

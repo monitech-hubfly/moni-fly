@@ -40,17 +40,10 @@ const DIM_DESC_KEY: Record<'diag_d' | 'diag_c' | 'diag_k', 'diag_d_desc' | 'diag
 
 const ADIMPL_OPTS = [
   { value: '', label: '—' },
-  { value: 'true', label: 'OK' },
-  { value: 'false', label: 'Inad.' },
+  { value: 'ok', label: 'OK' },
+  { value: 'inad', label: 'Inad.' },
+  { value: 'em_transferencia', label: 'Em Transf.' },
 ];
-
-function parseAdimplDraft(raw: string): boolean | null {
-  const t = raw.trim();
-  if (!t) return null;
-  if (t === 'true') return true;
-  if (t === 'false') return false;
-  return null;
-}
 
 function parseDimDraftValue(raw: string): number | null {
   const t = raw.trim();
@@ -231,14 +224,14 @@ export function DiagnosticoInlineAdimplencia({
   draft: RedeDiagnosticoDraft;
   setDraft: SetDiagDraft;
 }) {
-  const preview = parseAdimplDraft(draft.diag_adimplente);
+  const val = draft.diag_adimplencia || null;
 
   return (
     <div className="flex min-w-[56px] flex-col gap-1">
-      <AdimplenciaCell adimplente={preview} />
+      <AdimplenciaCell value={val} />
       <select
-        value={draft.diag_adimplente}
-        onChange={(e) => setField(setDraft, 'diag_adimplente', e.target.value)}
+        value={draft.diag_adimplencia}
+        onChange={(e) => setField(setDraft, 'diag_adimplencia', e.target.value)}
         className={`${selectCls} min-w-[56px] text-center text-xs font-semibold`}
         aria-label="Adimplência"
       >

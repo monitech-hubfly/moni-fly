@@ -1,4 +1,4 @@
-/** Checklist da fase «Revisões + Forma Pgto» — Funil Loteadores. */
+/** Checklist da fase «Revisões R02» — Funil Loteadores. */
 
 import { isLoteadoresChecklistCampoVisivel } from '@/lib/kanban/loteadores-checklist-visibilidade';
 

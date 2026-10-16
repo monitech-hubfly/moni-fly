@@ -80,6 +80,7 @@ type Props = {
     dias_aberto: number;
     origem: string;
     kanban_atividade_id: string | null;
+    card_kanban_nome: string | null;
     arquivado: boolean;
   }>;
   filtroTipo: DashboardFiltroTipo;
@@ -413,6 +414,7 @@ function ChamadosDestaqueSection({
     dias_aberto: number;
     origem: string;
     kanban_atividade_id: string | null;
+    card_kanban_nome: string | null;
     arquivado: boolean;
   }>;
 }) {
@@ -542,10 +544,8 @@ function ChamadosDestaqueSection({
       ) : (
         <div className="rounded-xl border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-0)]">
           {filtered.map((c, i) => {
-            const href = c.kanban_atividade_id
-              ? `/sirene/chamados?interacao=${encodeURIComponent(c.kanban_atividade_id)}`
-              : null;
-            const rowClass = `flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm ${i < filtered.length - 1 ? 'border-b border-[color:var(--moni-border-default)]' : ''} ${href ? 'cursor-pointer hover:bg-[var(--moni-surface-50)]' : ''}`;
+            const href = `/sirene/chamados?id=${c.id}`;
+            const rowClass = `flex min-w-0 items-center gap-2 px-3 py-2.5 text-sm ${i < filtered.length - 1 ? 'border-b border-[color:var(--moni-border-default)]' : ''} cursor-pointer hover:bg-[var(--moni-surface-50)]`;
             const inner = (
               <>
                 {c.trava ? (
@@ -576,10 +576,8 @@ function ChamadosDestaqueSection({
                 ) : null}
               </>
             );
-            return href ? (
-              <Link key={c.id} href={href} className={rowClass}>{inner}</Link>
-            ) : (
-              <div key={c.id} className={rowClass}>{inner}</div>
+            return (
+              <Link key={c.id} href={href} target="_blank" rel="noopener noreferrer" className={rowClass}>{inner}</Link>
             );
           })}
         </div>
@@ -762,7 +760,7 @@ export function DashboardSirene({
                 listaTravaCard.map((c) => (
                   <li key={c.id}>
                     <Link
-                      href={`/sirene/${c.id}`}
+                      href={`/sirene/chamados?id=${c.id}`}
                       className="flex items-start justify-between gap-2 rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3 transition hover:border-red-400 hover:bg-[var(--moni-surface-100)]"
                     >
                       <div className="min-w-0 flex-1">
@@ -799,7 +797,7 @@ export function DashboardSirene({
               aguardando_julgamento_lista.map((c) => (
                 <li key={c.id}>
                   <Link
-                    href={`/sirene/${c.id}`}
+                    href={`/sirene/chamados?id=${c.id}`}
                     className="block rounded-lg border border-[color:var(--moni-border-default)] bg-[var(--moni-surface-50)] p-3 transition hover:border-amber-400 hover:bg-[var(--moni-surface-100)]"
                   >
                     <div className="flex items-start justify-between gap-2">

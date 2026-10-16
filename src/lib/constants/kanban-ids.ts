@@ -24,6 +24,10 @@ export const KANBAN_IDS = {
   MONI_CARE:             'b3d47f5e-0a86-4c24-89f3-5e2b8a1c4d70',
   /** Funil Corretores — migration 548 */
   CORRETORES: '1e23c356-9993-4f8e-9d09-e17995e8a5c6',
+  /** Funil Controladoria — Rotina Contábil (migration 567) */
+  CONTROLADORIA_CONTABIL: 'c7ada001-0000-0000-0000-000000000001',
+  /** Funil Controladoria — Rotina Fiscal (migration 567) */
+  CONTROLADORIA_FISCAL: 'c7ada002-0000-0000-0000-000000000002',
 } as const
 
 /** Nome canônico em `kanbans.nome` — Funil Crédito Obra. */
@@ -60,29 +64,36 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Funil Série Inc. to Fly': KANBAN_IDS.MARKETING_INC_TO_FLY,
   'Funil Moní Care': KANBAN_IDS.MONI_CARE,
   'Funil Corretores': KANBAN_IDS.CORRETORES,
+  'Funil Controladoria — Rotina Contábil': KANBAN_IDS.CONTROLADORIA_CONTABIL,
+  'Funil Controladoria — Rotina Fiscal':   KANBAN_IDS.CONTROLADORIA_FISCAL,
 };
 
 export const FASE_IDS = {
   // Portfolio — gatilhos de bastão de IDA
   PORTFOLIO_STEP_3:          '6d019704-95f7-42ee-8a85-973ffafc236b', // Enviar Opção (ex-Opção)
-  PORTFOLIO_JURIDICO_OPCAO:  'f977b1f8-9946-4707-8e7c-78eabb621dbb',
+  PORTFOLIO_REVISAO_HIPOTESE: 'dcbb0e82-d436-4858-a124-00c97b2a5eb1',
+  PORTFOLIO_JURIDICO_OPCAO:  'f977b1f8-9946-4707-8e7c-78eabb621dbb', // → Jurídico (tag Opção)
   PORTFOLIO_ASSINATURAS_OPCAO: 'da0f9628-e3a5-4481-b49b-a22d30175e0f',
   PORTFOLIO_OPCAO_ASSINADA:  '32234ccf-6fa1-4f58-a9f8-418b02c22ef0',
   PORTFOLIO_STEP_4:          'fd05dc4a-b44a-470e-993f-5df79c223488',
   PORTFOLIO_PRE_COMITE:      'a4489f12-71a1-49f3-99ca-c500c58f799b',
+  PORTFOLIO_REVISOES_PRE_COMITE: '7892bfcc-c737-422d-bfb1-d3d8db77fe05',
+  PORTFOLIO_ENVIAR_ACOPLAMENTO_FRANK: '6b4f573d-74d5-40cf-b084-c3969af1a90b',
   PORTFOLIO_STEP_5:          '9e1c76ba-ce84-4dbd-ae40-e434dc068a81', // Comitê
   PORTFOLIO_REVISOES_COMITE: '1c6ab47e-9b18-421b-8869-6c9ce2ab4c3a',
+  /** Demais Comitês (ex-2º Comitê); slug permanece segundo_comite. */
   PORTFOLIO_SEGUNDO_COMITE:  'a292ed7e-0c5c-4b23-9c09-82986c102b79',
-  PORTFOLIO_JURIDICO_CTO_PRECEDENTES: '7d035a10-5403-44b5-819f-104786b48150',
+  PORTFOLIO_JURIDICO_CTO_PRECEDENTES: '7d035a10-5403-44b5-819f-104786b48150', // → Jurídico (tag Cto c/)
   PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES: '27bc415f-4b70-4873-9cfc-5f51e7d925c8',
   PORTFOLIO_CTO_PRECEDENTES_ASSINADO: 'ee0e3aa9-6a18-410a-87a2-5f6210c4573f',
+  PORTFOLIO_INICIAR_ABERTURA_EMPRESAS: '3cc52e93-b7ff-498b-a76a-97aa62bce058',
   PORTFOLIO_STEP_7:          'd78771cb-f79d-4650-a056-f3e2dbc3f3a6', // Enviar Contrato s/ Precedentes
-  PORTFOLIO_JURIDICO_CONTRATO: 'e35fffc4-ddd9-412d-861b-3118697ae0b8',
+  PORTFOLIO_JURIDICO_CONTRATO: 'e35fffc4-ddd9-412d-861b-3118697ae0b8', // → Jurídico (tag Cto s/)
   PORTFOLIO_ASSINATURAS_CONTRATO: '28601c1e-cd5a-4956-8eb6-9ba432588e60',
   PORTFOLIO_CONTRATO_ASSINADO: '81bf57ac-48e5-4b9b-8eed-b416b9672e0e',
   /** @deprecated fase inativa desde migration 560 */
   PORTFOLIO_CAPTACAO_CAPITAL: 'd7e79cd4-a8ba-4239-b7b4-b82ad07acb11',
-  PORTFOLIO_PASSAGEM_WAYSER: '5f48a367-699b-4dc4-a310-377fc7d0ff88',
+  PORTFOLIO_PASSAGEM_WAYSER: '5f48a367-699b-4dc4-a310-377fc7d0ff88', // → Operações
   PORTFOLIO_CONVERTIDOS:     'eda6139e-65f4-43d4-955f-026a488524be',
   // Acoplamento — bastão de volta
   ACOPLAMENTO_APROVADO:      'b6a83104-e74f-4d0b-902b-2c4227227411',
@@ -116,11 +127,13 @@ export const FASE_SLUGS = {
   /** Funil Portfólio — Enviar Opção (legado `step_3`; checklist/instruções da antiga Opção). */
   STEP_3:             'step_3',
   PORTFOLIO_ENVIAR_OPCAO: 'step_3',
+  PORTFOLIO_REVISAO_HIPOTESE: 'revisao_hipotese',
   PORTFOLIO_JURIDICO_OPCAO: 'juridico_opcao',
   PORTFOLIO_ASSINATURAS_OPCAO: 'assinaturas_opcao',
   PORTFOLIO_OPCAO_ASSINADA: 'opcao_assinada',
   STEP_4:             'step_4',
   PORTFOLIO_PRE_COMITE: 'pre_comite',
+  PORTFOLIO_REVISOES_PRE_COMITE: 'revisoes_pre_comite',
   STEP_7:             'step_7', // Enviar Contrato s/ Precedentes
   PORTFOLIO_ENVIAR_CONTRATO: 'step_7',
   PORTFOLIO_JURIDICO_CONTRATO: 'juridico_contrato',
@@ -131,6 +144,7 @@ export const FASE_SLUGS = {
   PASSAGEM_WAYSER:    'passagem_wayser',
   PORTFOLIO_CONVERTIDOS: 'convertidos',
   PORTFOLIO_REVISOES_COMITE: 'revisoes_comite',
+  /** Demais Comitês — slug legado segundo_comite. */
   PORTFOLIO_SEGUNDO_COMITE: 'segundo_comite',
   PORTFOLIO_JURIDICO_CTO_PRECEDENTES: 'juridico_cto_precedentes',
   PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES: 'assinaturas_cto_precedentes',
@@ -140,14 +154,19 @@ export const FASE_SLUGS = {
   APROVACAO_CONDOMINIO: 'aprovacao_condominio',
   /** Fase do Funil Portfólio — dispara bastão para Funil Acoplamento. */
   ACOPLAMENTO: 'acoplamento',
+  PORTFOLIO_ENVIAR_ACOPLAMENTO_FRANK: 'enviar_acoplamento_frank',
+  PORTFOLIO_INICIAR_ABERTURA_EMPRESAS: 'iniciar_abertura_empresas',
 
-  // ─── Funil Loteadores (esteira v1 — 21 fases ativas) ───────────────────────
+  // ─── Funil Loteadores (esteira ativa — ver LOTEADORES_FASES_CANONICAS) ─────
   LOTEADORES_PRIMEIRO_CONTATO: 'primeiro_contato_moni_inc',
+  /** @deprecated Fase inativa desde migration 584. */
   LOTEADORES_R1_CONCEITO: 'r1_conceito_moni_inc',
-  /** Alias pedido — NDA. */
+  /** Alias pedido — Jurídico NDA (slug estável). */
   NDA_MONI_INC: 'nda_moni_inc',
   LOTEADORES_NDA: 'nda_moni_inc',
-  /** Alias pedido — Opção. */
+  LOTEADORES_NDA_ASSINATURAS: 'assinaturas_nda_moni_inc',
+  LOTEADORES_NDA_ASSINADO: 'nda_assinado_moni_inc',
+  /** @deprecated Fase inativa desde migration 584. */
   OPCAO_MONI_INC: 'opcao_moni_inc',
   LOTEADORES_OPCAO: 'opcao_moni_inc',
   /** Alias pedido — Aguardando Ficha. */
@@ -159,7 +178,9 @@ export const FASE_SLUGS = {
   LOTEADORES_VIABILIDADE: 'viabilidade_moni_inc',
   /** Funil Loteadores — Dados do Loteador (legado; preferir VIABILIDADE). */
   LOTEADORES_DADOS_LOTEADOR: 'dados_loteador_moni_inc',
+  /** @deprecated Fase inativa desde migration 584. Cards foram para Viabilidade. */
   LOTEADORES_ACOPLAMENTO: 'acoplamento_moni_inc',
+  /** @deprecated Fase inativa desde migration 584. */
   LOTEADORES_EXECUCAO_MATERIAL: 'execucao_material_moni_inc',
   /** Alias pedido — Validação. */
   VALIDACAO_MONI_INC: 'validacao_moni_inc',
@@ -169,20 +190,26 @@ export const FASE_SLUGS = {
   /** Alias pedido — Acoplamento + Gbox. */
   ACOPLAMENTO_GBOX_MONI_INC: 'acoplamento_gbox_moni_inc',
   LOTEADORES_ACOPLAMENTO_GBOX: 'acoplamento_gbox_moni_inc',
+  LOTEADORES_ENVIAR_ACOPLAMENTO: 'enviar_acoplamento_loteador',
   LOTEADORES_COMITE: 'comite_moni_inc',
   /** Alias pedido — Revisões pós-Comitê. */
   REVISOES_POS_COMITE_MONI_INC: 'revisoes_pos_comite_moni_inc',
   LOTEADORES_REVISOES_POS_COMITE: 'revisoes_pos_comite_moni_inc',
-  /** Alias pedido — Cto c/ Precedentes. */
+  LOTEADORES_DEMAIS_COMITES: 'demais_comites_moni_inc',
+  /** @deprecated Fase inativa desde migration 584. */
   CTO_PRECEDENTES_MONI_INC: 'cto_precedentes_moni_inc',
   LOTEADORES_CTO_PRECEDENTES: 'cto_precedentes_moni_inc',
+  /** @deprecated Fase inativa desde migration 584. */
   LOTEADORES_DILIGENCIA: 'diligencia_moni_inc',
-  /** Cto Showroom (ex-fechar_contrato_moni_inc). */
+  /** @deprecated Fase inativa desde migration 584 (ex-fechar_contrato_moni_inc). */
   LOTEADORES_CTO_SHOWROOM: 'cto_showroom_moni_inc',
-  /** Alias pedido — Passagem para Waysers. */
+  /** Passagem IMOB (ex-Passagem para Waysers). Slug estável. */
   PASSAGEM_WAYSERS_MONI_INC: 'passagem_waysers_moni_inc',
   LOTEADORES_PASSAGEM_WAYSERS: 'passagem_waysers_moni_inc',
+  LOTEADORES_ENVIAR_CTO_PARCERIA: 'enviar_cto_parceria_moni_inc',
   LOTEADORES_CONTRATO_PARCERIA: 'contrato_parceria_moni_inc',
+  LOTEADORES_CTO_PARCERIA_ASSINATURAS: 'assinaturas_cto_parceria_moni_inc',
+  LOTEADORES_CTO_PARCERIA_ASSINADO: 'cto_parceria_assinado_moni_inc',
   /** Fase terminal de conclusão. */
   ASSINADOS_MONI_INC: 'assinados_moni_inc',
   LOTEADORES_ASSINADOS: 'assinados_moni_inc',
@@ -221,7 +248,9 @@ export const FASE_SLUGS = {
   CO_ENVIO_CASHME:            'co_envio_cashme',
   /** @deprecated legado — fase inativa (migration 491) */
   CO_OUTRO_PARCEIRO:          'co_outro_parceiro',
+  /** @deprecated Fase inativa desde migration 592. Cards foram para Aguardando Alvará e Transferência. */
   CO_DOCUMENTACAO_ALVARA:     'co_documentacao_alvara',
+  CO_AGUARDANDO_ALVARA_TRANSFERENCIA: 'co_aguardando_alvara_transferencia',
   CO_VALIDACAO_CONTRATO:      'co_validacao_contrato',
   CO_CONTRATO_ASSINATURAS:    'co_contrato_assinaturas',
   CO_FOLLOWUP_CARTORIO:       'co_followup_cartorio',
@@ -457,14 +486,15 @@ export const CORRETORES_FASES_CONFIRMACAO_SAIDA = {
   forecast: [FASE_SLUGS.COR_FORECAST],
 } as const;
 
-/** Funil Portfólio — slugs que disparam confirmação ao sair da fase (migrations 389 / 559 / 560). */
+/** Funil Portfólio — slugs que disparam confirmação ao sair da fase. */
 export const PORTFOLIO_FASES_CONFIRMACAO_SAIDA = {
-  /** «A opção foi assinada?» — ao sair de Assinaturas Opção → Opção Assinada. */
-  opcao: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_OPCAO],
-  /** «O card foi aprovado em Comitê?» — ao sair de Comitê ou 2º Comitê. */
+  /** «A opção foi assinada com o terrenista?» — ao sair de Opção Assinada. */
+  opcao: [FASE_SLUGS.PORTFOLIO_OPCAO_ASSINADA],
+  /** «O card foi aprovado em Comitê?» — ao sair de Comitê ou Demais Comitês. */
   comite: [FASE_SLUGS.STEP_5, FASE_SLUGS.PORTFOLIO_SEGUNDO_COMITE],
-  /** «O contrato foi assinado?» — ao sair de Assinaturas Contrato → Contrato Assinado. */
-  contrato: [FASE_SLUGS.PORTFOLIO_ASSINATURAS_CONTRATO],
+  /** «O Cto c/ Precedentes foi assinado?» — ao sair de Cto c/ Precedentes Assinado.
+   *  Incrementa diag_contratos_12m na rede do franqueado. */
+  cto_precedentes: [FASE_SLUGS.PORTFOLIO_CTO_PRECEDENTES_ASSINADO],
 } as const;
 
 /** Funil Loteadores — slugs que disparam popup ao sair da fase (Assinou? / Comitê). */
@@ -473,7 +503,7 @@ export const LOTEADORES_FASES_CONFIRMACAO_SAIDA = {
   comite: [FASE_SLUGS.LOTEADORES_COMITE],
   cto_precedentes: [FASE_SLUGS.LOTEADORES_CTO_PRECEDENTES],
   cto_showroom: [FASE_SLUGS.LOTEADORES_CTO_SHOWROOM],
-  cto_parceria: [FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA],
+  cto_parceria: [FASE_SLUGS.LOTEADORES_CTO_PARCERIA_ASSINADO],
 } as const;
 
 /** Set Up (Step One), Portfólio, Loteadores e Pré Obra e Obra — vínculo manual para qualquer funil destino.

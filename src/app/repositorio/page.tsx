@@ -42,7 +42,7 @@ export default async function RepositorioPage() {
             </p>
           </div>
         ) : (
-          <RepositorioClient initialSecoes={secoes} isAdmin={isAdminRole(role)} />
+          <RepositorioClient initialSecoes={secoes} podeEditar={isAdminRole(role) || role === 'team'} />
         )}
       </main>
     </div>

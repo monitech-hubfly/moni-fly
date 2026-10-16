@@ -179,7 +179,17 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
       return;
     }
     for (let i = 1; i < atividades.length; i++) {
-      if (atividades[i]!.nome.trim() && atividades[i]!.responsaveisIds.length === 0) {
+      const ativ = atividades[i]!;
+      if (!ativ.nome.trim()) continue;
+      if (ativ.timesIds.length === 0) {
+        setError(`Atividade ${i + 1}: selecione ao menos um time.`);
+        return;
+      }
+      if (!ativ.data.trim()) {
+        setError(`Atividade ${i + 1}: informe o prazo limite.`);
+        return;
+      }
+      if (ativ.responsaveisIds.length === 0) {
         setError(`Atividade ${i + 1}: selecione ao menos um responsável.`);
         return;
       }
@@ -246,7 +256,7 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
         for (let i = 1; i < atividades.length; i++) {
           const ativ = atividades[i]!;
           if (!ativ.nome.trim()) continue;
-          await criarSubInteracao({
+          const subRes = await criarSubInteracao({
             interacao_id: result.interacaoId,
             nome: ativ.nome.trim(),
             descricao_detalhe: ativ.descricaoDetalhe.trim() || null,
@@ -258,6 +268,10 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
             basePath: '/sirene/chamados',
             viaSirene: true,
           });
+          if (!subRes.ok) {
+            setError(`Atividade ${i + 1}: ${subRes.error}`);
+            return;
+          }
         }
       }
 

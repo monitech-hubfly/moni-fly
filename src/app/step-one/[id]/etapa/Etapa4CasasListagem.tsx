@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import * as XLSX from 'xlsx';
 import {
   addCasaListing,
   updateCasaStatus,
@@ -277,7 +276,7 @@ export function Etapa4CasasListagem({
     }
   };
 
-  const baixarTemplate = () => {
+  const baixarTemplate = async () => {
     const headers = [
       'Condomínio',
       'Preço',
@@ -304,6 +303,7 @@ export function Etapa4CasasListagem({
       'https://exemplo.com/anuncio',
       'Rua Exemplo, 100',
     ];
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.aoa_to_sheet([headers, exemplo]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Casas');

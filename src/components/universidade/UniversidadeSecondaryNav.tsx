@@ -6,10 +6,10 @@ import { LayoutDashboard, HelpCircle } from 'lucide-react';
 
 const ABAS = [
   { href: '/universidade', label: 'Tabuleiro', icon: LayoutDashboard, match: (p: string) => p === '/universidade' || p === '/universidade/tabuleiro' || p.startsWith('/universidade/jornada') },
-  { href: '/universidade/faq', label: 'FAQ', icon: HelpCircle, match: (p: string) => p === '/universidade/faq' || p.startsWith('/universidade/faq/') },
+  { href: '/universidade/faq', label: 'Central de Ajuda', icon: HelpCircle, match: (p: string) => p === '/universidade/faq' || p.startsWith('/universidade/faq/') },
 ] as const;
 
-/** Navegação secundária da Universidade: Tabuleiro | FAQ. Áreas independentes. */
+/** Navegação secundária da Universidade: Tabuleiro | Central de Ajuda. Áreas independentes. */
 export function UniversidadeSecondaryNav() {
   const pathname = usePathname() ?? '';
   return (

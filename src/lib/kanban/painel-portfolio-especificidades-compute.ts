@@ -90,8 +90,16 @@ function cardChegouFaseNoPeriodo(
 
 function cardConfirmadoNoPeriodo(
   c: PainelCardDTO,
-  flag: 'opcao_assinada' | 'comite_aprovado' | 'contrato_assinado',
-  emField: 'opcao_assinada_em' | 'comite_aprovado_em' | 'contrato_assinado_em',
+  flag:
+    | 'opcao_assinada'
+    | 'comite_aprovado'
+    | 'contrato_assinado'
+    | 'portfolio_cto_precedentes_assinado',
+  emField:
+    | 'opcao_assinada_em'
+    | 'comite_aprovado_em'
+    | 'contrato_assinado_em'
+    | 'portfolio_cto_precedentes_assinado_em',
   sinceMs: number | null,
 ): boolean {
   if (c[flag] !== true) return false;
@@ -179,6 +187,7 @@ export function portfolioEspecificidadesDisponivel(
     carometroFieldsAvailable === true ||
     campoDisponivel(cards, 'opcao_assinada') ||
     campoDisponivel(cards, 'comite_aprovado') ||
+    campoDisponivel(cards, 'portfolio_cto_precedentes_assinado') ||
     campoDisponivel(cards, 'contrato_assinado')
   );
 }
@@ -308,7 +317,14 @@ export function computePortfolioEspecificidades(input: {
       if (cardConfirmadoNoPeriodo(c, 'comite_aprovado', 'comite_aprovado_em', sinceMs)) {
         comitesAprovados += 1;
       }
-      if (cardConfirmadoNoPeriodo(c, 'contrato_assinado', 'contrato_assinado_em', sinceMs)) {
+      if (
+        cardConfirmadoNoPeriodo(
+          c,
+          'portfolio_cto_precedentes_assinado',
+          'portfolio_cto_precedentes_assinado_em',
+          sinceMs,
+        )
+      ) {
         contratosAssinados += 1;
       }
     }

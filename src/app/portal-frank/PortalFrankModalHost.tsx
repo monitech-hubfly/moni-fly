@@ -2,7 +2,11 @@
 
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { KanbanCardModal } from '@/components/kanban-shared/KanbanCardModal';
+import dynamic from 'next/dynamic';
+const KanbanCardModal = dynamic(
+  () => import('@/components/kanban-shared/KanbanCardModal').then(m => m.KanbanCardModal),
+  { ssr: false }
+);
 
 function ModalInner() {
   const router = useRouter();
