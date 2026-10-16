@@ -4,7 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { normalizeAccessRole } from '@/lib/authz';
-import { negocioDbFromPatch, type ImobEmpreendimentoPatch } from '@/lib/imob-empreendimentos';
+import {
+  CAMPOS_NEGOCIO_EMPREENDIMENTO,
+  negocioDbFromPatch,
+  textoColunaNegocioEmpreendimento,
+  type ImobEmpreendimentoPatch,
+  type ImobEmpreendimentoRow,
+} from '@/lib/imob-empreendimentos';
 import { labelStatusImovel } from '@/lib/kanban/imob-simulacoes-card';
 
 type Ok = { ok: true; mensagem: string; id?: string };
@@ -155,6 +161,221 @@ export async function desvincularCorretorEmpreendimento(
   return { ok: true, mensagem: 'Vínculo removido.' };
 }
 
+export type CorretorVinculoOpcao = {
+  id: string;
+  nome: string;
+  n_corretor: string | null;
+};
+
+export type EmpreendimentoCorretoresResumo = {
+  empreendimentoId: string;
+  nome: string;
+  vinculados: number;
+  corretorDesteClienteId: string | null;
+  corretorDesteClienteNome: string | null;
+};
+
+export type CampoCadastroPreenchido = {
+  label: string;
+  valor: string;
+};
+
+async function vinculoDiretoDoCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+): Promise<{ empId: string; corretorId: string; colunaAusente: boolean; error: string | null }> {
+  const { data, error } = await supabase
+    .from('kanban_cards')
+    .select('imob_empreendimento_id, rede_corretor_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  if (error) {
+    const msg = error.message ?? '';
+    if (/imob_empreendimento_id|rede_corretor_id/.test(msg)) {
+      return { empId: '', corretorId: '', colunaAusente: true, error: null };
+    }
+    return { empId: '', corretorId: '', colunaAusente: false, error: msg };
+  }
+  const row = data as { imob_empreendimento_id?: string | null; rede_corretor_id?: string | null } | null;
+  return {
+    empId: String(row?.imob_empreendimento_id ?? '').trim(),
+    corretorId: String(row?.rede_corretor_id ?? '').trim(),
+    colunaAusente: false,
+    error: null,
+  };
+}
+
+async function cardIdsDoMesmoEmpreendimento(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+): Promise<{ ids: string[]; origemId: string }> {
+  const ids = new Set<string>([cardId]);
+  const { data: card } = await supabase
+    .from('kanban_cards')
+    .select('projeto_id, processo_step_one_id, origem_card_id')
+    .eq('id', cardId)
+    .maybeSingle();
+  const row = card as {
+    projeto_id?: string | null;
+    processo_step_one_id?: string | null;
+    origem_card_id?: string | null;
+  } | null;
+  const projetoId = String(row?.projeto_id ?? '').trim();
+  const processoId = String(row?.processo_step_one_id ?? '').trim();
+  const origemId = String(row?.origem_card_id ?? '').trim();
+  if (origemId) ids.add(origemId);
+
+  const consultas = [];
+  if (projetoId) {
+    consultas.push(supabase.from('kanban_cards').select('id').eq('projeto_id', projetoId).limit(40));
+  }
+  if (processoId) {
+    consultas.push(
+      supabase.from('kanban_cards').select('id').eq('processo_step_one_id', processoId).limit(40),
+    );
+  }
+  consultas.push(supabase.from('kanban_cards').select('id').eq('origem_card_id', cardId).limit(20));
+
+  const resultados = await Promise.all(consultas);
+  for (const res of resultados) {
+    for (const item of res.data ?? []) {
+      const id = String((item as { id?: string }).id ?? '').trim();
+      if (id) ids.add(id);
+    }
+  }
+  return { ids: [...ids], origemId };
+}
+
+/** Empreendimento deste card, ou de um card do mesmo projeto. */
+export async function resumoCorretoresDoCard(
+  cardId: string,
+): Promise<{ ok: true; resumo: EmpreendimentoCorretoresResumo | null } | Err> {
+  const gate = await requireImobStaff();
+  if (!gate.ok) return gate;
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return { ok: true, resumo: null };
+
+  const direto = await vinculoDiretoDoCard(gate.supabase, cid);
+  if (direto.error) return { ok: false, error: direto.error };
+
+  let escolhido: { id: string; nome: string } | null = null;
+  if (direto.empId) {
+    const { data, error } = await gate.supabase
+      .from('imob_empreendimentos')
+      .select('id, nome')
+      .eq('id', direto.empId)
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (data) escolhido = { id: String(data.id), nome: String(data.nome ?? '') };
+  }
+
+  if (!escolhido) {
+    const { ids: cardIds, origemId } = await cardIdsDoMesmoEmpreendimento(gate.supabase, cid);
+    const { data, error } = await gate.supabase
+      .from('imob_empreendimentos')
+      .select('id, nome, card_id')
+      .in('card_id', cardIds);
+    if (error) return { ok: false, error: error.message };
+
+    const linhas = (data ?? []) as { id: string; nome: string; card_id: string | null }[];
+    const unicos = new Map<string, (typeof linhas)[number]>();
+    for (const linha of linhas) unicos.set(linha.id, linha);
+    const lista = [...unicos.values()];
+    const porCard =
+      lista.find((e) => e.card_id === cid) ??
+      lista.find((e) => origemId && e.card_id === origemId) ??
+      (lista.length === 1 ? lista[0] : null);
+    if (porCard) escolhido = { id: porCard.id, nome: porCard.nome };
+  }
+  if (!escolhido) return { ok: true, resumo: null };
+
+  const { count, error: countError } = await gate.supabase
+    .from('imob_corretor_empreendimentos')
+    .select('corretor_id', { count: 'exact', head: true })
+    .eq('empreendimento_id', escolhido.id);
+  if (countError) return { ok: false, error: countError.message };
+
+  let corretorNome: string | null = null;
+  if (direto.corretorId) {
+    const { data: corretor } = await gate.supabase
+      .from('rede_corretores')
+      .select('nome')
+      .eq('id', direto.corretorId)
+      .maybeSingle();
+    corretorNome = String((corretor as { nome?: string | null } | null)?.nome ?? '').trim() || null;
+  }
+
+  return {
+    ok: true,
+    resumo: {
+      empreendimentoId: escolhido.id,
+      nome: String(escolhido.nome ?? '').trim() || 'Empreendimento',
+      vinculados: count ?? 0,
+      corretorDesteClienteId: direto.corretorId || null,
+      corretorDesteClienteNome: corretorNome,
+    },
+  };
+}
+
+/** Campos do cadastro do empreendimento que já têm valor. */
+export async function cadastroPreenchidoDoEmpreendimento(
+  empreendimentoId: string,
+): Promise<{ ok: true; campos: CampoCadastroPreenchido[] } | Err> {
+  const gate = await requireImobStaff();
+  if (!gate.ok) return gate;
+  const empId = String(empreendimentoId ?? '').trim();
+  if (!empId) return { ok: false, error: 'Empreendimento inválido.' };
+
+  const colunas = CAMPOS_NEGOCIO_EMPREENDIMENTO.map((c) => c.key).join(', ');
+  const { data, error } = await gate.supabase
+    .from('imob_empreendimentos')
+    .select(colunas)
+    .eq('id', empId)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: true, campos: [] };
+
+  const row = data as unknown as ImobEmpreendimentoRow;
+  const campos = CAMPOS_NEGOCIO_EMPREENDIMENTO.map((campo) => ({
+    label: campo.label,
+    valor: textoColunaNegocioEmpreendimento(row, campo),
+  })).filter((campo) => campo.valor && campo.valor !== '—');
+
+  return { ok: true, campos };
+}
+
+/** Lista de corretores para marcar vínculo, no mesmo formato do cadastro. */
+export async function listarCorretoresVinculoEmpreendimento(
+  empreendimentoId: string,
+): Promise<{ ok: true; corretores: CorretorVinculoOpcao[]; vinculados: string[] } | Err> {
+  const gate = await requireImobStaff();
+  if (!gate.ok) return gate;
+  const empId = String(empreendimentoId ?? '').trim();
+  if (!empId) return { ok: false, error: 'Empreendimento inválido.' };
+
+  const [{ data: corretores, error: corrError }, { data: links, error: linkError }] = await Promise.all([
+    gate.supabase.from('rede_corretores').select('id, nome, n_corretor').order('nome', { ascending: true }),
+    gate.supabase
+      .from('imob_corretor_empreendimentos')
+      .select('corretor_id')
+      .eq('empreendimento_id', empId),
+  ]);
+  if (corrError) return { ok: false, error: corrError.message };
+  if (linkError) return { ok: false, error: linkError.message };
+
+  return {
+    ok: true,
+    corretores: ((corretores ?? []) as { id: string; nome: string | null; n_corretor: string | null }[])
+      .map((c) => ({
+        id: String(c.id),
+        nome: String(c.nome ?? '').trim(),
+        n_corretor: c.n_corretor ? String(c.n_corretor) : null,
+      }))
+      .filter((c) => c.id && c.nome),
+    vinculados: ((links ?? []) as { corretor_id: string }[]).map((l) => String(l.corretor_id)),
+  };
+}
+
 /** Retorna os corretores vinculados a um empreendimento. */
 export async function fetchCorretoresDoEmpreendimento(
   empreendimentoId: string,
@@ -250,7 +471,7 @@ export type FlyerUnitData = {
 };
 
 export type FlyerData = {
-  emp: { id: string; nome: string; specs: string | null; imagem_url: string | null };
+  emp: { id: string; nome: string; specs: string | null; imagem_url: string | null; slug: string | null };
   cond: { nome: string; cidade: string | null; estado: string | null } | null;
   pipeline: string | null;
   showroom: { produto_modelo: string | null; imagem_url: string | null } | null;
@@ -277,7 +498,7 @@ export async function fetchFlyerData(
   // 1. Empreendimento
   const { data: emp, error: empErr } = await supabase
     .from('imob_empreendimentos')
-    .select('id, nome, specs, card_id, condominio_id, imagem_url')
+    .select('id, nome, specs, slug, card_id, condominio_id, imagem_url')
     .eq('id', empreendimentoId)
     .single();
 
@@ -287,6 +508,7 @@ export async function fetchFlyerData(
     id: string;
     nome: string;
     specs: string | null;
+    slug: string | null;
     card_id: string | null;
     condominio_id: string | null;
     imagem_url: string | null;
@@ -421,6 +643,17 @@ export async function fetchFlyerData(
     String(units[0]?.nome ?? '').trim() ||
     null;
 
+  let slugPublico = String(e.slug ?? '').trim() || null;
+  if (e.card_id) {
+    const { data: modelo } = await supabase
+      .from('imob_card_modelo')
+      .select('page_slug')
+      .eq('card_id', e.card_id)
+      .maybeSingle();
+    const pageSlug = String((modelo as { page_slug?: string | null } | null)?.page_slug ?? '').trim();
+    if (pageSlug) slugPublico = pageSlug;
+  }
+
   // 6. Corretores vinculados
   const { data: corrLinks } = await supabase
     .from('imob_corretor_empreendimentos')
@@ -450,7 +683,13 @@ export async function fetchFlyerData(
   });
 
   return {
-    emp: { id: e.id, nome: e.nome, specs: e.specs, imagem_url: e.imagem_url },
+    emp: {
+      id: e.id,
+      nome: e.nome,
+      specs: e.specs,
+      imagem_url: e.imagem_url,
+      slug: slugPublico,
+    },
     cond,
     pipeline,
     showroom,

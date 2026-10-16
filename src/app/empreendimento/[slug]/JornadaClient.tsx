@@ -825,6 +825,7 @@ export default function JornadaClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const corretorIdRef = useRef(searchParams.get('corretor_id')?.trim() ?? '');
   const [state, setStateRaw] = useState<JornadaLocal>(() => estadoInicial(empreendimento));
   const [isPending, startTransition] = useTransition();
   const [erroSimulacao, setErroSimulacao] = useState<string | null>(null);
@@ -914,6 +915,8 @@ export default function JornadaClient({
       valor_casa: calcs.valorCasa || null,
       valor_customizacao: calcs.valorCustomizacao || null,
       simulacao_id: state.simulacaoId ?? null,
+      slug_empreendimento: empreendimento.slug,
+      ...(corretorIdRef.current ? { corretor_id: corretorIdRef.current } : {}),
       ...dadosExtras,
     };
 
@@ -926,7 +929,10 @@ export default function JornadaClient({
 
     if (result.ok) {
       if (result.session_token !== state.sessaoToken) {
-        router.replace(`?sessao=${result.session_token}`, { scroll: false });
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('sessao', result.session_token);
+        if (corretorIdRef.current) params.set('corretor_id', corretorIdRef.current);
+        router.replace(`?${params.toString()}`, { scroll: false });
         setState({ sessaoToken: result.session_token, etapa: proximaEtapa, ...calcs });
       } else {
         setState({ etapa: proximaEtapa, ...calcs });

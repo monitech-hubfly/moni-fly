@@ -3,6 +3,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import type { JornadaSessao } from '@/app/empreendimento/[slug]/types';
+import { nascerCardVclDoCliente } from '@/lib/kanban/vcl-lead-nascimento';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Salvar/criar sessão do cliente
@@ -35,6 +36,28 @@ export async function salvarJornadaSessao(
 
   const raw = data as { session_token?: string; etapa_atual?: number } | null;
   if (!raw?.session_token) return { ok: false, error: 'Sessão não retornada.' };
+
+  const corretorId = String(dados.corretor_id ?? '').trim();
+  const nomeCliente = String(dados.nome_cliente ?? '').trim();
+  const telefoneDigitos = String(dados.telefone_cliente ?? '').replace(/\D/g, '');
+  if (corretorId && nomeCliente.length >= 2 && telefoneDigitos.length >= 10) {
+    const loteValorRaw = dados.lote_valor;
+    const loteValor = loteValorRaw == null || loteValorRaw === '' ? null : Number(loteValorRaw);
+    try {
+      await nascerCardVclDoCliente({
+        sessionToken: raw.session_token,
+        cardOrigemId: cardId,
+        slug: String(dados.slug_empreendimento ?? ''),
+        corretorId,
+        nomeCliente,
+        telefone: String(dados.telefone_cliente ?? ''),
+        loteCodigo: dados.lote_codigo == null ? null : String(dados.lote_codigo),
+        loteValor: loteValor != null && Number.isFinite(loteValor) ? loteValor : null,
+      });
+    } catch (err) {
+      console.error('[vcl-lead]', err);
+    }
+  }
 
   return {
     ok: true,
