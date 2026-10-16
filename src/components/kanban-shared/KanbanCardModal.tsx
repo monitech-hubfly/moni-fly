@@ -4477,6 +4477,7 @@ export function KanbanCardModal({
     if (/^https?:\/\//i.test(t)) return t;
     return `https://${t}`;
   };
+  const driveHref = linkHrefFromText(proc?.link_pasta_drive);
 
   function renderNegocioLinkCampo(
     label: string,
@@ -7429,6 +7430,7 @@ export function KanbanCardModal({
                           onChange={(valor_terreno) => setNegocioDraft((d) => ({ ...d, valor_terreno }))}
                         />
                       </label>
+                      {isTipoPermutaParcial(negocioDraft.tipo_aquisicao_terreno) ? (
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">VGV pretendido</span>
                         <input
@@ -7441,8 +7443,8 @@ export function KanbanCardModal({
                           className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                         />
                       </label>
-                    ) : null}
-                    {isTipoPermutaVGV(negocioDraft.tipo_aquisicao_terreno) ? (
+                      ) : null}
+                      {isTipoPermutaVGV(negocioDraft.tipo_aquisicao_terreno) ? (
                       <label className="block">
                         <span className="text-[11px] font-medium text-stone-500">% VGV Terrenista</span>
                         <input
@@ -7455,6 +7457,7 @@ export function KanbanCardModal({
                           className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                         />
                       </label>
+                      ) : null}
                     </div>
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">M² Terreno</span>
@@ -7703,7 +7706,7 @@ export function KanbanCardModal({
                         <div className="text-[11px] font-medium text-stone-500">VGV pretendido</div>
                         <div className="text-xs text-stone-800">{fmtMoedaKanban(proc.vgv_pretendido)}</div>
                       </div>
-                    </div>
+                    ) : null}
                     {renderNegocioLinkCampo('Contratos', proc.link_opcao_permuta)}
                     <fieldset
                       className="rounded-lg p-2"
