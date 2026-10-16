@@ -10,7 +10,9 @@ export function categorizarAlerta(tipo: string): CategoriaAlerta {
     tipo === 'sla_atividade_atrasado' ||
     tipo === 'sla_atividade_atencao'
   ) return 'sirene';
-  if (tipo === 'mencao_kanban_card' || tipo === 'mencao_card') return 'cards';
+  if (tipo === 'mencao_kanban_card' || tipo === 'mencao_card' || tipo === 'bastao_fase_vinculada') {
+    return 'cards';
+  }
   if (
     tipo === 'mencao_agenda_comentario' ||
     tipo === 'convite_agenda_interno' ||
@@ -35,7 +37,8 @@ export function priorizarAlerta(tipo: string): PrioridadeAlerta {
     tipo === 'mencao_agenda_comentario' ||
     tipo === 'convite_agenda_interno' ||
     tipo === 'aprovacao_fase' ||
-    tipo === 'acoplamento_novo_projeto'
+    tipo === 'acoplamento_novo_projeto' ||
+    tipo === 'bastao_fase_vinculada'
   ) return 'critico';
   if (tipo === 'proposta_horario_agenda' || tipo === 'resposta_convite_agenda') return 'importante';
   if (

@@ -5,8 +5,12 @@ import {
   montarCalculadoraPack,
   type CalculadoraPublicaCard,
 } from '@/lib/kanban/fetch-calculadora-publica';
-import { segmentoEsteiraCardCalculadora } from '@/lib/kanban/calculadora-fases-esteira';
+import {
+  fetchCalculadoraEsteiraFasesMap,
+  segmentoEsteiraCardCalculadora,
+} from '@/lib/kanban/calculadora-fases-esteira';
 import type { CalculadoraFaseLinha } from '@/lib/kanban/calculadora-fases';
+import { fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
 
 export type PipelineEsteiraCalculadoraPack = {
   /** Card usado como âncora do cálculo (sync group). */
@@ -112,9 +116,17 @@ export async function fetchPipelineEsteiraCalculadora(
   if (grupos.size === 0) return {};
 
   const entries = [...grupos.entries()];
-  const packs = await mapWithConcurrency(entries, 4, async ([chave, { rep }]) => {
+  const fasesEsteira = await fetchCalculadoraEsteiraFasesMap(supabase);
+  const fasesKanban = new Map();
+  await Promise.all(
+    [KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES].map(async (kanbanId) => {
+      fasesKanban.set(kanbanId, await fetchKanbanFasesAtivas(supabase, kanbanId));
+    }),
+  );
+  const cache = { fasesEsteira, fasesKanban };
+  const packs = await mapWithConcurrency(entries, 8, async ([chave, { rep }]) => {
     try {
-      const pack = await montarCalculadoraPack(supabase, cardParaCalculadora(rep));
+      const pack = await montarCalculadoraPack(supabase, cardParaCalculadora(rep), cache);
       return { chave, pack: pack ? { cardId: rep.id, linhas: pack.linhas } : null };
     } catch (e) {
       console.error('[fetchPipelineEsteiraCalculadora]', rep.id, e);
@@ -127,6 +139,92 @@ export async function fetchPipelineEsteiraCalculadora(
     if (pack && pack.linhas.length > 0) result[chave] = pack;
   }
   return result;
+}
+
+const CALC_CARD_SELECT = [
+  'id',
+  'titulo',
+  'kanban_id',
+  'fase_id',
+  'created_at',
+  'entered_fase_at',
+  'concluido',
+  'contrato_assinado_em',
+  'obra_iniciada_em',
+  'obra_finalizada_em',
+  'opcao_assinada_em',
+  'processo_step_one_id',
+  'projeto_id',
+  'origem_card_id',
+  'kanban_fases(ordem)',
+].join(',');
+
+function ordemFaseJoin(raw: unknown): number {
+  const row = Array.isArray(raw) ? raw[0] : raw;
+  if (!row || typeof row !== 'object') return 0;
+  const ordem = Number((row as { ordem?: number }).ordem ?? 0);
+  return Number.isFinite(ordem) ? ordem : 0;
+}
+
+/** Calculadora só dos cards ativos de Portfólio e Pré Obra, sem o enrichment do pipeline. */
+export async function fetchPipelineEsteiraCalculadoraAtivos(
+  supabase: SupabaseClient,
+  opts: { mode: 'franqueadora' | 'unidade' | 'rede'; franqueadoId?: string },
+): Promise<PipelineEsteiraCalculadoraPorGrupo> {
+  let q = supabase
+    .from('kanban_cards')
+    .select(CALC_CARD_SELECT)
+    .eq('status', 'ativo')
+    .eq('arquivado', false)
+    .eq('concluido', false)
+    .in('kanban_id', [KANBAN_IDS.PORTFOLIO, KANBAN_IDS.OPERACOES]);
+
+  if (opts.mode === 'unidade' && opts.franqueadoId) {
+    q = q.eq('rede_franqueado_id', opts.franqueadoId);
+  }
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+
+  const cards: PipelineCardRow[] = (data ?? []).map((raw) => {
+    const row = raw as unknown as Record<string, unknown>;
+    const createdAt = String(row.created_at ?? '');
+    return {
+      id: String(row.id ?? ''),
+      titulo: String(row.titulo ?? ''),
+      kanban_id: String(row.kanban_id ?? ''),
+      kanban_nome: '',
+      fase_id: String(row.fase_id ?? ''),
+      fase_nome: '',
+      fase_slug: null,
+      fase_ordem: ordemFaseJoin(row.kanban_fases),
+      fase_sla_dias: null,
+      fase_sla_tipo: 'uteis',
+      fase_conversao: false,
+      rede_franqueado_id: null,
+      n_franquia: null,
+      franqueado_nome: null,
+      rede_ordem: 0,
+      created_at: createdAt,
+      updated_at: createdAt,
+      entered_fase_at: row.entered_fase_at != null ? String(row.entered_fase_at) : null,
+      sla_iniciado_em: null,
+      alvara_url: null,
+      docs_terreno_url: null,
+      arquivado: false,
+      concluido: Boolean(row.concluido),
+      origem: 'nativo',
+      processo_step_one_id: row.processo_step_one_id != null ? String(row.processo_step_one_id) : null,
+      projeto_id: row.projeto_id != null ? String(row.projeto_id) : null,
+      origem_card_id: row.origem_card_id != null ? String(row.origem_card_id) : null,
+      contrato_assinado_em: row.contrato_assinado_em != null ? String(row.contrato_assinado_em) : null,
+      obra_iniciada_em: row.obra_iniciada_em != null ? String(row.obra_iniciada_em) : null,
+      obra_finalizada_em: row.obra_finalizada_em != null ? String(row.obra_finalizada_em) : null,
+      opcao_assinada_em: row.opcao_assinada_em != null ? String(row.opcao_assinada_em) : null,
+    };
+  });
+
+  return fetchPipelineEsteiraCalculadora(supabase, cards);
 }
 
 /** Resolve pack da calculadora para um card (via chave de grupo). */

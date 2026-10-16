@@ -30,6 +30,7 @@ export function AlertasBellLink({ userId }: Props) {
         'mencao_card',
         'aprovacao_fase',
         'acoplamento_novo_projeto',
+        'bastao_fase_vinculada',
       ];
       const { count } = await supabase
         .from('alertas')

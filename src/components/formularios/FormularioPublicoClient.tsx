@@ -1,20 +1,21 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   mascaraMoeda,
   mascaraTelefone,
   moedaParaNumero,
   normalizarCondicional,
 } from '@/lib/formularios/apresentacao';
-import type { FormularioCampo, FormularioListaItem, FormularioSecao, FormularioValorSubmit } from '@/types/formularios';
+import { fetchMunicipiosPorUfs } from '@/lib/ibge';
+import { UFS_BRASIL } from '@/lib/uf';
+import type { Formulario, FormularioCampo, FormularioCampoGrupoDef, FormularioSecao } from '@/types/formularios';
 
 type Props = {
+  formulario: Formulario;
   token: string;
-  tokenId: string;
-  avulso: boolean;
-  formulario: FormularioListaItem;
-  secoes: FormularioSecao[];
+  cardId?: string | null;
+  redeFranqueadoId?: string | null;
 };
 
 const campoStyle: React.CSSProperties = {
@@ -69,13 +70,12 @@ function condicaoOk(
   return atual.some((item) => normalizarCondicional(item) === alvo);
 }
 
-export function FormularioPublicoClient({ token, tokenId, avulso, formulario, secoes }: Props) {
+export function FormularioPublicoClient({ token, formulario }: Props) {
+  const secoes = formulario.secoes;
   const campos = useMemo(() => secoes.flatMap((secao) => secao.campos), [secoes]);
   const [textos, setTextos] = useState<Record<string, string>>({});
   const [listas, setListas] = useState<Record<string, string[]>>({});
   const [arquivos, setArquivos] = useState<Record<string, File[]>>({});
-  const [numero, setNumero] = useState('');
-  const [nome, setNome] = useState('');
   const [passo, setPasso] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -108,31 +108,49 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
   const ultimo = passo >= secoesVisiveis.length - 1;
 
   function setTexto(id: string, valor: string) {
-    setTextos((atual) => ({ ...atual, [id]: valor }));
+    setTextos((atual) => {
+      const next = { ...atual, [id]: valor };
+      if ((atual[id] ?? '') === valor) return next;
+      for (const campo of campos) {
+        if (campo.tipo === 'select_cidade' && campo.config?.estado_campo_id === id) next[campo.id] = '';
+      }
+      return next;
+    });
   }
 
-  function faltando(secao: FormularioSecao | null, incluirAvulso: boolean): string | null {
-    if (incluirAvulso && avulso && (!numero.trim() || !nome.trim())) {
-      return 'Informe o número e o nome do franqueado.';
-    }
+  function faltando(secao: FormularioSecao | null): string | null {
     if (!secao) return null;
     for (const campo of secao.campos) {
       if (!campo.obrigatorio || !visiveis.has(campo.id)) continue;
-      if (campo.tipo === 'checkbox' && (listas[campo.id] ?? []).length === 0) return `Preencha: ${campo.nome}`;
-      if (campo.tipo === 'arquivo_multiplo' && (arquivos[campo.id] ?? []).length === 0) return `Anexe: ${campo.nome}`;
+      if (campo.tipo === 'grupo_repetivel') {
+        const linhas = parseGrupoRepetivel(textos[campo.id]);
+        const defs = campo.config?.campos ?? [];
+        const preenchidas = linhas.filter((linha) =>
+          defs.some((def) => String(linha[def.key] ?? '').trim()),
+        );
+        if (campo.obrigatorio && preenchidas.length === 0) return `Preencha: ${campo.label}`;
+        for (const linha of preenchidas) {
+          for (const def of defs) {
+            if (def.obrigatorio && !String(linha[def.key] ?? '').trim()) return `Preencha: ${def.label}`;
+          }
+        }
+        continue;
+      }
+      if (campo.tipo === 'checkbox' && (listas[campo.id] ?? []).length === 0) return `Preencha: ${campo.label}`;
+      if (campo.tipo === 'arquivo_multiplo' && (arquivos[campo.id] ?? []).length === 0) return `Anexe: ${campo.label}`;
       if (campo.tipo === 'link_ou_arquivo') {
         const temUrl = Boolean((textos[campo.id] ?? '').trim());
         const temArquivo = (arquivos[campo.id] ?? []).length > 0;
-        if (!temUrl && !temArquivo) return `Informe o link ou o arquivo: ${campo.nome}`;
+        if (!temUrl && !temArquivo) return `Informe o link ou o arquivo: ${campo.label}`;
         continue;
       }
-      if (!(textos[campo.id] ?? '').trim()) return `Preencha: ${campo.nome}`;
+      if (!(textos[campo.id] ?? '').trim()) return `Preencha: ${campo.label}`;
     }
     return null;
   }
 
   function avancar() {
-    const msg = faltando(secaoAtual, passo === 0);
+    const msg = faltando(secaoAtual);
     if (msg) {
       setErro(msg);
       return;
@@ -143,7 +161,7 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
 
   async function enviar() {
     for (const secao of secoesVisiveis) {
-      const msg = faltando(secao, true);
+      const msg = faltando(secao);
       if (msg) {
         setErro(msg);
         setPasso(secoesVisiveis.findIndex((item) => item.id === secao.id));
@@ -156,7 +174,7 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
       const inicio = await fetch('/api/formularios/iniciar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, numeroFranquia: numero, nomeFranqueado: nome }),
+        body: JSON.stringify({ token }),
       });
       const aberto = (await inicio.json()) as { ok: boolean; error?: string; respostaId?: string; tokenId?: string };
       if (!inicio.ok || !aberto.ok || !aberto.respostaId) {
@@ -180,7 +198,7 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
           }
         }
       }
-      const valores: FormularioValorSubmit[] = campos
+      const valores = campos
         .filter((campo) => visiveis.has(campo.id))
         .filter((campo) => campo.tipo !== 'arquivo_multiplo')
         .map((campo) => {
@@ -203,10 +221,8 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token,
-          tokenId: aberto.tokenId ?? tokenId,
+          tokenId: aberto.tokenId,
           respostaId: aberto.respostaId,
-          numeroFranquia: numero,
-          nomeFranqueado: nome,
           valores,
         }),
       });
@@ -270,28 +286,16 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
           boxShadow: 'var(--moni-shadow-card)',
         }}
       >
-        {passo === 0 && avulso ? (
-          <div className="space-y-3">
-            <label className="block text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
-              Nº da Franquia
-              <input value={numero} onChange={(e) => setNumero(e.target.value)} required style={{ ...campoStyle, display: 'block', marginTop: 4 }} />
-            </label>
-            <label className="block text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
-              Nome do Franqueado
-              <input value={nome} onChange={(e) => setNome(e.target.value)} required style={{ ...campoStyle, display: 'block', marginTop: 4 }} />
-            </label>
-          </div>
-        ) : null}
-
         {secaoAtual ? (
           <div className="space-y-4">
             <h2 className="text-lg" style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}>
-              {secaoAtual.nome}
+              {secaoAtual.titulo}
             </h2>
             {secaoAtual.campos.filter((campo) => visiveis.has(campo.id)).map((campo) => (
               <CampoPublico
                 key={campo.id}
                 campo={campo}
+                textos={textos}
                 texto={textos[campo.id] ?? ''}
                 lista={listas[campo.id] ?? []}
                 arquivos={arquivos[campo.id] ?? []}
@@ -335,8 +339,20 @@ export function FormularioPublicoClient({ token, tokenId, avulso, formulario, se
   );
 }
 
+function parseGrupoRepetivel(raw: string | undefined): Record<string, string>[] {
+  if (!raw?.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item) => item && typeof item === 'object') as Record<string, string>[];
+  } catch {
+    return [];
+  }
+}
+
 function CampoPublico({
   campo,
+  textos,
   texto,
   lista,
   arquivos,
@@ -345,6 +361,7 @@ function CampoPublico({
   onArquivos,
 }: {
   campo: FormularioCampo;
+  textos: Record<string, string>;
   texto: string;
   lista: string[];
   arquivos: File[];
@@ -354,7 +371,7 @@ function CampoPublico({
 }) {
   const label = (
     <span className="mb-1 block text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
-      {campo.nome}
+      {campo.label}
       {campo.obrigatorio ? ' *' : ''}
     </span>
   );
@@ -415,6 +432,36 @@ function CampoPublico({
       </label>
     );
   }
+  if (campo.tipo === 'select_estado') {
+    return (
+      <label className="block">
+        {label}
+        <select value={texto} onChange={(e) => onTexto(e.target.value)} style={campoStyle}>
+          <option value="">Selecione</option>
+          {UFS_BRASIL.map((uf) => (
+            <option key={uf.sigla} value={uf.sigla}>
+              {uf.sigla} — {uf.nome}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+  if (campo.tipo === 'select_cidade') {
+    const estadoId = campo.config?.estado_campo_id ?? '';
+    return <SelectCidadeCampo label={label} uf={textos[estadoId] ?? ''} valor={texto} onTexto={onTexto} />;
+  }
+  if (campo.tipo === 'grupo_repetivel') {
+    return (
+      <GrupoRepetivelCampo
+        label={label}
+        defs={campo.config?.campos ?? []}
+        botao={campo.config?.label_adicionar ?? 'Adicionar'}
+        valor={texto}
+        onTexto={onTexto}
+      />
+    );
+  }
   if (campo.tipo === 'select') {
     return (
       <label className="block">
@@ -422,8 +469,8 @@ function CampoPublico({
         <select value={texto} onChange={(e) => onTexto(e.target.value)} style={campoStyle}>
           <option value="">Selecione</option>
           {campo.opcoes.map((opcao) => (
-            <option key={opcao.valor} value={opcao.valor}>
-              {opcao.rotulo}
+            <option key={opcao} value={opcao}>
+              {opcao}
             </option>
           ))}
         </select>
@@ -441,17 +488,15 @@ function CampoPublico({
         ) : (
           <div className="space-y-2">
             {campo.opcoes.map((opcao) => {
-              const marcado = lista.includes(opcao.valor);
+              const marcado = lista.includes(opcao);
               return (
-                <label key={opcao.valor} className="flex min-h-[44px] items-center gap-2 text-sm" style={{ fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-primary)' }}>
+                <label key={opcao} className="flex min-h-[44px] items-center gap-2 text-sm" style={{ fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-primary)' }}>
                   <input
                     type="checkbox"
                     checked={marcado}
-                    onChange={() =>
-                      onLista(marcado ? lista.filter((item) => item !== opcao.valor) : [...lista, opcao.valor])
-                    }
+                    onChange={() => onLista(marcado ? lista.filter((item) => item !== opcao) : [...lista, opcao])}
                   />
-                  {opcao.rotulo}
+                  {opcao}
                 </label>
               );
             })}
@@ -494,3 +539,141 @@ function CampoPublico({
     </label>
   );
 }
+
+function SelectCidadeCampo({
+  label,
+  uf,
+  valor,
+  onTexto,
+}: {
+  label: ReactNode;
+  uf: string;
+  valor: string;
+  onTexto: (valor: string) => void;
+}) {
+  const [cidades, setCidades] = useState<string[]>([]);
+  const [carregando, setCarregando] = useState(false);
+
+  useEffect(() => {
+    const sigla = uf.trim().toUpperCase();
+    if (sigla.length !== 2) {
+      setCidades([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    setCarregando(true);
+    void fetchMunicipiosPorUfs([sigla], ctrl.signal)
+      .then((lista) => {
+        if (!ctrl.signal.aborted) setCidades(lista.map((cidade) => cidade.nome));
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setCidades([]);
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setCarregando(false);
+      });
+    return () => ctrl.abort();
+  }, [uf]);
+
+  return (
+    <label className="block">
+      {label}
+      <select
+        value={valor}
+        disabled={!uf.trim() || carregando}
+        onChange={(e) => onTexto(e.target.value)}
+        style={campoStyle}
+      >
+        <option value="">{uf.trim() ? (carregando ? 'Carregando cidades…' : 'Selecione') : 'Selecione o estado'}</option>
+        {cidades.map((cidade) => (
+          <option key={cidade} value={cidade}>
+            {cidade}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function GrupoRepetivelCampo({
+  label,
+  defs,
+  botao: rotuloAdicionar,
+  valor,
+  onTexto,
+}: {
+  label: ReactNode;
+  defs: FormularioCampoGrupoDef[];
+  botao: string;
+  valor: string;
+  onTexto: (valor: string) => void;
+}) {
+  const linhas = parseGrupoRepetivel(valor);
+  const vazio = () => Object.fromEntries(defs.map((def) => [def.key, '']));
+
+  function gravar(next: Record<string, string>[]) {
+    onTexto(next.length > 0 ? JSON.stringify(next) : '');
+  }
+
+  return (
+    <fieldset className="space-y-3">
+      <legend className="mb-1">{label}</legend>
+      {linhas.map((linha, index) => (
+        <div
+          key={index}
+          className="space-y-2 rounded-[var(--moni-radius-md)] p-3"
+          style={{ border: '0.5px solid var(--moni-border-subtle)' }}
+        >
+          {defs.map((def) => (
+            <label key={def.key} className="block">
+              <span className="mb-1 block text-xs" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+                {def.label}
+                {def.obrigatorio ? ' *' : ''}
+              </span>
+              {def.tipo === 'select' ? (
+                <select
+                  value={String(linha[def.key] ?? '')}
+                  onChange={(e) => {
+                    const next = linhas.map((item, i) => (i === index ? { ...item, [def.key]: e.target.value } : item));
+                    gravar(next);
+                  }}
+                  style={campoStyle}
+                >
+                  <option value="">Selecione</option>
+                  {(def.opcoes ?? []).map((opcao) => (
+                    <option key={opcao} value={opcao}>
+                      {opcao}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={def.tipo === 'numero' ? 'number' : 'text'}
+                  value={String(linha[def.key] ?? '')}
+                  onChange={(e) => {
+                    const next = linhas.map((item, i) => (i === index ? { ...item, [def.key]: e.target.value } : item));
+                    gravar(next);
+                  }}
+                  style={campoStyle}
+                />
+              )}
+            </label>
+          ))}
+          <button
+            type="button"
+            className="min-h-[44px] text-xs underline"
+            style={{ color: 'var(--moni-text-tertiary)' }}
+            onClick={() => gravar(linhas.filter((_, i) => i !== index))}
+          >
+            Remover
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={() => gravar([...linhas, vazio()])} style={botao}>
+        {rotuloAdicionar}
+      </button>
+    </fieldset>
+  );
+}
+
+export default FormularioPublicoClient;

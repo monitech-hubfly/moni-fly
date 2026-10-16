@@ -57,9 +57,15 @@ export const ESTEIRA_CALCULADORA_COLUNAS: readonly EsteiraCalculadoraColuna[] = 
   },
   {
     slug: 'revisao_bca',
-    label: 'Revisão BCA + IG',
+    label: 'Comitê Ops',
     segmento: 'op',
     faseSlugs: ['revisao_bca'],
+  },
+  {
+    slug: 'instrumento_garantidor',
+    label: 'Inst. Garantidor',
+    segmento: 'op',
+    faseSlugs: [FASE_SLUGS.INSTRUMENTO_GARANTIDOR],
   },
   {
     slug: 'transferencia_terreno',

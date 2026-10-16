@@ -42,6 +42,9 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/carometro',
   '/marketing',
   '/manutencoes',
+  '/venda-casas-loteadores',
+  '/venda-casas-franks',
+  '/funil-motor01',
 ] as const;
 
 export function isTeamAllowedPath(pathname: string): boolean {

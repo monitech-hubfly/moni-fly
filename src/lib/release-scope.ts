@@ -69,6 +69,9 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/loteador',
   '/marketing',
   '/manutencoes',
+  '/venda-casas-loteadores',
+  '/venda-casas-franks',
+  '/funil-motor01',
 ] as const;
 
 /** Mesma regra do middleware: `/` só a home exata; demais por prefixo. */

@@ -17,6 +17,7 @@ function rotuloTipo(tipo: string): string {
   if (tipo === 'sla_atividade_atencao') return 'Atividade em atenção';
   if (tipo === 'status_preenchimento_lembrete') return 'Lembrete de entrega';
   if (tipo === 'novo_franqueado_rede') return 'Novo franqueado';
+  if (tipo === 'bastao_fase_vinculada') return 'Card vinculado';
   return tipo;
 }
 

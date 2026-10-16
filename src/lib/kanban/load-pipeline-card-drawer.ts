@@ -1,5 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { KanbanFase } from '@/components/kanban-shared/types';
+import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { creditoLateralFromRaw, creditoLateralVazio, type CreditoLateral } from '@/lib/kanban/credito-lateral';
+import type { FaseNegocioPrazoOpcao } from '@/lib/kanban/dados-negocio-prazo';
+import {
+  operacoesPreObraDraftFromCard,
+  type OperacoesPreObraDraft,
+} from '@/lib/kanban/previsibilidade-operacoes';
 import type { HistoricoItem } from '@/components/kanban-shared/kanban-card-modal-helpers';
 import { calcularDiasUteis, calcularDiasCorridos, adicionarDiasUteis, adicionarDiasCorridos, labelTagSlaFunil, normalizarSlaTipo, type SlaTipo } from '@/lib/dias-uteis';
 import { augmentKanbanFasesComFasesDosCards, fetchKanbanFasesAtivas } from '@/lib/kanban/fetch-kanban-fases';
@@ -51,6 +58,12 @@ export type PipelineCardDrawerData = {
   statusLabel: string;
   eventosBrutos: HistoricoItem[];
   detalhes: KanbanCardModalDetalhes | null;
+  /** Campos da lateral que ficam no card (Pré Obra e Crédito), inclusive dos cards vinculados ao projeto. */
+  preObra: OperacoesPreObraDraft;
+  credito: CreditoLateral;
+  fases: KanbanFase[];
+  fasesPrazo: FaseNegocioPrazoOpcao[];
+  linhasCronologia: LinhaCronologiaFase[];
 };
 
 function calcularSlaHistoricoFase(
@@ -240,12 +253,119 @@ async function fetchChamadosSireneCard(
   });
 }
 
+const SIDEBAR_CARD_SELECT = [
+  'id',
+  'kanban_id',
+  'credito_lateral',
+  'docs_condominio',
+  'docs_lote',
+  'link_projeto_legal',
+  'condominio_aprovada_em',
+  'datas_comunique_se_condominio',
+  'prefeitura_aprovada_em',
+  'datas_comunique_se_prefeitura',
+  'alvara_emitido_em',
+  'data_envio_credito_obra',
+  'data_aprovacao_credito_obra',
+  'data_inicio_obra',
+].join(',');
+
+const PREOBRA_KEYS = [
+  'docs_condominio',
+  'docs_lote',
+  'link_projeto_legal',
+  'condominio_aprovada_em',
+  'datas_comunique_se_condominio',
+  'prefeitura_aprovada_em',
+  'datas_comunique_se_prefeitura',
+  'alvara_emitido_em',
+  'data_envio_credito_obra',
+  'data_aprovacao_credito_obra',
+  'data_inicio_obra',
+] as const;
+
+function valorPreenchido(value: unknown): boolean {
+  if (value == null) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+}
+
+function scoreCredito(raw: unknown): number {
+  const credito = creditoLateralFromRaw(raw);
+  const tranches = [
+    ...credito.terreno_tranches,
+    ...credito.obra_tranches,
+    ...credito.alavancagem_tranches,
+  ];
+  return (
+    tranches.filter((t) => t.valor.trim() || t.data).length +
+    (credito.alavancagem_valor.trim() ? 1 : 0)
+  );
+}
+
+/** Junta Pré Obra e Crédito dos cards do mesmo projeto (o valor preenchido vale, mesmo se estiver no card irmão). */
+async function fetchSidebarExtrasProjeto(
+  supabase: SupabaseClient,
+  card: PipelineCardDisplay,
+): Promise<{ preObra: OperacoesPreObraDraft; credito: CreditoLateral }> {
+  const vazio = {
+    preObra: operacoesPreObraDraftFromCard(null),
+    credito: creditoLateralVazio(),
+  };
+
+  const procId = String(card.processo_step_one_id ?? '').trim();
+  const projetoId = String(card.projeto_id ?? '').trim();
+  const filtros = [`id.eq.${card.id}`];
+  if (procId) filtros.push(`processo_step_one_id.eq.${procId}`);
+  if (projetoId && projetoId !== procId) filtros.push(`projeto_id.eq.${projetoId}`);
+
+  const { data, error } = await supabase
+    .from('kanban_cards')
+    .select(SIDEBAR_CARD_SELECT)
+    .or(filtros.join(','));
+
+  if (error || !data?.length) {
+    if (error) console.error('[fetchSidebarExtrasProjeto]', error.message);
+    return vazio;
+  }
+
+  const rows = data as unknown as Record<string, unknown>[];
+  const clicked = rows.find((row) => String(row.id) === card.id);
+  const operacoes = rows.filter((row) => String(row.kanban_id) === KANBAN_IDS.OPERACOES);
+  const ordem = [clicked, ...operacoes, ...rows].filter((row): row is Record<string, unknown> => row != null);
+
+  const merged: Record<string, unknown> = {};
+  for (const key of PREOBRA_KEYS) {
+    for (const row of ordem) {
+      if (!valorPreenchido(row[key])) continue;
+      merged[key] = row[key];
+      break;
+    }
+  }
+
+  let creditoRaw: unknown = null;
+  let melhor = -1;
+  for (const row of ordem) {
+    const score = scoreCredito(row.credito_lateral);
+    if (score > melhor) {
+      melhor = score;
+      creditoRaw = row.credito_lateral;
+    }
+  }
+
+  return {
+    preObra: operacoesPreObraDraftFromCard(merged),
+    credito: creditoLateralFromRaw(creditoRaw),
+  };
+}
+
 /** Carrega cronologia de fases e chamados Sirene reais para o mini-drawer do pipeline. */
 export async function loadPipelineCardDrawerData(
   supabase: SupabaseClient,
   card: PipelineCardDisplay,
 ): Promise<PipelineCardDrawerData> {
-  const [historico, fasesBase, chamadosSirene, detalhes] = await Promise.all([
+  const [historico, fasesBase, chamadosSirene, detalhes, sidebar] = await Promise.all([
     loadHistoricoCardModal(
       supabase,
       card.id,
@@ -264,6 +384,7 @@ export async function loadPipelineCardDrawerData(
       cardProjetoId: card.projeto_id ?? null,
       cardProcessoStepOneId: card.processo_step_one_id ?? null,
     }),
+    fetchSidebarExtrasProjeto(supabase, card),
   ]);
 
   const fases = await augmentKanbanFasesComFasesDosCards(
@@ -292,6 +413,11 @@ export async function loadPipelineCardDrawerData(
     statusLabel: labelStatusOperacionalPipeline(status),
     eventosBrutos: historico,
     detalhes,
+    preObra: sidebar.preObra,
+    credito: sidebar.credito,
+    fases,
+    fasesPrazo: fases.map((fase) => ({ id: fase.id, label: fase.nome })),
+    linhasCronologia,
   };
 }
 

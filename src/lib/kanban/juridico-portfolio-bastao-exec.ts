@@ -105,7 +105,7 @@ const CONFIG_PORTFOLIO: ConfigBastaoOrigem = {
   kanbanId: KANBAN_IDS.PORTFOLIO,
   funil: 'Portfólio',
   kanbanNomeHref: 'Funil Portfólio',
-  tiposLabel: 'Opção, Cto c/ Precedentes nem Cto s/ Precedentes',
+  tiposLabel: 'Opção, Cto c/ Precedentes, Cto s/ Precedentes nem Termo Recompra',
   isTipo: isTipoBastaoJuridicoPortfolio,
   destinoSlug: (tipo, momento) => faseDestinoBastaoPortfolio(tipo as TipoBastaoJuridicoPortfolio, momento),
   decidir: (input) =>

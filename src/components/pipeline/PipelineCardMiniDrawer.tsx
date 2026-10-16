@@ -133,7 +133,7 @@ export function PipelineCardMiniDrawer({ card, onClose }: Props) {
         onClick={onClose}
       />
       <aside
-        className={`absolute right-0 top-0 flex h-full w-full max-w-lg flex-col bg-white transition-transform duration-200 ${
+        className={`absolute right-0 top-0 flex h-full w-full max-w-xl flex-col bg-white transition-transform duration-200 ${
           entered ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ borderLeft: '0.5px solid var(--moni-border-default)' }}
@@ -174,6 +174,9 @@ export function PipelineCardMiniDrawer({ card, onClose }: Props) {
             card={card}
             detalhes={drawerData?.detalhes ?? null}
             loading={loading}
+            preObra={drawerData?.preObra ?? null}
+            credito={drawerData?.credito ?? null}
+            fasesPrazo={drawerData?.fasesPrazo ?? []}
           />
 
           <h3

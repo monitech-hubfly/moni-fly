@@ -13,6 +13,20 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  if (items.length === 0) return [];
+  const out: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      out[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 function isAbertoStatus(status: string): boolean {
   const st = status.trim().toLowerCase();
   return (
@@ -111,45 +125,49 @@ export async function fetchPainelChamados(
 ): Promise<PainelChamadoUnificadoDTO[]> {
   if (cardIds.length === 0) return [];
 
-  const kaRows: ReturnType<typeof mapKaRow>[] = [];
-  for (const part of chunk(cardIds, 100)) {
-    const { data } = await supabase
-      .from('kanban_atividades')
-      .select(KA_SELECT)
-      .in('card_id', part)
-      .eq('origem', origem)
-      .eq('arquivado', false);
-    for (const r of data ?? []) {
-      kaRows.push(mapKaRow(r as Record<string, unknown>));
-    }
-  }
+  const cardChunks = chunk(cardIds, 100);
+  const [kaParts, scParts] = await Promise.all([
+    mapPool(cardChunks, 6, async (part) => {
+      const { data } = await supabase
+        .from('kanban_atividades')
+        .select(KA_SELECT)
+        .in('card_id', part)
+        .eq('origem', origem)
+        .eq('arquivado', false);
+      return (data ?? []).map((r) => mapKaRow(r as Record<string, unknown>));
+    }),
+    mapPool(cardChunks, 6, async (part) => {
+      const { data } = await supabase.from('sirene_chamados').select(SC_SELECT).in('card_id', part);
+      return (data ?? []) as ScRow[];
+    }),
+  ]);
 
+  const kaRows = kaParts.flat();
   const sireneIdsFromKa = new Set(
     kaRows.map((r) => r.sireneChamadoId).filter((x): x is number => x != null),
   );
 
   const scById = new Map<number, ScRow>();
-  for (const part of chunk(cardIds, 100)) {
-    const { data } = await supabase.from('sirene_chamados').select(SC_SELECT).in('card_id', part);
-    for (const r of data ?? []) {
-      const row = r as ScRow;
-      if (Number.isFinite(Number(row.id))) scById.set(Number(row.id), row);
-    }
+  for (const row of scParts.flat()) {
+    if (Number.isFinite(Number(row.id))) scById.set(Number(row.id), row);
   }
 
   const pastelBySireneId = new Set<number>();
   const allSireneIds = [...new Set([...sireneIdsFromKa, ...scById.keys()])];
-  for (const part of chunk(allSireneIds, 120)) {
-    if (part.length === 0) continue;
+  const pastelParts = await mapPool(chunk(allSireneIds, 120), 6, async (part) => {
+    if (part.length === 0) return [] as number[];
     const { data } = await supabase
       .from('sirene_pastelaria_vinculos')
       .select('sirene_chamado_id')
       .in('sirene_chamado_id', part);
+    const ids: number[] = [];
     for (const v of data ?? []) {
       const sid = Number((v as { sirene_chamado_id?: number }).sirene_chamado_id);
-      if (Number.isFinite(sid)) pastelBySireneId.add(sid);
+      if (Number.isFinite(sid)) ids.push(sid);
     }
-  }
+    return ids;
+  });
+  for (const sid of pastelParts.flat()) pastelBySireneId.add(sid);
 
   const out = new Map<string, PainelChamadoUnificadoDTO>();
 

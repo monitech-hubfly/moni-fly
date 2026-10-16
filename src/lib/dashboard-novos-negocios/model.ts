@@ -89,6 +89,7 @@ const ETAPAS_POS_STEP7: ReadonlySet<string> = new Set([
   'aprovacao_condominio',
   'aprovacao_prefeitura',
   'revisao_bca',
+  'instrumento_garantidor',
   'processos_cartorarios',
   'aguardando_credito',
   'em_obra',

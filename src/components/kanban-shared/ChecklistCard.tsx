@@ -12,7 +12,6 @@ import {
 import { FaseChecklistSidebarResumo } from '@/components/kanban-shared/FaseChecklistSidebarResumo';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import type { KanbanFase } from '@/components/kanban-shared/types';
-import type { LinhaCronologiaFase } from '@/lib/kanban/kanban-card-timeline';
 
 type Props = {
   cardId: string;
@@ -21,9 +20,9 @@ type Props = {
   responsaveisOpcoes: { id: string; nome: string }[];
   basePath?: string;
   fases?: KanbanFase[];
-  linhasCronologia?: LinhaCronologiaFase[];
   faseAtualId?: string;
   areaAtuacao?: string | null;
+  negocioEspelho?: Record<string, string> | null;
   structuralRefreshKey?: string;
 };
 
@@ -34,9 +33,9 @@ export function ChecklistCard({
   responsaveisOpcoes,
   basePath,
   fases,
-  linhasCronologia,
   faseAtualId,
   areaAtuacao,
+  negocioEspelho,
   structuralRefreshKey,
 }: Props) {
   const [itens, setItens] = useState<ChecklistItem[] | null>(null);
@@ -124,15 +123,15 @@ export function ChecklistCard({
 
       {aberto && (
         <div className="border-t px-2 pb-2 pt-1.5" style={{ borderColor: 'var(--moni-border-subtle)' }}>
-          {fases && linhasCronologia && faseAtualId ? (
+          {fases && faseAtualId ? (
             <div className="mb-3">
               <FaseChecklistSidebarResumo
                 cardId={cardId}
                 fases={fases}
-                linhasCronologia={linhasCronologia}
                 faseAtualId={faseAtualId}
                 areaAtuacao={areaAtuacao}
                 isFrank={isFrank}
+                negocioEspelho={negocioEspelho}
                 refreshKey={`${structuralRefreshKey ?? ''}-${structuralLoadTick}`}
               />
             </div>

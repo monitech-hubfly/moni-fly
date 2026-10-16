@@ -184,6 +184,7 @@ const ENFORCE_CHECKLIST_LEGAL_REQUIRED = false;
 /** Fases do Kanban após "Aprovação na Prefeitura" (atividades na aba Atividades). */
 const ETAPAS_POS_APROVACAO_PREFEITURA: PainelColumnKey[] = [
   'revisao_bca',
+  'instrumento_garantidor',
   'processos_cartorarios',
   'aguardando_credito',
   'em_obra',

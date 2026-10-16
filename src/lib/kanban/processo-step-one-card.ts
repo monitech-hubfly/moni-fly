@@ -104,6 +104,7 @@ const NEGOCIO_COPY_FIELDS = [
   'link_pasta_drive',
   'link_bca',
   'link_gbox',
+  'link_gbox_ozempic',
   'link_mapa_competidores',
   'link_acoplamento',
   'link_apresentacao_comite',
@@ -128,6 +129,19 @@ const NEGOCIO_COPY_FIELDS = [
   'prazo_instrumento_garantidor_fase_id',
   'prazo_instrumento_garantidor_data',
   'negociacao_linhas',
+  'pct_compra_parcial_terreno',
+  'pct_vgv_terrenista',
+  'm2_terreno',
+  'm2_casa',
+  'extrato_modelo_configurado',
+  'data_aprovacao_comite',
+  'obs_opcao',
+  'data_ass_opcao_terreno',
+  'obs_instrumento_garantidor',
+  'data_ass_contrato_terreno',
+  'valor_recompra',
+  'book_empreendimento',
+  'check_analise_credito',
 ] as const;
 
 /** Copia campos preenchidos de negócio de um processo para outro (split dedicado). */

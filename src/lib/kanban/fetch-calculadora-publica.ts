@@ -103,6 +103,10 @@ function buildSlugPorFaseId(fases: KanbanFase[]): Map<string, string> {
 export async function montarCalculadoraPack(
   supabase: SupabaseClient,
   card: CalculadoraPublicaCard,
+  cache?: {
+    fasesEsteira?: Map<string, KanbanFase[]>;
+    fasesKanban?: Map<string, KanbanFase[]>;
+  },
 ): Promise<CalculadoraPublicaPack | null> {
   const kanbanId = String(card.kanban_id ?? '').trim();
   if (!kanbanId) return null;
@@ -110,17 +114,19 @@ export async function montarCalculadoraPack(
   const ctx = await fetchContextoCalculadoraSyncGroup(supabase, card.id);
   const kanbanIdCalc = ctx?.kanbanIdCanonico ?? kanbanId;
 
-  const [fasesEsteiraMap, fasesKanban, visits] = await Promise.all([
-    fetchCalculadoraEsteiraFasesMap(supabase),
-    fetchKanbanFasesAtivas(supabase, kanbanId),
-    buildVisitsCalculadoraEsteiraSyncGroup(
-      supabase,
-      card.id,
-      'nativo',
-      new Map(),
-      card.processo_step_one_id ?? null,
-    ),
-  ]);
+  const fasesEsteiraMap = cache?.fasesEsteira ?? (await fetchCalculadoraEsteiraFasesMap(supabase));
+  let fasesKanban = cache?.fasesKanban?.get(kanbanId);
+  if (!fasesKanban) {
+    fasesKanban = await fetchKanbanFasesAtivas(supabase, kanbanId);
+    cache?.fasesKanban?.set(kanbanId, fasesKanban);
+  }
+  const visits = await buildVisitsCalculadoraEsteiraSyncGroup(
+    supabase,
+    card.id,
+    'nativo',
+    fasesEsteiraMap,
+    card.processo_step_one_id ?? null,
+  );
 
   const fasesMap = mesclarFasesKanbanAtualNoMapa(fasesEsteiraMap, kanbanId, fasesKanban);
 

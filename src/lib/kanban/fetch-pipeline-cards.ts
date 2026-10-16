@@ -136,23 +136,50 @@ async function fetchFaseSlugMap(
   return map;
 }
 
-async function fetchHistoricoEsteiraCards(
+const HISTORICO_CARD_IDS_CHUNK = 150;
+
+async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  if (items.length === 0) return [];
+  const out: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      out[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
+function slicesOf<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+export async function fetchHistoricoEsteiraCards(
   supabase: SupabaseClient,
   cardIds: string[],
 ): Promise<PipelineEsteiraHistoricoPorCard> {
   if (cardIds.length === 0) return {};
 
-  const { data, error } = await supabase
-    .from('kanban_historico')
-    .select('card_id, detalhe, criado_em, is_retrocesso, acao')
-    .in('card_id', cardIds)
-    .eq('acao', 'fase_avancada')
-    .order('criado_em', { ascending: true });
+  const parts = await mapPool(slicesOf(cardIds, HISTORICO_CARD_IDS_CHUNK), 6, async (slice) => {
+    const { data, error } = await supabase
+      .from('kanban_historico')
+      .select('card_id, detalhe, criado_em, is_retrocesso, acao')
+      .in('card_id', slice)
+      .eq('acao', 'fase_avancada')
+      .order('criado_em', { ascending: true });
 
-  if (error) {
-    console.error('[fetchHistoricoEsteiraCards]', error.message);
-    return {};
-  }
+    if (error) {
+      console.error('[fetchHistoricoEsteiraCards]', error.message);
+      return [];
+    }
+    return data ?? [];
+  });
+
+  const data = parts.flat();
 
   const faseIds: string[] = [];
   for (const row of data ?? []) {
@@ -353,8 +380,7 @@ async function fetchCardIdsComTagEspecial(
 
   const especialIds = new Set<string>();
 
-  for (let i = 0; i < uniq.length; i += TAG_ESPECIAL_CARD_IDS_CHUNK) {
-    const slice = uniq.slice(i, i + TAG_ESPECIAL_CARD_IDS_CHUNK);
+  const tagParts = await mapPool(slicesOf(uniq, TAG_ESPECIAL_CARD_IDS_CHUNK), 6, async (slice) => {
     const { data, error } = await supabase
       .from('kanban_card_tags')
       .select('card_id, kanban_tags(nome)')
@@ -362,10 +388,12 @@ async function fetchCardIdsComTagEspecial(
 
     if (error) {
       console.error('[fetchCardIdsComTagEspecial]', error.message);
-      continue;
+      return [];
     }
+    return data ?? [];
+  });
 
-    for (const raw of data ?? []) {
+  for (const raw of tagParts.flat()) {
       const row = raw as {
         card_id?: string | null;
         kanban_tags?: { nome?: string | null } | { nome?: string | null }[] | null;
@@ -376,7 +404,6 @@ async function fetchCardIdsComTagEspecial(
       if (isKanbanTagEspecialNome(tag?.nome)) {
         especialIds.add(cardId);
       }
-    }
   }
 
   return especialIds;
@@ -418,8 +445,7 @@ async function enriquecerCardsProcessoProvisionado(
 
   const porId = new Map<string, ProcRow>();
 
-  for (let i = 0; i < procIds.length; i += PROCESSO_PROVISIONADO_CHUNK) {
-    const slice = procIds.slice(i, i + PROCESSO_PROVISIONADO_CHUNK);
+  const procParts = await mapPool(slicesOf(procIds, PROCESSO_PROVISIONADO_CHUNK), 6, async (slice) => {
     const { data, error } = await supabase
       .from('processo_step_one')
       .select(
@@ -431,13 +457,14 @@ async function enriquecerCardsProcessoProvisionado(
       if (!/prazo_opcao/i.test(error.message)) {
         console.error('[enriquecerCardsProcessoProvisionado]', error.message);
       }
-      continue;
+      return [];
     }
+    return data ?? [];
+  });
 
-    for (const row of data ?? []) {
-      const id = String((row as ProcRow).id ?? '').trim();
-      if (id) porId.set(id, row as ProcRow);
-    }
+  for (const row of procParts.flat()) {
+    const id = String((row as ProcRow).id ?? '').trim();
+    if (id) porId.set(id, row as ProcRow);
   }
 
   if (porId.size === 0) return cards;
@@ -614,6 +641,10 @@ export type FetchPipelineCardsOpts = {
   incluirEncerrados?: boolean;
   /** Carregar dados para KPIs extendidos, Gantt e drawer (padrão: true). */
   comEnrichment?: boolean;
+  /** Calculadora da esteira (Portfólio + Pré Obra). Pesada; o dashboard carrega sob demanda. */
+  comCalculadoraEsteira?: boolean;
+  /** Histórico de avanço de fase. O dashboard carrega sob demanda. */
+  comHistoricoEsteira?: boolean;
 };
 
 const PIPELINE_CARD_SELECTS = [
@@ -716,6 +747,8 @@ export async function fetchPipelineCards(
   }
 
   const comEnrichment = opts.comEnrichment ?? true;
+  const comCalculadoraEsteira = opts.comCalculadoraEsteira ?? true;
+  const comHistoricoEsteira = opts.comHistoricoEsteira ?? true;
 
   let franqueadosQuery = supabase
     .from('rede_franqueados')
@@ -787,15 +820,21 @@ export async function fetchPipelineCards(
 
   try {
     [historico, esteiraCalculadora] = await Promise.all([
-      fetchHistoricoEsteiraCards(supabase, esteiraCardIds),
-      fetchPipelineEsteiraCalculadora(supabase, cards),
+      comHistoricoEsteira
+        ? fetchHistoricoEsteiraCards(supabase, esteiraCardIds)
+        : Promise.resolve({}),
+      comCalculadoraEsteira
+        ? fetchPipelineEsteiraCalculadora(supabase, cards)
+        : Promise.resolve({}),
     ]);
   } catch (e) {
     console.error('[fetchPipelineCards] esteira/histórico', e);
-    try {
-      historico = await fetchHistoricoEsteiraCards(supabase, esteiraCardIds);
-    } catch {
-      historico = {};
+    if (comHistoricoEsteira) {
+      try {
+        historico = await fetchHistoricoEsteiraCards(supabase, esteiraCardIds);
+      } catch {
+        historico = {};
+      }
     }
   }
 

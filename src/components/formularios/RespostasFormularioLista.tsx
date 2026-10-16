@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { labelDoStatus } from '@/lib/formularios/apresentacao';
 import type { FormularioRespostaListaItem } from '@/types/formularios';
 
 function quando(iso: string | null): string {
@@ -49,7 +50,7 @@ export function RespostasFormularioLista({
               {resposta.formulario_nome}
             </p>
             <p className={compacto ? 'text-[10px]' : 'text-xs'} style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
-              {resposta.status === 'enviado' ? 'Enviado' : 'Rascunho'} · {quando(resposta.enviado_em ?? resposta.created_at)}
+              {labelDoStatus(resposta.status)} · {quando(resposta.enviado_em ?? resposta.criado_em)}
             </p>
             {vinculo ? (
               <p className={compacto ? 'text-[10px]' : 'text-xs'} style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
@@ -69,3 +70,5 @@ export function RespostasFormularioLista({
     </ul>
   );
 }
+
+export default RespostasFormularioLista;

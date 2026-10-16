@@ -5,6 +5,7 @@ export const TIPOS_BASTAO_JURIDICO_PORTFOLIO = [
   'opcao',
   'cto_com_precedentes',
   'cto_sem_precedentes',
+  'termo_recompra',
 ] as const;
 
 export type TipoBastaoJuridicoPortfolio = (typeof TIPOS_BASTAO_JURIDICO_PORTFOLIO)[number];
@@ -58,6 +59,17 @@ const TRILHAS: Record<
     assinado: FASE_SLUGS.PORTFOLIO_CONTRATO_ASSINADO,
     rotuloAssinado: 'Cto s/ Precedentes assinado',
   },
+  termo_recompra: {
+    fases: [
+      FASE_SLUGS.PORTFOLIO_ENVIAR_TERMO_RECOMPRA,
+      FASE_SLUGS.PORTFOLIO_JURIDICO_TERMO_RECOMPRA,
+      FASE_SLUGS.PORTFOLIO_ASSINATURAS_TERMO_RECOMPRA,
+      FASE_SLUGS.PORTFOLIO_TERMO_RECOMPRA_ASSINADO,
+    ],
+    assinaturas: FASE_SLUGS.PORTFOLIO_ASSINATURAS_TERMO_RECOMPRA,
+    assinado: FASE_SLUGS.PORTFOLIO_TERMO_RECOMPRA_ASSINADO,
+    rotuloAssinado: 'Termo Recompra assinada',
+  },
 };
 
 /** Fases do Portfólio que abrem atendimento. Assinaturas e Assinado não entram. */
@@ -65,6 +77,7 @@ export const FASES_PORTFOLIO_CRIAM_ATENDIMENTO_JURIDICO = [
   FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
   FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES,
   FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO,
+  FASE_SLUGS.PORTFOLIO_JURIDICO_TERMO_RECOMPRA,
 ] as const;
 
 export function fasePortfolioCriaAtendimentoJuridico(slug: string | null | undefined): boolean {

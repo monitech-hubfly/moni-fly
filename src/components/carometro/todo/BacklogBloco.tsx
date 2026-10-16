@@ -319,8 +319,10 @@ export function SireneChamadoBacklogWrapper({
   const [classificacaoPendente, setClassificacaoPendente] = useState<{ topicoId: number } | null>(null);
   const [subStatusPendente, setSubStatusPendente] = useState<{ topicoId: number; status: SubInteracaoStatusDb } | null>(null);
   const skipHorasRef = useRef(false);
+  const autoConcluiuAgendaRef = useRef(false);
 
   useEffect(() => {
+    autoConcluiuAgendaRef.current = false;
     setRow(null);
     setTopicos([]);
     void buscarDadosModalChamado(chamadoId).then(r => { if (r.ok) setRow(r.row); });
@@ -401,9 +403,11 @@ export function SireneChamadoBacklogWrapper({
   useEffect(() => { void reloadTopicos(); }, [reloadTopicos]);
 
   /** Verifica se todos os tópicos atribuídos ao usuário atual foram concluídos/aprovados.
-   *  Se sim, aciona onConcluido para fechar o evento na Agenda automaticamente. */
-  function verificarAutoConcluirAgenda(topicosAtualizados: TopicoPainelLinha[]) {
-    if (!currentUserId) return;
+   *  Se sim, aciona onConcluido para fechar o evento na Agenda automaticamente.
+   *  Roda tanto depois de uma troca de status quanto ao abrir o chamado, para o caso
+   *  em que as atividades desse usuário já estavam prontas. */
+  const verificarAutoConcluirAgenda = useCallback((topicosAtualizados: TopicoPainelLinha[]) => {
+    if (!currentUserId || autoConcluiuAgendaRef.current) return;
     const topicosDoUsuario = topicosAtualizados.filter(t =>
       t.responsaveis_ids?.includes(currentUserId) || t.responsavel_id === currentUserId,
     );
@@ -411,9 +415,15 @@ export function SireneChamadoBacklogWrapper({
       topicosDoUsuario.length > 0 &&
       topicosDoUsuario.every(t => t.status === 'concluido' || t.status === 'aprovado')
     ) {
+      autoConcluiuAgendaRef.current = true;
       onConcluido?.();
     }
-  }
+  }, [currentUserId, onConcluido]);
+
+  useEffect(() => {
+    if (topicosLoading || !onConcluido) return;
+    verificarAutoConcluirAgenda(topicos);
+  }, [topicos, topicosLoading, onConcluido, verificarAutoConcluirAgenda]);
 
   async function handleSubStatus(topicoId: number, status: SubInteracaoStatusDb) {
     if (status === 'concluido' && !skipHorasRef.current && row?.sirene_chamado_id != null) {

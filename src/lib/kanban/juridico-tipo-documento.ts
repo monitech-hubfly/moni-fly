@@ -2,17 +2,19 @@ import {
   JURIDICO_PORTFOLIO_TAG_CTO_PRECEDENTES,
   JURIDICO_PORTFOLIO_TAG_CTO_SEM_PRECEDENTES,
   JURIDICO_PORTFOLIO_TAG_OPCAO,
+  JURIDICO_PORTFOLIO_TAG_TERMO_RECOMPRA,
   JURIDICO_TAG_COF,
   JURIDICO_TAG_CTO_FRANQUIA,
   JURIDICO_TAG_CTO_PARCERIA,
   JURIDICO_TAG_NDA,
 } from '@/lib/kanban/juridico-portfolio-tag';
 
-/** Valores aceitos em `kanban_cards.juridico_tipo_contrato` (migration 597). */
+/** Valores aceitos em `kanban_cards.juridico_tipo_contrato` (migrations 597 e 620). */
 export const JURIDICO_TIPOS_DOCUMENTO = [
   'opcao',
   'cto_com_precedentes',
   'cto_sem_precedentes',
+  'termo_recompra',
   'nda',
   'parceria',
   'franquia',
@@ -28,6 +30,7 @@ export const JURIDICO_TIPO_DOCUMENTO_LABEL: Record<JuridicoTipoDocumento, string
   opcao: 'Opção',
   cto_com_precedentes: 'Cto c/ Precedentes',
   cto_sem_precedentes: 'Cto s/ Precedentes',
+  termo_recompra: 'Termo Recompra',
   nda: 'NDA',
   parceria: 'Cto de Parceria',
   franquia: 'Cto de Franquia',
@@ -59,6 +62,7 @@ export function tipoDocumentoPorTagJuridico(
   if (nome === JURIDICO_PORTFOLIO_TAG_OPCAO) return 'opcao';
   if (nome === JURIDICO_PORTFOLIO_TAG_CTO_PRECEDENTES) return 'cto_com_precedentes';
   if (nome === JURIDICO_PORTFOLIO_TAG_CTO_SEM_PRECEDENTES) return 'cto_sem_precedentes';
+  if (nome === JURIDICO_PORTFOLIO_TAG_TERMO_RECOMPRA) return 'termo_recompra';
   if (nome === JURIDICO_TAG_NDA) return 'nda';
   if (nome === JURIDICO_TAG_CTO_PARCERIA) return 'parceria';
   if (nome === JURIDICO_TAG_COF) return 'cof';

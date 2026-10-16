@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { FaseChecklistItem, FaseChecklistResposta } from '@/lib/actions/card-actions';
 import type { KanbanFase } from '@/components/kanban-shared/types';
-import type { LinhaCronologiaFase } from '@/lib/kanban/kanban-card-timeline';
+import { parseChecklistCompartilhadoValor } from '@/lib/kanban/checklist-compartilhado';
+import { NEGOCIO_CHECKLIST_PREFIX } from '@/lib/kanban/negocio-checklist-sync';
+import { PREOBRA_CHECKLIST_PREFIX } from '@/lib/kanban/preobra-checklist-sync';
 import {
   CHECKLIST_ITENS_OCULTOS_MULTI_PRACA,
   ordenarItensChecklistDadosCidade,
@@ -106,28 +108,55 @@ import type { LinhaProspectCondominio } from '@/lib/kanban/condominio-prospect-p
 
 type Props = {
   cardId: string;
+  /** Fases ativas deste kanban. A seção não lê checklist de funil vinculado. */
   fases: KanbanFase[];
-  linhasCronologia: LinhaCronologiaFase[];
   faseAtualId: string;
   areaAtuacao?: string | null;
   isFrank?: boolean;
+  /** Espelho já carregado deste card (negócio e pré-obra). Não busca card irmão. */
+  negocioEspelho?: Record<string, string> | null;
   refreshKey?: string;
 };
+
+type LinhaGrupo = ReturnType<typeof resumoChecklistItem> & { itemId: string };
 
 type GrupoFase = {
   faseId: string;
   faseNome: string;
   ordem: number;
-  linhas: ReturnType<typeof resumoChecklistItem>[];
+  atual: boolean;
+  linhas: LinhaGrupo[];
 };
+
+function valorPersistidoDoItem(
+  item: FaseChecklistItem,
+  resp: FaseChecklistResposta | undefined,
+  compartilhado: Map<string, unknown>,
+  espelho: Record<string, string> | null | undefined,
+): { valor: string; arquivo_path: string | null } {
+  const chave = String(item.chave_compartilhada ?? '').trim();
+  if (chave) {
+    const parsed = parseChecklistCompartilhadoValor(item.tipo, compartilhado.get(chave));
+    const espelhado =
+      (chave.startsWith(NEGOCIO_CHECKLIST_PREFIX) || chave.startsWith(PREOBRA_CHECKLIST_PREFIX)) &&
+      espelho &&
+      Object.prototype.hasOwnProperty.call(espelho, chave);
+    if (espelhado) return { valor: espelho[chave] ?? '', arquivo_path: parsed.arquivo_path };
+    return parsed;
+  }
+  return {
+    valor: resp?.valor ?? '',
+    arquivo_path: resp?.arquivo_path ?? null,
+  };
+}
 
 export function FaseChecklistSidebarResumo({
   cardId,
   fases,
-  linhasCronologia,
   faseAtualId,
   areaAtuacao,
   isFrank = false,
+  negocioEspelho = null,
   refreshKey,
 }: Props) {
   const [grupos, setGrupos] = useState<GrupoFase[] | null>(null);
@@ -147,20 +176,17 @@ export function FaseChecklistSidebarResumo({
 
   const areasAtuacao = useMemo(() => parseAreaAtuacao(areaAtuacao), [areaAtuacao]);
 
-  const fasesVisitadas = useMemo(() => {
-    const visitadas = linhasCronologia.filter((l) => l.entrouEm);
-    if (visitadas.length > 0) return visitadas;
-    const atual = fases.find((f) => f.id === faseAtualId);
-    if (atual) {
-      return [{ faseId: atual.id, faseNome: atual.nome, ordem: atual.ordem, entrouEm: null, saiuEm: null }];
-    }
-    return [];
-  }, [linhasCronologia, fases, faseAtualId]);
+  const fasesDoFunil = useMemo(
+    () => [...fases].filter((f) => f.id).sort((a, b) => a.ordem - b.ordem),
+    [fases],
+  );
 
-  const faseSlugPorId = useMemo(() => new Map(fases.map((f) => [f.id, f.slug ?? ''])), [fases]);
+  const faseSlugPorId = useMemo(() => new Map(fasesDoFunil.map((f) => [f.id, f.slug ?? ''])), [fasesDoFunil]);
+
+  const espelhoKey = useMemo(() => JSON.stringify(negocioEspelho ?? null), [negocioEspelho]);
 
   useEffect(() => {
-    const faseIds = fasesVisitadas.map((f) => f.faseId).filter(Boolean);
+    const faseIds = fasesDoFunil.map((f) => f.id);
     if (!cardId || faseIds.length === 0) {
       setGrupos([]);
       return;
@@ -172,11 +198,24 @@ export function FaseChecklistSidebarResumo({
       try {
         const supabase = createClient();
         const respCols = 'id, item_id, card_id, valor, arquivo_path';
+        const chunks: string[][] = [];
+        for (let i = 0; i < faseIds.length; i += 8) chunks.push(faseIds.slice(i, i + 8));
 
-        const [{ data: itens, error: itensError }, { data: respostasData }] = await Promise.all([
-          fetchFaseChecklistItensIn(supabase, faseIds),
-          supabase.from('kanban_fase_checklist_respostas').select(respCols).eq('card_id', cardId),
+        const [itensParts, respostasRes, compartilhadoRes] = await Promise.all([
+          Promise.all(chunks.map((ids) => fetchFaseChecklistItensIn(supabase, ids))),
+          supabase.from('kanban_fase_checklist_respostas').select(respCols).eq('card_id', cardId).limit(5000),
+          supabase.from('kanban_card_checklist_compartilhado').select('chave, valor').eq('card_id', cardId).limit(5000),
         ]);
+
+        const itensError = itensParts.find((p) => p.error)?.error ?? null;
+        const itens = itensParts.flatMap((p) => p.data);
+        const respostasData = respostasRes.data;
+        const compartilhadoPorChave = new Map<string, unknown>();
+        for (const row of compartilhadoRes.data ?? []) {
+          const chave = String((row as { chave?: string }).chave ?? '').trim();
+          if (chave) compartilhadoPorChave.set(chave, (row as { valor?: unknown }).valor);
+        }
+        const espelho = negocioEspelho;
 
         if (cancelado) return;
         if (itensError) {
@@ -280,10 +319,10 @@ export function FaseChecklistSidebarResumo({
         }
 
         const out: GrupoFase[] = [];
-        for (const fase of [...fasesVisitadas].sort((a, b) => a.ordem - b.ordem)) {
-          const slug = faseSlugPorId.get(fase.faseId) ?? '';
+        for (const fase of fasesDoFunil) {
+          const slug = faseSlugPorId.get(fase.id) ?? '';
           const multiPraca = isDadosCidadeFaseSlug(slug) && areasAtuacao.length > 1;
-          let faseItens = itensPorFase.get(fase.faseId) ?? [];
+          let faseItens = itensPorFase.get(fase.id) ?? [];
           if (faseItens.length === 0) continue;
 
           if (isDadosCidadeFaseSlug(slug)) {
@@ -294,19 +333,28 @@ export function FaseChecklistSidebarResumo({
           }
 
           const linhas = faseItens.map((item) => {
-            const resp = respPorItem.get(item.id);
-            return resumoChecklistItem(item, resp?.valor, resp?.arquivo_path, {
-              multiPraca,
-              areas: multiPraca ? areasAtuacao : undefined,
-              listagemCasasMapa:
-                item.tipo === 'listagem_casas_zap' ? listagemCasasMapa : undefined,
-            });
+            const persistido = valorPersistidoDoItem(
+              item,
+              respPorItem.get(item.id),
+              compartilhadoPorChave,
+              espelho,
+            );
+            return {
+              itemId: item.id,
+              ...resumoChecklistItem(item, persistido.valor, persistido.arquivo_path, {
+                multiPraca,
+                areas: multiPraca ? areasAtuacao : undefined,
+                listagemCasasMapa:
+                  item.tipo === 'listagem_casas_zap' ? listagemCasasMapa : undefined,
+              }),
+            };
           });
 
           out.push({
-            faseId: fase.faseId,
-            faseNome: fase.faseNome,
+            faseId: fase.id,
+            faseNome: fase.nome,
             ordem: fase.ordem,
+            atual: fase.id === faseAtualId,
             linhas,
           });
         }
@@ -322,14 +370,25 @@ export function FaseChecklistSidebarResumo({
     return () => {
       cancelado = true;
     };
-  }, [cardId, fasesVisitadas, faseSlugPorId, areasAtuacao, isFrank, refreshKey, listagensMutatedTick]);
+  }, [
+    cardId,
+    fasesDoFunil,
+    faseAtualId,
+    faseSlugPorId,
+    areasAtuacao,
+    isFrank,
+    negocioEspelho,
+    espelhoKey,
+    refreshKey,
+    listagensMutatedTick,
+  ]);
 
   if (carregando && grupos === null) {
     return <p className="text-xs text-stone-400">Carregando checklist…</p>;
   }
 
   if (!grupos || grupos.length === 0) {
-    return <p className="text-xs text-stone-400">Nenhum item estrutural nas fases percorridas.</p>;
+    return <p className="text-xs text-stone-400">Nenhum campo de checklist neste funil.</p>;
   }
 
   const totalItens = grupos.reduce((acc, g) => acc + g.linhas.length, 0);
@@ -338,14 +397,17 @@ export function FaseChecklistSidebarResumo({
   return (
     <div className="space-y-2">
       <p className="text-[10px] text-stone-500">
-        Itens estruturais · {preenchidos}/{totalItens} preenchidos
+        Checklist deste funil · {preenchidos}/{totalItens} preenchidos
       </p>
       {grupos.map((grupo) => (
         <div key={grupo.faseId} className="rounded border border-stone-100 bg-stone-50/60 p-2">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-600">{grupo.faseNome}</p>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
+            {grupo.faseNome}
+            {grupo.atual ? ' · fase atual' : ''}
+          </p>
           <ul className="space-y-1">
             {grupo.linhas.map((linha) => (
-              <li key={linha.label} className="text-[10px] leading-snug">
+              <li key={linha.itemId} className="text-[10px] leading-snug">
                 <span className="font-medium text-stone-700">{linha.label}</span>
                 <span className="text-stone-400"> · </span>
                 <span className={linha.preenchido ? 'text-stone-600' : 'text-amber-700'}>{linha.valorExibicao}</span>

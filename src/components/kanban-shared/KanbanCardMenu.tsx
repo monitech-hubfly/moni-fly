@@ -185,6 +185,7 @@ export function KanbanCardMenu({
         basePath,
         kanbanNome,
         justificativaSlaQuebra: justificativaSla,
+        skipRevalidate: true,
       });
       if (!res.ok) {
         if (isErroGateJustificativaSla(res.error) && faseAtualId) {

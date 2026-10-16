@@ -901,10 +901,13 @@ const KanbanColumnInner = function KanbanColumn({
                     >
                       {tituloLimpo}
                     </span>
-                    {kanbanId === KANBAN_IDS.JURIDICO && Number(card.juridico_bolinha_count ?? 0) >= 1 ? (
+                    {(kanbanId === KANBAN_IDS.JURIDICO ||
+                      kanbanId === KANBAN_IDS.PORTFOLIO ||
+                      kanbanId === KANBAN_IDS.OPERACOES) &&
+                    Number(card.juridico_bolinha_count ?? 0) >= 1 ? (
                       <span
                         className="moni-juridico-bolinha-badge"
-                        title={`Rodada ${Number(card.juridico_bolinha_count)} do atendimento jurídico`}
+                        title={`Rodada ${Number(card.juridico_bolinha_count)}`}
                       >
                         Rodada {Number(card.juridico_bolinha_count)}
                       </span>

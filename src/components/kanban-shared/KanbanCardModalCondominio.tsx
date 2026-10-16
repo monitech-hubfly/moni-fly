@@ -5,7 +5,6 @@ import { Loader2, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
   cadastrarCondominioEVincularCard,
-  salvarPrazosAprovacaoCondominio,
   vincularCondominioAoCard,
   salvarQuadraLoteCard,
 } from '@/lib/actions/kanban-card-condominio';
@@ -21,11 +20,6 @@ import {
   type CondominioFormDraft,
 } from '@/lib/condominios-form';
 import { CondominioCamposForm } from './CondominioCamposForm';
-import { CondominioPrazosAprovacaoFields } from './CondominioPrazosAprovacaoFields';
-import {
-  prazosAprovacaoDraftFromRow,
-  type CondominioPrazosAprovacaoDraft,
-} from '@/lib/kanban/condominio-prazos-aprovacao';
 
 type Props = {
   cardId: string;
@@ -70,9 +64,6 @@ export function KanbanCardModalCondominio({
   const [lote, setLote] = useState(loteInicial ?? '');
   const [modoNovo, setModoNovo] = useState(false);
   const [draftNovo, setDraftNovo] = useState<CondominioFormDraft>(emptyCondominioFormDraft());
-  const [prazoDraft, setPrazoDraft] = useState<CondominioPrazosAprovacaoDraft>(
-    prazosAprovacaoDraftFromRow(null),
-  );
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -134,10 +125,6 @@ export function KanbanCardModalCondominio({
       setCondominioRow(null);
     }
   }, [condominioId, lista, modoNovo, nomeCondominioLegado, resolverCondominio]);
-
-  useEffect(() => {
-    setPrazoDraft(prazosAprovacaoDraftFromRow(condominioRow));
-  }, [condominioRow?.id, condominioRow?.prazo_aprovacao_condominio_dias, condominioRow?.prazo_aprovacao_prefeitura_dias]);
 
   const opcoesFiltradas = useMemo(() => {
     const q = busca.trim();
@@ -208,33 +195,6 @@ export function KanbanCardModalCondominio({
       await carregarLista();
       notificarChecklist(res.condominioId ?? condominioId, quadra, lote);
       onSalvo();
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  async function handleSalvarPrazosAprovacao() {
-    if (!condominioId) {
-      setErro('Selecione um condomínio cadastrado antes de salvar os prazos.');
-      return;
-    }
-    setSalvando(true);
-    setErro(null);
-    try {
-      const res = await salvarPrazosAprovacaoCondominio({
-        condominioId,
-        draft: prazoDraft,
-        basePath,
-      });
-      if (!res.ok) {
-        setErro(res.error);
-        return;
-      }
-      await carregarLista();
-      await resolverCondominio(condominioId);
-      onSalvo();
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Falha ao salvar prazos de aprovação.');
     } finally {
       setSalvando(false);
     }
@@ -361,6 +321,7 @@ export function KanbanCardModalCondominio({
               <p className="text-[11px] font-semibold text-stone-700">Novo condomínio</p>
               <CondominioCamposForm
                 draft={draftNovo}
+                omitPrazos
                 onChange={(p) => setDraftNovo((d) => ({ ...d, ...p }))}
               />
               <div className="flex flex-wrap gap-2">
@@ -387,9 +348,20 @@ export function KanbanCardModalCondominio({
             </div>
           )}
 
-          {!apenasVinculo ? (
+          {apenasVinculo ? (
+            <p className="border-t border-stone-100 pt-2 text-[10px] text-stone-500">
+              Quadra e lote são informados nos campos abaixo do checklist. O lote será anexado ao cadastro deste
+              condomínio ao salvar.
+            </p>
+          ) : null}
+        </>
+      ) : null}
+
+      {vinculado && condominioRow ? (
+        <div className="border-t border-stone-100 pt-2 space-y-2">
+          {editavel && !apenasVinculo ? (
             <>
-              <div className="grid grid-cols-2 gap-x-2 border-t border-stone-100 pt-2">
+              <div className="grid grid-cols-2 gap-x-2">
                 <label className="block">
                   <span className="text-[11px] font-medium text-stone-500">Quadra</span>
                   <input
@@ -409,28 +381,27 @@ export function KanbanCardModalCondominio({
                   />
                 </label>
               </div>
-              {vinculado ? (
-                <button
-                  type="button"
-                  disabled={salvando}
-                  onClick={() => void handleSalvarQuadraLote()}
-                  className="rounded border border-stone-200 px-3 py-1 text-xs text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                >
-                  Salvar quadra e lote
-                </button>
-              ) : null}
+              <button
+                type="button"
+                disabled={salvando}
+                onClick={() => void handleSalvarQuadraLote()}
+                className="rounded border border-stone-200 px-3 py-1 text-xs text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+              >
+                Salvar quadra e lote
+              </button>
             </>
           ) : (
-            <p className="border-t border-stone-100 pt-2 text-[10px] text-stone-500">
-              Quadra e lote são informados nos campos abaixo do checklist. O lote será anexado ao cadastro deste
-              condomínio ao salvar.
-            </p>
+            <div className="grid grid-cols-2 gap-x-2">
+              <div>
+                <div className="text-[11px] font-medium text-stone-500">Quadra</div>
+                <div className="text-xs text-stone-800">{quadra.trim() || '—'}</div>
+              </div>
+              <div>
+                <div className="text-[11px] font-medium text-stone-500">Lote</div>
+                <div className="text-xs text-stone-800">{lote.trim() || '—'}</div>
+              </div>
+            </div>
           )}
-        </>
-      ) : null}
-
-      {vinculado && condominioRow ? (
-        <div className="border-t border-stone-100 pt-2 space-y-2">
           <p className="mb-1 text-[11px] font-semibold text-stone-600">Dados do cadastro</p>
           <CondominioCamposForm
             readOnly
@@ -439,47 +410,6 @@ export function KanbanCardModalCondominio({
             draft={draftNovo}
             onChange={() => {}}
           />
-          <div
-            className="pt-2"
-            style={{ borderTop: '0.5px solid var(--moni-border-subtle)' }}
-          >
-            <p className="mb-2 text-[11px] font-semibold text-[var(--moni-text-secondary)]">
-              Prazos de aprovação
-            </p>
-            <CondominioPrazosAprovacaoFields
-              draft={prazoDraft}
-              onChange={(p) => setPrazoDraft((d) => ({ ...d, ...p }))}
-              readOnly={!editavel}
-              row={condominioRow}
-              disabled={salvando}
-            />
-            {editavel ? (
-              <button
-                type="button"
-                disabled={salvando}
-                onClick={() => void handleSalvarPrazosAprovacao()}
-                className="mt-2 min-h-[44px] px-3 py-1.5 text-xs font-medium disabled:opacity-50 sm:min-h-0"
-                style={{
-                  border: '0.5px solid var(--moni-border-default)',
-                  borderRadius: 'var(--moni-radius-md)',
-                  color: 'var(--moni-text-secondary)',
-                  background: 'var(--moni-surface-0)',
-                }}
-              >
-                {salvando ? 'Salvando…' : 'Salvar prazos de aprovação'}
-              </button>
-            ) : null}
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-x-2">
-            <div>
-              <div className="text-[11px] font-medium text-stone-500">Quadra</div>
-              <div className="text-xs text-stone-800">{quadra.trim() || '—'}</div>
-            </div>
-            <div>
-              <div className="text-[11px] font-medium text-stone-500">Lote</div>
-              <div className="text-xs text-stone-800">{lote.trim() || '—'}</div>
-            </div>
-          </div>
         </div>
       ) : !editavel && !vinculado ? (
         <p className="text-xs text-stone-500">
