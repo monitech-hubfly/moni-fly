@@ -13,10 +13,10 @@ import {
 import {
   formatarMoedaBr,
   prazoFase1DePrazoSalvo,
-  rowToTemplateConfig,
   type LoteamentoSimuladorTemplateRow,
   type SimulacaoPagamentoResumo,
 } from '@/lib/loteamento-simulador-template';
+import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
 import {
   calcularOferta,
   formatarMoeda,
@@ -40,6 +40,7 @@ function ofertaParaConfig(
     valor_lote: n(oferta.valor_lote),
     valor_casa: n(oferta.valor_casa),
     valor_customizacao: n(oferta.valor_customizacao),
+    valor_acoplamento: n(oferta.valor_acoplamento),
     valor_ja_pago: n(oferta.valor_ja_pago),
     prazo_meses: prazoFase1DePrazoSalvo(oferta.prazo_meses, prazoObraMeses),
     parcela_mensal: n(oferta.parcela_mensal),
@@ -87,7 +88,7 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
     );
   }
 
-  const tpl = rowToTemplateConfig(template);
+  const tpl = montarTemplateParaEngine(template);
   const cfg = ofertaParaConfig(oferta, tpl.prazo_obra_meses);
   const sugerido = calcularOferta(tpl, cfg);
 

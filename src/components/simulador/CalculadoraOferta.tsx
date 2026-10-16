@@ -51,6 +51,8 @@ type Props = {
   ofertaId?: string;
   /** Dados da oferta existente para pré-preencher os campos */
   ofertaInicial?: SimulacaoPagamentoResumo;
+  /** Custo de construção do card IMOB (`valor_base_casa`). Usado se a simulação ainda não tiver valor_casa. */
+  valorBaseCasaInicial?: number | null;
 };
 
 const fieldCls =
@@ -92,6 +94,7 @@ export function CalculadoraOferta({
   empreendimentoId,
   ofertaId,
   ofertaInicial,
+  valorBaseCasaInicial = null,
 }: Props) {
   const router = useRouter();
   const cardId = kanbanCardId || loteadorId;
@@ -103,11 +106,20 @@ export function CalculadoraOferta({
   const [valorLote, setValorLote] = useState<number | null>(
     () => ofertaInicial?.valor_lote ?? null,
   );
-  const [valorCasa, setValorCasa] = useState<number | null>(
-    () => ofertaInicial?.valor_casa ?? null,
-  );
+  const [valorCasa, setValorCasa] = useState<number | null>(() => {
+    const daSimulacao = ofertaInicial?.valor_casa;
+    if (daSimulacao != null && Number.isFinite(daSimulacao) && daSimulacao > 0) {
+      return daSimulacao;
+    }
+    const daOfertaImob = Number(valorBaseCasaInicial);
+    if (Number.isFinite(daOfertaImob) && daOfertaImob > 0) return daOfertaImob;
+    return null;
+  });
   const [valorCustomizacao, setValorCustomizacao] = useState<number | null>(
     () => ofertaInicial?.valor_customizacao ?? 0,
+  );
+  const [valorAcoplamento, setValorAcoplamento] = useState<number | null>(
+    () => ofertaInicial?.valor_acoplamento ?? 0,
   );
   const [valorJaPago, setValorJaPago] = useState<number | null>(
     () => ofertaInicial?.valor_ja_pago ?? 0,
@@ -218,6 +230,7 @@ export function CalculadoraOferta({
       return;
     }
     const custom = valorCustomizacao ?? 0;
+    const acoplamento = valorAcoplamento ?? 0;
     const jaPago = valorJaPago ?? 0;
     const prazoTotalInformado = prazoTotal;
     if (prazoTotalInformado == null || prazoTotalInformado < 1) {
@@ -253,6 +266,7 @@ export function CalculadoraOferta({
       valor_lote: lote,
       valor_casa: casa,
       valor_customizacao: custom,
+      valor_acoplamento: acoplamento,
       valor_ja_pago: jaPago,
       prazo_meses: prazoFase1Calc,
       parcela_mensal: parcela,
@@ -260,7 +274,7 @@ export function CalculadoraOferta({
       prazo_financiamento_anos: prazoFin,
       taxa_financiamento_anual: taxaFrac,
     };
-    const calc = calcularOferta(template, oferta);
+    const calc = calcularOferta(template, oferta, acoplamento);
     setUltimaOferta(oferta);
     setResultado(calc);
     setEntradaConf(calc.entrada_sugerida);
@@ -302,6 +316,7 @@ export function CalculadoraOferta({
       valor_lote: numeroParaInputBr(ultimaOferta.valor_lote),
       valor_casa: numeroParaInputBr(ultimaOferta.valor_casa),
       valor_customizacao: numeroParaInputBr(ultimaOferta.valor_customizacao),
+      valor_acoplamento: numeroParaInputBr(valorAcoplamento ?? 0),
       valor_ja_pago: numeroParaInputBr(ultimaOferta.valor_ja_pago),
       prazo_meses: String(prazoTotal ?? ultimaOferta.prazo_meses + prazoObraMeses),
       parcela_mensal: numeroParaInputBr(parcelaMensalConf),
@@ -552,6 +567,15 @@ export function CalculadoraOferta({
             value={valorCustomizacao}
             onChange={(v) => {
               setValorCustomizacao(v);
+              setResultado(null);
+            }}
+            placeholder="0"
+          />
+          <Campo
+            label="Valor do acoplamento (R$)"
+            value={valorAcoplamento}
+            onChange={(v) => {
+              setValorAcoplamento(v);
               setResultado(null);
             }}
             placeholder="0"
@@ -871,7 +895,21 @@ function QuadroPremissasTemplate({ template }: { template: TemplateConfig }) {
     { label: 'ITBI', valor: pctLabel(template.percentual_itbi) },
     { label: 'Impostos', valor: pctLabel(template.percentual_impostos) },
     { label: 'Taxa de plataforma', valor: pctLabel(template.percentual_taxa_plataforma) },
-    { label: 'Taxa de gestão', valor: pctLabel(template.percentual_taxa_gestao) },
+    {
+      label: 'Taxa de gestão',
+      valor:
+        template.tipo_taxa_gestao === 'fixo'
+          ? formatarMoeda(template.percentual_taxa_gestao)
+          : pctLabel(template.percentual_taxa_gestao),
+    },
+    ...(Number(template.percentual_plataforma_entrada ?? 0) > 0
+      ? [
+          {
+            label: 'Plataforma na entrada',
+            valor: pctLabel(template.percentual_plataforma_entrada ?? 0),
+          },
+        ]
+      : []),
     { label: 'Lucro loteadora', valor: pctLabel(template.percentual_lucro_loteadora) },
     { label: 'Lucro Moní', valor: pctLabel(template.percentual_lucro_moni) },
     { label: 'Lucro Franqueado', valor: pctLabel(template.percentual_lucro_franqueado) },
@@ -880,6 +918,13 @@ function QuadroPremissasTemplate({ template }: { template: TemplateConfig }) {
     {
       label: 'Juros crédito-ponte',
       valor: `${pctLabel(template.taxa_juros_credito_ponte)} ao mês`,
+    },
+    {
+      label: 'Método juros CP',
+      valor:
+        template.tipo_juros_cp === 'total'
+          ? 'Total (sobre valor da obra + buffer 3 meses)'
+          : 'Mês a mês (sobre saldo + buffer 3 meses)',
     },
     {
       label: 'Juros parcelado (lote)',
