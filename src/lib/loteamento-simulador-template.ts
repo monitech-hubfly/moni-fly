@@ -317,7 +317,9 @@ export function rowToSimuladorTemplateDraft(
     pct_taxa_gestao:
       parseTipoTaxaGestao(row.tipo_taxa_gestao) === 'fixo'
         ? PCT_TAXA_GESTAO_PADRAO_UI
-        : percentualUiOuSugestao(row.pct_taxa_gestao, PCT_TAXA_GESTAO_PADRAO_UI),
+        : !Number(row.pct_taxa_gestao)
+          ? PCT_TAXA_GESTAO_PADRAO_UI
+          : percentualUiOuSugestao(row.pct_taxa_gestao, PCT_TAXA_GESTAO_PADRAO_UI),
     tipo_taxa_gestao: parseTipoTaxaGestao(row.tipo_taxa_gestao),
     valor_taxa_gestao:
       parseTipoTaxaGestao(row.tipo_taxa_gestao) === 'fixo'
