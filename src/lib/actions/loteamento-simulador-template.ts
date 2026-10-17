@@ -263,28 +263,10 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
   };
 }
 
-function rowSemColunas576(row: Record<string, unknown>): Record<string, unknown> {
-  const { tipo_juros_cp, ...rest } = row;
-  void tipo_juros_cp;
-  return rest;
-}
-
-function rowSemColunas575(row: Record<string, unknown>): Record<string, unknown> {
-  const { tipo_taxa_gestao, pct_plataforma_entrada, ...rest } = row;
-  void tipo_taxa_gestao;
-  void pct_plataforma_entrada;
-  return rest;
-}
-
-function rowSemColunas546(row: Record<string, unknown>): Record<string, unknown> {
-  const {
-    taxa_juros_parcelado_mes,
-    taxa_juros_financiamento_anual,
-    ...rest
-  } = row;
-  void taxa_juros_parcelado_mes;
-  void taxa_juros_financiamento_anual;
-  return rest;
+function omitKeys(row: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  const next = { ...row };
+  for (const key of keys) delete next[key];
+  return next;
 }
 
 function rowSemColunas545(row: Record<string, unknown>): Record<string, unknown> {
@@ -297,6 +279,53 @@ function rowSemColunas545(row: Record<string, unknown>): Record<string, unknown>
     ...rest,
     prazo_desembolso_sugerido: prazo_obra_meses ?? rest.prazo_desembolso_sugerido,
     premissa_entrada_lote_nao_pago: entrada_minima_loteadora ?? null,
+  };
+}
+
+/**
+ * PostgREST/Postgres: "Could not find the 'tipo_juros_cp' column ... schema cache"
+ * ou `column "tipo_juros_cp" of relation "..." does not exist`.
+ */
+function colunaAusenteDoErro(
+  message: string,
+  payload: Record<string, unknown>,
+): string | null {
+  const m = message ?? '';
+  const especificos = [
+    /Could not find the ['"]([a-z_][a-z0-9_]*)['"] column/i,
+    /column ['"]([a-z_][a-z0-9_]*)['"] of relation/i,
+    /column ([a-z_][a-z0-9_]*) does not exist/i,
+  ];
+  for (const re of especificos) {
+    const hit = m.match(re);
+    const col = hit?.[1];
+    if (col && Object.prototype.hasOwnProperty.call(payload, col)) return col;
+  }
+  for (const hit of m.matchAll(/['"`]([a-z_][a-z0-9_]*)['"`]/gi)) {
+    const col = hit[1];
+    if (col && Object.prototype.hasOwnProperty.call(payload, col)) return col;
+  }
+  return null;
+}
+
+function payloadAposErroColuna(
+  payload: Record<string, unknown>,
+  message: string,
+): Record<string, unknown> | null {
+  const col = colunaAusenteDoErro(message, payload);
+  if (!col) return null;
+  if (col === 'prazo_obra_meses' || col === 'entrada_minima_loteadora') {
+    return rowSemColunas545(payload);
+  }
+  return omitKeys(payload, [col]);
+}
+
+/** Valores já convertidos em draftParaRow: fração (7% → 0.07), fixo em R$. */
+function patchCamposGestaoPlataforma(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    pct_taxa_gestao: Number(row.pct_taxa_gestao ?? 0),
+    tipo_taxa_gestao: row.tipo_taxa_gestao === 'fixo' ? 'fixo' : 'percentual',
+    pct_plataforma_entrada: Number(row.pct_plataforma_entrada ?? 0),
   };
 }
 
@@ -325,11 +354,10 @@ function draftParaRow(
               0,
               parseMoneyText(draft.valor_taxa_gestao) ?? parseDecimalInput(draft.valor_taxa_gestao) ?? 0,
             )
-          : percentualUiParaFracao(draft.pct_taxa_gestao),
+          : Number(percentualUiParaFracao(draft.pct_taxa_gestao)),
       tipo_taxa_gestao: draft.tipo_taxa_gestao === 'fixo' ? 'fixo' : 'percentual',
-      pct_plataforma_entrada: Math.min(
-        1,
-        Math.max(0, percentualUiOpcionalParaFracao(draft.pct_plataforma_entrada) ?? 0),
+      pct_plataforma_entrada: Number(
+        Math.min(1, Math.max(0, percentualUiOpcionalParaFracao(draft.pct_plataforma_entrada) ?? 0)),
       ),
       pct_lucro_loteadora: percentualUiParaFracao(draft.pct_lucro_loteadora),
       pct_lucro_moni: percentualUiParaFracao(draft.pct_lucro_moni),
@@ -388,16 +416,10 @@ export async function salvarSimuladorTemplateDoCard(
     return erroBancoSimulador(errExist.message);
   }
 
-  const payloads = [
-    row,
-    rowSemColunas576(row),
-    rowSemColunas575(rowSemColunas576(row)),
-    rowSemColunas546(rowSemColunas575(rowSemColunas576(row))),
-    rowSemColunas545(rowSemColunas546(rowSemColunas575(rowSemColunas576(row)))),
-  ];
+  let payload: Record<string, unknown> = row;
   let saved: Record<string, unknown> | null = null;
   let lastError: string | null = null;
-  for (const payload of payloads) {
+  for (let tentativa = 0; tentativa < 6; tentativa += 1) {
     if (existente?.id) {
       const { data, error } = await auth.supabase
         .from(TABELA)
@@ -410,14 +432,9 @@ export async function salvarSimuladorTemplateDoCard(
         break;
       }
       lastError = error.message;
-      if (
-        !isColunaSimulador546Ausente(error.message) &&
-        !isColunaSimuladorAjusteAusente(error.message) &&
-        !isColunaSimulador575Ausente(error.message) &&
-        !isColunaSimulador576Ausente(error.message)
-      ) {
-        return erroBancoSimulador(error.message);
-      }
+      const next = payloadAposErroColuna(payload, error.message);
+      if (!next) return erroBancoSimulador(error.message);
+      payload = next;
     } else {
       const { data, error } = await auth.supabase
         .from(TABELA)
@@ -429,18 +446,34 @@ export async function salvarSimuladorTemplateDoCard(
         break;
       }
       lastError = error.message;
-      if (
-        !isColunaSimulador546Ausente(error.message) &&
-        !isColunaSimuladorAjusteAusente(error.message) &&
-        !isColunaSimulador575Ausente(error.message) &&
-        !isColunaSimulador576Ausente(error.message)
-      ) {
-        return erroBancoSimulador(error.message);
-      }
+      const next = payloadAposErroColuna(payload, error.message);
+      if (!next) return erroBancoSimulador(error.message);
+      payload = next;
     }
   }
   if (!saved) {
     return erroBancoSimulador(lastError ?? 'Não foi possível salvar o template.');
+  }
+
+  const idSalvo = String(saved.id ?? existente?.id ?? '').trim();
+  if (idSalvo) {
+    const patch575 = patchCamposGestaoPlataforma(row);
+    for (const [coluna, valor] of Object.entries(patch575)) {
+      const { data: savedCampo, error: errCampo } = await auth.supabase
+        .from(TABELA)
+        .update({ [coluna]: valor } as never)
+        .eq('id', idSalvo)
+        .select('*')
+        .single();
+      if (!errCampo && savedCampo) {
+        saved = savedCampo as Record<string, unknown>;
+        continue;
+      }
+      if (!errCampo) continue;
+      const ausente = colunaAusenteDoErro(errCampo.message, { [coluna]: valor });
+      if (ausente === coluna) continue;
+      return erroBancoSimulador(errCampo.message);
+    }
   }
 
   const template = mapTemplateRow(saved);

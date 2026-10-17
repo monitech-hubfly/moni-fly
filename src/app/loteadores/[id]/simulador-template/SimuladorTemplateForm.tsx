@@ -11,6 +11,7 @@ import {
   PRAZO_OBRA_MESES_PADRAO,
   TOAST_TEMPLATE_SALVO,
   VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
+  rowToSimuladorTemplateDraft,
   type LoteamentoSimuladorTemplateDraft,
   type PremissaEntradaTipo,
   type TipoJurosCp,
@@ -64,6 +65,15 @@ export function SimuladorTemplateForm({
   const [copiadoMoni, setCopiadoMoni] = useState(false);
 
   useEffect(() => {
+    setDraft(draftInicial);
+    setRascunhoBase(JSON.stringify(draftInicial));
+    setPageSlug(String(pageSlugInicial ?? '').trim());
+    setPageSlugSalvo(String(pageSlugInicial ?? '').trim());
+    setLinkMoni(linkMoniInicial);
+    setJaSalvo(jaSalvoInicial);
+  }, [draftInicial, pageSlugInicial, linkMoniInicial, jaSalvoInicial]);
+
+  useEffect(() => {
     if (!mensagem) return;
     const t = window.setTimeout(() => setMensagem(null), 8000);
     return () => window.clearTimeout(t);
@@ -89,12 +99,14 @@ export function SimuladorTemplateForm({
 
   async function onSalvar() {
     if (!podeSalvar) return;
+    const snapshot: LoteamentoSimuladorTemplateDraft = { ...draft };
+    const slugSnapshot = pageSlug;
     setSalvando(true);
     setErro(null);
     setMensagem(null);
     startTransition(() => {
       void (async () => {
-        const res = await salvarSimuladorTemplateDoCard(cardId, draft, pageSlug);
+        const res = await salvarSimuladorTemplateDoCard(cardId, snapshot, slugSnapshot);
         if (!res.ok) {
           setErro(res.error);
           setSalvando(false);
@@ -102,7 +114,9 @@ export function SimuladorTemplateForm({
         }
         marcarSimuladorTemplateSalvo(cardId);
         setJaSalvo(true);
-        setRascunhoBase(JSON.stringify(draft));
+        const nextDraft = res.template ? rowToSimuladorTemplateDraft(res.template) : snapshot;
+        setDraft(nextDraft);
+        setRascunhoBase(JSON.stringify(nextDraft));
         const slugSalvo = String(res.pageSlug ?? '').trim();
         setPageSlug(slugSalvo);
         setPageSlugSalvo(slugSalvo);
@@ -289,6 +303,7 @@ export function SimuladorTemplateForm({
               Percentual da taxa de plataforma pago na entrada (%)
             </span>
             <CampoDraftNumero
+              name="pct_plataforma_entrada"
               value={draft.pct_plataforma_entrada}
               onChange={(v) => setCampo('pct_plataforma_entrada', v)}
               placeholder="0"
@@ -336,12 +351,14 @@ export function SimuladorTemplateForm({
             </span>
             {draft.tipo_taxa_gestao === 'fixo' ? (
               <CampoDraftNumero
+                name="valor_taxa_gestao"
                 value={draft.valor_taxa_gestao}
                 onChange={(v) => setCampo('valor_taxa_gestao', v)}
                 placeholder={VALOR_TAXA_GESTAO_FIXO_PADRAO_UI}
               />
             ) : (
               <CampoDraftNumero
+                name="pct_taxa_gestao"
                 value={draft.pct_taxa_gestao}
                 onChange={(v) => setCampo('pct_taxa_gestao', v)}
                 placeholder={PCT_TAXA_GESTAO_PADRAO_UI}
@@ -545,15 +562,18 @@ function CampoDraftNumero({
   onChange,
   inteiro,
   placeholder,
+  name,
 }: {
   value: string;
   onChange: (v: string) => void;
   inteiro?: boolean;
   placeholder?: string;
+  name?: string;
 }) {
   const numero = value.trim() === '' ? null : parsearNumeroInput(value);
   return (
     <CampoNumeroBr
+      name={name}
       className={fieldCls}
       style={fieldStyle}
       valor={numero}

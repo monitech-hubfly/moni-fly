@@ -28,7 +28,7 @@ export const PCT_ITBI_PADRAO_UI = '3';
 export const PCT_IMPOSTOS_PADRAO_UI = '6';
 export const PCT_TAXA_PLATAFORMA_PADRAO_UI = '8';
 export const PCT_TAXA_GESTAO_PADRAO_UI = '7';
-export const VALOR_TAXA_GESTAO_FIXO_PADRAO_UI = '90.000';
+export const VALOR_TAXA_GESTAO_FIXO_PADRAO_UI = '90000';
 export const PCT_COMISSAO_CORRETOR_PADRAO_UI = '6';
 export const PRAZO_OBRA_MESES_PADRAO = 7;
 export const PRAZO_OBRA_MESES_MINIMO = 3;
@@ -209,8 +209,8 @@ export function numeroParaInputBr(n: number | null | undefined): string {
  * Interpreta o que a Helena digitou no campo de % (3 / 3,5 / 2.5).
  * Ponto só é milhar quando há exatamente 3 dígitos depois (ex.: 1.500).
  */
-export function parsePercentualUi(raw: string): number | null {
-  const t = raw.trim().replace(/\s/g, '').replace('%', '');
+export function parsePercentualUi(raw: unknown): number | null {
+  const t = String(raw ?? '').trim().replace(/\s/g, '').replace('%', '');
   if (!t) return null;
   const temVirgula = t.includes(',');
   const temPonto = t.includes('.');
@@ -239,7 +239,8 @@ export function fracaoParaPercentualUi(n: number | null | undefined): string {
   return numeroParaInputBr(Number(n) * 100);
 }
 
-export function percentualUiParaFracao(raw: string): number {
+export function percentualUiParaFracao(raw: unknown): number {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw / 100;
   const n = parsePercentualUi(raw);
   if (n == null) return 0;
   return n / 100;
@@ -446,12 +447,17 @@ export function isColunaSimulador571Ausente(message: string | undefined): boolea
   return /valor_acoplamento/i.test(message ?? '');
 }
 
+function isErroColunaSchemaCache(message: string | undefined, colunas: RegExp): boolean {
+  const m = message ?? '';
+  return colunas.test(m) && /schema cache|could not find|does not exist|PGRST204/i.test(m);
+}
+
 export function isColunaSimulador575Ausente(message: string | undefined): boolean {
-  return /tipo_taxa_gestao|pct_plataforma_entrada/i.test(message ?? '');
+  return isErroColunaSchemaCache(message, /tipo_taxa_gestao|pct_plataforma_entrada/i);
 }
 
 export function isColunaSimulador576Ausente(message: string | undefined): boolean {
-  return /tipo_juros_cp/i.test(message ?? '');
+  return isErroColunaSchemaCache(message, /tipo_juros_cp/i);
 }
 
 export function isColunaSimulador548Ausente(message: string | undefined): boolean {
@@ -466,8 +472,10 @@ function numOrNull(raw: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function percentualUiOpcionalParaFracao(raw: string): number | null {
-  if (!raw.trim()) return null;
+export function percentualUiOpcionalParaFracao(raw: unknown): number | null {
+  if (raw == null) return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw / 100;
+  if (!String(raw).trim()) return null;
   return percentualUiParaFracao(raw);
 }
 
