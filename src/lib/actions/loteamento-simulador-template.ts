@@ -157,6 +157,10 @@ function mensagemColunaAusente(): string {
   return 'Faltam colunas do simulador neste banco. Aplique as migrations 545, 546, 547, 548, 575 e 576 no DEV.';
 }
 
+function mensagemColunas575(): string {
+  return 'Colunas tipo_taxa_gestao / taxa_gestao_valor / percentual_plataforma_entrada ausentes neste banco. Aplique a migration 636 e rode NOTIFY pgrst, \'reload schema\'.';
+}
+
 function erroBancoSimulador(message: string): Err {
   if (
     isColunaSimulador548Ausente(message) ||
@@ -282,9 +286,12 @@ function rowSemColunas545(row: Record<string, unknown>): Record<string, unknown>
   };
 }
 
+const COLUNAS_575 = ['tipo_taxa_gestao', 'taxa_gestao_valor', 'percentual_plataforma_entrada'] as const;
+
 /**
  * PostgREST/Postgres: "Could not find the 'tipo_juros_cp' column ... schema cache"
  * ou `column "tipo_juros_cp" of relation "..." does not exist`.
+ * Só aceita o nome extraído desses padrões — não varre qualquer trecho entre aspas.
  */
 function colunaAusenteDoErro(
   message: string,
@@ -301,10 +308,6 @@ function colunaAusenteDoErro(
     const col = hit?.[1];
     if (col && Object.prototype.hasOwnProperty.call(payload, col)) return col;
   }
-  for (const hit of m.matchAll(/['"`]([a-z_][a-z0-9_]*)['"`]/gi)) {
-    const col = hit[1];
-    if (col && Object.prototype.hasOwnProperty.call(payload, col)) return col;
-  }
   return null;
 }
 
@@ -314,6 +317,7 @@ function payloadAposErroColuna(
 ): Record<string, unknown> | null {
   const col = colunaAusenteDoErro(message, payload);
   if (!col) return null;
+  if ((COLUNAS_575 as readonly string[]).includes(col)) return null;
   if (col === 'prazo_obra_meses' || col === 'entrada_minima_loteadora') {
     return rowSemColunas545(payload);
   }
@@ -325,7 +329,8 @@ function patchCamposGestaoPlataforma(row: Record<string, unknown>): Record<strin
   return {
     pct_taxa_gestao: Number(row.pct_taxa_gestao ?? 0),
     tipo_taxa_gestao: row.tipo_taxa_gestao === 'fixo' ? 'fixo' : 'percentual',
-    pct_plataforma_entrada: Number(row.pct_plataforma_entrada ?? 0),
+    taxa_gestao_valor: Number(row.taxa_gestao_valor ?? 0),
+    percentual_plataforma_entrada: Number(row.percentual_plataforma_entrada ?? 0),
   };
 }
 
@@ -348,16 +353,14 @@ function draftParaRow(
       nome,
       pct_itbi: percentualUiParaFracao(draft.pct_itbi),
       pct_taxa_plataforma: percentualUiParaFracao(draft.pct_taxa_plataforma),
-      pct_taxa_gestao:
-        draft.tipo_taxa_gestao === 'fixo'
-          ? Math.max(
-              0,
-              parseMoneyText(draft.valor_taxa_gestao) ?? parseDecimalInput(draft.valor_taxa_gestao) ?? 0,
-            )
-          : Number(percentualUiParaFracao(draft.pct_taxa_gestao)),
+      pct_taxa_gestao: Number(percentualUiParaFracao(draft.pct_taxa_gestao)),
       tipo_taxa_gestao: draft.tipo_taxa_gestao === 'fixo' ? 'fixo' : 'percentual',
-      pct_plataforma_entrada: Number(
-        Math.min(1, Math.max(0, percentualUiOpcionalParaFracao(draft.pct_plataforma_entrada) ?? 0)),
+      taxa_gestao_valor: Math.max(
+        0,
+        parseMoneyText(draft.taxa_gestao_valor) ?? parseDecimalInput(draft.taxa_gestao_valor) ?? 0,
+      ),
+      percentual_plataforma_entrada: Number(
+        Math.min(1, Math.max(0, percentualUiOpcionalParaFracao(draft.percentual_plataforma_entrada) ?? 0)),
       ),
       pct_lucro_loteadora: percentualUiParaFracao(draft.pct_lucro_loteadora),
       pct_lucro_moni: percentualUiParaFracao(draft.pct_lucro_moni),
@@ -406,6 +409,14 @@ export async function salvarSimuladorTemplateDoCard(
   });
   if (!packed.ok) return packed;
   const row = packed.row;
+  console.log('[salvarSimuladorTemplate] payload enviado ao Supabase', {
+    keys: Object.keys(row),
+    tipo_taxa_gestao: row.tipo_taxa_gestao,
+    pct_taxa_gestao: row.pct_taxa_gestao,
+    taxa_gestao_valor: row.taxa_gestao_valor,
+    percentual_plataforma_entrada: row.percentual_plataforma_entrada,
+    payload: row,
+  });
 
   const { data: existente, error: errExist } = await auth.supabase
     .from(TABELA)
@@ -432,6 +443,16 @@ export async function salvarSimuladorTemplateDoCard(
         break;
       }
       lastError = error.message;
+      console.warn('[salvarSimuladorTemplate] update falhou', {
+        tentativa,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      if ((COLUNAS_575 as readonly string[]).includes(colunaAusenteDoErro(error.message, payload) ?? '')) {
+        return { ok: false, error: mensagemColunas575() };
+      }
       const next = payloadAposErroColuna(payload, error.message);
       if (!next) return erroBancoSimulador(error.message);
       payload = next;
@@ -446,6 +467,16 @@ export async function salvarSimuladorTemplateDoCard(
         break;
       }
       lastError = error.message;
+      console.warn('[salvarSimuladorTemplate] insert falhou', {
+        tentativa,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      if ((COLUNAS_575 as readonly string[]).includes(colunaAusenteDoErro(error.message, payload) ?? '')) {
+        return { ok: false, error: mensagemColunas575() };
+      }
       const next = payloadAposErroColuna(payload, error.message);
       if (!next) return erroBancoSimulador(error.message);
       payload = next;
@@ -458,6 +489,7 @@ export async function salvarSimuladorTemplateDoCard(
   const idSalvo = String(saved.id ?? existente?.id ?? '').trim();
   if (idSalvo) {
     const patch575 = patchCamposGestaoPlataforma(row);
+    console.log('[salvarSimuladorTemplate] patch dedicado 575', patch575);
     for (const [coluna, valor] of Object.entries(patch575)) {
       const { data: savedCampo, error: errCampo } = await auth.supabase
         .from(TABELA)
@@ -470,10 +502,34 @@ export async function salvarSimuladorTemplateDoCard(
         continue;
       }
       if (!errCampo) continue;
+      console.warn('[salvarSimuladorTemplate] patch 575 falhou', {
+        coluna,
+        valor,
+        code: errCampo.code,
+        message: errCampo.message,
+      });
       const ausente = colunaAusenteDoErro(errCampo.message, { [coluna]: valor });
+      if (ausente === coluna && (COLUNAS_575 as readonly string[]).includes(coluna)) {
+        return { ok: false, error: mensagemColunas575() };
+      }
       if (ausente === coluna) continue;
       return erroBancoSimulador(errCampo.message);
     }
+  }
+
+  console.log('[salvarSimuladorTemplate] row retornada pelo banco', {
+    tipo_taxa_gestao: saved.tipo_taxa_gestao,
+    pct_taxa_gestao: saved.pct_taxa_gestao,
+    taxa_gestao_valor: saved.taxa_gestao_valor,
+    percentual_plataforma_entrada: saved.percentual_plataforma_entrada,
+    keys: Object.keys(saved),
+  });
+  if (
+    !Object.prototype.hasOwnProperty.call(saved, 'tipo_taxa_gestao') ||
+    !Object.prototype.hasOwnProperty.call(saved, 'percentual_plataforma_entrada') ||
+    !Object.prototype.hasOwnProperty.call(saved, 'taxa_gestao_valor')
+  ) {
+    return { ok: false, error: mensagemColunas575() };
   }
 
   const template = mapTemplateRow(saved);

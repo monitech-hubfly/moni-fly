@@ -303,9 +303,9 @@ export function SimuladorTemplateForm({
               Percentual da taxa de plataforma pago na entrada (%)
             </span>
             <CampoDraftNumero
-              name="pct_plataforma_entrada"
-              value={draft.pct_plataforma_entrada}
-              onChange={(v) => setCampo('pct_plataforma_entrada', v)}
+              name="percentual_plataforma_entrada"
+              value={draft.percentual_plataforma_entrada}
+              onChange={(v) => setCampo('percentual_plataforma_entrada', v)}
               placeholder="0"
             />
             <span className="mt-1 block text-[11px]" style={hintStyle}>
@@ -332,10 +332,10 @@ export function SimuladorTemplateForm({
                     tipo === 'percentual' && prev.pct_taxa_gestao.trim() === ''
                       ? PCT_TAXA_GESTAO_PADRAO_UI
                       : prev.pct_taxa_gestao,
-                  valor_taxa_gestao:
-                    tipo === 'fixo' && prev.valor_taxa_gestao.trim() === ''
+                  taxa_gestao_valor:
+                    tipo === 'fixo' && prev.taxa_gestao_valor.trim() === ''
                       ? VALOR_TAXA_GESTAO_FIXO_PADRAO_UI
-                      : prev.valor_taxa_gestao,
+                      : prev.taxa_gestao_valor,
                 }));
                 setMensagem(null);
                 setErro(null);
@@ -351,9 +351,9 @@ export function SimuladorTemplateForm({
             </span>
             {draft.tipo_taxa_gestao === 'fixo' ? (
               <CampoDraftNumero
-                name="valor_taxa_gestao"
-                value={draft.valor_taxa_gestao}
-                onChange={(v) => setCampo('valor_taxa_gestao', v)}
+                name="taxa_gestao_valor"
+                value={draft.taxa_gestao_valor}
+                onChange={(v) => setCampo('taxa_gestao_valor', v)}
                 placeholder={VALOR_TAXA_GESTAO_FIXO_PADRAO_UI}
               />
             ) : (

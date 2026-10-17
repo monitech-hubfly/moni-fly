@@ -44,7 +44,9 @@ export type TemplateConfigPublico = {
   pct_taxa_plataforma?: number | null;
   pct_taxa_gestao?: number | null;
   tipo_taxa_gestao?: string | null;
+  taxa_gestao_valor?: number | null;
   tipo_juros_cp?: 'mes_a_mes' | 'total';
+  percentual_plataforma_entrada?: number | null;
   pct_plataforma_entrada?: number | null;
   pct_impostos?: number | null;
   pct_comissao_corretor?: number | null;

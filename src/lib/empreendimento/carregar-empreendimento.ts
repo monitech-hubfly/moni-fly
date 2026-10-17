@@ -74,12 +74,19 @@ function parseTemplate(raw: unknown): TemplateConfigPublico | null {
     pct_taxa_plataforma: r.pct_taxa_plataforma != null ? Number(r.pct_taxa_plataforma) : null,
     pct_taxa_gestao: r.pct_taxa_gestao != null ? Number(r.pct_taxa_gestao) : null,
     tipo_taxa_gestao: r.tipo_taxa_gestao != null ? String(r.tipo_taxa_gestao) : null,
+    taxa_gestao_valor: r.taxa_gestao_valor != null ? Number(r.taxa_gestao_valor) : null,
     tipo_juros_cp:
       r.tipo_juros_cp == null
         ? undefined
         : String(r.tipo_juros_cp).trim().toLowerCase() === 'total'
           ? 'total'
           : 'mes_a_mes',
+    percentual_plataforma_entrada:
+      r.percentual_plataforma_entrada != null
+        ? Number(r.percentual_plataforma_entrada)
+        : r.pct_plataforma_entrada != null
+          ? Number(r.pct_plataforma_entrada)
+          : null,
     pct_plataforma_entrada:
       r.pct_plataforma_entrada != null ? Number(r.pct_plataforma_entrada) : null,
     pct_impostos: r.pct_impostos != null ? Number(r.pct_impostos) : null,

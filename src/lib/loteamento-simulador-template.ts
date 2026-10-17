@@ -61,7 +61,8 @@ export type LoteamentoSimuladorTemplateRow = {
   pct_taxa_plataforma: number;
   pct_taxa_gestao: number;
   tipo_taxa_gestao: TipoTaxaGestao;
-  pct_plataforma_entrada: number;
+  taxa_gestao_valor: number | null;
+  percentual_plataforma_entrada: number;
   pct_lucro_loteadora: number;
   pct_lucro_moni: number;
   pct_lucro_franqueado: number;
@@ -93,8 +94,8 @@ export type LoteamentoSimuladorTemplateDraft = {
   pct_taxa_plataforma: string;
   pct_taxa_gestao: string;
   tipo_taxa_gestao: TipoTaxaGestao;
-  valor_taxa_gestao: string;
-  pct_plataforma_entrada: string;
+  taxa_gestao_valor: string;
+  percentual_plataforma_entrada: string;
   pct_lucro_loteadora: string;
   pct_lucro_moni: string;
   pct_lucro_franqueado: string;
@@ -185,8 +186,8 @@ export function emptySimuladorTemplateDraft(): LoteamentoSimuladorTemplateDraft 
     pct_taxa_plataforma: PCT_TAXA_PLATAFORMA_PADRAO_UI,
     pct_taxa_gestao: PCT_TAXA_GESTAO_PADRAO_UI,
     tipo_taxa_gestao: 'percentual',
-    valor_taxa_gestao: VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
-    pct_plataforma_entrada: '0',
+    taxa_gestao_valor: VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
+    percentual_plataforma_entrada: '0',
     pct_lucro_loteadora: '',
     pct_lucro_moni: '',
     pct_lucro_franqueado: '',
@@ -316,19 +317,17 @@ export function rowToSimuladorTemplateDraft(
           ),
     pct_taxa_plataforma: percentualUiOuSugestao(row.pct_taxa_plataforma, PCT_TAXA_PLATAFORMA_PADRAO_UI),
     pct_taxa_gestao:
-      parseTipoTaxaGestao(row.tipo_taxa_gestao) === 'fixo'
+      !Number(row.pct_taxa_gestao)
         ? PCT_TAXA_GESTAO_PADRAO_UI
-        : !Number(row.pct_taxa_gestao)
-          ? PCT_TAXA_GESTAO_PADRAO_UI
-          : percentualUiOuSugestao(row.pct_taxa_gestao, PCT_TAXA_GESTAO_PADRAO_UI),
+        : percentualUiOuSugestao(row.pct_taxa_gestao, PCT_TAXA_GESTAO_PADRAO_UI),
     tipo_taxa_gestao: parseTipoTaxaGestao(row.tipo_taxa_gestao),
-    valor_taxa_gestao:
-      parseTipoTaxaGestao(row.tipo_taxa_gestao) === 'fixo'
-        ? row.pct_taxa_gestao == null || !Number.isFinite(Number(row.pct_taxa_gestao))
-          ? VALOR_TAXA_GESTAO_FIXO_PADRAO_UI
-          : numeroParaInputBr(row.pct_taxa_gestao)
-        : VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
-    pct_plataforma_entrada: fracaoParaPercentualUi(row.pct_plataforma_entrada),
+    taxa_gestao_valor:
+      row.taxa_gestao_valor == null || !Number.isFinite(Number(row.taxa_gestao_valor))
+        ? parseTipoTaxaGestao(row.tipo_taxa_gestao) === 'fixo' && Number(row.pct_taxa_gestao) >= 1
+          ? numeroParaInputBr(row.pct_taxa_gestao)
+          : VALOR_TAXA_GESTAO_FIXO_PADRAO_UI
+        : numeroParaInputBr(row.taxa_gestao_valor),
+    percentual_plataforma_entrada: fracaoParaPercentualUi(row.percentual_plataforma_entrada),
     pct_lucro_loteadora: fracaoParaPercentualUi(row.pct_lucro_loteadora),
     pct_lucro_moni: fracaoParaPercentualUi(row.pct_lucro_moni),
     pct_lucro_franqueado: fracaoParaPercentualUi(row.pct_lucro_franqueado),
@@ -359,7 +358,10 @@ export function mapTemplateRow(raw: Record<string, unknown>): LoteamentoSimulado
     pct_taxa_plataforma: Number(raw.pct_taxa_plataforma ?? 0),
     pct_taxa_gestao: Number(raw.pct_taxa_gestao ?? 0),
     tipo_taxa_gestao: parseTipoTaxaGestao(raw.tipo_taxa_gestao),
-    pct_plataforma_entrada: Number(raw.pct_plataforma_entrada ?? 0),
+    taxa_gestao_valor: numOrNull(raw.taxa_gestao_valor),
+    percentual_plataforma_entrada: Number(
+      raw.percentual_plataforma_entrada ?? raw.pct_plataforma_entrada ?? 0,
+    ),
     pct_lucro_loteadora: Number(raw.pct_lucro_loteadora ?? 0),
     pct_lucro_moni: Number(raw.pct_lucro_moni ?? 0),
     pct_lucro_franqueado: Number(raw.pct_lucro_franqueado ?? 0),
@@ -453,7 +455,10 @@ function isErroColunaSchemaCache(message: string | undefined, colunas: RegExp): 
 }
 
 export function isColunaSimulador575Ausente(message: string | undefined): boolean {
-  return isErroColunaSchemaCache(message, /tipo_taxa_gestao|pct_plataforma_entrada/i);
+  return isErroColunaSchemaCache(
+    message,
+    /tipo_taxa_gestao|percentual_plataforma_entrada|taxa_gestao_valor|pct_plataforma_entrada/i,
+  );
 }
 
 export function isColunaSimulador576Ausente(message: string | undefined): boolean {
