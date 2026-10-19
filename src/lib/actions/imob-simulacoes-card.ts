@@ -285,14 +285,25 @@ export async function salvarImobSimulacaoEmpreendimento(
       };
     }
   }
+
+  let supabase: ReturnType<typeof createAdminClient>;
+  try {
+    supabase = createAdminClient();
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Admin client indisponível para salvar a oferta.',
+    };
+  }
+
   console.error('[DEBUG-SAVE] patch completo:', JSON.stringify(patch, null, 2));
-  const { data, error } = await auth.supabase
+  const { data, error, count } = await supabase
     .from('imob_card_empreendimentos')
-    .update(patch as never)
+    .update(patch as never, { count: 'exact' })
     .eq('id', draft.id)
     .eq('card_id', cardId)
-    .select('id, valor_base_casa');
-  console.error('[DEBUG-SAVE] resultado update:', JSON.stringify({ data, error }, null, 2));
+    .select('valor_base_casa');
+  console.error('[UPDATE-RESULT]', { data, error, count });
   if (error) {
     const errText = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ');
     // PGRST204 / 42703 / schema cache desta coluna: não omitir o campo nem fingir sucesso.
@@ -302,7 +313,7 @@ export async function salvarImobSimulacaoEmpreendimento(
     if (/valor_acoplamento/i.test(error.message)) {
       const { valor_acoplamento, ...sem571 } = patch;
       void valor_acoplamento;
-      const retry = await auth.supabase
+      const retry = await supabase
         .from('imob_card_empreendimentos')
         .update(sem571 as never)
         .eq('id', draft.id)
@@ -318,7 +329,7 @@ export async function salvarImobSimulacaoEmpreendimento(
       if (normalizeImobBlocoTipo(draft.tipo) !== 'showroom') {
         sem550.valor_base_casa = patch.valor_base_casa;
       }
-      const retry = await auth.supabase
+      const retry = await supabase
         .from('imob_card_empreendimentos')
         .update(sem550 as never)
         .eq('id', draft.id)
