@@ -153,11 +153,13 @@
 }
 
 .jornadaStepLabel {
-  font-size: 10px;
+  font-size: 11px;
   margin-top: 6px;
   color: var(--j-text-muted);
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.2;
+  max-width: 4.5rem;
 }
 
 .jornadaStep.active .jornadaStepLabel {
@@ -1194,5 +1196,5 @@
   .jornadaCard { padding: 24px 18px; }
   .jornadaGrid { grid-template-columns: repeat(2, 1fr); }
   .jornadaModelosGrid { grid-template-columns: 1fr 1fr; }
-  .jornadaStepLabel { font-size: 8px; }
+  .jornadaStepLabel { font-size: 10px; }
 }

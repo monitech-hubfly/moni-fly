@@ -35,15 +35,26 @@ import { maskTelefoneCelular } from '@/lib/br-docs';
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const fmt = (v: number) => BRL.format(v);
 
-const ETAPAS = [
-  'Seus dados',
-  'Oferta',
-  'Terreno',
-  'Casa',
-  'Simulação',
-  'Memorial',
-  'Contrato',
-];
+/** Única fonte da sequência. ids = state.etapa. */
+const JORNADA_STEPS = [
+  { id: 1, slug: 'dados', label: 'Seus dados' },
+  { id: 2, slug: 'oferta', label: 'Oferta' },
+  { id: 3, slug: 'terreno', label: 'Terreno' },
+  { id: 4, slug: 'casa', label: 'Casa' },
+  { id: 5, slug: 'simulacao', label: 'Simulação' },
+  { id: 6, slug: 'memorial', label: 'Memorial' },
+  { id: 7, slug: 'contrato', label: 'Contrato' },
+] as const;
+
+const ETAPA = {
+  dados: 1,
+  oferta: 2,
+  terreno: 3,
+  casa: 4,
+  simulacao: 5,
+  memorial: 6,
+  contrato: 7,
+} as const;
 
 function fracaoDePercentualPublico(
   raw: number | null | undefined,
@@ -180,23 +191,22 @@ function estadoInicial(empreendimento?: EmpreendimentoPublico): JornadaLocal {
 
 function ProgressBar({ etapa }: { etapa: number }) {
   return (
-    <div className="jornadaProgress">
-      {ETAPAS.map((nome, i) => {
-        const num = i + 1;
-        const status = num < etapa ? 'done' : num === etapa ? 'active' : 'pending';
+    <div className="jornadaProgress" data-jornada-layout="oferta-terreno">
+      {JORNADA_STEPS.map((step, i) => {
+        const status = step.id < etapa ? 'done' : step.id === etapa ? 'active' : 'pending';
         return (
-          <div key={num} className={`jornadaStep ${status}`}>
+          <div key={step.slug} className={`jornadaStep ${status}`} data-step={step.slug}>
             <div className="jornadaStepDot">
               {status === 'done' ? (
                 <svg viewBox="0 0 16 16" fill="none" width={10} height={10}>
                   <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               ) : (
-                <span>{num}</span>
+                <span>{step.id}</span>
               )}
             </div>
-            <span className="jornadaStepLabel">{nome}</span>
-            {i < ETAPAS.length - 1 && <div className={`jornadaStepLine ${status === 'done' ? 'done' : ''}`} />}
+            <span className="jornadaStepLabel">{step.label}</span>
+            {i < JORNADA_STEPS.length - 1 && <div className={`jornadaStepLine ${status === 'done' ? 'done' : ''}`} />}
           </div>
         );
       })}
@@ -917,9 +927,12 @@ export default function JornadaClient({
       const preview = oferta
         ? previewVteAvistaOferta(oferta, empreendimento.template)
         : null;
+      const temOferta = Boolean(oferta);
+      let etapa = Math.max(ETAPA.dados, Math.round(Number(sessao.etapa_atual) || ETAPA.dados));
+      if (!temOferta && etapa >= ETAPA.terreno) etapa = ETAPA.oferta;
       setStateRaw((prev) => ({
         ...prev,
-        etapa: sessao.etapa_atual,
+        etapa,
         sessaoToken: sessao.session_token,
         nomeCliente: sessao.nome_cliente ?? '',
         telefoneCliente: maskTelefoneCelular(sessao.telefone_cliente ?? ''),
@@ -1002,11 +1015,11 @@ export default function JornadaClient({
   }
 
   function voltar() {
-    if (state.etapa === 5) {
+    if (state.etapa === ETAPA.simulacao) {
       setResultadoSimulacao(null);
       setValoresConfirmados(null);
     }
-    setState({ etapa: Math.max(1, state.etapa - 1) });
+    setState({ etapa: Math.max(ETAPA.dados, state.etapa - 1) });
   }
 
   function handleVerSimulacao() {
@@ -1107,46 +1120,46 @@ export default function JornadaClient({
       <ProgressBar etapa={state.etapa} />
 
       <main className="jornadaMain">
-        {state.etapa === 1 && (
+        {state.etapa === ETAPA.dados && (
           <Passo1
             state={state}
             setState={setState}
-            onAvancar={() => handleAvancar(2)}
+            onAvancar={() => handleAvancar(ETAPA.oferta)}
             salvando={isPending}
           />
         )}
-        {state.etapa === 2 && (
+        {state.etapa === ETAPA.oferta && (
           <PassoOferta
             ofertas={empreendimento.ofertas}
             template={empreendimento.template}
             state={state}
             setState={setState}
-            onAvancar={() => handleAvancar(3)}
+            onAvancar={() => handleAvancar(ETAPA.terreno)}
             onVoltar={voltar}
             salvando={isPending}
           />
         )}
-        {state.etapa === 3 && (
+        {state.etapa === ETAPA.terreno && (
           <PassoTerreno
             lotes={empreendimento.lotes}
             state={state}
             setState={setState}
-            onAvancar={() => handleAvancar(4)}
+            onAvancar={() => handleAvancar(ETAPA.casa)}
             onVoltar={voltar}
             salvando={isPending}
           />
         )}
-        {state.etapa === 4 && (
+        {state.etapa === ETAPA.casa && (
           <PassoCasa
             itens={empreendimento.itens_customizacao}
             state={state}
             setState={setState}
-            onAvancar={() => handleAvancar(5)}
+            onAvancar={() => handleAvancar(ETAPA.simulacao)}
             onVoltar={voltar}
             salvando={isPending}
           />
         )}
-        {state.etapa === 5 && (
+        {state.etapa === ETAPA.simulacao && (
           <PassoSimulacao
             state={state}
             setState={setState}
@@ -1155,7 +1168,7 @@ export default function JornadaClient({
             resultadoKey={resultadoKey}
             valoresConfirmados={valoresConfirmados}
             recalcToken={recalcToken}
-            onAvancar={() => handleAvancar(6)}
+            onAvancar={() => handleAvancar(ETAPA.memorial)}
             onVoltar={voltar}
             onVerSimulacao={handleVerSimulacao}
             onRecalcular={handleRecalcularSimulacao}
@@ -1163,16 +1176,16 @@ export default function JornadaClient({
             erroSimulacao={erroSimulacao}
           />
         )}
-        {state.etapa === 6 && (
+        {state.etapa === ETAPA.memorial && (
           <Passo6
             state={state}
             empreendimento={empreendimento}
             resultadoSimulacao={resultadoSimulacao}
-            onAvancar={() => handleAvancar(7, { concluida: 'true' })}
+            onAvancar={() => handleAvancar(ETAPA.contrato, { concluida: 'true' })}
             onVoltar={voltar}
           />
         )}
-        {state.etapa === 7 && <Passo7 nomeCliente={state.nomeCliente} />}
+        {state.etapa === ETAPA.contrato && <Passo7 nomeCliente={state.nomeCliente} />}
       </main>
     </div>
   );
