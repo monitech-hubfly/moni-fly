@@ -5,6 +5,13 @@ export type LotePublicoEmp = {
   codigo: string;
   valor: number;
   acoplamento: number; // valor de acoplamento do lote (vem da planilha, coluna Acoplamento)
+  /** Dimensões — a planilha pública ainda não traz esses campos (TODO). */
+  frente_m: number | null;
+  fundo_m: number | null;
+  lateral1_m: number | null;
+  lateral2_m: number | null;
+  area_m2: number | null;
+  topografia: string | null;
 };
 
 export type ItemCustomizacao = {
@@ -20,11 +27,18 @@ export type OfertaEmpreendimento = {
   id: string;
   nome: string | null;
   ordem: number;
-  valor_avista: number | null; // preço final (VTE à vista) mostrado no step 3
-  valor_base_casa: number | null; // custo de construção, input do engine no step 5
-  valor_acoplamento: number | null; // referência da oferta; na jornada o lote substitui
+  /** Snapshot congelado — a jornada NÃO usa este campo. */
+  valor_avista: number | null;
+  /** Custo de construção no card IMOB; input do engine. */
+  valor_base_casa: number | null;
+  /** Acoplamento de referência da oferta da Helenna (preview step 2). */
+  valor_acoplamento: number | null;
+  /** Lote que a Helenna usou na calculadora (preview step 2). */
+  valor_lote_oferta: number | null;
+  /** Customização que a Helenna usou na calculadora (preview step 2). */
+  valor_customizacao_oferta: number | null;
   titulo_oferta: string | null;
-  produto_modelo: string | null; // nome do modelo de casa (ex: "Casa Helena 3Q")
+  produto_modelo: string | null;
   descricao: string | null;
 };
 
@@ -65,9 +79,10 @@ export type EmpreendimentoPublico = {
   template: TemplateConfigPublico | null;
   itens_customizacao: ItemCustomizacao[];
   ofertas: OfertaEmpreendimento[];
-  // lotes são carregados separado (da planilha)
   lotes: LotePublicoEmp[];
 };
+
+export type ModoTerrenoJornada = 'disponivel' | 'informar';
 
 // Estado da sessão do cliente (salvo no banco)
 export type JornadaSessao = {
@@ -79,8 +94,8 @@ export type JornadaSessao = {
   lote_valor: number | null;
   lote_ja_adquirido: boolean | null;
   valor_ja_pago: number | null;
-  empreendimento_id: string | null; // ID da oferta selecionada
-  itens_selecionados: string[]; // IDs dos gadgets/kit selecionados
+  empreendimento_id: string | null;
+  itens_selecionados: string[];
   valor_acoplamento: number | null;
   valor_kit: number | null;
   valor_gadgets: number | null;
@@ -91,36 +106,31 @@ export type JornadaSessao = {
   concluida: boolean;
 };
 
-// Estado local da jornada (no cliente, antes de salvar)
 export type JornadaLocal = {
   etapa: number;
   sessaoToken: string | null;
 
-  // Passo 1
   nomeCliente: string;
   telefoneCliente: string;
 
-  // Passo 2
+  ofertaSelecionada: OfertaEmpreendimento | null;
+  previewVteAvista: number | null;
+
+  modoTerreno: ModoTerrenoJornada | null;
   loteSelecionado: LotePublicoEmp | null;
-  loteJaAdquirido: boolean | null;
   valorJaPago: number;
 
-  // Passo 3 — oferta selecionada (já inclui qual modelo de casa)
-  ofertaSelecionada: OfertaEmpreendimento | null;
-
-  // Passo 4 — customização
-  gadgetsSelecionados: Set<string>; // IDs
+  gadgetsSelecionados: Set<string>;
   kitSelecionado: boolean;
 
-  // Valores calculados (Passo 4 → Passo 5)
-  valorAcoplamento: number; // do lote selecionado (obrigatório)
-  valorKit: number;         // kit moní, se selecionado
-  valorGadgets: number;     // soma dos gadgets selecionados
-  valorCasa: number;        // valor_avista da oferta (preço final ao cliente)
-  valorCustomizacao: number; // kit + gadgets (acoplamento vai separado ao engine)
-  valorLote: number;        // = lote.valor
+  valorAcoplamento: number;
+  valorKit: number;
+  valorGadgets: number;
+  /** Preço-base da casa da oferta (valor_base_casa), não o VTE. */
+  valorCasa: number;
+  valorCustomizacao: number;
+  valorLote: number;
 
-  // Passo 5
   simulacaoId: string | null;
   rendaMensal: number | null;
   prazoObraMeses: number;

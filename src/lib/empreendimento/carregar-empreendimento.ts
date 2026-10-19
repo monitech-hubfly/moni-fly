@@ -12,9 +12,14 @@ import type {
 
 const BUCKET = 'processo-docs';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Parse do resultado da RPC
-// ─────────────────────────────────────────────────────────────────────────────
+type ClientLike = NonNullable<ReturnType<typeof tryCreateAdminClient>>;
+
+function numOrNull(raw: unknown): number | null {
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 function parseItem(raw: unknown): ItemCustomizacao | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
@@ -45,6 +50,9 @@ function parseOferta(raw: unknown): OfertaEmpreendimento | null {
     valor_avista: r.valor_avista != null ? Number(r.valor_avista) : null,
     valor_base_casa: r.valor_base_casa != null ? Number(r.valor_base_casa) : null,
     valor_acoplamento: r.valor_acoplamento != null ? Number(r.valor_acoplamento) : null,
+    valor_lote_oferta: r.valor_lote_oferta != null ? Number(r.valor_lote_oferta) : null,
+    valor_customizacao_oferta:
+      r.valor_customizacao_oferta != null ? Number(r.valor_customizacao_oferta) : null,
     titulo_oferta: r.titulo_oferta != null ? String(r.titulo_oferta) : null,
     produto_modelo: r.produto_modelo != null ? String(r.produto_modelo) : null,
     descricao: r.descricao != null ? String(r.descricao) : null,
@@ -90,10 +98,20 @@ function parseTemplate(raw: unknown): TemplateConfigPublico | null {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Lotes (da planilha no Storage)
-// O valor de acoplamento varia por lote e vem da coluna Acoplamento da planilha.
-// ─────────────────────────────────────────────────────────────────────────────
+function loteDimensoesVazias(): Pick<
+  LotePublicoEmp,
+  'frente_m' | 'fundo_m' | 'lateral1_m' | 'lateral2_m' | 'area_m2' | 'topografia'
+> {
+  return {
+    frente_m: null,
+    fundo_m: null,
+    lateral1_m: null,
+    lateral2_m: null,
+    area_m2: null,
+    topografia: null,
+  };
+}
+
 async function carregarLotesDaPlanilha(
   planilhaPath: string,
   planilhaNome: string,
@@ -122,6 +140,7 @@ async function carregarLotesDaPlanilha(
         codigo: l.codigo,
         valor: l.valor,
         acoplamento: l.valorAcoplamento,
+        ...loteDimensoesVazias(),
       }));
     } catch {
       // tenta o próximo client
@@ -130,9 +149,162 @@ async function carregarLotesDaPlanilha(
   return [];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Função principal
-// ─────────────────────────────────────────────────────────────────────────────
+function jsonValorNumerico(raw: unknown): number | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  return numOrNull((raw as { valor?: unknown }).valor);
+}
+
+/**
+ * Completa o que a RPC pode omitir (migration 635) e o lote/customização da
+ * oferta da Helenna, necessários para o preview ao vivo do step 2.
+ */
+async function enriquecerOfertasETemplate(
+  cardId: string,
+  ofertas: OfertaEmpreendimento[],
+  template: TemplateConfigPublico | null,
+): Promise<{ ofertas: OfertaEmpreendimento[]; template: TemplateConfigPublico | null }> {
+  const admin = tryCreateAdminClient();
+  const supabase = (await createClient()) as unknown as ClientLike;
+  const client: ClientLike = admin ?? supabase;
+
+  if (!admin) {
+    console.error(
+      '[empreendimento] service role indisponível — preview da oferta pode ficar sem lote da Helenna',
+    );
+  }
+
+  const { data: imobRows, error: imobErr } = await client
+    .from('imob_card_empreendimentos')
+    .select('id, valor_base_casa, valor_acoplamento, simulacao_pagamento_id')
+    .eq('card_id', cardId);
+
+  if (imobErr) {
+    console.error('[empreendimento] enriquecer ofertas IMOB:', imobErr.message);
+  }
+
+  const imobById = new Map<
+    string,
+    {
+      valor_base_casa: number | null;
+      valor_acoplamento: number | null;
+      simulacao_pagamento_id: string | null;
+    }
+  >();
+  const simIds: string[] = [];
+  for (const row of (imobRows ?? []) as Record<string, unknown>[]) {
+    const id = String(row.id ?? '').trim();
+    if (!id) continue;
+    const simId =
+      row.simulacao_pagamento_id != null ? String(row.simulacao_pagamento_id).trim() : '';
+    imobById.set(id, {
+      valor_base_casa: numOrNull(row.valor_base_casa),
+      valor_acoplamento: numOrNull(row.valor_acoplamento),
+      simulacao_pagamento_id: simId || null,
+    });
+    if (simId) simIds.push(simId);
+  }
+
+  const simById = new Map<
+    string,
+    { valor_lote: number | null; valor_customizacao: number | null; valor_acoplamento: number | null }
+  >();
+  if (simIds.length > 0) {
+    const { data: simRows, error: simErr } = await client
+      .from('simulacoes_pagamento')
+      .select('id, valor_lote, valor_customizacao, valor_acoplamento')
+      .in('id', simIds);
+    if (simErr) {
+      console.error('[empreendimento] enriquecer ofertas simulação:', simErr.message);
+    } else {
+      for (const row of (simRows ?? []) as Record<string, unknown>[]) {
+        const id = String(row.id ?? '').trim();
+        if (!id) continue;
+        simById.set(id, {
+          valor_lote: numOrNull(row.valor_lote),
+          valor_customizacao: numOrNull(row.valor_customizacao),
+          valor_acoplamento: numOrNull(row.valor_acoplamento),
+        });
+      }
+    }
+  }
+
+  const ofertasEnriquecidas = ofertas.map((o) => {
+    const imob = imobById.get(o.id);
+    const sim = imob?.simulacao_pagamento_id
+      ? simById.get(imob.simulacao_pagamento_id)
+      : undefined;
+    const baseRpc = o.valor_base_casa;
+    const baseImob = imob?.valor_base_casa ?? null;
+    const valor_base_casa =
+      baseRpc != null && Number.isFinite(baseRpc) && baseRpc > 0
+        ? baseRpc
+        : baseImob != null && Number.isFinite(baseImob)
+          ? baseImob
+          : baseRpc;
+    return {
+      ...o,
+      valor_base_casa,
+      valor_acoplamento:
+        o.valor_acoplamento ?? imob?.valor_acoplamento ?? sim?.valor_acoplamento ?? null,
+      valor_lote_oferta: sim?.valor_lote ?? o.valor_lote_oferta,
+      valor_customizacao_oferta: sim?.valor_customizacao ?? o.valor_customizacao_oferta,
+    };
+  });
+
+  let templateEnriquecido = template;
+  const templateIncompleto = template == null || template.pct_impostos == null;
+  if (templateIncompleto) {
+    const { data: tplRow, error: tplErr } = await client
+      .from('loteamento_simulador_templates')
+      .select('*')
+      .eq('kanban_card_id', cardId)
+      .maybeSingle();
+    if (tplErr) {
+      console.error('[empreendimento] enriquecer template:', tplErr.message);
+    } else if (tplRow) {
+      const r = tplRow as Record<string, unknown>;
+      const parsed = parseTemplate({
+        ...r,
+        perc_entrada_minima: jsonValorNumerico(r.entrada_minima_loteadora),
+        perc_entrada_sugerida: jsonValorNumerico(r.premissa_entrada_lote_parcial),
+        perc_parcela_mensal: jsonValorNumerico(r.premissa_entrada_lote_nao_pago),
+        perc_cp: r.taxa_juros_credito_ponte,
+        num_meses_cp: r.prazo_desembolso_sugerido,
+        itbi_percentual: r.pct_itbi ?? r.itbi_percentual,
+      });
+      if (parsed) {
+        if (!template) {
+          templateEnriquecido = parsed;
+        } else {
+          const rpcPreenchido = Object.fromEntries(
+            Object.entries(template).filter(([, v]) => v != null && v !== ''),
+          ) as Partial<TemplateConfigPublico>;
+          templateEnriquecido = {
+            ...parsed,
+            ...rpcPreenchido,
+            pct_impostos: template.pct_impostos ?? parsed.pct_impostos,
+            pct_comissao_corretor: template.pct_comissao_corretor ?? parsed.pct_comissao_corretor,
+            pct_lucro_loteadora: template.pct_lucro_loteadora ?? parsed.pct_lucro_loteadora,
+            pct_lucro_moni: template.pct_lucro_moni ?? parsed.pct_lucro_moni,
+            pct_lucro_franqueado: template.pct_lucro_franqueado ?? parsed.pct_lucro_franqueado,
+            pct_taxa_plataforma: template.pct_taxa_plataforma ?? parsed.pct_taxa_plataforma,
+            pct_taxa_gestao: template.pct_taxa_gestao ?? parsed.pct_taxa_gestao,
+            tipo_taxa_gestao: template.tipo_taxa_gestao ?? parsed.tipo_taxa_gestao,
+            taxa_gestao_valor: template.taxa_gestao_valor ?? parsed.taxa_gestao_valor,
+            percentual_plataforma_entrada:
+              template.percentual_plataforma_entrada ?? parsed.percentual_plataforma_entrada,
+            pct_plataforma_entrada:
+              template.pct_plataforma_entrada ?? parsed.pct_plataforma_entrada,
+            tipo_juros_cp: template.tipo_juros_cp ?? parsed.tipo_juros_cp,
+          };
+        }
+      }
+    }
+  }
+
+  return { ofertas: ofertasEnriquecidas, template: templateEnriquecido };
+}
+
 export async function carregarEmpreendimento(
   slug: string,
 ): Promise<EmpreendimentoPublico | null> {
@@ -155,16 +327,16 @@ export async function carregarEmpreendimento(
   const itens_customizacao = Array.isArray(raw.itens_customizacao)
     ? raw.itens_customizacao.map(parseItem).filter((i): i is ItemCustomizacao => i != null)
     : [];
-  const ofertas = Array.isArray(raw.ofertas)
+  const ofertasRpc = Array.isArray(raw.ofertas)
     ? raw.ofertas.map(parseOferta).filter((o): o is OfertaEmpreendimento => o != null)
     : [];
 
-  // Carrega lotes da planilha (inclui valor de acoplamento por lote)
   const planilhaPath = raw.planilha_lotes_path != null ? String(raw.planilha_lotes_path) : null;
   const planilhaNome = raw.planilha_lotes_nome != null ? String(raw.planilha_lotes_nome) : 'planilha.xlsx';
-  const lotes = planilhaPath
-    ? await carregarLotesDaPlanilha(planilhaPath, planilhaNome)
-    : [];
+  const [lotes, enriquecido] = await Promise.all([
+    planilhaPath ? carregarLotesDaPlanilha(planilhaPath, planilhaNome) : Promise.resolve([]),
+    enriquecerOfertasETemplate(card_id, ofertasRpc, parseTemplate(raw.template)),
+  ]);
 
   return {
     card_id,
@@ -176,9 +348,9 @@ export async function carregarEmpreendimento(
       raw.imagem_principal_path != null ? String(raw.imagem_principal_path) : null,
     planilha_lotes_path: planilhaPath,
     planilha_lotes_nome: planilhaNome,
-    template: parseTemplate(raw.template),
+    template: enriquecido.template,
     itens_customizacao,
-    ofertas,
+    ofertas: enriquecido.ofertas,
     lotes,
   };
 }
