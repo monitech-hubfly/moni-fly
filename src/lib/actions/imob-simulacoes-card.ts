@@ -254,23 +254,19 @@ export async function salvarImobSimulacaoEmpreendimento(
       };
     }
   }
-  const { error } = await auth.supabase
+  console.error('[DEBUG-SAVE] patch completo:', JSON.stringify(patch, null, 2));
+  const { data, error } = await auth.supabase
     .from('imob_card_empreendimentos')
     .update(patch as never)
     .eq('id', draft.id)
-    .eq('card_id', cardId);
+    .eq('card_id', cardId)
+    .select('id, valor_base_casa');
+  console.error('[DEBUG-SAVE] resultado update:', JSON.stringify({ data, error }, null, 2));
   if (error) {
-    if (/valor_base_casa/i.test(error.message)) {
-      const { valor_base_casa, ...sem573 } = patch;
-      void valor_base_casa;
-      const retry = await auth.supabase
-        .from('imob_card_empreendimentos')
-        .update(sem573 as never)
-        .eq('id', draft.id)
-        .eq('card_id', cardId);
-      if (retry.error) return { ok: false, error: retry.error.message };
-      revalidatePath('/');
-      return { ok: true };
+    const errText = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ');
+    // PGRST204 / 42703 / schema cache desta coluna: não omitir o campo nem fingir sucesso.
+    if (/valor_base_casa/i.test(errText)) {
+      return { ok: false, error: 'Erro ao salvar valor da casa. Tente novamente.' };
     }
     if (/valor_acoplamento/i.test(error.message)) {
       const { valor_acoplamento, ...sem571 } = patch;
@@ -288,12 +284,23 @@ export async function salvarImobSimulacaoEmpreendimento(
       const { parcela_unica, simulacao_pagamento_id, ...sem550 } = patch;
       void parcela_unica;
       void simulacao_pagamento_id;
+      if (normalizeImobBlocoTipo(draft.tipo) !== 'showroom') {
+        sem550.valor_base_casa = patch.valor_base_casa;
+      }
       const retry = await auth.supabase
         .from('imob_card_empreendimentos')
         .update(sem550 as never)
         .eq('id', draft.id)
         .eq('card_id', cardId);
-      if (retry.error) return { ok: false, error: retry.error.message };
+      if (retry.error) {
+        const retryText = [retry.error.code, retry.error.message, retry.error.details, retry.error.hint]
+          .filter(Boolean)
+          .join(' ');
+        if (/valor_base_casa/i.test(retryText)) {
+          return { ok: false, error: 'Erro ao salvar valor da casa. Tente novamente.' };
+        }
+        return { ok: false, error: retry.error.message };
+      }
       revalidatePath('/');
       return { ok: true };
     }

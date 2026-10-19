@@ -357,6 +357,7 @@ export function draftToImobPatch(draft: ImobCardEmpreendimentoDraft): Record<str
     patch[k] = campoToNum(draft[k]);
   }
   if (patch.valor_base_casa == null) patch.valor_base_casa = 0;
+  console.error('[DEBUG-PATCH] valor_base_casa no patch:', patch.valor_base_casa);
   return patch;
 }
 
