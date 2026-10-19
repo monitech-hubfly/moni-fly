@@ -364,6 +364,9 @@ function EmpreendimentoBloco({
   }
 
   async function handleClickSalvar() {
+    console.log('[SAVE-CLICK] id da oferta:', item.id);
+    console.log('[SAVE-CLICK] valor_base_casa no draft:', item.valor_base_casa);
+    console.log('[SAVE-CLICK] valor_base_casa no estado do input:', item.valor_base_casa ?? '');
     if (!podeSalvarOferta) return;
     const ok = await onSalvar();
     if (ok) setIsDirty(false);
