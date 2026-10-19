@@ -313,7 +313,12 @@ function EmpreendimentoBloco({
   onExcluirOferta: (ofertaId: string) => void;
 }) {
   const [isDirty, setIsDirty] = useState(false);
-  const setMoney = (key: ImobMoneyKey, value: string) => handleCampo(key, value);
+  const setMoney = (key: ImobMoneyKey, value: string) => {
+    if (key === 'valor_base_casa') {
+      console.log('[DEBUG-MONEY] valor_base_casa onChange:', value);
+    }
+    handleCampo(key, value);
+  };
   const produtoOpcoes = opcoesProdutoModeloComValorAtual(item.produto_modelo);
   const isShowroom = kind === 'showroom';
   const tituloFinal = isShowroom
@@ -658,6 +663,9 @@ export function KanbanCardModalSimulacoesImob({
     new Map(),
   );
   const [excluindoOfertaId, setExcluindoOfertaId] = useState<string | null>(null);
+  const itensRef = useRef(itens);
+  itensRef.current = itens;
+  const imobHydratedCardId = useRef<string | null>(prefetchOk ? cardId : null);
 
   const carregarOfertas = useCallback(async () => {
     if (!mostrarTemplate) return;
@@ -716,6 +724,7 @@ export function KanbanCardModalSimulacoesImob({
       setErro(r.error);
       return;
     }
+    imobHydratedCardId.current = cardId;
     setItens(
       aplicarOfertasMarcadasNoCliente(
         cardId,
@@ -770,7 +779,12 @@ export function KanbanCardModalSimulacoesImob({
   }, [cardId, mostrarTemplate, pathname, carregarOfertas]);
 
   useEffect(() => {
+    if (imobHydratedCardId.current && imobHydratedCardId.current !== cardId) {
+      imobHydratedCardId.current = null;
+    }
     if (prefetch?.cardId === cardId) {
+      if (imobHydratedCardId.current === cardId) return;
+      imobHydratedCardId.current = cardId;
       setItens(
         aplicarOfertasMarcadasNoCliente(
           cardId,
@@ -848,7 +862,10 @@ export function KanbanCardModalSimulacoesImob({
     }
   }
 
-  async function handleSalvar(item: ImobCardEmpreendimentoDraft): Promise<boolean> {
+  async function handleSalvar(id: string): Promise<boolean> {
+    const item = itensRef.current.find((it) => it.id === id);
+    if (!item) return false;
+    console.log('[DEBUG-MONEY] save draft valor_base_casa:', item.valor_base_casa);
     setSalvandoId(item.id);
     setErro(null);
     setMsg(null);
@@ -1111,7 +1128,7 @@ export function KanbanCardModalSimulacoesImob({
                 uploadingOferta={uploadingOfertaId === item.id}
                 erroUpload={erroUploadOferta?.id === item.id ? erroUploadOferta.msg : null}
                 onChange={(key, value) => patchDraft(setItens, item.id, key, value)}
-                onSalvar={() => handleSalvar(item)}
+                onSalvar={() => handleSalvar(item.id)}
                 onExcluir={() => void handleExcluir(item.id, 'showroom')}
                 onUploadOferta={(f) => void handleUploadOferta(item.id, f)}
                 ofertasExistentes={[]}
@@ -1164,7 +1181,7 @@ export function KanbanCardModalSimulacoesImob({
               uploadingOferta={uploadingOfertaId === item.id}
               erroUpload={erroUploadOferta?.id === item.id ? erroUploadOferta.msg : null}
               onChange={(key, value) => patchDraft(setItens, item.id, key, value)}
-              onSalvar={() => handleSalvar(item)}
+              onSalvar={() => handleSalvar(item.id)}
               onExcluir={() => void handleExcluir(item.id, 'empreendimento')}
               onUploadOferta={(f) => void handleUploadOferta(item.id, f)}
               ofertasExistentes={ofertasPorEmp.get(item.id) ?? []}
