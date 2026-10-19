@@ -236,6 +236,8 @@
 
 .jornadaField input,
 .jornadaField select {
+  width: 100%;
+  min-height: 44px;
   border: 1.5px solid var(--j-border);
   border-radius: var(--j-radius-sm);
   padding: 12px 14px;
@@ -259,9 +261,20 @@
   border-color: var(--j-navy);
 }
 
-.jornadaToggleRow {
+.jornadaToggleRow,
+.jornadaTerrenoTabs {
   display: flex;
   gap: 8px;
+}
+
+.jornadaTerrenoTabs {
+  margin: 0 0 20px;
+}
+
+@media (max-width: 640px) {
+  .jornadaTerrenoTabs {
+    flex-direction: column;
+  }
 }
 
 .jornadaToggleBtn {
@@ -745,6 +758,38 @@
   color: var(--j-text-muted);
   margin: 0 0 10px;
   font-weight: 600;
+}
+
+.jornadaSimResumo .jornadaResumoRow {
+  color: var(--j-text);
+  opacity: 1;
+  border-bottom: 0.5px solid var(--j-border);
+}
+
+.jornadaSimResumo .jornadaResumoRow:last-child {
+  border-bottom: none;
+}
+
+.jornadaInfoLabel {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--j-text);
+  margin: 0 0 4px;
+  font-family: var(--j-font-sans);
+}
+
+.jornadaInfoValor {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--j-radius-sm);
+  border: 0.5px solid var(--j-border);
+  background: var(--j-surface-raised);
+  color: var(--j-text);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--j-font-sans);
 }
 
 .jornadaSimOferta .jornadaBtnRow {

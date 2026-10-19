@@ -10,6 +10,7 @@ import type {
   OfertaEmpreendimento,
   JornadaLocal,
   TemplateConfigPublico,
+  ModoTerrenoJornada,
 } from './types';
 import {
   salvarJornadaSessao,
@@ -31,23 +32,19 @@ import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornad
 import { inferirCondicaoLote } from '@/lib/loteamento-simulador-template';
 import { maskTelefoneCelular } from '@/lib/br-docs';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Utilitários
-// ─────────────────────────────────────────────────────────────────────────────
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const fmt = (v: number) => BRL.format(v);
 
 const ETAPAS = [
   'Seus dados',
-  'Lote',
   'Oferta',
+  'Terreno',
   'Casa',
   'Simulação',
   'Memorial',
   'Contrato',
 ];
 
-/** Aceita fração (0,03) ou percentual gravado como 3. */
 function fracaoDePercentualPublico(
   raw: number | null | undefined,
   fallback: number,
@@ -60,16 +57,39 @@ function fracaoDePercentualPublico(
 }
 
 function valorLoteParaCalculo(state: JornadaLocal): number {
-  if (state.loteJaAdquirido === true) return Math.max(0, state.valorLote);
+  if (state.modoTerreno === 'informar') return Math.max(0, state.valorLote);
   return Math.max(0, state.loteSelecionado?.valor ?? state.valorLote);
 }
 
 function condicaoLoteJornada(state: JornadaLocal): 'nao_pago' | 'parcial' | 'quitado' {
   const lote = valorLoteParaCalculo(state);
-  if (state.loteJaAdquirido === true && lote > 0 && state.valorJaPago >= lote) {
+  if (state.modoTerreno === 'informar' && lote > 0 && state.valorJaPago >= lote) {
     return 'quitado';
   }
   return inferirCondicaoLote(state.valorJaPago);
+}
+
+function calcularCustomizacao(
+  oferta: OfertaEmpreendimento | null,
+  itens: ItemCustomizacao[],
+  gadgetsSelecionados: Set<string>,
+  kitSelecionado: boolean,
+): { valorKit: number; valorGadgets: number; valorCasa: number; valorCustomizacao: number } {
+  const valorCasa = Math.max(0, Number(oferta?.valor_base_casa) || 0);
+
+  const kitItem = itens.find((i) => i.categoria === 'kit_moni');
+  const valorKit = kitSelecionado && kitItem ? kitItem.valor : 0;
+
+  const valorGadgets = itens
+    .filter((i) => i.categoria === 'gadget' && gadgetsSelecionados.has(i.id))
+    .reduce((acc, i) => acc + i.valor, 0);
+
+  return {
+    valorKit,
+    valorGadgets,
+    valorCasa,
+    valorCustomizacao: valorKit + valorGadgets,
+  };
 }
 
 function montarOfertaJornada(
@@ -88,8 +108,7 @@ function montarOfertaJornada(
   const percMensal = fracaoDePercentualPublico(tpl?.perc_parcela_mensal, 0);
   const parcelaMensal =
     percMensal > 0 ? percMensal * valorLote : sugerirParcelaMensal(valorLote);
-  const calcs = calcularValoresCasa(
-    state.loteSelecionado,
+  const calcs = calcularCustomizacao(
     state.ofertaSelecionada,
     itens,
     state.gadgetsSelecionados,
@@ -98,9 +117,9 @@ function montarOfertaJornada(
 
   return {
     valor_lote: valorLote,
-    valor_casa: Math.max(0, Number(state.ofertaSelecionada?.valor_base_casa) || 0),
+    valor_casa: calcs.valorCasa,
     valor_customizacao: calcs.valorCustomizacao,
-    valor_acoplamento: calcs.valorAcoplamento,
+    valor_acoplamento: Math.max(0, state.valorAcoplamento),
     valor_ja_pago: Math.max(0, state.valorJaPago),
     prazo_meses: prazoFase1,
     parcela_mensal: parcelaMensal,
@@ -110,19 +129,39 @@ function montarOfertaJornada(
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Estado inicial
-// ─────────────────────────────────────────────────────────────────────────────
+function previewVteAvistaOferta(
+  oferta: OfertaEmpreendimento,
+  tpl: TemplateConfigPublico | null,
+): number | null {
+  const baseCasa = Number(oferta.valor_base_casa);
+  if (!Number.isFinite(baseCasa) || baseCasa <= 0) return null;
+  const valorLote = Math.max(0, Number(oferta.valor_lote_oferta) || 0);
+  const calc = calcularOferta(montarTemplateParaEngine(tpl), {
+    valor_lote: valorLote,
+    valor_casa: baseCasa,
+    valor_customizacao: Math.max(0, Number(oferta.valor_customizacao_oferta) || 0),
+    valor_acoplamento: Math.max(0, Number(oferta.valor_acoplamento) || 0),
+    valor_ja_pago: 0,
+    prazo_meses: 12,
+    parcela_mensal: sugerirParcelaMensal(valorLote),
+    renda_cliente: 0,
+    prazo_financiamento_anos: 30,
+  });
+  return calc.vte_avista;
+}
+
 function estadoInicial(empreendimento?: EmpreendimentoPublico): JornadaLocal {
+  const prazoTpl = Math.round(Number(empreendimento?.template?.prazo_obra_meses) || 0);
   return {
     etapa: 1,
     sessaoToken: null,
     nomeCliente: '',
     telefoneCliente: '',
-    loteSelecionado: null,
-    loteJaAdquirido: null,
-    valorJaPago: 0,
     ofertaSelecionada: null,
+    previewVteAvista: null,
+    modoTerreno: null,
+    loteSelecionado: null,
+    valorJaPago: 0,
     gadgetsSelecionados: new Set(),
     kitSelecionado: false,
     valorAcoplamento: 0,
@@ -133,46 +172,12 @@ function estadoInicial(empreendimento?: EmpreendimentoPublico): JornadaLocal {
     valorLote: 0,
     simulacaoId: null,
     rendaMensal: null,
-    prazoObraMeses: 12,
+    prazoObraMeses: prazoTpl > 0 ? prazoTpl : 12,
     prazoFinanciamento: 30,
     taxaJuros: 10,
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Cálculos do Passo 4
-// valorCasa       = valor_avista da oferta (preço final mostrado no step 3)
-// valor_base_casa = custo de construção, usado só no engine do step 5
-// valorAcoplamento = lote.acoplamento (obrigatório, vem da planilha)
-// valorKit        = kit moní selecionado
-// valorGadgets    = soma dos gadgets selecionados
-// valorCustomizacao = kit + gadgets (acoplamento vai separado para o engine)
-// ─────────────────────────────────────────────────────────────────────────────
-function calcularValoresCasa(
-  lote: LotePublicoEmp | null,
-  oferta: OfertaEmpreendimento | null,
-  itens: ItemCustomizacao[],
-  gadgetsSelecionados: Set<string>,
-  kitSelecionado: boolean,
-): { valorAcoplamento: number; valorKit: number; valorGadgets: number; valorCasa: number; valorCustomizacao: number } {
-  const valorAcoplamento = lote?.acoplamento ?? 0;
-  const valorCasa = oferta?.valor_avista ?? 0;
-
-  const kitItem = itens.find((i) => i.categoria === 'kit_moni');
-  const valorKit = kitSelecionado && kitItem ? kitItem.valor : 0;
-
-  const valorGadgets = itens
-    .filter((i) => i.categoria === 'gadget' && gadgetsSelecionados.has(i.id))
-    .reduce((acc, i) => acc + i.valor, 0);
-
-  const valorCustomizacao = valorKit + valorGadgets;
-
-  return { valorAcoplamento, valorKit, valorGadgets, valorCasa, valorCustomizacao };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Indicador de progresso
-// ─────────────────────────────────────────────────────────────────────────────
 function ProgressBar({ etapa }: { etapa: number }) {
   return (
     <div className="jornadaProgress">
@@ -199,9 +204,6 @@ function ProgressBar({ etapa }: { etapa: number }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Passo 1 — Dados do cliente
-// ─────────────────────────────────────────────────────────────────────────────
 function Passo1({
   state,
   setState,
@@ -253,10 +255,92 @@ function Passo1({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Passo 2 — Escolher lote
-// ─────────────────────────────────────────────────────────────────────────────
-function Passo2({
+function PassoOferta({
+  ofertas,
+  template,
+  state,
+  setState,
+  onAvancar,
+  onVoltar,
+  salvando,
+}: {
+  ofertas: OfertaEmpreendimento[];
+  template: TemplateConfigPublico | null;
+  state: JornadaLocal;
+  setState: (s: Partial<JornadaLocal>) => void;
+  onAvancar: () => void;
+  onVoltar: () => void;
+  salvando: boolean;
+}) {
+  function escolher(o: OfertaEmpreendimento) {
+    const preview = previewVteAvistaOferta(o, template);
+    setState({
+      ofertaSelecionada: o,
+      valorCasa: Math.max(0, Number(o.valor_base_casa) || 0),
+      previewVteAvista: preview,
+    });
+  }
+
+  return (
+    <div className="jornadaCard">
+      <h2 className="jornadaCardTitle">Escolha a oferta</h2>
+      <p className="jornadaCardSub">Selecione o modelo e a condição que funcionam melhor para você.</p>
+
+      {ofertas.length === 0 ? (
+        <p className="jornadaEmpty">Nenhuma oferta disponível no momento.</p>
+      ) : (
+        <div className="jornadaOfertasList">
+          {ofertas.map((o) => {
+            const preview =
+              state.ofertaSelecionada?.id === o.id && state.previewVteAvista != null
+                ? state.previewVteAvista
+                : previewVteAvistaOferta(o, template);
+            return (
+              <button
+                key={o.id}
+                type="button"
+                className={`jornadaOfertaCard ${state.ofertaSelecionada?.id === o.id ? 'selected' : ''}`}
+                onClick={() => escolher(o)}
+              >
+                <div className="jornadaOfertaHeader">
+                  <span className="jornadaOfertaNome">
+                    {o.nome ?? o.titulo_oferta ?? `Oferta ${o.ordem + 1}`}
+                  </span>
+                  {o.produto_modelo && <span className="jornadaOfertaModelo">{o.produto_modelo}</span>}
+                </div>
+                {preview != null ? (
+                  <div className="jornadaOfertaValor">
+                    <span className="jornadaOfertaLabel">Valor total à vista</span>
+                    <span>{fmt(preview)}</span>
+                  </div>
+                ) : (
+                  <p className="jornadaOfertaDesc">
+                    Valor base da casa ainda não preenchido no card da oferta.
+                  </p>
+                )}
+                {o.descricao && <p className="jornadaOfertaDesc">{o.descricao}</p>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="jornadaBtnRow">
+        <button type="button" className="jornadaBtn jornadaBtnSecondary" onClick={onVoltar}>Voltar</button>
+        <button
+          type="button"
+          className="jornadaBtn jornadaBtnPrimary"
+          disabled={!state.ofertaSelecionada || salvando}
+          onClick={onAvancar}
+        >
+          {salvando ? 'Salvando…' : 'Continuar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PassoTerreno({
   lotes,
   state,
   setState,
@@ -271,19 +355,23 @@ function Passo2({
   onVoltar: () => void;
   salvando: boolean;
 }) {
-  const podeAvancar = state.loteJaAdquirido === true
-    ? state.valorLote > 0 && Number.isFinite(state.valorJaPago) && state.valorJaPago >= 0
-    : state.loteJaAdquirido === false
+  const podeAvancar =
+    state.modoTerreno === 'disponivel'
       ? Boolean(state.loteSelecionado)
-      : false;
+      : state.modoTerreno === 'informar'
+        ? state.valorLote > 0 && Number.isFinite(state.valorJaPago) && state.valorJaPago >= 0
+        : false;
 
-  function escolherNao() {
-    setState({ loteJaAdquirido: false, valorJaPago: 0 });
-  }
-
-  function escolherSim() {
+  function escolherModo(modo: ModoTerrenoJornada) {
+    if (modo === 'disponivel') {
+      setState({
+        modoTerreno: 'disponivel',
+        valorJaPago: 0,
+      });
+      return;
+    }
     setState({
-      loteJaAdquirido: true,
+      modoTerreno: 'informar',
       loteSelecionado: null,
       valorAcoplamento: 0,
       valorLote: 0,
@@ -291,48 +379,69 @@ function Passo2({
     });
   }
 
-  function escolherLote(loteId: string) {
-    const lote = lotes.find((l) => l.id === loteId) ?? null;
+  function escolherLote(lote: LotePublicoEmp) {
     setState({
+      modoTerreno: 'disponivel',
       loteSelecionado: lote,
-      valorLote: lote?.valor ?? 0,
-      valorAcoplamento: lote?.acoplamento ?? 0,
+      valorLote: lote.valor,
+      valorAcoplamento: lote.acoplamento ?? 0,
+      valorJaPago: 0,
     });
   }
 
   return (
     <div className="jornadaCard">
-      <h2 className="jornadaCardTitle">Escolha o lote</h2>
-      <p className="jornadaCardSub">Selecione o lote que você tem interesse.</p>
+      <h2 className="jornadaCardTitle">Seu terreno</h2>
+      <p className="jornadaCardSub">Escolha um lote disponível ou informe o terreno que você já tem.</p>
 
-      <div className="jornadaField">
-        <label id="lote-ja-adquirido-label">Você já adquiriu o lote?</label>
-        <div className="jornadaToggleRow" role="group" aria-labelledby="lote-ja-adquirido-label">
-          <button
-            type="button"
-            className={`jornadaToggleBtn ${state.loteJaAdquirido === false ? 'selected' : ''}`}
-            aria-pressed={state.loteJaAdquirido === false}
-            onClick={escolherNao}
-          >
-            Não
-          </button>
-          <button
-            type="button"
-            className={`jornadaToggleBtn ${state.loteJaAdquirido === true ? 'selected' : ''}`}
-            aria-pressed={state.loteJaAdquirido === true}
-            onClick={escolherSim}
-          >
-            Sim
-          </button>
-        </div>
+      <div className="jornadaTerrenoTabs" role="tablist" aria-label="Tipo de terreno">
+        <button
+          type="button"
+          role="tab"
+          className={`jornadaToggleBtn ${state.modoTerreno === 'disponivel' ? 'selected' : ''}`}
+          aria-selected={state.modoTerreno === 'disponivel'}
+          onClick={() => escolherModo('disponivel')}
+        >
+          Terreno disponível
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={`jornadaToggleBtn ${state.modoTerreno === 'informar' ? 'selected' : ''}`}
+          aria-selected={state.modoTerreno === 'informar'}
+          onClick={() => escolherModo('informar')}
+        >
+          Informar meu terreno
+        </button>
       </div>
 
-      {state.loteJaAdquirido === true ? (
+      {state.modoTerreno === 'disponivel' ? (
+        lotes.length === 0 ? (
+          <p className="jornadaEmpty">Nenhum lote disponível no momento.</p>
+        ) : (
+          <div className="jornadaGrid" role="list">
+            {lotes.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                role="listitem"
+                className={`jornadaLoteCard ${state.loteSelecionado?.id === l.id ? 'selected' : ''}`}
+                onClick={() => escolherLote(l)}
+              >
+                <span className="jornadaLoteCodigo">Lote {l.codigo}</span>
+                <span className="jornadaLoteValor">{fmt(l.valor)}</span>
+              </button>
+            ))}
+          </div>
+        )
+      ) : null}
+
+      {state.modoTerreno === 'informar' ? (
         <>
           <div className="jornadaField">
-            <label htmlFor="valor-lote-ja-adquirido">Valor total do lote (R$)</label>
+            <label htmlFor="valor-terreno">Valor total do terreno (R$)</label>
             <CampoNumeroBr
-              id="valor-lote-ja-adquirido"
+              id="valor-terreno"
               valor={state.valorLote > 0 ? state.valorLote : null}
               onChange={(n) => setState({ valorLote: n ?? 0, loteSelecionado: null, valorAcoplamento: 0 })}
               inteiro
@@ -340,9 +449,9 @@ function Passo2({
             />
           </div>
           <div className="jornadaField">
-            <label htmlFor="valor-ja-pago-loteadora">Valor já pago à loteadora (R$)</label>
+            <label htmlFor="valor-ja-pago-terreno">Valor já pago (R$)</label>
             <CampoNumeroBr
-              id="valor-ja-pago-loteadora"
+              id="valor-ja-pago-terreno"
               valor={state.valorJaPago}
               onChange={(n) => setState({ valorJaPago: n ?? 0 })}
               inteiro
@@ -350,31 +459,12 @@ function Passo2({
             />
           </div>
         </>
-      ) : state.loteJaAdquirido === false ? (
-        lotes.length === 0 ? (
-          <p className="jornadaEmpty">Nenhum lote disponível no momento.</p>
-        ) : (
-          <div className="jornadaField">
-            <label htmlFor="lote-planilha">Lote</label>
-            <select
-              id="lote-planilha"
-              value={state.loteSelecionado?.id ?? ''}
-              onChange={(e) => escolherLote(e.target.value)}
-            >
-              <option value="">Selecione o lote</option>
-              {lotes.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.codigo} — {fmt(l.valor)}
-                </option>
-              ))}
-            </select>
-          </div>
-        )
       ) : null}
 
       <div className="jornadaBtnRow">
-        <button className="jornadaBtn jornadaBtnSecondary" onClick={onVoltar}>Voltar</button>
+        <button type="button" className="jornadaBtn jornadaBtnSecondary" onClick={onVoltar}>Voltar</button>
         <button
+          type="button"
           className="jornadaBtn jornadaBtnPrimary"
           disabled={!podeAvancar || salvando}
           onClick={onAvancar}
@@ -386,79 +476,7 @@ function Passo2({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Passo 3 — Escolher oferta (a oferta já define o modelo de casa)
-// ─────────────────────────────────────────────────────────────────────────────
-function Passo3({
-  ofertas,
-  state,
-  setState,
-  onAvancar,
-  onVoltar,
-  salvando,
-}: {
-  ofertas: OfertaEmpreendimento[];
-  state: JornadaLocal;
-  setState: (s: Partial<JornadaLocal>) => void;
-  onAvancar: () => void;
-  onVoltar: () => void;
-  salvando: boolean;
-}) {
-  return (
-    <div className="jornadaCard">
-      <h2 className="jornadaCardTitle">Escolha a oferta</h2>
-      <p className="jornadaCardSub">Selecione o modelo e condição de pagamento que funciona melhor para você.</p>
-
-      {ofertas.length === 0 ? (
-        <p className="jornadaEmpty">Nenhuma oferta disponível no momento.</p>
-      ) : (
-        <div className="jornadaOfertasList">
-          {ofertas.map((o) => (
-            <button
-              key={o.id}
-              className={`jornadaOfertaCard ${state.ofertaSelecionada?.id === o.id ? 'selected' : ''}`}
-              onClick={() =>
-                setState({
-                  ofertaSelecionada: o,
-                  valorCasa: o.valor_avista ?? 0,
-                })
-              }
-            >
-              <div className="jornadaOfertaHeader">
-                <span className="jornadaOfertaNome">{o.titulo_oferta ?? o.nome ?? `Oferta ${o.ordem + 1}`}</span>
-                {o.produto_modelo && <span className="jornadaOfertaModelo">{o.produto_modelo}</span>}
-              </div>
-              {o.valor_avista && (
-                <div className="jornadaOfertaValor">
-                  <span className="jornadaOfertaLabel">Casa</span>
-                  <span>{fmt(o.valor_avista)}</span>
-                </div>
-              )}
-              {o.descricao && <p className="jornadaOfertaDesc">{o.descricao}</p>}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="jornadaBtnRow">
-        <button className="jornadaBtn jornadaBtnSecondary" onClick={onVoltar}>Voltar</button>
-        <button
-          className="jornadaBtn jornadaBtnPrimary"
-          disabled={!state.ofertaSelecionada || salvando}
-          onClick={onAvancar}
-        >
-          {salvando ? 'Salvando…' : 'Continuar'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Passo 4 — Customizar casa
-// Modelo já definido pela oferta. Aqui: acoplamento (obrigatório) + kit + gadgets.
-// ─────────────────────────────────────────────────────────────────────────────
-function Passo4({
+function PassoCasa({
   itens,
   state,
   setState,
@@ -473,10 +491,8 @@ function Passo4({
   onVoltar: () => void;
   salvando: boolean;
 }) {
-  // Inicializa acoplamento e valorCasa a partir do lote/oferta ao entrar neste passo
   useEffect(() => {
-    const calcs = calcularValoresCasa(
-      state.loteSelecionado,
+    const calcs = calcularCustomizacao(
       state.ofertaSelecionada,
       itens,
       state.gadgetsSelecionados,
@@ -490,12 +506,17 @@ function Passo4({
     const next = new Set(state.gadgetsSelecionados);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    const calcs = calcularValoresCasa(state.loteSelecionado, state.ofertaSelecionada, itens, next, state.kitSelecionado);
+    const calcs = calcularCustomizacao(state.ofertaSelecionada, itens, next, state.kitSelecionado);
     setState({ gadgetsSelecionados: next, ...calcs });
   }
 
   function toggleKit(val: boolean) {
-    const calcs = calcularValoresCasa(state.loteSelecionado, state.ofertaSelecionada, itens, state.gadgetsSelecionados, val);
+    const calcs = calcularCustomizacao(
+      state.ofertaSelecionada,
+      itens,
+      state.gadgetsSelecionados,
+      val,
+    );
     setState({ kitSelecionado: val, ...calcs });
   }
 
@@ -511,22 +532,28 @@ function Passo4({
           : 'Adicione o que combina com você.'}
       </p>
 
-      {/* A: Acoplamento — obrigatório, valor do lote */}
       <section className="jornadaSection">
         <h3 className="jornadaSectionTitle">
           <span className="jornadaSectionBadge">A</span>
-          Acoplamento <span className="jornadaIncluido">obrigatório</span>
+          Acoplamento
         </h3>
-        <div className="jornadaAcoplamentoTotal">
-          <strong>Acoplamento</strong>
-          <span>{fmt(state.valorAcoplamento)}</span>
+        <div className="jornadaField">
+          <label htmlFor="valor-acoplamento">Valor do acoplamento (R$)</label>
+          <CampoNumeroBr
+            id="valor-acoplamento"
+            valor={state.valorAcoplamento}
+            onChange={(n) => setState({ valorAcoplamento: n ?? 0 })}
+            inteiro
+            placeholder="0"
+          />
         </div>
         <p className="jornadaKitDesc">
-          Valor definido pelo lote escolhido ({state.loteSelecionado?.codigo}).
+          {state.modoTerreno === 'disponivel' && state.loteSelecionado
+            ? `Pré-preenchido com o valor do lote ${state.loteSelecionado.codigo}. Você pode ajustar.`
+            : 'Pré-preenchido com R$ 0. Você pode informar um valor.'}
         </p>
       </section>
 
-      {/* B: Kit Moní — opcional */}
       {kitItem && (
         <section className="jornadaSection">
           <h3 className="jornadaSectionTitle">
@@ -548,7 +575,6 @@ function Passo4({
         </section>
       )}
 
-      {/* C: Gadgets — opcionais */}
       {gadgets.length > 0 && (
         <section className="jornadaSection">
           <h3 className="jornadaSectionTitle">
@@ -574,23 +600,21 @@ function Passo4({
       )}
 
       <div className="jornadaBtnRow">
-        <button className="jornadaBtn jornadaBtnSecondary" onClick={onVoltar}>Voltar</button>
+        <button type="button" className="jornadaBtn jornadaBtnSecondary" onClick={onVoltar}>Voltar</button>
         <button
+          type="button"
           className="jornadaBtn jornadaBtnPrimary"
           disabled={salvando}
           onClick={onAvancar}
         >
-          {salvando ? 'Calculando…' : 'Ver simulação'}
+          {salvando ? 'Salvando…' : 'Continuar'}
         </button>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Passo 5 — Simulação de pagamento
-// ─────────────────────────────────────────────────────────────────────────────
-function Passo5({
+function PassoSimulacao({
   state,
   setState,
   empreendimento,
@@ -619,6 +643,8 @@ function Passo5({
   salvando: boolean;
   erroSimulacao: string | null;
 }) {
+  const prazoTpl = Math.round(Number(empreendimento.template?.prazo_obra_meses) || 0);
+  const prazoObraDoTemplate = prazoTpl > 0;
   const podeSimular =
     Boolean(empreendimento.template?.id) &&
     state.prazoFinanciamento > 0 &&
@@ -637,24 +663,61 @@ function Passo5({
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [resultadoSimulacao]);
 
+  const extrasCustom: string[] = [];
+  if (state.kitSelecionado && state.valorKit > 0) extrasCustom.push(`Kit Moní ${fmt(state.valorKit)}`);
+  if (state.valorGadgets > 0) extrasCustom.push(`Extras ${fmt(state.valorGadgets)}`);
+
   return (
     <div className="jornadaCard">
       <h2 className="jornadaCardTitle">Sua simulação</h2>
       <p className="jornadaCardSub">
-        Resumo do investimento em {empreendimento.titulo}.
+        Confira os valores e complete o que falta para calcular.
       </p>
 
       <div className="jornadaSimOferta">
+        <h3>Resumo</h3>
+        <div className="jornadaSimResumo">
+          <div className="jornadaResumoRow">
+            <span>Valor total do terreno</span>
+            <span>{fmt(valorLoteParaCalculo(state))}</span>
+          </div>
+          <div className="jornadaResumoRow">
+            <span>Valor já pago pelo terreno</span>
+            <span>{fmt(state.valorJaPago)}</span>
+          </div>
+          <div className="jornadaResumoRow">
+            <span>Acoplamento</span>
+            <span>{fmt(state.valorAcoplamento)}</span>
+          </div>
+          <div className="jornadaResumoRow">
+            <span>Customização</span>
+            <span>
+              {state.valorCustomizacao > 0
+                ? extrasCustom.length > 0
+                  ? `${fmt(state.valorCustomizacao)} (${extrasCustom.join(' · ')})`
+                  : fmt(state.valorCustomizacao)
+                : fmt(0)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="jornadaSimOferta">
         <h3>Outras informações</h3>
-        {state.loteJaAdquirido === true && (
+        {prazoObraDoTemplate ? (
           <div className="jornadaField">
-            <label htmlFor="sim-valor-ja-pago">Valor já pago à loteadora (R$)</label>
+            <p className="jornadaInfoLabel">Prazo de entrega da obra</p>
+            <p className="jornadaInfoValor">{prazoTpl} meses</p>
+          </div>
+        ) : (
+          <div className="jornadaField">
+            <label htmlFor="sim-prazo-obra">Prazo de entrega da casa (meses)</label>
             <CampoNumeroBr
-              id="sim-valor-ja-pago"
-              valor={state.valorJaPago}
-              onChange={(n) => setState({ valorJaPago: n ?? 0 })}
+              id="sim-prazo-obra"
+              valor={state.prazoObraMeses}
+              onChange={(n) => setState({ prazoObraMeses: n != null && n > 0 ? Math.round(n) : 12 })}
               inteiro
-              placeholder="0"
+              placeholder="12"
             />
           </div>
         )}
@@ -666,16 +729,6 @@ function Passo5({
             onChange={(n) => setState({ rendaMensal: n })}
             inteiro
             placeholder="0"
-          />
-        </div>
-        <div className="jornadaField">
-          <label htmlFor="sim-prazo-obra">Prazo de entrega da casa (meses)</label>
-          <CampoNumeroBr
-            id="sim-prazo-obra"
-            valor={state.prazoObraMeses}
-            onChange={(n) => setState({ prazoObraMeses: n != null && n > 0 ? Math.round(n) : 12 })}
-            inteiro
-            placeholder="12"
           />
         </div>
         <div className="jornadaField">
@@ -731,9 +784,6 @@ function Passo5({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Passo 6 — Memorial descritivo
-// ─────────────────────────────────────────────────────────────────────────────
 function Passo6({
   state,
   empreendimento,
@@ -761,13 +811,16 @@ function Passo6({
         <div className="jornadaMemSection">
           <h3>Empreendimento</h3>
           <p>{empreendimento.titulo}</p>
-          <p>Lote {state.loteSelecionado?.codigo} — {state.loteSelecionado ? fmt(state.loteSelecionado.valor) : '—'}</p>
+          <p>
+            {state.loteSelecionado
+              ? `Lote ${state.loteSelecionado.codigo} — ${fmt(state.loteSelecionado.valor)}`
+              : `Terreno — ${fmt(valorLoteParaCalculo(state))}`}
+          </p>
         </div>
         <div className="jornadaMemSection">
           <h3>Casa</h3>
           <p>
-            {state.ofertaSelecionada?.produto_modelo ?? state.ofertaSelecionada?.titulo_oferta ?? '—'}
-            {state.valorCasa > 0 ? ` — ${fmt(state.valorCasa)}` : ''}
+            {state.ofertaSelecionada?.produto_modelo ?? state.ofertaSelecionada?.titulo_oferta ?? state.ofertaSelecionada?.nome ?? '—'}
           </p>
           {state.valorAcoplamento > 0 && <p>Acoplamento: {fmt(state.valorAcoplamento)}</p>}
           {state.kitSelecionado && state.valorKit > 0 && <p>Kit Moní: {fmt(state.valorKit)}</p>}
@@ -782,8 +835,8 @@ function Passo6({
       </div>
 
       <div className="jornadaBtnRow">
-        <button className="jornadaBtn jornadaBtnSecondary" onClick={onVoltar}>Voltar</button>
-        <button className="jornadaBtn jornadaBtnPrimary" onClick={onAvancar}>
+        <button type="button" className="jornadaBtn jornadaBtnSecondary" onClick={onVoltar}>Voltar</button>
+        <button type="button" className="jornadaBtn jornadaBtnPrimary" onClick={onAvancar}>
           Ir para o contrato
         </button>
       </div>
@@ -791,9 +844,6 @@ function Passo6({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Passo 7 — Contrato (placeholder)
-// ─────────────────────────────────────────────────────────────────────────────
 function Passo7({ nomeCliente }: { nomeCliente: string }) {
   return (
     <div className="jornadaCard jornadaCardConcluido">
@@ -815,9 +865,6 @@ function Passo7({ nomeCliente }: { nomeCliente: string }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Componente principal
-// ─────────────────────────────────────────────────────────────────────────────
 export default function JornadaClient({
   empreendimento,
 }: {
@@ -838,7 +885,6 @@ export default function JornadaClient({
     setStateRaw((prev) => ({ ...prev, ...partial }));
   }, []);
 
-  // Retomada de sessão via ?sessao=token
   useEffect(() => {
     const token = searchParams.get('sessao');
     if (!token) return;
@@ -855,29 +901,37 @@ export default function JornadaClient({
         const item = empreendimento.itens_customizacao.find((i) => i.id === id);
         return item?.categoria === 'kit_moni';
       });
-      const loteJaAdquirido =
-        sessao.lote_ja_adquirido ??
-        (lote ? false : sessao.valor_lote != null && sessao.valor_lote > 0 ? true : null);
-      const calcs = calcularValoresCasa(
-        loteJaAdquirido === true ? null : lote,
+      const modoTerreno: ModoTerrenoJornada | null = lote
+        ? 'disponivel'
+        : sessao.lote_ja_adquirido === true || (sessao.valor_lote != null && sessao.valor_lote > 0 && !lote)
+          ? 'informar'
+          : sessao.lote_ja_adquirido === false
+            ? 'disponivel'
+            : null;
+      const calcs = calcularCustomizacao(
         oferta,
         empreendimento.itens_customizacao,
         gadgetsSelecionados,
         kitSelecionado,
       );
+      const preview = oferta
+        ? previewVteAvistaOferta(oferta, empreendimento.template)
+        : null;
       setStateRaw((prev) => ({
         ...prev,
         etapa: sessao.etapa_atual,
         sessaoToken: sessao.session_token,
         nomeCliente: sessao.nome_cliente ?? '',
         telefoneCliente: maskTelefoneCelular(sessao.telefone_cliente ?? ''),
-        loteSelecionado: loteJaAdquirido === true ? null : lote,
-        loteJaAdquirido,
+        loteSelecionado: modoTerreno === 'disponivel' ? lote : null,
+        modoTerreno,
         valorJaPago: sessao.valor_ja_pago ?? 0,
         valorLote: sessao.valor_lote ?? (lote?.valor ?? 0),
         ofertaSelecionada: oferta,
+        previewVteAvista: preview,
         gadgetsSelecionados,
         kitSelecionado,
+        valorAcoplamento: sessao.valor_acoplamento ?? (lote?.acoplamento ?? 0),
         ...calcs,
         simulacaoId: sessao.simulacao_id,
       }));
@@ -885,8 +939,7 @@ export default function JornadaClient({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function avancarEtapa(proximaEtapa: number, dadosExtras?: Record<string, unknown>) {
-    const calcs = calcularValoresCasa(
-      state.loteJaAdquirido === true ? null : state.loteSelecionado,
+    const calcs = calcularCustomizacao(
       state.ofertaSelecionada,
       empreendimento.itens_customizacao,
       state.gadgetsSelecionados,
@@ -895,9 +948,9 @@ export default function JornadaClient({
     const dados: Record<string, unknown> = {
       nome_cliente: state.nomeCliente,
       telefone_cliente: state.telefoneCliente,
-      lote_codigo: state.loteJaAdquirido === true ? null : state.loteSelecionado?.codigo ?? null,
+      lote_codigo: state.modoTerreno === 'disponivel' ? state.loteSelecionado?.codigo ?? null : null,
       lote_valor: valorLoteParaCalculo(state) || null,
-      lote_ja_adquirido: state.loteJaAdquirido,
+      lote_ja_adquirido: state.modoTerreno === 'informar',
       valor_ja_pago: state.valorJaPago,
       empreendimento_id: state.ofertaSelecionada?.id ?? null,
       itens_selecionados: [
@@ -908,7 +961,7 @@ export default function JornadaClient({
               .map((i) => i.id)
           : []),
       ],
-      valor_acoplamento: calcs.valorAcoplamento || null,
+      valor_acoplamento: state.valorAcoplamento || null,
       valor_kit: calcs.valorKit || null,
       valor_gadgets: calcs.valorGadgets || null,
       valor_lote: valorLoteParaCalculo(state) || null,
@@ -976,8 +1029,11 @@ export default function JornadaClient({
     setErroSimulacao(null);
     setValoresConfirmados(null);
     setRecalcToken(0);
+    const prazoTpl = Math.round(Number(empreendimento.template?.prazo_obra_meses) || 0);
+    const stateCalc: JornadaLocal =
+      prazoTpl > 0 ? { ...state, prazoObraMeses: prazoTpl } : state;
     const oferta = montarOfertaJornada(
-      state,
+      stateCalc,
       empreendimento.template,
       empreendimento.itens_customizacao,
     );
@@ -991,14 +1047,14 @@ export default function JornadaClient({
         valorCustomizacao: oferta.valor_customizacao,
         valorJaPago: oferta.valor_ja_pago,
         rendaCliente: state.rendaMensal,
-        prazoObraMeses: state.prazoObraMeses,
+        prazoObraMeses: stateCalc.prazoObraMeses,
         prazoFinanciamentoAnos: state.prazoFinanciamento,
         taxaFinanciamentoAnual: state.taxaJuros,
         nomeCliente: state.nomeCliente,
         telefoneCliente: state.telefoneCliente,
-        condicaoLote: condicaoLoteJornada(state),
+        condicaoLote: condicaoLoteJornada(stateCalc),
       }).then((result) => {
-        if (result.ok) setState({ simulacaoId: result.simulacaoId });
+        if (result.ok) setState({ simulacaoId: result.simulacaoId, prazoObraMeses: stateCalc.prazoObraMeses });
         else setErroSimulacao(result.error);
       }).catch(() => {
         setErroSimulacao('Não foi possível gravar a simulação.');
@@ -1006,7 +1062,7 @@ export default function JornadaClient({
         const calc = calcularOferta(
           montarTemplateParaEngine(empreendimento.template),
           oferta,
-          state.loteSelecionado?.acoplamento ?? 0,
+          state.valorAcoplamento,
         );
         setResultadoSimulacao(calc);
         setResultadoKey((n) => n + 1);
@@ -1029,7 +1085,7 @@ export default function JornadaClient({
           mensal_confirmada: valores.mensal,
           parcela_unica_confirmada: valores.unica,
         },
-        state.loteSelecionado?.acoplamento ?? 0,
+        state.valorAcoplamento,
       );
       setValoresConfirmados(valores);
       setResultadoSimulacao(calc);
@@ -1060,8 +1116,9 @@ export default function JornadaClient({
           />
         )}
         {state.etapa === 2 && (
-          <Passo2
-            lotes={empreendimento.lotes}
+          <PassoOferta
+            ofertas={empreendimento.ofertas}
+            template={empreendimento.template}
             state={state}
             setState={setState}
             onAvancar={() => handleAvancar(3)}
@@ -1070,8 +1127,8 @@ export default function JornadaClient({
           />
         )}
         {state.etapa === 3 && (
-          <Passo3
-            ofertas={empreendimento.ofertas}
+          <PassoTerreno
+            lotes={empreendimento.lotes}
             state={state}
             setState={setState}
             onAvancar={() => handleAvancar(4)}
@@ -1080,7 +1137,7 @@ export default function JornadaClient({
           />
         )}
         {state.etapa === 4 && (
-          <Passo4
+          <PassoCasa
             itens={empreendimento.itens_customizacao}
             state={state}
             setState={setState}
@@ -1090,7 +1147,7 @@ export default function JornadaClient({
           />
         )}
         {state.etapa === 5 && (
-          <Passo5
+          <PassoSimulacao
             state={state}
             setState={setState}
             empreendimento={empreendimento}
