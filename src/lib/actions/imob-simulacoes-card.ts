@@ -234,6 +234,37 @@ export async function criarImobSimulacaoEmpreendimento(
   return { ok: true, item: rowToImobDraft(mapImobCardEmpreendimentoRow(data as Record<string, unknown>)) };
 }
 
+export async function salvarValorBaseCasa(
+  ofertaId: string,
+  cardId: string,
+  valor: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  if (!auth.isStaff) return { ok: false, error: 'Apenas admin/team podem editar Modelo e Simulações IMOB.' };
+  const id = String(ofertaId ?? '').trim();
+  const cid = String(cardId ?? '').trim();
+  const n = Math.round(Number(valor) * 100) / 100;
+  if (!id || !cid) return { ok: false, error: 'Oferta inválida.' };
+  if (!Number.isFinite(n) || n <= 0) {
+    return { ok: false, error: 'Informe o valor base da casa.' };
+  }
+  const check = await assertCardExiste(auth.supabase, cid);
+  if (!check.ok) return check;
+
+  const { data, error } = await auth.supabase
+    .from('imob_card_empreendimentos')
+    .update({ valor_base_casa: n } as never)
+    .eq('id', id)
+    .eq('card_id', cid)
+    .select('id, valor_base_casa');
+  if (error) return { ok: false, error: error.message };
+  if (!data?.length) {
+    return { ok: false, error: 'Não foi possível salvar o valor da casa.' };
+  }
+  return { ok: true };
+}
+
 export async function salvarImobSimulacaoEmpreendimento(
   cardId: string,
   draft: ImobCardEmpreendimentoDraft,
