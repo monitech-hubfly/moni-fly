@@ -25,36 +25,6 @@
   --j-shadow-lg: 0 4px 24px rgba(12, 38, 51, 0.12);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --j-cream: #0e2030;
-    --j-cream-dark: #0a1a28;
-    --j-text: #f0ede6;
-    --j-text-soft: #c8c4bc;
-    --j-text-muted: #8a8680;
-    --j-border: #1e3a4a;
-    --j-surface: #0f2030;
-    --j-surface-raised: #0a1a28;
-    --j-selected-bg: #1a3040;
-    --j-selected-border: #C9A96E;
-    --j-shadow: 0 2px 12px rgba(0,0,0,0.3);
-    --j-shadow-lg: 0 4px 24px rgba(0,0,0,0.4);
-  }
-}
-
-:root[data-theme="dark"] {
-  --j-cream: #0e2030;
-  --j-cream-dark: #0a1a28;
-  --j-text: #f0ede6;
-  --j-text-soft: #c8c4bc;
-  --j-text-muted: #8a8680;
-  --j-border: #1e3a4a;
-  --j-surface: #0f2030;
-  --j-surface-raised: #0a1a28;
-  --j-selected-bg: #1a3040;
-  --j-selected-border: #C9A96E;
-}
-
 /* ─────────────────────── Layout geral ─────────────────────── */
 
 .jornadaWrap {
@@ -85,14 +55,6 @@
   margin: 0 0 8px;
   line-height: 1.2;
 }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .jornadaTitulo {
-    color: var(--j-gold);
-  }
-}
-
-:root[data-theme="dark"] .jornadaTitulo { color: var(--j-gold); }
 
 .jornadaDescricao {
   color: var(--j-text-soft);
@@ -153,11 +115,13 @@
 }
 
 .jornadaStepLabel {
-  font-size: 10px;
+  font-size: 11px;
   margin-top: 6px;
   color: var(--j-text-muted);
   text-align: center;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.2;
+  max-width: 4.5rem;
 }
 
 .jornadaStep.active .jornadaStepLabel {
@@ -204,11 +168,6 @@
   color: var(--j-navy);
   margin: 0 0 6px;
 }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .jornadaCardTitle { color: var(--j-gold); }
-}
-:root[data-theme="dark"] .jornadaCardTitle { color: var(--j-gold); }
 
 .jornadaCardSub {
   color: var(--j-text-soft);
@@ -300,13 +259,6 @@
 .jornadaToggleBtn:hover {
   border-color: var(--j-gold);
 }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .jornadaField input:focus,
-  :root:not([data-theme="light"]) .jornadaField select:focus { border-color: var(--j-gold); }
-}
-:root[data-theme="dark"] .jornadaField input:focus,
-:root[data-theme="dark"] .jornadaField select:focus { border-color: var(--j-gold); }
 
 /* ─────────────────────── Botões ─────────────────────── */
 
@@ -402,11 +354,6 @@
   font-size: 1rem;
   color: var(--j-navy);
 }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .jornadaLoteCodigo { color: var(--j-gold-light); }
-}
-:root[data-theme="dark"] .jornadaLoteCodigo { color: var(--j-gold-light); }
 
 .jornadaLoteValor {
   font-size: 0.875rem;
@@ -527,14 +474,6 @@
   border-radius: 99px;
   margin-left: 4px;
 }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .jornadaIncluido {
-    background: #1a4a25;
-    color: #7ddba8;
-  }
-}
-:root[data-theme="dark"] .jornadaIncluido { background: #1a4a25; color: #7ddba8; }
 
 .jornadaModelosGrid {
   display: grid;
@@ -848,11 +787,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .jornadaMemTotal { color: var(--j-gold); }
-}
-:root[data-theme="dark"] .jornadaMemTotal { color: var(--j-gold); }
-
 /* ─────────────────────── Passo 7 — Concluído ─────────────────────── */
 
 .jornadaCardConcluido {
@@ -1160,17 +1094,16 @@
   background: var(--j-navy-dark);
 }
 
+.jornadaSimBtnRecalc:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--j-navy);
+}
+
 .jornadaSimAvisoMinimo.is-abaixo {
   color: var(--j-navy);
   font-weight: 600;
 }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .jornadaPersonalizar h3 { color: var(--j-gold); }
-  :root:not([data-theme="light"]) .jornadaSimBtnOutline { color: var(--j-gold); border-color: var(--j-gold); }
-}
-:root[data-theme="dark"] .jornadaPersonalizar h3 { color: var(--j-gold); }
-:root[data-theme="dark"] .jornadaSimBtnOutline { color: var(--j-gold); border-color: var(--j-gold); }
 
 #jornada-resultado-simulacao {
   margin-bottom: 20px;
@@ -1195,5 +1128,5 @@
   .jornadaCard { padding: 24px 18px; }
   .jornadaGrid { grid-template-columns: repeat(2, 1fr); }
   .jornadaModelosGrid { grid-template-columns: 1fr 1fr; }
-  .jornadaStepLabel { font-size: 8px; }
+  .jornadaStepLabel { font-size: 10px; }
 }

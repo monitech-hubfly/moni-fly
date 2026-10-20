@@ -30,7 +30,7 @@ type Props = {
 const td = 'px-3 py-2.5 text-stone-700'
 const tdNowrap = `${td} whitespace-nowrap`
 const thGroup =
-  'border-b border-stone-200 bg-stone-100/90 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-stone-600'
+  'border-b border-stone-200 bg-[var(--moni-surface-0)] px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-stone-600'
 
 function dash(s: string | null | undefined): string {
   const t = String(s ?? '').trim()
@@ -89,8 +89,8 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
         {children}
       </RedeTabelaToolbarBusca>
 
-      <MoniTabelaScrollSync className="rounded-lg border border-stone-200 bg-white shadow-sm">
-        <table className="min-w-[2400px] border-collapse text-left text-sm">
+      <MoniTabelaScrollSync className="rounded-lg border border-stone-200 bg-[var(--moni-surface-0)] shadow-sm">
+        <table className="moni-tabela-corretores min-w-[2400px] border-collapse bg-[var(--moni-surface-0)] text-left text-sm">
           <thead>
             <tr>
               <th colSpan={3} className={thGroup}>
@@ -115,7 +115,7 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                 <span className="sr-only">Ações</span>
               </th>
             </tr>
-            <tr className="border-b border-stone-200 bg-stone-50">
+            <tr className="border-b border-stone-200 bg-[var(--moni-surface-0)]">
               <th className={redeTh}>Código</th>
               <th className={redeTh}>Nome / Razão social</th>
               <th className={redeTh}>CPF/CNPJ</th>
@@ -154,7 +154,7 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                   : ''
                 const pix = [pixTipo, row.conta_pix_chave?.trim()].filter(Boolean).join(' · ')
                 return (
-                  <tr key={row.id} className="border-b border-stone-100 hover:bg-stone-50/70">
+                  <tr key={row.id} className="border-b border-stone-100">
                     <td className={`${tdNowrap} font-medium text-stone-900`}>
                       {dash(row.n_corretor)}
                     </td>

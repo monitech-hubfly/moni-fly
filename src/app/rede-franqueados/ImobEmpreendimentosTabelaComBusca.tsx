@@ -282,6 +282,7 @@ function buildFlyerUrl(data: FlyerData, corretorId: string): string {
 
   p.set('emp_id', data.emp.id);
   p.set('emp_nome', data.emp.nome);
+  if (data.emp.slug) p.set('emp_slug', data.emp.slug);
   if (data.pipeline) p.set('pipeline', data.pipeline);
 
   const heroImg = data.hero_imagem_url ?? data.showroom?.imagem_url ?? data.emp.imagem_url;

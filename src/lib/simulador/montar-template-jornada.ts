@@ -11,6 +11,8 @@ export type TemplateFonteEngine = {
   pct_taxa_plataforma?: number | null;
   pct_taxa_gestao?: number | null;
   tipo_taxa_gestao?: string | null;
+  taxa_gestao_valor?: number | null;
+  percentual_plataforma_entrada?: number | null;
   pct_plataforma_entrada?: number | null;
   pct_lucro_loteadora?: number | null;
   pct_lucro_moni?: number | null;
@@ -108,9 +110,13 @@ export function montarTemplateParaEngine(
     percentual_impostos: fracaoOuZero(tpl.pct_impostos),
     percentual_taxa_plataforma: fracaoOuZero(tpl.pct_taxa_plataforma),
     percentual_taxa_gestao:
-      tipoGestao === 'fixo' ? (num(tpl.pct_taxa_gestao) ?? 0) : fracaoOuZero(tpl.pct_taxa_gestao),
+      tipoGestao === 'fixo'
+        ? (num(tpl.taxa_gestao_valor) ?? num(tpl.pct_taxa_gestao) ?? 0)
+        : fracaoOuZero(tpl.pct_taxa_gestao),
     tipo_taxa_gestao: tipoGestao,
-    percentual_plataforma_entrada: fracaoOuZero(tpl.pct_plataforma_entrada),
+    percentual_plataforma_entrada: fracaoOuZero(
+      tpl.percentual_plataforma_entrada ?? tpl.pct_plataforma_entrada,
+    ),
     percentual_lucro_loteadora: fracaoOuZero(tpl.pct_lucro_loteadora),
     percentual_lucro_moni: fracaoOuZero(tpl.pct_lucro_moni),
     percentual_lucro_franqueado: fracaoOuZero(tpl.pct_lucro_franqueado),

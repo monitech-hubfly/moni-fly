@@ -234,6 +234,37 @@ export async function criarImobSimulacaoEmpreendimento(
   return { ok: true, item: rowToImobDraft(mapImobCardEmpreendimentoRow(data as Record<string, unknown>)) };
 }
 
+export async function salvarValorBaseCasa(
+  ofertaId: string,
+  cardId: string,
+  valor: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  if (!auth.isStaff) return { ok: false, error: 'Apenas admin/team podem editar Modelo e Simulações IMOB.' };
+  const id = String(ofertaId ?? '').trim();
+  const cid = String(cardId ?? '').trim();
+  const n = Math.round(Number(valor) * 100) / 100;
+  if (!id || !cid) return { ok: false, error: 'Oferta inválida.' };
+  if (!Number.isFinite(n) || n <= 0) {
+    return { ok: false, error: 'Informe o valor base da casa.' };
+  }
+  const check = await assertCardExiste(auth.supabase, cid);
+  if (!check.ok) return check;
+
+  const { data, error } = await auth.supabase
+    .from('imob_card_empreendimentos')
+    .update({ valor_base_casa: n } as never)
+    .eq('id', id)
+    .eq('card_id', cid)
+    .select('id, valor_base_casa');
+  if (error) return { ok: false, error: error.message };
+  if (!data?.length) {
+    return { ok: false, error: 'Não foi possível salvar o valor da casa.' };
+  }
+  return { ok: true };
+}
+
 export async function salvarImobSimulacaoEmpreendimento(
   cardId: string,
   draft: ImobCardEmpreendimentoDraft,
@@ -254,28 +285,35 @@ export async function salvarImobSimulacaoEmpreendimento(
       };
     }
   }
-  const { error } = await auth.supabase
+
+  let supabase: ReturnType<typeof createAdminClient>;
+  try {
+    supabase = createAdminClient();
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Admin client indisponível para salvar a oferta.',
+    };
+  }
+
+  console.error('[DEBUG-SAVE] patch completo:', JSON.stringify(patch, null, 2));
+  const { data, error, count } = await supabase
     .from('imob_card_empreendimentos')
-    .update(patch as never)
+    .update(patch as never, { count: 'exact' })
     .eq('id', draft.id)
-    .eq('card_id', cardId);
+    .eq('card_id', cardId)
+    .select('valor_base_casa');
+  console.error('[UPDATE-RESULT]', { data, error, count });
   if (error) {
-    if (/valor_base_casa/i.test(error.message)) {
-      const { valor_base_casa, ...sem573 } = patch;
-      void valor_base_casa;
-      const retry = await auth.supabase
-        .from('imob_card_empreendimentos')
-        .update(sem573 as never)
-        .eq('id', draft.id)
-        .eq('card_id', cardId);
-      if (retry.error) return { ok: false, error: retry.error.message };
-      revalidatePath('/');
-      return { ok: true };
+    const errText = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ');
+    // PGRST204 / 42703 / schema cache desta coluna: não omitir o campo nem fingir sucesso.
+    if (/valor_base_casa/i.test(errText)) {
+      return { ok: false, error: 'Erro ao salvar valor da casa. Tente novamente.' };
     }
     if (/valor_acoplamento/i.test(error.message)) {
       const { valor_acoplamento, ...sem571 } = patch;
       void valor_acoplamento;
-      const retry = await auth.supabase
+      const retry = await supabase
         .from('imob_card_empreendimentos')
         .update(sem571 as never)
         .eq('id', draft.id)
@@ -288,12 +326,23 @@ export async function salvarImobSimulacaoEmpreendimento(
       const { parcela_unica, simulacao_pagamento_id, ...sem550 } = patch;
       void parcela_unica;
       void simulacao_pagamento_id;
-      const retry = await auth.supabase
+      if (normalizeImobBlocoTipo(draft.tipo) !== 'showroom') {
+        sem550.valor_base_casa = patch.valor_base_casa;
+      }
+      const retry = await supabase
         .from('imob_card_empreendimentos')
         .update(sem550 as never)
         .eq('id', draft.id)
         .eq('card_id', cardId);
-      if (retry.error) return { ok: false, error: retry.error.message };
+      if (retry.error) {
+        const retryText = [retry.error.code, retry.error.message, retry.error.details, retry.error.hint]
+          .filter(Boolean)
+          .join(' ');
+        if (/valor_base_casa/i.test(retryText)) {
+          return { ok: false, error: 'Erro ao salvar valor da casa. Tente novamente.' };
+        }
+        return { ok: false, error: retry.error.message };
+      }
       revalidatePath('/');
       return { ok: true };
     }

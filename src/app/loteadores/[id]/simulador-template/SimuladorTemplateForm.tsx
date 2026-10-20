@@ -3,7 +3,6 @@
 import { startTransition, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { salvarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
-import { gerarSlugCard } from '@/lib/utils/slug';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
   PCT_FIELDS,
@@ -12,6 +11,7 @@ import {
   PRAZO_OBRA_MESES_PADRAO,
   TOAST_TEMPLATE_SALVO,
   VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
+  rowToSimuladorTemplateDraft,
   type LoteamentoSimuladorTemplateDraft,
   type PremissaEntradaTipo,
   type TipoJurosCp,
@@ -26,12 +26,10 @@ import {
 type Props = {
   cardId: string;
   cardTitulo: string;
-  nomeCondominio: string | null;
   draftInicial: LoteamentoSimuladorTemplateDraft;
-  linkInicial: string | null;
+  jaSalvoInicial: boolean;
   pageSlugInicial: string | null;
-  planilhaLotesPath: string | null;
-  pageAtivaInicial: boolean;
+  linkMoniInicial: string | null;
 };
 
 const fieldCls =
@@ -49,42 +47,31 @@ const hintStyle = { color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-
 export function SimuladorTemplateForm({
   cardId,
   cardTitulo,
-  nomeCondominio,
   draftInicial,
-  linkInicial,
+  jaSalvoInicial,
   pageSlugInicial,
-  planilhaLotesPath,
-  pageAtivaInicial,
+  linkMoniInicial,
 }: Props) {
   const router = useRouter();
   const [draft, setDraft] = useState(draftInicial);
   const [rascunhoBase, setRascunhoBase] = useState(() => JSON.stringify(draftInicial));
+  const [pageSlug, setPageSlug] = useState(() => String(pageSlugInicial ?? '').trim());
+  const [pageSlugSalvo, setPageSlugSalvo] = useState(() => String(pageSlugInicial ?? '').trim());
+  const [linkMoni, setLinkMoni] = useState<string | null>(linkMoniInicial);
+  const [jaSalvo, setJaSalvo] = useState(jaSalvoInicial);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [copiado, setCopiado] = useState(false);
-  const [slug, setSlug] = useState(() => pageSlugInicial?.trim() ?? '');
-  const [slugBase, setSlugBase] = useState(() => pageSlugInicial?.trim() ?? '');
-  const [slugError, setSlugError] = useState<string | null>(null);
-  const [planilhaPath] = useState(() => planilhaLotesPath?.trim() ?? '');
-  const [pageAtiva, setPageAtiva] = useState(pageAtivaInicial);
-  const [linkMoniCopiado, setLinkMoniCopiado] = useState(false);
-
-  const slugSugerido = useMemo(
-    () => gerarSlugCard(nomeCondominio, cardTitulo, cardId),
-    [nomeCondominio, cardTitulo, cardId],
-  );
+  const [copiadoMoni, setCopiadoMoni] = useState(false);
 
   useEffect(() => {
-    const salvo = pageSlugInicial?.trim() ?? '';
-    if (salvo) {
-      setSlug(salvo);
-      setSlugBase(salvo);
-      return;
-    }
-    setSlug(gerarSlugCard(nomeCondominio, cardTitulo, cardId));
-    setSlugBase('');
-  }, [cardId, pageSlugInicial, nomeCondominio, cardTitulo]);
+    setDraft(draftInicial);
+    setRascunhoBase(JSON.stringify(draftInicial));
+    setPageSlug(String(pageSlugInicial ?? '').trim());
+    setPageSlugSalvo(String(pageSlugInicial ?? '').trim());
+    setLinkMoni(linkMoniInicial);
+    setJaSalvo(jaSalvoInicial);
+  }, [draftInicial, pageSlugInicial, linkMoniInicial, jaSalvoInicial]);
 
   useEffect(() => {
     if (!mensagem) return;
@@ -106,37 +93,50 @@ export function SimuladorTemplateForm({
     [draft.prazo_obra_meses],
   );
 
-  const temAlteracoes = JSON.stringify(draft) !== rascunhoBase || slug.trim() !== slugBase;
-  const podeSalvar = !salvando && temAlteracoes;
-  const linkMoni = slug.trim() ? `https://moni.casa/empreendimento/${slug.trim()}` : '';
+  const temAlteracoes =
+    JSON.stringify(draft) !== rascunhoBase || pageSlug.trim().toLowerCase() !== pageSlugSalvo.trim().toLowerCase();
+  const podeSalvar = !salvando && (!jaSalvo || temAlteracoes);
 
   async function onSalvar() {
     if (!podeSalvar) return;
+    const snapshot: LoteamentoSimuladorTemplateDraft = { ...draft };
+    const slugSnapshot = pageSlug;
     setSalvando(true);
     setErro(null);
-    setSlugError(null);
     setMensagem(null);
     startTransition(() => {
       void (async () => {
-        const formData = new FormData();
-        formData.set('page_slug', slug);
-        formData.set('planilha_lotes_path', planilhaPath);
-        const res = await salvarSimuladorTemplateDoCard(cardId, draft, formData);
+        const res = await salvarSimuladorTemplateDoCard(cardId, snapshot, slugSnapshot);
         if (!res.ok) {
-          if (/slug/i.test(res.error)) setSlugError(res.error);
-          else setErro(res.error);
+          setErro(res.error);
           setSalvando(false);
           return;
         }
         marcarSimuladorTemplateSalvo(cardId);
-        setRascunhoBase(JSON.stringify(draft));
-        setSlugBase(slug.trim());
-        if (typeof res.pageAtiva === 'boolean') setPageAtiva(res.pageAtiva);
+        setJaSalvo(true);
+        const nextDraft = res.template ? rowToSimuladorTemplateDraft(res.template) : snapshot;
+        setDraft(nextDraft);
+        setRascunhoBase(JSON.stringify(nextDraft));
+        const slugSalvo = String(res.pageSlug ?? '').trim();
+        setPageSlug(slugSalvo);
+        setPageSlugSalvo(slugSalvo);
+        setLinkMoni(res.linkMoni);
         setMensagem(TOAST_TEMPLATE_SALVO);
         setSalvando(false);
         router.refresh();
       })();
     });
+  }
+
+  async function copiarLinkMoni() {
+    if (!linkMoni) return;
+    try {
+      await navigator.clipboard.writeText(linkMoni);
+      setCopiadoMoni(true);
+      window.setTimeout(() => setCopiadoMoni(false), 2000);
+    } catch {
+      setErro('Não foi possível copiar. Selecione o link e copie manualmente.');
+    }
   }
 
   return (
@@ -189,95 +189,6 @@ export function SimuladorTemplateForm({
             Se vazio, usamos o título do card.
           </span>
         </label>
-        <label className="mt-4 block">
-          <span className={labelCls} style={labelStyle}>
-            Slug da jornada pública
-          </span>
-          <input
-            className={fieldCls}
-            style={fieldStyle}
-            name="page_slug"
-            value={slug}
-            onChange={(e) => {
-              setSlug(e.target.value);
-              setSlugError(null);
-              setMensagem(null);
-            }}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          {nomeCondominio?.trim() || cardTitulo?.trim() ? (
-            <p className="mt-1 text-xs text-muted-foreground" style={hintStyle}>
-              Sugerido:{' '}
-              <button
-                type="button"
-                className="underline"
-                style={{ color: 'var(--moni-navy-800)' }}
-                onClick={() => {
-                  setSlug(slugSugerido);
-                  setSlugError(null);
-                }}
-              >
-                {slugSugerido}
-              </button>
-            </p>
-          ) : null}
-          {slugError ? (
-            <p className="mt-1 text-xs text-destructive" style={{ color: 'var(--moni-status-overdue-border)' }}>
-              {slugError}
-            </p>
-          ) : null}
-          <input type="hidden" name="planilha_lotes_path" value={planilhaPath} />
-        </label>
-        <div className="mt-4">
-          <span className={labelCls} style={labelStyle}>
-            Link Moní
-          </span>
-          {pageAtiva === true && linkMoni ? (
-            <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <p
-                className="min-w-0 flex-1 break-all rounded-[var(--moni-radius-md)] px-3 py-2 text-sm"
-                style={{
-                  ...fieldStyle,
-                  minHeight: 44,
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                {linkMoni}
-              </p>
-              <button
-                type="button"
-                className="min-h-[44px] shrink-0 rounded-[var(--moni-radius-md)] px-4 text-sm font-medium text-white"
-                style={{ background: 'var(--moni-navy-800)' }}
-                onClick={() => {
-                  void navigator.clipboard.writeText(linkMoni).then(
-                    () => {
-                      setLinkMoniCopiado(true);
-                      setTimeout(() => setLinkMoniCopiado(false), 2000);
-                    },
-                    () => setErro('Não foi possível copiar. Selecione o link e copie manualmente.'),
-                  );
-                }}
-              >
-                {linkMoniCopiado ? 'Copiado' : 'Copiar link'}
-              </button>
-            </div>
-          ) : (
-            <div
-              className="mt-1 cursor-not-allowed rounded-[var(--moni-radius-md)] px-3 py-3 opacity-50"
-              style={{
-                background: 'var(--moni-surface-100)',
-                border: 'var(--moni-border-width) solid var(--moni-border-default)',
-                fontFamily: 'var(--moni-font-sans)',
-              }}
-            >
-              <p className="text-sm text-muted-foreground" style={hintStyle}>
-                Configure o slug e a planilha de lotes para ativar o Link Moní
-              </p>
-            </div>
-          )}
-        </div>
       </section>
 
       <section>
@@ -304,7 +215,7 @@ export function SimuladorTemplateForm({
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
-                {'suffix' in f && f.suffix ? String(f.suffix) : ' (%)'}
+                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
               </span>
               <CampoDraftNumero
                 value={draft[f.key]}
@@ -322,7 +233,7 @@ export function SimuladorTemplateForm({
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
-                {'suffix' in f && f.suffix ? String(f.suffix) : ' (%)'}
+                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
               </span>
               <CampoDraftNumero
                 value={draft[f.key]}
@@ -357,7 +268,7 @@ export function SimuladorTemplateForm({
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
-                {'suffix' in f && f.suffix ? String(f.suffix) : ' (%)'}
+                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
               </span>
               <CampoDraftNumero
                 value={draft[f.key]}
@@ -375,7 +286,7 @@ export function SimuladorTemplateForm({
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
-                {'suffix' in f && f.suffix ? String(f.suffix) : ' (%)'}
+                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
               </span>
               <CampoDraftNumero
                 value={draft[f.key]}
@@ -392,8 +303,9 @@ export function SimuladorTemplateForm({
               Percentual da taxa de plataforma pago na entrada (%)
             </span>
             <CampoDraftNumero
-              value={draft.pct_plataforma_entrada}
-              onChange={(v) => setCampo('pct_plataforma_entrada', v)}
+              name="percentual_plataforma_entrada"
+              value={draft.percentual_plataforma_entrada}
+              onChange={(v) => setCampo('percentual_plataforma_entrada', v)}
               placeholder="0"
             />
             <span className="mt-1 block text-[11px]" style={hintStyle}>
@@ -420,10 +332,10 @@ export function SimuladorTemplateForm({
                     tipo === 'percentual' && prev.pct_taxa_gestao.trim() === ''
                       ? PCT_TAXA_GESTAO_PADRAO_UI
                       : prev.pct_taxa_gestao,
-                  valor_taxa_gestao:
-                    tipo === 'fixo' && prev.valor_taxa_gestao.trim() === ''
+                  taxa_gestao_valor:
+                    tipo === 'fixo' && prev.taxa_gestao_valor.trim() === ''
                       ? VALOR_TAXA_GESTAO_FIXO_PADRAO_UI
-                      : prev.valor_taxa_gestao,
+                      : prev.taxa_gestao_valor,
                 }));
                 setMensagem(null);
                 setErro(null);
@@ -439,12 +351,14 @@ export function SimuladorTemplateForm({
             </span>
             {draft.tipo_taxa_gestao === 'fixo' ? (
               <CampoDraftNumero
-                value={draft.valor_taxa_gestao}
-                onChange={(v) => setCampo('valor_taxa_gestao', v)}
+                name="taxa_gestao_valor"
+                value={draft.taxa_gestao_valor}
+                onChange={(v) => setCampo('taxa_gestao_valor', v)}
                 placeholder={VALOR_TAXA_GESTAO_FIXO_PADRAO_UI}
               />
             ) : (
               <CampoDraftNumero
+                name="pct_taxa_gestao"
                 value={draft.pct_taxa_gestao}
                 onChange={(v) => setCampo('pct_taxa_gestao', v)}
                 placeholder={PCT_TAXA_GESTAO_PADRAO_UI}
@@ -468,7 +382,7 @@ export function SimuladorTemplateForm({
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
-                {'suffix' in f && f.suffix ? String(f.suffix) : ' (%)'}
+                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
               </span>
               <CampoDraftNumero
                 value={draft[f.key]}
@@ -548,6 +462,77 @@ export function SimuladorTemplateForm({
         </div>
       </section>
 
+      <section>
+        <label className="block">
+          <span className={labelCls} style={labelStyle}>
+            Slug da jornada pública
+          </span>
+          <input
+            className={fieldCls}
+            style={fieldStyle}
+            value={pageSlug}
+            onChange={(e) => {
+              setPageSlug(e.target.value);
+              setMensagem(null);
+              setErro(null);
+            }}
+            placeholder="ex: residencial-alfa-goiania"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <span className="mt-1 block text-[11px]" style={hintStyle}>
+            Usado na URL da jornada do cliente. Use apenas letras minúsculas, números e hífens. Ex:
+            /empreendimento/residencial-alfa
+          </span>
+        </label>
+      </section>
+
+      <section
+        className="rounded-[var(--moni-radius-lg)] p-4 sm:p-5"
+        style={{
+          border: 'var(--moni-border-width) solid var(--moni-border-default)',
+          background: 'var(--moni-surface-0)',
+          boxShadow: 'var(--moni-shadow-card)',
+        }}
+      >
+        <h2
+          className="text-lg"
+          style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
+        >
+          Link Moní
+        </h2>
+        <p className="mt-1 text-sm" style={hintStyle}>
+          Jornada pública do empreendimento, sem corretor.
+        </p>
+        {linkMoni ? (
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <p
+              className="min-w-0 flex-1 break-all rounded-[var(--moni-radius-md)] px-3 py-2 text-sm"
+              style={{
+                ...fieldStyle,
+                minHeight: 44,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {linkMoni}
+            </p>
+            <button
+              type="button"
+              onClick={() => void copiarLinkMoni()}
+              className="min-h-[44px] shrink-0 rounded-[var(--moni-radius-md)] px-4 text-sm font-medium text-white"
+              style={{ background: 'var(--moni-navy-800)' }}
+            >
+              {copiadoMoni ? 'Copiado' : 'Copiar'}
+            </button>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm" style={hintStyle}>
+            Este empreendimento ainda não tem slug da jornada pública.
+          </p>
+        )}
+      </section>
+
       <div
         className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t px-4 py-3 sm:-mx-0 sm:static sm:flex-row sm:flex-wrap sm:border-0 sm:px-0 sm:py-0"
         style={{
@@ -577,15 +562,18 @@ function CampoDraftNumero({
   onChange,
   inteiro,
   placeholder,
+  name,
 }: {
   value: string;
   onChange: (v: string) => void;
   inteiro?: boolean;
   placeholder?: string;
+  name?: string;
 }) {
   const numero = value.trim() === '' ? null : parsearNumeroInput(value);
   return (
     <CampoNumeroBr
+      name={name}
       className={fieldCls}
       style={fieldStyle}
       valor={numero}

@@ -193,8 +193,16 @@ function numToCampo(n: number | null | undefined): string {
 }
 
 function campoToNum(raw: string): number | null {
-  const n = parseMoneyText(raw);
-  if (n == null || !Number.isFinite(n)) return null;
+  const t = String(raw ?? '').trim();
+  if (!t) return null;
+  // Máscara pt-BR do campo: "1.000.000,00" → 1000000 (remove milhar, vírgula decimal).
+  const normalized = t
+    .replace(/r\$\s*/gi, '')
+    .replace(/\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return null;
   return Math.round(n * 100) / 100;
 }
 
@@ -357,6 +365,7 @@ export function draftToImobPatch(draft: ImobCardEmpreendimentoDraft): Record<str
     patch[k] = campoToNum(draft[k]);
   }
   if (patch.valor_base_casa == null) patch.valor_base_casa = 0;
+  console.error('[DEBUG-PATCH] valor_base_casa no patch:', patch.valor_base_casa);
   return patch;
 }
 

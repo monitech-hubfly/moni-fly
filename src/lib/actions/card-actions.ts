@@ -22,7 +22,6 @@ import type { LoteadoresConfirmacaoFaseTipo } from '@/lib/kanban/loteadores-conf
 import { carregarPermissoesMap } from '@/lib/permissoes-load';
 import { FASE_IDS, FASE_SLUGS, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { montarTituloCardLoteadores, isKanbanFunilLoteadoresRef } from '@/lib/kanban/loteadores-card-titulo';
-import { loadHistoricoCardModal } from '@/lib/kanban/kanban-card-historico';
 import { isHipotesesFaseSlug } from '@/lib/kanban/stepone-fase-slugs';
 import { calcularDataEnvioCreditoObra } from '@/lib/pre-obra/credito-obra-envio-data';
 import type { FundingTipo } from '@/lib/kanban/funding-card-fields';
@@ -219,14 +218,10 @@ export async function vincularTagCard(
 ): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from('kanban_card_tags')
-      .insert({ card_id: cardId, tag_id: tagId })
-      .select('id')
-      .single();
+    const { error } = await supabase.from('kanban_card_tags').insert({ card_id: cardId, tag_id: tagId });
     if (error) return { ok: false, error: error.message };
     revalidatePath(basePath ?? '/');
-    return { ok: true, id: String((data as { id?: string } | null)?.id ?? '') || undefined };
+    return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -5821,7 +5816,6 @@ export async function salvarLinksBcaAcoplamentoNegocio(input: {
   return { ok: true, linkGbox: sync.linkGbox, linkAcoplamento: sync.linkAcoplamento };
 }
 
-/** Histórico unificado (kanban_historico + processo_card_eventos) para o modal de detalhe legado. */
 export async function carregarHistoricoUnificadoCard(input: {
   cardId: string;
   origem?: 'nativo' | 'legado';
@@ -5833,24 +5827,19 @@ export async function carregarHistoricoUnificadoCard(input: {
   if (!user) return { ok: false, error: 'Faça login.' };
   const cardId = String(input.cardId ?? '').trim();
   if (!cardId) return { ok: false, error: 'Card inválido.' };
-
-  const { data: card } = await supabase
-    .from('kanban_cards')
-    .select('kanban_id')
-    .eq('id', cardId)
-    .maybeSingle();
-  const kanbanId = String((card as { kanban_id?: string | null } | null)?.kanban_id ?? '').trim() || undefined;
-
-  try {
-    const items = await loadHistoricoCardModal(
-      supabase,
-      cardId,
-      input.origem === 'legado' ? 'legado' : 'nativo',
-      [],
-      kanbanId,
-    );
-    return { ok: true, items };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
-  }
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('id, acao, usuario, detalhe:snapshot_depois, criado_em:created_at')
+    .or(`entidade_id.eq.${cardId},recurso_id.eq.${cardId}`)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) return { ok: false, error: error.message };
+  const items: HistoricoItem[] = (data ?? []).map((row) => ({
+    id: String(row.id ?? ''),
+    acao: String((row as { acao?: string | null }).acao ?? '—'),
+    usuario_nome: String((row as { usuario?: string | null }).usuario ?? '') || null,
+    detalhe: (row as { detalhe?: Record<string, unknown> | null }).detalhe ?? null,
+    criado_em: String((row as { criado_em?: string | null }).criado_em ?? ''),
+  }));
+  return { ok: true, items };
 }

@@ -330,6 +330,7 @@ import { AnexosChamado } from './AnexosChamado';
 import { AnexosSubchamado } from './AnexosSubchamado';
 import { prefetchChecklistFase } from '@/lib/kanban/fase-checklist-leitura';
 import { ChecklistCard } from './ChecklistCard';
+import { KanbanCardCorretoresPainel, KanbanCardCorretoresSecao } from './KanbanCardCorretoresSecao';
 import { ChecklistLegalCondominioCard } from './ChecklistLegalCondominioCard';
 import { ChecklistCreditoSection } from '@/app/steps-viabilidade/ChecklistCreditoSection';
 import { FaseChecklistCard } from './FaseChecklistCard';
@@ -698,7 +699,10 @@ export function KanbanCardModal({
   const [salvandoFranqueado, setSalvandoFranqueado] = useState(false);
   const [totalCardsSyncGrupo, setTotalCardsSyncGrupo] = useState(0);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
-  const [abaCentro, setAbaCentro] = useState<'detalhes' | 'chamados' | 'trancheVinculo' | 'calculadora'>('detalhes');
+  const [abaCentro, setAbaCentro] = useState<
+    'detalhes' | 'chamados' | 'trancheVinculo' | 'calculadora' | 'corretores'
+  >('detalhes');
+  const [corretoresPainelTick, setCorretoresPainelTick] = useState(0);
 
   type AnexoSireneRow = { id: number; chamado_id: number; topico_id: number | null; uploader_nome: string | null; nome_original: string | null; origem: string | null; created_at: string };
   const [anexosSirene, setAnexosSirene] = useState<AnexoSireneRow[]>([]);
@@ -3072,6 +3076,11 @@ export function KanbanCardModal({
     setSecaoAberta((prev) => ({ ...prev, chamados: true }));
   }
 
+  function abrirPainelCorretores() {
+    setAbaCentro('corretores');
+    setTrancheVinculoIndex(null);
+  }
+
   function abrirPainelTrancheVinculo(index: number) {
     setTrancheVinculoIndex(index);
     setAbaCentro('trancheVinculo');
@@ -4380,7 +4389,10 @@ export function KanbanCardModal({
   const podeGerenciarRelacionamentos =
     !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
   const painelCentroAlternativo =
-    abaCentro === 'chamados' || abaCentro === 'trancheVinculo' || abaCentro === 'calculadora';
+    abaCentro === 'chamados' ||
+    abaCentro === 'trancheVinculo' ||
+    abaCentro === 'calculadora' ||
+    abaCentro === 'corretores';
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
@@ -5846,6 +5858,12 @@ export function KanbanCardModal({
             )}
             </div>
             </>
+            ) : abaCentro === 'corretores' ? (
+              <KanbanCardCorretoresPainel
+                cardId={card.id}
+                onVoltar={voltarPainelDetalhes}
+                onAlterou={() => setCorretoresPainelTick((t) => t + 1)}
+              />
             ) : abaCentro === 'calculadora' ? (
             <div className="flex min-h-0 flex-1 flex-col">
               <button
@@ -7910,6 +7928,15 @@ export function KanbanCardModal({
                   />,
                 )
               : null}
+            {card?.id && staffPeloContexto && !portalFrank ? (
+              <KanbanCardCorretoresSecao
+                key={card.id}
+                cardId={card.id}
+                ativo={abaCentro === 'corretores'}
+                onAbrir={abrirPainelCorretores}
+                refreshKey={corretoresPainelTick}
+              />
+            ) : null}
             {card && (
               <ChecklistCard
                 cardId={card.id}

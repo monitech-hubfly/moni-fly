@@ -28,7 +28,7 @@ export const PCT_ITBI_PADRAO_UI = '3';
 export const PCT_IMPOSTOS_PADRAO_UI = '6';
 export const PCT_TAXA_PLATAFORMA_PADRAO_UI = '8';
 export const PCT_TAXA_GESTAO_PADRAO_UI = '7';
-export const VALOR_TAXA_GESTAO_FIXO_PADRAO_UI = '90.000';
+export const VALOR_TAXA_GESTAO_FIXO_PADRAO_UI = '90000';
 export const PCT_COMISSAO_CORRETOR_PADRAO_UI = '6';
 export const PRAZO_OBRA_MESES_PADRAO = 7;
 export const PRAZO_OBRA_MESES_MINIMO = 3;
@@ -61,7 +61,8 @@ export type LoteamentoSimuladorTemplateRow = {
   pct_taxa_plataforma: number;
   pct_taxa_gestao: number;
   tipo_taxa_gestao: TipoTaxaGestao;
-  pct_plataforma_entrada: number;
+  taxa_gestao_valor: number | null;
+  percentual_plataforma_entrada: number;
   pct_lucro_loteadora: number;
   pct_lucro_moni: number;
   pct_lucro_franqueado: number;
@@ -93,8 +94,8 @@ export type LoteamentoSimuladorTemplateDraft = {
   pct_taxa_plataforma: string;
   pct_taxa_gestao: string;
   tipo_taxa_gestao: TipoTaxaGestao;
-  valor_taxa_gestao: string;
-  pct_plataforma_entrada: string;
+  taxa_gestao_valor: string;
+  percentual_plataforma_entrada: string;
   pct_lucro_loteadora: string;
   pct_lucro_moni: string;
   pct_lucro_franqueado: string;
@@ -105,7 +106,26 @@ export type LoteamentoSimuladorTemplateDraft = {
   prazo_obra_meses: string;
 };
 
-export const PCT_FIELDS = [
+type SimuladorPctField = {
+  key: keyof Pick<
+    LoteamentoSimuladorTemplateDraft,
+    | 'pct_itbi'
+    | 'pct_impostos'
+    | 'taxa_juros_credito_ponte'
+    | 'taxa_juros_financiamento_anual'
+    | 'pct_taxa_plataforma'
+    | 'pct_lucro_loteadora'
+    | 'pct_lucro_moni'
+    | 'pct_lucro_franqueado'
+    | 'pct_comissao_corretor'
+  >;
+  label: string;
+  hint: string;
+  placeholder?: string;
+  suffix?: string;
+};
+
+export const PCT_FIELDS: readonly SimuladorPctField[] = [
   { key: 'pct_itbi', label: 'ITBI', hint: 'Sobre o valor do lote, pago na quitação.', placeholder: PCT_ITBI_PADRAO_UI },
   {
     key: 'pct_impostos',
@@ -129,7 +149,7 @@ export const PCT_FIELDS = [
   {
     key: 'pct_taxa_plataforma',
     label: 'Taxa de plataforma',
-    hint: 'Sobre custo da casa + customização. Sem fatia na entrada, dilui na obra.',
+    hint: 'Sobre custo da casa + customização. Sem fatia na entrada, diluída nos 3 primeiros meses de obra.',
     placeholder: PCT_TAXA_PLATAFORMA_PADRAO_UI,
   },
   {
@@ -153,24 +173,7 @@ export const PCT_FIELDS = [
     hint: 'Sobre o VTP; paga na entrada.',
     placeholder: PCT_COMISSAO_CORRETOR_PADRAO_UI,
   },
-] as const satisfies ReadonlyArray<{
-  key: keyof Pick<
-    LoteamentoSimuladorTemplateDraft,
-    | 'pct_itbi'
-    | 'pct_impostos'
-    | 'taxa_juros_credito_ponte'
-    | 'taxa_juros_financiamento_anual'
-    | 'pct_taxa_plataforma'
-    | 'pct_lucro_loteadora'
-    | 'pct_lucro_moni'
-    | 'pct_lucro_franqueado'
-    | 'pct_comissao_corretor'
-  >;
-  label: string;
-  hint: string;
-  placeholder?: string;
-  suffix?: string;
-}>;
+];
 
 export function emptySimuladorTemplateDraft(): LoteamentoSimuladorTemplateDraft {
   return {
@@ -183,15 +186,15 @@ export function emptySimuladorTemplateDraft(): LoteamentoSimuladorTemplateDraft 
     pct_taxa_plataforma: PCT_TAXA_PLATAFORMA_PADRAO_UI,
     pct_taxa_gestao: PCT_TAXA_GESTAO_PADRAO_UI,
     tipo_taxa_gestao: 'percentual',
-    valor_taxa_gestao: VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
-    pct_plataforma_entrada: '0',
+    taxa_gestao_valor: VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
+    percentual_plataforma_entrada: '0',
     pct_lucro_loteadora: '',
     pct_lucro_moni: '',
     pct_lucro_franqueado: '',
     pct_comissao_corretor: PCT_COMISSAO_CORRETOR_PADRAO_UI,
     entrada_minima_tipo: 'percentual',
     entrada_minima_valor: '',
-    taxa_juros_parcelado_mes: '',
+    taxa_juros_parcelado_mes: '0',
     prazo_obra_meses: String(PRAZO_OBRA_MESES_PADRAO),
   };
 }
@@ -207,8 +210,8 @@ export function numeroParaInputBr(n: number | null | undefined): string {
  * Interpreta o que a Helena digitou no campo de % (3 / 3,5 / 2.5).
  * Ponto só é milhar quando há exatamente 3 dígitos depois (ex.: 1.500).
  */
-export function parsePercentualUi(raw: string): number | null {
-  const t = raw.trim().replace(/\s/g, '').replace('%', '');
+export function parsePercentualUi(raw: unknown): number | null {
+  const t = String(raw ?? '').trim().replace(/\s/g, '').replace('%', '');
   if (!t) return null;
   const temVirgula = t.includes(',');
   const temPonto = t.includes('.');
@@ -237,7 +240,8 @@ export function fracaoParaPercentualUi(n: number | null | undefined): string {
   return numeroParaInputBr(Number(n) * 100);
 }
 
-export function percentualUiParaFracao(raw: string): number {
+export function percentualUiParaFracao(raw: unknown): number {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw / 100;
   const n = parsePercentualUi(raw);
   if (n == null) return 0;
   return n / 100;
@@ -313,17 +317,17 @@ export function rowToSimuladorTemplateDraft(
           ),
     pct_taxa_plataforma: percentualUiOuSugestao(row.pct_taxa_plataforma, PCT_TAXA_PLATAFORMA_PADRAO_UI),
     pct_taxa_gestao:
-      parseTipoTaxaGestao(row.tipo_taxa_gestao) === 'fixo'
+      !Number(row.pct_taxa_gestao)
         ? PCT_TAXA_GESTAO_PADRAO_UI
         : percentualUiOuSugestao(row.pct_taxa_gestao, PCT_TAXA_GESTAO_PADRAO_UI),
     tipo_taxa_gestao: parseTipoTaxaGestao(row.tipo_taxa_gestao),
-    valor_taxa_gestao:
-      parseTipoTaxaGestao(row.tipo_taxa_gestao) === 'fixo'
-        ? row.pct_taxa_gestao == null || !Number.isFinite(Number(row.pct_taxa_gestao))
-          ? VALOR_TAXA_GESTAO_FIXO_PADRAO_UI
-          : numeroParaInputBr(row.pct_taxa_gestao)
-        : VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
-    pct_plataforma_entrada: fracaoParaPercentualUi(row.pct_plataforma_entrada),
+    taxa_gestao_valor:
+      row.taxa_gestao_valor == null || !Number.isFinite(Number(row.taxa_gestao_valor))
+        ? parseTipoTaxaGestao(row.tipo_taxa_gestao) === 'fixo' && Number(row.pct_taxa_gestao) >= 1
+          ? numeroParaInputBr(row.pct_taxa_gestao)
+          : VALOR_TAXA_GESTAO_FIXO_PADRAO_UI
+        : numeroParaInputBr(row.taxa_gestao_valor),
+    percentual_plataforma_entrada: fracaoParaPercentualUi(row.percentual_plataforma_entrada),
     pct_lucro_loteadora: fracaoParaPercentualUi(row.pct_lucro_loteadora),
     pct_lucro_moni: fracaoParaPercentualUi(row.pct_lucro_moni),
     pct_lucro_franqueado: fracaoParaPercentualUi(row.pct_lucro_franqueado),
@@ -354,7 +358,10 @@ export function mapTemplateRow(raw: Record<string, unknown>): LoteamentoSimulado
     pct_taxa_plataforma: Number(raw.pct_taxa_plataforma ?? 0),
     pct_taxa_gestao: Number(raw.pct_taxa_gestao ?? 0),
     tipo_taxa_gestao: parseTipoTaxaGestao(raw.tipo_taxa_gestao),
-    pct_plataforma_entrada: Number(raw.pct_plataforma_entrada ?? 0),
+    taxa_gestao_valor: numOrNull(raw.taxa_gestao_valor),
+    percentual_plataforma_entrada: Number(
+      raw.percentual_plataforma_entrada ?? raw.pct_plataforma_entrada ?? 0,
+    ),
     pct_lucro_loteadora: Number(raw.pct_lucro_loteadora ?? 0),
     pct_lucro_moni: Number(raw.pct_lucro_moni ?? 0),
     pct_lucro_franqueado: Number(raw.pct_lucro_franqueado ?? 0),
@@ -442,12 +449,20 @@ export function isColunaSimulador571Ausente(message: string | undefined): boolea
   return /valor_acoplamento/i.test(message ?? '');
 }
 
+function isErroColunaSchemaCache(message: string | undefined, colunas: RegExp): boolean {
+  const m = message ?? '';
+  return colunas.test(m) && /schema cache|could not find|does not exist|PGRST204/i.test(m);
+}
+
 export function isColunaSimulador575Ausente(message: string | undefined): boolean {
-  return /tipo_taxa_gestao|pct_plataforma_entrada/i.test(message ?? '');
+  return isErroColunaSchemaCache(
+    message,
+    /tipo_taxa_gestao|percentual_plataforma_entrada|taxa_gestao_valor|pct_plataforma_entrada/i,
+  );
 }
 
 export function isColunaSimulador576Ausente(message: string | undefined): boolean {
-  return /tipo_juros_cp/i.test(message ?? '');
+  return isErroColunaSchemaCache(message, /tipo_juros_cp/i);
 }
 
 export function isColunaSimulador548Ausente(message: string | undefined): boolean {
@@ -462,8 +477,10 @@ function numOrNull(raw: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function percentualUiOpcionalParaFracao(raw: string): number | null {
-  if (!raw.trim()) return null;
+export function percentualUiOpcionalParaFracao(raw: unknown): number | null {
+  if (raw == null) return null;
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw / 100;
+  if (!String(raw).trim()) return null;
   return percentualUiParaFracao(raw);
 }
 

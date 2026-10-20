@@ -24,6 +24,9 @@ import {
 } from '@/components/simulador/SimulacaoResultado';
 import {
   calcularOferta,
+  calcularParcelaUnicaMinimaConfirmada,
+  formatarMoedaCentavos,
+  parcelaUnicaAbaixoDoMinimo,
   sugerirParcelaMensal,
   type OfertaConfig,
   type ResultadoCalculo,
@@ -35,15 +38,26 @@ import { maskTelefoneCelular } from '@/lib/br-docs';
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const fmt = (v: number) => BRL.format(v);
 
-const ETAPAS = [
-  'Seus dados',
-  'Oferta',
-  'Terreno',
-  'Casa',
-  'Simulação',
-  'Memorial',
-  'Contrato',
-];
+/** Única fonte da sequência. ids = state.etapa. */
+const JORNADA_STEPS = [
+  { id: 1, slug: 'dados', label: 'Seus dados' },
+  { id: 2, slug: 'oferta', label: 'Oferta' },
+  { id: 3, slug: 'terreno', label: 'Terreno' },
+  { id: 4, slug: 'casa', label: 'Casa' },
+  { id: 5, slug: 'simulacao', label: 'Simulação' },
+  { id: 6, slug: 'memorial', label: 'Memorial' },
+  { id: 7, slug: 'contrato', label: 'Contrato' },
+] as const;
+
+const ETAPA = {
+  dados: 1,
+  oferta: 2,
+  terreno: 3,
+  casa: 4,
+  simulacao: 5,
+  memorial: 6,
+  contrato: 7,
+} as const;
 
 const ID_ACABAMENTOS_ARQUITETO = 'acabamentos-arquiteto';
 const VALOR_ACABAMENTOS_ARQUITETO = 50_000;
@@ -178,23 +192,22 @@ function estadoInicial(_empreendimento?: EmpreendimentoPublico): JornadaLocal {
 
 function ProgressBar({ etapa }: { etapa: number }) {
   return (
-    <div className="jornadaProgress">
-      {ETAPAS.map((nome, i) => {
-        const num = i + 1;
-        const status = num < etapa ? 'done' : num === etapa ? 'active' : 'pending';
+    <div className="jornadaProgress" data-jornada-layout="oferta-terreno">
+      {JORNADA_STEPS.map((step, i) => {
+        const status = step.id < etapa ? 'done' : step.id === etapa ? 'active' : 'pending';
         return (
-          <div key={num} className={`jornadaStep ${status}`}>
+          <div key={step.slug} className={`jornadaStep ${status}`} data-step={step.slug}>
             <div className="jornadaStepDot">
               {status === 'done' ? (
                 <svg viewBox="0 0 16 16" fill="none" width={10} height={10}>
                   <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               ) : (
-                <span>{num}</span>
+                <span>{step.id}</span>
               )}
             </div>
-            <span className="jornadaStepLabel">{nome}</span>
-            {i < ETAPAS.length - 1 && <div className={`jornadaStepLine ${status === 'done' ? 'done' : ''}`} />}
+            <span className="jornadaStepLabel">{step.label}</span>
+            {i < JORNADA_STEPS.length - 1 && <div className={`jornadaStepLine ${status === 'done' ? 'done' : ''}`} />}
           </div>
         );
       })}
@@ -286,7 +299,7 @@ function PassoOferta({
       ) : (
         <div className="jornadaOfertasList">
           {ofertas.map((o) => {
-            const preview = valorAvistaOferta(o);
+            const avista = valorAvistaOferta(o);
             return (
               <button
                 key={o.id}
@@ -300,14 +313,14 @@ function PassoOferta({
                   </span>
                   {o.produto_modelo && <span className="jornadaOfertaModelo">{o.produto_modelo}</span>}
                 </div>
-                {preview != null ? (
+                {avista != null ? (
                   <div className="jornadaOfertaValor">
                     <span className="jornadaOfertaLabel">Valor total à vista</span>
-                    <span>{fmt(preview)}</span>
+                    <span>{fmt(avista)}</span>
                   </div>
                 ) : (
                   <p className="jornadaOfertaDesc">
-                    Valor da oferta da Helenna ainda não disponível.
+                    Valor à vista ainda não preenchido na oferta.
                   </p>
                 )}
                 {o.descricao && <p className="jornadaOfertaDesc">{o.descricao}</p>}
@@ -332,8 +345,51 @@ function PassoOferta({
   );
 }
 
+function SeletorLote({
+  id,
+  label,
+  lotes,
+  selecionado,
+  vazio,
+  onEscolher,
+}: {
+  id: string;
+  label: string;
+  lotes: LotePublicoEmp[];
+  selecionado: LotePublicoEmp | null;
+  vazio: string;
+  onEscolher: (lote: LotePublicoEmp) => void;
+}) {
+  if (lotes.length === 0) return <p className="jornadaEmpty">{vazio}</p>;
+  const atual = selecionado && lotes.some((l) => l.id === selecionado.id) ? selecionado : null;
+  return (
+    <div className="jornadaField">
+      <label htmlFor={id}>{label}</label>
+      <select
+        id={id}
+        value={atual?.id ?? ''}
+        onChange={(e) => {
+          const lote = lotes.find((l) => l.id === e.target.value);
+          if (lote) onEscolher(lote);
+        }}
+      >
+        <option value="" disabled>
+          Selecione o lote
+        </option>
+        {lotes.map((l) => (
+          <option key={l.id} value={l.id}>
+            Lote {l.rotulo}
+          </option>
+        ))}
+      </select>
+      {atual ? <span className="jornadaKitDesc">Valor do lote: {fmt(atual.valor)}</span> : null}
+    </div>
+  );
+}
+
 function PassoTerreno({
   lotes,
+  lotesErro,
   state,
   setState,
   onAvancar,
@@ -341,6 +397,7 @@ function PassoTerreno({
   salvando,
 }: {
   lotes: LotePublicoEmp[];
+  lotesErro: string | null;
   state: JornadaLocal;
   setState: (s: Partial<JornadaLocal>) => void;
   onAvancar: () => void;
@@ -418,47 +475,31 @@ function PassoTerreno({
         </button>
       </div>
 
-      {state.modoTerreno === 'disponivel' ? (
-        lotesVenda.length === 0 ? (
-          <p className="jornadaEmpty">Nenhum lote disponível no momento.</p>
-        ) : (
-          <div className="jornadaGrid" role="list">
-            {lotesVenda.map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                role="listitem"
-                className={`jornadaLoteCard ${state.loteSelecionado?.id === l.id ? 'selected' : ''}`}
-                onClick={() => escolherLote(l, 'disponivel')}
-              >
-                <span className="jornadaLoteCodigo">Lote {l.codigo}</span>
-                <span className="jornadaLoteValor">{fmt(l.valor)}</span>
-              </button>
-            ))}
-          </div>
-        )
+      {lotesErro && state.modoTerreno ? (
+        <p className="jornadaEmpty" role="alert">{lotesErro}</p>
       ) : null}
 
-      {state.modoTerreno === 'informar' ? (
+      {state.modoTerreno === 'disponivel' && !lotesErro ? (
+        <SeletorLote
+          id="lote-disponivel"
+          label="Lote disponível"
+          lotes={lotesVenda}
+          selecionado={state.loteSelecionado}
+          vazio="Nenhum lote disponível no momento."
+          onEscolher={(l) => escolherLote(l, 'disponivel')}
+        />
+      ) : null}
+
+      {state.modoTerreno === 'informar' && !lotesErro ? (
         <>
-          {lotesOcupados.length === 0 ? (
-            <p className="jornadaEmpty">Nenhum lote ocupado encontrado na planilha.</p>
-          ) : (
-            <div className="jornadaGrid" role="list">
-              {lotesOcupados.map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  role="listitem"
-                  className={`jornadaLoteCard ${state.loteSelecionado?.id === l.id ? 'selected' : ''}`}
-                  onClick={() => escolherLote(l, 'informar')}
-                >
-                  <span className="jornadaLoteCodigo">Lote {l.codigo}</span>
-                  <span className="jornadaLoteValor">{fmt(l.valor)}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <SeletorLote
+            id="lote-adquirido"
+            label="Seu lote"
+            lotes={lotesOcupados}
+            selecionado={state.loteSelecionado}
+            vazio="Nenhum lote vendido encontrado na planilha."
+            onEscolher={(l) => escolherLote(l, 'informar')}
+          />
           <div className="jornadaField">
             <label htmlFor="valor-ja-pago-terreno">Valor já pago (R$)</label>
             <CampoNumeroBr
@@ -569,23 +610,14 @@ function PassoCasa({
           <span className="jornadaSectionBadge">A</span>
           Acoplamento
         </h3>
-        <div className="jornadaField">
-          <label htmlFor="valor-acoplamento">Valor do acoplamento (R$)</label>
-          <CampoNumeroBr
-            id="valor-acoplamento"
-            valor={state.valorAcoplamento}
-            onChange={() => undefined}
-            inteiro
-            placeholder="0"
-            disabled
-          />
+        <div className="jornadaAcoplamentoTotal">
+          <strong>Valor do acoplamento</strong>
+          <span>{fmt(state.valorAcoplamento)}</span>
         </div>
         <p className="jornadaKitDesc">
           {state.modoTerreno === 'disponivel' && state.loteSelecionado
-            ? `Valor da tabela do lote ${state.loteSelecionado.codigo}.`
-            : state.loteSelecionado
-              ? `Valor da tabela do lote ${state.loteSelecionado.codigo}.`
-              : 'Definido pelo lote selecionado no terreno.'}
+            ? `Valor da tabela do lote ${state.loteSelecionado.rotulo}.`
+            : 'Sem valor na tabela de lotes.'}
         </p>
       </section>
 
@@ -601,8 +633,12 @@ function PassoCasa({
             onChange={(e) => toggleAcabamentos(e.target.checked)}
           />
           <div className="jornadaKitInfo">
-            <span className="jornadaKitNome">Acabamentos com arquiteto</span>
-            <span className="jornadaKitDesc">Pacote de acabamentos com acompanhamento de arquiteto.</span>
+            <span className="jornadaKitNome">Quero definir acabamentos com arquiteto parceiro</span>
+            <span className="jornadaKitDesc">
+              Após a assinatura do contrato, você será contactado pelo escritório Studio Arquitetura
+              e Design, parceiro Moní neste empreendimento. A definição dos acabamentos ocorre antes
+              do início da obra, em sessões de design personalizadas.
+            </span>
           </div>
           <span className="jornadaKitValor">{fmt(VALOR_ACABAMENTOS_ARQUITETO)}</span>
         </label>
@@ -680,6 +716,7 @@ function PassoSimulacao({
   onVoltar,
   onVerSimulacao,
   onRecalcular,
+  minimoParcelaUnica,
   salvando,
   erroSimulacao,
 }: {
@@ -694,6 +731,7 @@ function PassoSimulacao({
   onVoltar: () => void;
   onVerSimulacao: () => void;
   onRecalcular: (valores: ValoresConfirmadosOferta) => void;
+  minimoParcelaUnica: (entrada: number, mensal: number) => number;
   salvando: boolean;
   erroSimulacao: string | null;
 }) {
@@ -716,7 +754,9 @@ function PassoSimulacao({
   }, [resultadoSimulacao]);
 
   const extrasCustom: string[] = [];
-  if (state.acabamentosArquiteto) extrasCustom.push(`Acabamentos com arquiteto ${fmt(VALOR_ACABAMENTOS_ARQUITETO)}`);
+  if (state.acabamentosArquiteto) {
+    extrasCustom.push(`Acabamentos com arquiteto ${fmt(VALOR_ACABAMENTOS_ARQUITETO)}`);
+  }
   if (state.kitSelecionado && state.valorKit > 0) extrasCustom.push(`Kit Moní ${fmt(state.valorKit)}`);
   if (state.valorGadgets > 0) extrasCustom.push(`Extras ${fmt(state.valorGadgets)}`);
 
@@ -822,6 +862,7 @@ function PassoSimulacao({
             valoresConfirmados={valoresConfirmados}
             recalcToken={recalcToken}
             onRecalcular={onRecalcular}
+            minimoParcelaUnica={minimoParcelaUnica}
             onVerMemorial={onAvancar}
           />
         </div>
@@ -859,7 +900,7 @@ function Passo6({
           <p>{empreendimento.titulo}</p>
           <p>
             {state.loteSelecionado
-              ? `Lote ${state.loteSelecionado.codigo} — ${fmt(state.loteSelecionado.valor)}`
+              ? `Lote ${state.loteSelecionado.rotulo} — ${fmt(state.loteSelecionado.valor)}`
               : `Terreno — ${fmt(valorLoteParaCalculo(state))}`}
           </p>
         </div>
@@ -921,6 +962,7 @@ export default function JornadaClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const corretorIdRef = useRef(searchParams.get('corretor_id')?.trim() ?? '');
   const [state, setStateRaw] = useState<JornadaLocal>(() => estadoInicial(empreendimento));
   const [isPending, startTransition] = useTransition();
   const [erroSimulacao, setErroSimulacao] = useState<string | null>(null);
@@ -969,9 +1011,12 @@ export default function JornadaClient({
         acabamentosArquiteto,
       );
       const preview = oferta ? valorAvistaOferta(oferta) : null;
+      const temOferta = Boolean(oferta);
+      let etapa = Math.max(ETAPA.dados, Math.round(Number(sessao.etapa_atual) || ETAPA.dados));
+      if (!temOferta && etapa >= ETAPA.terreno) etapa = ETAPA.oferta;
       setStateRaw((prev) => ({
         ...prev,
-        etapa: sessao.etapa_atual,
+        etapa,
         sessaoToken: sessao.session_token,
         nomeCliente: sessao.nome_cliente ?? '',
         telefoneCliente: maskTelefoneCelular(sessao.telefone_cliente ?? ''),
@@ -1023,6 +1068,8 @@ export default function JornadaClient({
       valor_casa: calcs.valorCasa || null,
       valor_customizacao: calcs.valorCustomizacao || null,
       simulacao_id: state.simulacaoId ?? null,
+      slug_empreendimento: empreendimento.slug,
+      ...(corretorIdRef.current ? { corretor_id: corretorIdRef.current } : {}),
       ...dadosExtras,
     };
 
@@ -1035,7 +1082,10 @@ export default function JornadaClient({
 
     if (result.ok) {
       if (result.session_token !== state.sessaoToken) {
-        router.replace(`?sessao=${result.session_token}`, { scroll: false });
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('sessao', result.session_token);
+        if (corretorIdRef.current) params.set('corretor_id', corretorIdRef.current);
+        router.replace(`?${params.toString()}`, { scroll: false });
         setState({ sessaoToken: result.session_token, etapa: proximaEtapa, ...calcs });
       } else {
         setState({ etapa: proximaEtapa, ...calcs });
@@ -1052,11 +1102,11 @@ export default function JornadaClient({
   }
 
   function voltar() {
-    if (state.etapa === 5) {
+    if (state.etapa === ETAPA.simulacao) {
       setResultadoSimulacao(null);
       setValoresConfirmados(null);
     }
-    setState({ etapa: Math.max(1, state.etapa - 1) });
+    setState({ etapa: Math.max(ETAPA.dados, state.etapa - 1) });
   }
 
   function handleVerSimulacao() {
@@ -1079,7 +1129,8 @@ export default function JornadaClient({
     setErroSimulacao(null);
     setValoresConfirmados(null);
     setRecalcToken(0);
-    const stateCalc: JornadaLocal = state;
+    const prazoObra = Math.max(1, Math.round(state.prazoObraMeses || 12));
+    const stateCalc: JornadaLocal = { ...state, prazoObraMeses: prazoObra };
     const oferta = montarOfertaJornada(
       stateCalc,
       empreendimento.template,
@@ -1118,9 +1169,26 @@ export default function JornadaClient({
     });
   }
 
+  function minimoParcelaUnicaJornada(entrada: number, mensal: number): number {
+    return calcularParcelaUnicaMinimaConfirmada(
+      montarTemplateParaEngine(empreendimento.template),
+      montarOfertaJornada(state, empreendimento.template, empreendimento.itens_customizacao),
+      entrada,
+      mensal,
+      state.valorAcoplamento,
+    );
+  }
+
   function handleRecalcularSimulacao(valores: ValoresConfirmadosOferta) {
     setErroSimulacao(null);
     try {
+      const minimo = minimoParcelaUnicaJornada(valores.entrada, valores.mensal);
+      if (parcelaUnicaAbaixoDoMinimo(valores.unica, minimo)) {
+        setErroSimulacao(
+          `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(minimo)} para quitar o lote.`,
+        );
+        return;
+      }
       const calc = calcularOferta(
         montarTemplateParaEngine(empreendimento.template),
         {
@@ -1155,45 +1223,46 @@ export default function JornadaClient({
       <ProgressBar etapa={state.etapa} />
 
       <main className="jornadaMain">
-        {state.etapa === 1 && (
+        {state.etapa === ETAPA.dados && (
           <Passo1
             state={state}
             setState={setState}
-            onAvancar={() => handleAvancar(2)}
+            onAvancar={() => handleAvancar(ETAPA.oferta)}
             salvando={isPending}
           />
         )}
-        {state.etapa === 2 && (
+        {state.etapa === ETAPA.oferta && (
           <PassoOferta
             ofertas={empreendimento.ofertas}
             state={state}
             setState={setState}
-            onAvancar={() => handleAvancar(3)}
+            onAvancar={() => handleAvancar(ETAPA.terreno)}
             onVoltar={voltar}
             salvando={isPending}
           />
         )}
-        {state.etapa === 3 && (
+        {state.etapa === ETAPA.terreno && (
           <PassoTerreno
             lotes={empreendimento.lotes}
+            lotesErro={empreendimento.lotes_erro}
             state={state}
             setState={setState}
-            onAvancar={() => handleAvancar(4)}
+            onAvancar={() => handleAvancar(ETAPA.casa)}
             onVoltar={voltar}
             salvando={isPending}
           />
         )}
-        {state.etapa === 4 && (
+        {state.etapa === ETAPA.casa && (
           <PassoCasa
             itens={empreendimento.itens_customizacao}
             state={state}
             setState={setState}
-            onAvancar={() => handleAvancar(5)}
+            onAvancar={() => handleAvancar(ETAPA.simulacao)}
             onVoltar={voltar}
             salvando={isPending}
           />
         )}
-        {state.etapa === 5 && (
+        {state.etapa === ETAPA.simulacao && (
           <PassoSimulacao
             state={state}
             setState={setState}
@@ -1202,24 +1271,25 @@ export default function JornadaClient({
             resultadoKey={resultadoKey}
             valoresConfirmados={valoresConfirmados}
             recalcToken={recalcToken}
-            onAvancar={() => handleAvancar(6)}
+            onAvancar={() => handleAvancar(ETAPA.memorial)}
             onVoltar={voltar}
             onVerSimulacao={handleVerSimulacao}
             onRecalcular={handleRecalcularSimulacao}
+            minimoParcelaUnica={minimoParcelaUnicaJornada}
             salvando={isPending}
             erroSimulacao={erroSimulacao}
           />
         )}
-        {state.etapa === 6 && (
+        {state.etapa === ETAPA.memorial && (
           <Passo6
             state={state}
             empreendimento={empreendimento}
             resultadoSimulacao={resultadoSimulacao}
-            onAvancar={() => handleAvancar(7, { concluida: 'true' })}
+            onAvancar={() => handleAvancar(ETAPA.contrato, { concluida: 'true' })}
             onVoltar={voltar}
           />
         )}
-        {state.etapa === 7 && <Passo7 nomeCliente={state.nomeCliente} />}
+        {state.etapa === ETAPA.contrato && <Passo7 nomeCliente={state.nomeCliente} />}
       </main>
     </div>
   );

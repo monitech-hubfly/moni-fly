@@ -507,6 +507,7 @@
 
     var corretorId    = get("corretor_id");
     var empId         = get("emp_id");
+    var empSlug       = get("emp_slug");
     var corretorNome  = get("corretor_nome");
     var corretorCreci = get("corretor_creci");
     var corretorTel   = get("corretor_tel");
@@ -528,9 +529,12 @@
     var numCards = Math.min(Math.max(parseInt(get("num_cards") || "4", 10), 1), 4);
 
     // ── QR helper ──────────────────────────────────────────────
-    var formUrl = domain + "/formulario"
-      + (corretorId ? "?corretor_id=" + corretorId : "?")
-      + (empId      ? "&emp_id=" + empId            : "");
+    var formUrl = empSlug
+      ? domain + "/empreendimento/" + encodeURIComponent(empSlug)
+        + (corretorId ? "?corretor_id=" + encodeURIComponent(corretorId) : "")
+      : domain + "/formulario"
+        + (corretorId ? "?corretor_id=" + encodeURIComponent(corretorId) : "?")
+        + (empId      ? "&emp_id=" + encodeURIComponent(empId)            : "");
 
     function qrSrc(size) {
       return "https://api.qrserver.com/v1/create-qr-code/"

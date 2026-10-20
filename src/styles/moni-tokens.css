@@ -4006,6 +4006,22 @@
   background-color: var(--moni-surface-50);
 }
 
+/* Cadastro de Corretores — fundo branco único, inclusive na área vazia do scroll. */
+.moni-tabela-corretores,
+.moni-tabela-scroll-wrap:has(.moni-tabela-corretores) {
+  background-color: var(--moni-surface-0);
+  scrollbar-color: var(--moni-navy-200) var(--moni-surface-0);
+}
+
+.moni-tabela-scroll-wrap:has(.moni-tabela-corretores)::-webkit-scrollbar-track {
+  background: var(--moni-surface-0);
+}
+
+.moni-tabela-scroll-main table.moni-tabela-corretores thead th,
+.moni-tabela-scroll-main table.moni-tabela-corretores tbody td {
+  background-color: var(--moni-surface-0);
+}
+
 /* Rede de Franqueados — fundo homogêneo por linha (colunas fixas + roláveis) */
 .moni-rede-row-tone-default td {
   background-color: var(--moni-surface-0);
