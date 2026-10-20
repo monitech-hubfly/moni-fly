@@ -44,6 +44,7 @@ type Ok = {
   linkMoni: string | null;
   pageSlug: string | null;
   mensagem: string;
+  pageAtiva?: boolean;
 };
 type Err = { ok: false; error: string };
 type AuthOk = {
@@ -178,16 +179,26 @@ function erroBancoSimulador(message: string): Err {
 async function carregarCardLoteadores(
   supabase: Awaited<ReturnType<typeof createClient>>,
   cardId: string,
-): Promise<{ ok: true; titulo: string; redeLoteadorId: string | null; loteadorNome: string | null } | Err> {
+): Promise<
+  | {
+      ok: true;
+      titulo: string;
+      nomeCondominio: string | null;
+      redeLoteadorId: string | null;
+      loteadorNome: string | null;
+    }
+  | Err
+> {
   const { data, error } = await supabase
     .from('kanban_cards')
-    .select('id, titulo, kanban_id, rede_loteador_id')
+    .select('id, titulo, nome_condominio, kanban_id, rede_loteador_id')
     .eq('id', cardId)
     .maybeSingle();
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: 'Card não encontrado.' };
   const row = data as {
     titulo?: string | null;
+    nome_condominio?: string | null;
     kanban_id?: string | null;
     rede_loteador_id?: string | null;
   };
@@ -207,8 +218,40 @@ async function carregarCardLoteadores(
   return {
     ok: true,
     titulo: String(row.titulo ?? '').trim() || 'Card sem título',
+    nomeCondominio: String(row.nome_condominio ?? '').trim() || null,
     redeLoteadorId,
     loteadorNome,
+  };
+}
+
+export type JornadaPublicaCard = {
+  pageSlug: string | null;
+  pageAtiva: boolean;
+  planilhaLotesPath: string | null;
+};
+
+async function carregarJornadaPublica(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+): Promise<JornadaPublicaCard> {
+  const vazia: JornadaPublicaCard = { pageSlug: null, pageAtiva: false, planilhaLotesPath: null };
+  const { data, error } = await supabase
+    .from('imob_card_modelo')
+    .select('page_slug, page_ativa, planilha_lotes_path')
+    .eq('card_id', cardId)
+    .maybeSingle();
+  if (error || !data) return vazia;
+  const row = data as {
+    page_slug?: string | null;
+    page_ativa?: boolean | null;
+    planilha_lotes_path?: string | null;
+  };
+  const pageSlug = String(row.page_slug ?? '').trim() || null;
+  const planilhaLotesPath = String(row.planilha_lotes_path ?? '').trim() || null;
+  return {
+    pageSlug,
+    pageAtiva: row.page_ativa === true,
+    planilhaLotesPath,
   };
 }
 
@@ -216,6 +259,7 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
   | {
       ok: true;
       cardTitulo: string;
+      nomeCondominio: string | null;
       loteadorNome: string | null;
       redeLoteadorId: string | null;
       template: LoteamentoSimuladorTemplateRow | null;
@@ -223,6 +267,7 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
       linkMoni: string | null;
       empreendimentoSlug: string | null;
       simulacoes: SimulacaoPagamentoResumo[];
+      jornada: JornadaPublicaCard;
     }
   | Err
 > {
@@ -246,20 +291,18 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
 
   const row = Array.isArray(data) ? data[0] : data;
   const template = row ? mapTemplateRow(row as Record<string, unknown>) : null;
-  const [simulacoes, empreendimentoSlug] = await Promise.all([
-    template ? listarSimulacoesDoTemplateId(auth.supabase, template.id) : Promise.resolve([]),
-    carregarSlugJornadaDoCard(auth.supabase, cardId),
-  ]);
+  const simulacoes = template ? await listarSimulacoesDoTemplateId(auth.supabase, template.id) : [];
+  const jornada = await carregarJornadaPublica(auth.supabase, cardId);
   return {
     ok: true,
     cardTitulo: card.titulo,
+    nomeCondominio: card.nomeCondominio,
     loteadorNome: card.loteadorNome,
     redeLoteadorId: card.redeLoteadorId,
     template,
     link: linkCompleto(template?.link_token),
-    linkMoni: linkJornadaPublica(empreendimentoSlug),
-    empreendimentoSlug,
     simulacoes,
+    jornada,
   };
 }
 
@@ -274,6 +317,68 @@ function rowSemColunas575(row: Record<string, unknown>): Record<string, unknown>
   void tipo_taxa_gestao;
   void pct_plataforma_entrada;
   return rest;
+}
+
+const SLUG_DUPLICADO =
+  'Este slug já está em uso por outro empreendimento. Escolha um slug diferente.';
+
+export async function salvarTemplate(
+  cardId: string,
+  formData: FormData,
+): Promise<{ success: boolean; error?: string; pageAtiva?: boolean }> {
+  const id = String(cardId ?? '').trim();
+  if (!id) return { success: false, error: 'Card inválido.' };
+
+  const auth = await requireStaff();
+  if (!auth.ok) return { success: false, error: auth.error };
+  const card = await carregarCardLoteadores(auth.supabase, id);
+  if (!card.ok) return { success: false, error: card.error };
+
+  const slug = (formData.get('page_slug') as string)?.trim() || null;
+  const planilha = (formData.get('planilha_lotes_path') as string)?.trim() || null;
+  const pageAtiva = !!(slug && planilha);
+
+  if (slug) {
+    const { data: existing, error: errSlug } = await auth.supabase
+      .from('imob_card_modelo')
+      .select('card_id')
+      .eq('page_slug', slug)
+      .neq('card_id', id)
+      .maybeSingle();
+    if (errSlug) return { success: false, error: errSlug.message };
+    if (existing) return { success: false, error: SLUG_DUPLICADO };
+  }
+
+  const patch = {
+    page_slug: slug,
+    page_ativa: pageAtiva,
+    planilha_lotes_path: planilha,
+  };
+
+  const { data: updated, error } = await auth.supabase
+    .from('imob_card_modelo')
+    .update(patch)
+    .eq('card_id', id)
+    .select('card_id');
+
+  if (error) {
+    if (error.code === '23505') return { success: false, error: SLUG_DUPLICADO };
+    return { success: false, error: error.message };
+  }
+
+  if (!updated?.length) {
+    const { error: insErr } = await auth.supabase
+      .from('imob_card_modelo')
+      .insert({ card_id: id, ...patch });
+    if (insErr) {
+      if (insErr.code === '23505') return { success: false, error: SLUG_DUPLICADO };
+      return { success: false, error: insErr.message };
+    }
+  }
+
+  revalidateAposMutacaoSimulador(id);
+  if (slug) revalidatePath(`/empreendimento/${slug}`);
+  return { success: true, pageAtiva };
 }
 
 function rowSemColunas546(row: Record<string, unknown>): Record<string, unknown> {
@@ -360,7 +465,7 @@ function draftParaRow(
 export async function salvarSimuladorTemplateDoCard(
   cardId: string,
   draft: LoteamentoSimuladorTemplateDraft,
-  pageSlugRaw = '',
+  formData?: FormData,
 ): Promise<Ok | Err> {
   const auth = await requireStaff();
   if (!auth.ok) return auth;
@@ -443,6 +548,15 @@ export async function salvarSimuladorTemplateDoCard(
     return erroBancoSimulador(lastError ?? 'Não foi possível salvar o template.');
   }
 
+  let pageAtiva: boolean | undefined;
+  if (formData) {
+    const jornada = await salvarTemplate(cardId, formData);
+    if (!jornada.success) {
+      return { ok: false, error: jornada.error ?? 'Não foi possível salvar a jornada pública.' };
+    }
+    pageAtiva = jornada.pageAtiva;
+  }
+
   const template = mapTemplateRow(saved);
   const slugSalvo = await persistirSlugJornadaDoCard(auth.supabase, cardId, slugNorm.slug);
   if (!slugSalvo.ok) return slugSalvo;
@@ -455,6 +569,7 @@ export async function salvarSimuladorTemplateDoCard(
     linkMoni: linkJornadaPublica(slugSalvo.slug),
     pageSlug: slugSalvo.slug,
     mensagem: TOAST_TEMPLATE_SALVO,
+    pageAtiva,
   };
 }
 
