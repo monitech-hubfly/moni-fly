@@ -36,6 +36,14 @@ import {
   type SimuladorOfertaDraft,
 } from '@/lib/loteamento-simulador-template';
 import { vincularOfertaAoEmpreendimentoImob } from '@/lib/actions/imob-simulacoes-card';
+import {
+  calcularOferta,
+  calcularParcelaUnicaMinimaConfirmada,
+  formatarMoedaCentavos,
+  parcelaUnicaAbaixoDoMinimo,
+  type OfertaConfig,
+} from '@/lib/simulador/calcular-oferta';
+import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
 
 type Ok = {
   ok: true;
@@ -595,6 +603,63 @@ function parseInteiroCampo(raw: string, label: string, opts?: { obrigatorio?: bo
   return { ok: true, valor: Math.round(n) };
 }
 
+/**
+ * Recusa oferta com parcela única abaixo do mínimo do motor, com as mesmas entradas da
+ * CalculadoraOferta (`parcela_mensal` do draft é a confirmada; a base é a sugerida).
+ */
+async function validarParcelaUnicaMinimaOferta(
+  supabase: AuthOk['supabase'],
+  cardId: string,
+  v: {
+    valorLote: number;
+    valorCasa: number;
+    valorCustomizacao: number;
+    valorAcoplamento: number;
+    valorJaPago: number;
+    prazoTotalMeses: number | null;
+    parcelaMensalBase: number;
+    renda: number;
+    prazoFinanciamentoAnos: number | null;
+    taxaFinanciamentoAnual: number;
+    entradaConfirmada: number | null;
+    mensalConfirmada: number;
+    parcelaUnicaConfirmada: number | null;
+  },
+): Promise<Err | null> {
+  if (v.parcelaUnicaConfirmada == null) return null;
+  const { data, error } = await supabase.from(TABELA).select('*').eq('kanban_card_id', cardId).limit(1);
+  const row = !error && Array.isArray(data) ? data[0] : null;
+  if (!row) return null;
+  const template = montarTemplateParaEngine(mapTemplateRow(row as Record<string, unknown>));
+  const prazoFase1 = (v.prazoTotalMeses ?? 0) - Math.max(0, Math.round(template.prazo_obra_meses));
+  if (prazoFase1 < 1) return null;
+
+  const oferta: OfertaConfig = {
+    valor_lote: v.valorLote,
+    valor_casa: v.valorCasa,
+    valor_customizacao: v.valorCustomizacao,
+    valor_acoplamento: v.valorAcoplamento,
+    valor_ja_pago: v.valorJaPago,
+    prazo_meses: prazoFase1,
+    parcela_mensal: v.parcelaMensalBase,
+    renda_cliente: v.renda,
+    prazo_financiamento_anos: v.prazoFinanciamentoAnos ?? 30,
+    taxa_financiamento_anual: v.taxaFinanciamentoAnual,
+  };
+  const sugerido = calcularOferta(template, oferta);
+  const entrada =
+    v.entradaConfirmada != null && v.entradaConfirmada > 0
+      ? v.entradaConfirmada
+      : sugerido.entrada_sugerida;
+  const mensal = v.mensalConfirmada > 0 ? v.mensalConfirmada : sugerido.parcela_mensal_usada;
+  const minimo = calcularParcelaUnicaMinimaConfirmada(template, oferta, entrada, mensal);
+  if (!parcelaUnicaAbaixoDoMinimo(v.parcelaUnicaConfirmada, minimo)) return null;
+  return {
+    ok: false,
+    error: `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(minimo)} para quitar o lote.`,
+  };
+}
+
 export async function criarSimuladorOfertaDoCard(
   cardId: string,
   draft: SimuladorOfertaDraft,
@@ -668,6 +733,25 @@ export async function criarSimuladorOfertaDoCard(
     ? parseMoedaCampo(draft.parcela_mensal_confirmada, 'a parcela mensal confirmada')
     : { ok: true as const, valor: parcelaMensal.valor };
   if (!parcelaMensalConfirmada.ok) return parcelaMensalConfirmada;
+
+  const erroMinimo = await validarParcelaUnicaMinimaOferta(auth.supabase, cardId, {
+    valorLote: valorLote.valor,
+    valorCasa: valorCasa.valor,
+    valorCustomizacao: valorCustom.valor,
+    valorAcoplamento: valorAcoplamento.valor,
+    valorJaPago: valorPago.valor,
+    prazoTotalMeses: prazoMeses.valor,
+    parcelaMensalBase: draft.parcela_mensal_sugerida ?? parcelaMensal.valor,
+    renda: renda.valor,
+    prazoFinanciamentoAnos: prazoFin.valor,
+    taxaFinanciamentoAnual: taxaFin,
+    entradaConfirmada: draft.entrada_confirmada?.trim() ? entradaConfirmada.valor : null,
+    mensalConfirmada: parcelaMensalConfirmada.valor,
+    parcelaUnicaConfirmada: draft.parcela_unica_confirmada?.trim()
+      ? parcelaUnicaConfirmada.valor
+      : null,
+  });
+  if (erroMinimo) return erroMinimo;
 
   const inputs = {
     nome,
@@ -974,6 +1058,23 @@ export async function atualizarSimuladorOferta(
     ? parseMoedaCampo(draft.parcela_mensal_confirmada, 'a parcela mensal confirmada')
     : { ok: true as const, valor: parcelaMensal.valor };
   if (!parcelaMensalConfirmada.ok) return parcelaMensalConfirmada;
+
+  const erroMinimo = await validarParcelaUnicaMinimaOferta(supabase, cid, {
+    valorLote: valorLote.valor,
+    valorCasa: valorCasa.valor,
+    valorCustomizacao: valorCustom.valor,
+    valorAcoplamento: valorAcoplamento.valor,
+    valorJaPago: valorPago.valor,
+    prazoTotalMeses: prazoMeses.valor,
+    parcelaMensalBase: draft.parcela_mensal_sugerida ?? parcelaMensal.valor,
+    renda: renda.valor,
+    prazoFinanciamentoAnos: prazoFin.valor,
+    taxaFinanciamentoAnual: taxaFin,
+    entradaConfirmada: draft.entrada_confirmada?.trim() ? entradaConfirmada.valor : null,
+    mensalConfirmada: parcelaMensalConfirmada.valor,
+    parcelaUnicaConfirmada: draft.parcela_unica_confirmada?.trim() ? parcelaUnicaConfirmada.valor : null,
+  });
+  if (erroMinimo) return erroMinimo;
 
   const inputs = {
     nome,

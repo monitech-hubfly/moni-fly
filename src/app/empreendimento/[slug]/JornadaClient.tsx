@@ -24,6 +24,9 @@ import {
 } from '@/components/simulador/SimulacaoResultado';
 import {
   calcularOferta,
+  calcularParcelaUnicaMinimaConfirmada,
+  formatarMoedaCentavos,
+  parcelaUnicaAbaixoDoMinimo,
   sugerirParcelaMensal,
   type OfertaConfig,
   type ResultadoCalculo,
@@ -713,6 +716,7 @@ function PassoSimulacao({
   onVoltar,
   onVerSimulacao,
   onRecalcular,
+  minimoParcelaUnica,
   salvando,
   erroSimulacao,
 }: {
@@ -727,6 +731,7 @@ function PassoSimulacao({
   onVoltar: () => void;
   onVerSimulacao: () => void;
   onRecalcular: (valores: ValoresConfirmadosOferta) => void;
+  minimoParcelaUnica: (entrada: number, mensal: number) => number;
   salvando: boolean;
   erroSimulacao: string | null;
 }) {
@@ -857,6 +862,7 @@ function PassoSimulacao({
             valoresConfirmados={valoresConfirmados}
             recalcToken={recalcToken}
             onRecalcular={onRecalcular}
+            minimoParcelaUnica={minimoParcelaUnica}
             onVerMemorial={onAvancar}
           />
         </div>
@@ -1163,9 +1169,26 @@ export default function JornadaClient({
     });
   }
 
+  function minimoParcelaUnicaJornada(entrada: number, mensal: number): number {
+    return calcularParcelaUnicaMinimaConfirmada(
+      montarTemplateParaEngine(empreendimento.template),
+      montarOfertaJornada(state, empreendimento.template, empreendimento.itens_customizacao),
+      entrada,
+      mensal,
+      state.valorAcoplamento,
+    );
+  }
+
   function handleRecalcularSimulacao(valores: ValoresConfirmadosOferta) {
     setErroSimulacao(null);
     try {
+      const minimo = minimoParcelaUnicaJornada(valores.entrada, valores.mensal);
+      if (parcelaUnicaAbaixoDoMinimo(valores.unica, minimo)) {
+        setErroSimulacao(
+          `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(minimo)} para quitar o lote.`,
+        );
+        return;
+      }
       const calc = calcularOferta(
         montarTemplateParaEngine(empreendimento.template),
         {
@@ -1252,6 +1275,7 @@ export default function JornadaClient({
             onVoltar={voltar}
             onVerSimulacao={handleVerSimulacao}
             onRecalcular={handleRecalcularSimulacao}
+            minimoParcelaUnica={minimoParcelaUnicaJornada}
             salvando={isPending}
             erroSimulacao={erroSimulacao}
           />

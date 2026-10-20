@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
   formatarMoeda,
+  formatarMoedaCentavos,
+  parcelaUnicaAbaixoDoMinimo,
   type LinhaFluxo,
   type ResultadoCalculo,
 } from '@/lib/simulador/calcular-oferta';
@@ -22,15 +24,19 @@ type Props = {
   valoresConfirmados?: ValoresConfirmadosOferta | null;
   recalcToken?: number;
   onRecalcular: (valores: ValoresConfirmadosOferta) => void;
+  /** Mínimo da parcela única recalculado pelo motor para a entrada/mensal informadas. */
+  minimoParcelaUnica: (entrada: number, mensal: number) => number;
   onVerMemorial: () => void;
 };
 
-function minimoUnica(entrada: number, mensal: number, base: ResultadoCalculo): number {
-  const deltaEntrada = entrada - base.entrada_sugerida;
-  const deltaMensais = (mensal - base.parcela_mensal_usada) * base.mes_parcela_unica;
-  return Math.max(
-    base.parcela_unica_detalhe.min_quitar_lote,
-    base.parcela_unica_sugerida - deltaEntrada - deltaMensais,
+function AvisoMinimoUnica({ minimo, atual }: { minimo: number; atual: number }) {
+  if (!parcelaUnicaAbaixoDoMinimo(atual, minimo)) {
+    return <AvisoMinimo minimo={minimo} atual={atual} />;
+  }
+  return (
+    <p className="jornadaSimAvisoMinimo is-abaixo" role="alert">
+      A parcela única precisa ser de pelo menos {formatarMoedaCentavos(minimo)} para quitar o lote.
+    </p>
   );
 }
 
@@ -83,6 +89,7 @@ export function SimulacaoResultado({
   valoresConfirmados,
   recalcToken = 0,
   onRecalcular,
+  minimoParcelaUnica,
   onVerMemorial,
 }: Props) {
   const [fluxoAberto, setFluxoAberto] = useState(false);
@@ -108,7 +115,8 @@ export function SimulacaoResultado({
   const entradaCard = aplicado ? valoresConfirmados.entrada : resultado.entrada_sugerida;
   const mensalCard = aplicado ? valoresConfirmados.mensal : resultado.parcela_mensal_usada;
   const unicaCard = aplicado ? valoresConfirmados.unica : resultado.parcela_unica_sugerida;
-  const unicaMinima = minimoUnica(entradaConf, mensalConf, resultado);
+  const unicaMinima = minimoParcelaUnica(entradaConf, mensalConf);
+  const unicaAbaixo = parcelaUnicaAbaixoDoMinimo(unicaConf, unicaMinima);
 
   const taxaPctLabel =
     taxaJurosPct != null ? String(taxaJurosPct).replace('.', ',') : null;
@@ -123,7 +131,7 @@ export function SimulacaoResultado({
 
   function onEntradaChange(n: number | null) {
     const v = n ?? 0;
-    const unica = minimoUnica(v, mensalConf, resultado);
+    const unica = minimoParcelaUnica(v, mensalConf);
     setEntradaConf(v);
     setUnicaConf(unica);
     valoresRef.current = { entrada: v, mensal: mensalConf, unica };
@@ -131,14 +139,16 @@ export function SimulacaoResultado({
 
   function onMensalChange(n: number | null) {
     const v = n ?? 0;
-    const unica = minimoUnica(entradaConf, v, resultado);
+    const unica = minimoParcelaUnica(entradaConf, v);
     setMensalConf(v);
     setUnicaConf(unica);
     valoresRef.current = { entrada: entradaConf, mensal: v, unica };
   }
 
   function handleRecalcular() {
-    onRecalcular(valoresRef.current);
+    const v = valoresRef.current;
+    if (parcelaUnicaAbaixoDoMinimo(v.unica, minimoParcelaUnica(v.entrada, v.mensal))) return;
+    onRecalcular(v);
   }
 
   return (
@@ -242,9 +252,9 @@ export function SimulacaoResultado({
                 valoresRef.current = { ...valoresRef.current, unica: v };
               }}
             />
-            <AvisoMinimo minimo={unicaMinima} atual={unicaConf} />
+            <AvisoMinimoUnica minimo={unicaMinima} atual={unicaConf} />
           </div>
-          <button type="submit" className="jornadaSimBtnRecalc">
+          <button type="submit" className="jornadaSimBtnRecalc" disabled={unicaAbaixo}>
             Recalcular simulação
           </button>
         </form>
