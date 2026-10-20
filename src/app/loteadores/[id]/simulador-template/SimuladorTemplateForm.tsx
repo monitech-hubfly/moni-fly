@@ -2,10 +2,7 @@
 
 import { startTransition, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  regenerarLinkSimuladorTemplate,
-  salvarSimuladorTemplateDoCard,
-} from '@/lib/actions/loteamento-simulador-template';
+import { salvarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
 import { gerarSlugCard } from '@/lib/utils/slug';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
