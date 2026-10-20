@@ -33,6 +33,8 @@ import {
   calcularOferta,
   calcularParcelaUnicaMinimaConfirmada,
   formatarMoeda,
+  formatarMoedaCentavos,
+  parcelaUnicaAbaixoDoMinimo,
   sugerirParcelaMensal,
   type OfertaConfig,
   type ResultadoCalculo,
@@ -305,6 +307,12 @@ export function CalculadoraOferta({
       setErro('Informe o nome da oferta.');
       return;
     }
+    if (unicaAbaixoMinimo) {
+      setErro(
+        `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(parcelaUnicaMinimaHint)} para quitar o lote.`,
+      );
+      return;
+    }
     setSalvando(true);
     setErro(null);
     setMensagem(null);
@@ -420,6 +428,8 @@ export function CalculadoraOferta({
       parcelaMensalConf,
     );
   }, [entradaConf, parcelaMensalConf, resultado, template, ultimaOferta]);
+  const unicaAbaixoMinimo =
+    resultado != null && parcelaUnicaAbaixoDoMinimo(parcelaUnicaConf, parcelaUnicaMinimaHint);
 
   const avisosSalvar = useMemo(() => {
     const vazio = { entrada: [] as string[], parcela: [] as string[] };
@@ -808,8 +818,12 @@ export function CalculadoraOferta({
                 label="Parcela única confirmada (R$)"
                 valor={parcelaUnicaConf}
                 onValorChange={onParcelaUnicaConfirmada}
-                dica={`⚠ Mínimo sugerido: ${formatarMoeda(parcelaUnicaMinimaHint)}`}
-                dicaValida={parcelaUnicaConf >= parcelaUnicaMinimaHint}
+                dica={
+                  unicaAbaixoMinimo
+                    ? `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(parcelaUnicaMinimaHint)} para quitar o lote.`
+                    : `⚠ Mínimo sugerido: ${formatarMoeda(parcelaUnicaMinimaHint)}`
+                }
+                dicaValida={!unicaAbaixoMinimo}
               />
             </div>
             <div className="mt-6 flex flex-col gap-4">
@@ -871,7 +885,7 @@ export function CalculadoraOferta({
             ) : null}
             <button
               type="button"
-              disabled={salvando}
+              disabled={salvando || unicaAbaixoMinimo}
               onClick={() => void onSalvar()}
               className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:opacity-50"
               style={{ background: 'var(--moni-navy-800)' }}
