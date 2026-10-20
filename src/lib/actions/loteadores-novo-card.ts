@@ -398,6 +398,13 @@ export async function criarCardLoteadoresComCadastro(
   if (cardErr) return { ok: false, error: cardErr.message };
 
   const cardId = String((cardRow as { id: string }).id);
+  const { garantirSlugJornadaDoCard } = await import('@/lib/kanban/jornada-slug-card');
+  const slugRes = await garantirSlugJornadaDoCard(gate.supabase, {
+    cardId,
+    nomeCondominio,
+    titulo,
+  });
+  if (!slugRes.ok) console.warn('[loteadores-novo-card] slug da jornada:', slugRes.error);
   const { aplicarResponsavelFasePadraoAoCard, aplicarResponsavelDaFasePadraoSeVazio } =
     await import('@/lib/kanban/responsavel-fase-checklist');
   await aplicarResponsavelFasePadraoAoCard(gate.supabase, cardId, faseId, kanbanId, gate.userId);
@@ -511,6 +518,13 @@ export async function criarCardLoteadoresNovoCadastroAdmin(
   if (cardErr) return { ok: false, error: cardErr.message };
 
   const cardId = String((cardRow as { id: string }).id);
+  const { garantirSlugJornadaDoCard } = await import('@/lib/kanban/jornada-slug-card');
+  const slugRes = await garantirSlugJornadaDoCard(admin, {
+    cardId,
+    nomeCondominio,
+    titulo,
+  });
+  if (!slugRes.ok) console.warn('[loteadores-intake] slug da jornada:', slugRes.error);
   await aplicarResponsavelFasePadraoAoCard(admin, cardId, faseId, KANBAN_IDS.LOTEADORES, ownerUserId);
   await aplicarResponsavelDaFasePadraoSeVazio(admin, cardId, faseId, ownerUserId);
 

@@ -1957,6 +1957,15 @@ export async function criarCard(input: CriarCardKanbanInput): Promise<ActionResu
     await import('@/lib/kanban/responsavel-fase-checklist');
   await aplicarResponsavelFasePadraoAoCard(supabase, cardId, faseId, kanbanId, user.id);
   await aplicarResponsavelDaFasePadraoSeVazio(supabase, cardId, faseId, user.id);
+  if (isKanbanFunilLoteadoresRef(kanbanId, kanbanNome)) {
+    const { garantirSlugJornadaDoCard } = await import('@/lib/kanban/jornada-slug-card');
+    const slugRes = await garantirSlugJornadaDoCard(supabase, {
+      cardId,
+      nomeCondominio,
+      titulo: tituloFinal,
+    });
+    if (!slugRes.ok) console.warn('[criarCard] slug da jornada:', slugRes.error);
+  }
 
   const bp = (input.basePath ?? '').trim() || '/';
   revalidatePath(bp);
