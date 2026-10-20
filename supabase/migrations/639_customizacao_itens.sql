@@ -1,4 +1,4 @@
--- 637: Banco de itens de customização da casa (global, sem categoria) + RPC pública da jornada.
+-- 639: Banco de itens de customização da casa (global, sem categoria) + RPC pública da jornada.
 -- Itens identificados pelo nome (coluna Item da planilha). Preço por modelo em valores_por_modelo,
 -- com chaves = nomes oficiais do Hub Fly (IMOB_PRODUTOS_MODELO, com ™). Ausente = valor_padrao.
 -- Não altera empreendimento_itens_customizacao (fica preservada, sem uso no step 4).
@@ -213,12 +213,12 @@ GRANT EXECUTE ON FUNCTION public.jornada_sessao_salvar(text, uuid, integer, json
 DO $$
 BEGIN
   INSERT INTO supabase_migrations.schema_migrations (version, name)
-  VALUES ('637', 'customizacao_itens')
+  VALUES ('639', 'customizacao_itens')
   ON CONFLICT (version) DO NOTHING;
 EXCEPTION
   WHEN undefined_column THEN
     INSERT INTO supabase_migrations.schema_migrations (version)
-    VALUES ('637')
+    VALUES ('639')
     ON CONFLICT (version) DO NOTHING;
 END $$;
 

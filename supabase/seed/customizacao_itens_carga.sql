@@ -4,7 +4,7 @@
 -- Itens: 8 (8 ativos)
 -- Modelos com preço próprio: Moní Gal L™, Moní Cissa L™, Moní Lena™
 -- Idempotente: upsert por item. Itens fora da planilha não são apagados.
--- Requer a migration 637_customizacao_itens.sql.
+-- Requer a migration 639_customizacao_itens.sql.
 
 BEGIN;
 

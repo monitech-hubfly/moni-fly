@@ -161,7 +161,7 @@ function gerarSql(itens: ItemCarga[], origem: string, modelos: string[]): string
 -- Itens: ${itens.length} (${itens.filter((i) => i.ativo).length} ativos)
 -- Modelos com preço próprio: ${modelos.length ? modelos.join(', ') : '(nenhum)'}
 -- Idempotente: upsert por item. Itens fora da planilha não são apagados.
--- Requer a migration 637_customizacao_itens.sql.
+-- Requer a migration 639_customizacao_itens.sql.
 
 BEGIN;
 
