@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type {
   EmpreendimentoPublico,
   LotePublicoEmp,
-  ItemCustomizacao,
+  ItemCustomizacaoCasa,
+  ItemCustomizacaoEscolhido,
   OfertaEmpreendimento,
   JornadaLocal,
   TemplateConfigPublico,
@@ -34,6 +35,11 @@ import {
 import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
 import { inferirCondicaoLote } from '@/lib/loteamento-simulador-template';
 import { maskTelefoneCelular } from '@/lib/br-docs';
+import {
+  LOG_JORNADA_CUSTOMIZACAO,
+  itensCustomizacaoDoModelo,
+  itensCustomizacaoEscolhidos,
+} from '@/lib/empreendimento/customizacao-itens';
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const fmt = (v: number) => BRL.format(v);
@@ -91,36 +97,37 @@ function condicaoLoteJornada(state: JornadaLocal): 'nao_pago' | 'parcial' | 'qui
   return inferirCondicaoLote(state.valorJaPago);
 }
 
+/** valor_customizacao do motor = acompanhamento de arquiteto (se marcado) + itens marcados. */
 function calcularCustomizacao(
   oferta: OfertaEmpreendimento | null,
-  itens: ItemCustomizacao[],
-  gadgetsSelecionados: Set<string>,
-  kitSelecionado: boolean,
+  itens: ItemCustomizacaoCasa[],
+  selecionados: Set<string>,
   acabamentosArquiteto = false,
-): { valorKit: number; valorGadgets: number; valorCasa: number; valorCustomizacao: number } {
+): {
+  valorCasa: number;
+  valorCustomizacao: number;
+  customizacaoEscolhidos: ItemCustomizacaoEscolhido[];
+} {
   const valorCasa = Math.max(0, Number(oferta?.valor_base_casa) || 0);
-
-  const kitItem = itens.find((i) => i.categoria === 'kit_moni');
-  const valorKit = kitSelecionado && kitItem ? kitItem.valor : 0;
-
-  const valorGadgets = itens
-    .filter((i) => i.categoria === 'gadget' && gadgetsSelecionados.has(i.id))
-    .reduce((acc, i) => acc + i.valor, 0);
-
+  const customizacaoEscolhidos = itensCustomizacaoEscolhidos(
+    itens,
+    oferta?.produto_modelo,
+    selecionados,
+  );
+  const valorItens = customizacaoEscolhidos.reduce((acc, i) => acc + i.valor, 0);
   const valorAcabamentos = acabamentosArquiteto ? VALOR_ACABAMENTOS_ARQUITETO : 0;
 
   return {
-    valorKit,
-    valorGadgets,
     valorCasa,
-    valorCustomizacao: valorKit + valorGadgets + valorAcabamentos,
+    valorCustomizacao: valorItens + valorAcabamentos,
+    customizacaoEscolhidos,
   };
 }
 
 function montarOfertaJornada(
   state: JornadaLocal,
   tpl: TemplateConfigPublico | null,
-  itens: ItemCustomizacao[],
+  itens: ItemCustomizacaoCasa[],
 ): OfertaConfig {
   const prazoEntrega = Math.max(1, Math.round(state.prazoObraMeses || 12));
   const nObra = Math.min(
@@ -136,8 +143,7 @@ function montarOfertaJornada(
   const calcs = calcularCustomizacao(
     state.ofertaSelecionada,
     itens,
-    state.gadgetsSelecionados,
-    state.kitSelecionado,
+    state.customizacaoSelecionados,
     state.acabamentosArquiteto,
   );
 
@@ -173,12 +179,10 @@ function estadoInicial(_empreendimento?: EmpreendimentoPublico): JornadaLocal {
     modoTerreno: null,
     loteSelecionado: null,
     valorJaPago: 0,
-    gadgetsSelecionados: new Set(),
-    kitSelecionado: false,
+    customizacaoSelecionados: new Set(),
     acabamentosArquiteto: false,
     valorAcoplamento: 0,
-    valorKit: 0,
-    valorGadgets: 0,
+    customizacaoEscolhidos: [],
     valorCasa: 0,
     valorCustomizacao: 0,
     valorLote: 0,
@@ -530,13 +534,15 @@ function PassoTerreno({
 
 function PassoCasa({
   itens,
+  erroItens,
   state,
   setState,
   onAvancar,
   onVoltar,
   salvando,
 }: {
-  itens: ItemCustomizacao[];
+  itens: ItemCustomizacaoCasa[];
+  erroItens: string | null;
   state: JornadaLocal;
   setState: (s: Partial<JornadaLocal>) => void;
   onAvancar: () => void;
@@ -547,54 +553,40 @@ function PassoCasa({
     const calcs = calcularCustomizacao(
       state.ofertaSelecionada,
       itens,
-      state.gadgetsSelecionados,
-      state.kitSelecionado,
+      state.customizacaoSelecionados,
       state.acabamentosArquiteto,
     );
     setState(calcs);
+    if (erroItens) {
+      console.error(LOG_JORNADA_CUSTOMIZACAO, 'lista de itens indisponível no step 4');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function toggleGadget(id: string) {
-    const next = new Set(state.gadgetsSelecionados);
+  function toggleItem(id: string) {
+    const next = new Set(state.customizacaoSelecionados);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     const calcs = calcularCustomizacao(
       state.ofertaSelecionada,
       itens,
       next,
-      state.kitSelecionado,
       state.acabamentosArquiteto,
     );
-    setState({ gadgetsSelecionados: next, ...calcs });
-  }
-
-  function toggleKit(val: boolean) {
-    const calcs = calcularCustomizacao(
-      state.ofertaSelecionada,
-      itens,
-      state.gadgetsSelecionados,
-      val,
-      state.acabamentosArquiteto,
-    );
-    setState({ kitSelecionado: val, ...calcs });
+    setState({ customizacaoSelecionados: next, ...calcs });
   }
 
   function toggleAcabamentos(val: boolean) {
     const calcs = calcularCustomizacao(
       state.ofertaSelecionada,
       itens,
-      state.gadgetsSelecionados,
-      state.kitSelecionado,
+      state.customizacaoSelecionados,
       val,
     );
     setState({ acabamentosArquiteto: val, ...calcs });
   }
 
-  const kitItem = itens.find((i) => i.categoria === 'kit_moni');
-  const gadgets = itens.filter((i) => i.categoria === 'gadget');
-  const letraKit = 'C';
-  const letraExtras = kitItem ? 'D' : 'C';
+  const itensDoModelo = itensCustomizacaoDoModelo(itens, state.ofertaSelecionada?.produto_modelo);
 
   return (
     <div className="jornadaCard passo4">
@@ -644,50 +636,40 @@ function PassoCasa({
         </label>
       </section>
 
-      {kitItem && (
-        <section className="jornadaSection">
-          <h3 className="jornadaSectionTitle">
-            <span className="jornadaSectionBadge">{letraKit}</span>
-            Kit Moní
-          </h3>
-          <label className="jornadaKitToggle">
-            <input
-              type="checkbox"
-              checked={state.kitSelecionado}
-              onChange={(e) => toggleKit(e.target.checked)}
-            />
-            <div className="jornadaKitInfo">
-              <span className="jornadaKitNome">{kitItem.nome}</span>
-              {kitItem.descricao && <span className="jornadaKitDesc">{kitItem.descricao}</span>}
-            </div>
-            <span className="jornadaKitValor">{fmt(kitItem.valor)}</span>
-          </label>
-        </section>
-      )}
-
-      {gadgets.length > 0 && (
-        <section className="jornadaSection">
-          <h3 className="jornadaSectionTitle">
-            <span className="jornadaSectionBadge">{letraExtras}</span>
-            Extras
-          </h3>
-          <ul className="jornadaGadgetList">
-            {gadgets.map((g) => (
-              <li key={g.id}>
-                <label className="jornadaGadgetLabel">
-                  <input
-                    type="checkbox"
-                    checked={state.gadgetsSelecionados.has(g.id)}
-                    onChange={() => toggleGadget(g.id)}
-                  />
-                  <span className="jornadaGadgetNome">{g.nome}</span>
-                  <span className="jornadaGadgetValor">{fmt(g.valor)}</span>
-                </label>
-              </li>
+      <section className="jornadaSection">
+        <h3 className="jornadaSectionTitle">
+          <span className="jornadaSectionBadge">C</span>
+          Itens da casa
+        </h3>
+        {erroItens ? (
+          <p className="jornadaEmpty" role="alert">{erroItens}</p>
+        ) : itensDoModelo.length === 0 ? (
+          <p className="jornadaEmpty">Nenhum item de customização disponível para este modelo.</p>
+        ) : (
+          <div className="jornadaCustomizacaoLista">
+            {itensDoModelo.map((i) => (
+              <label key={i.id} className="jornadaKitToggle">
+                <input
+                  type="checkbox"
+                  checked={state.customizacaoSelecionados.has(i.id)}
+                  onChange={() => toggleItem(i.id)}
+                />
+                <div className="jornadaKitInfo">
+                  <span className="jornadaKitNome">{i.item}</span>
+                  {i.descricao && <span className="jornadaKitDesc">{i.descricao}</span>}
+                </div>
+                <span className="jornadaKitValor">{fmt(i.preco)}</span>
+              </label>
             ))}
-          </ul>
-        </section>
-      )}
+          </div>
+        )}
+        {state.valorCustomizacao > 0 ? (
+          <div className="jornadaAcoplamentoTotal">
+            <strong>Total da customização</strong>
+            <span>{fmt(state.valorCustomizacao)}</span>
+          </div>
+        ) : null}
+      </section>
 
       <div className="jornadaBtnRow">
         <button type="button" className="jornadaBtn jornadaBtnSecondary" onClick={onVoltar}>Voltar</button>
@@ -757,8 +739,7 @@ function PassoSimulacao({
   if (state.acabamentosArquiteto) {
     extrasCustom.push(`Acabamentos com arquiteto ${fmt(VALOR_ACABAMENTOS_ARQUITETO)}`);
   }
-  if (state.kitSelecionado && state.valorKit > 0) extrasCustom.push(`Kit Moní ${fmt(state.valorKit)}`);
-  if (state.valorGadgets > 0) extrasCustom.push(`Extras ${fmt(state.valorGadgets)}`);
+  for (const i of state.customizacaoEscolhidos) extrasCustom.push(`${i.item} ${fmt(i.valor)}`);
 
   return (
     <div className="jornadaCard">
@@ -913,8 +894,11 @@ function Passo6({
           {state.acabamentosArquiteto && (
             <p>Acabamentos com arquiteto: {fmt(VALOR_ACABAMENTOS_ARQUITETO)}</p>
           )}
-          {state.kitSelecionado && state.valorKit > 0 && <p>Kit Moní: {fmt(state.valorKit)}</p>}
-          {state.valorGadgets > 0 && <p>Extras: {fmt(state.valorGadgets)}</p>}
+          {state.customizacaoEscolhidos.map((i) => (
+            <p key={i.id}>
+              {i.item}: {fmt(i.valor)}
+            </p>
+          ))}
         </div>
         {resultadoSimulacao ? (
           <div className="jornadaMemTotal">
@@ -990,11 +974,12 @@ export default function JornadaClient({
         : null;
       const itensIds = sessao.itens_selecionados ?? [];
       const acabamentosArquiteto = itensIds.includes(ID_ACABAMENTOS_ARQUITETO);
-      const gadgetsSelecionados = new Set(itensIds.filter((id) => id !== ID_ACABAMENTOS_ARQUITETO));
-      const kitSelecionado = itensIds.some((id) => {
-        const item = empreendimento.itens_customizacao.find((i) => i.id === id);
-        return item?.categoria === 'kit_moni';
-      });
+      const idsCatalogo = new Set(empreendimento.customizacao_itens.map((i) => i.id));
+      const customizacaoSelecionados = new Set(
+        [...itensIds, ...(sessao.customizacao_itens ?? []).map((i) => i.id)].filter((id) =>
+          idsCatalogo.has(id),
+        ),
+      );
       const modoTerreno: ModoTerrenoJornada | null =
         sessao.lote_ja_adquirido === true
           ? 'informar'
@@ -1005,9 +990,8 @@ export default function JornadaClient({
               : null;
       const calcs = calcularCustomizacao(
         oferta,
-        empreendimento.itens_customizacao,
-        gadgetsSelecionados,
-        kitSelecionado,
+        empreendimento.customizacao_itens,
+        customizacaoSelecionados,
         acabamentosArquiteto,
       );
       const preview = oferta ? valorAvistaOferta(oferta) : null;
@@ -1026,8 +1010,7 @@ export default function JornadaClient({
         valorLote: sessao.valor_lote ?? (lote?.valor ?? 0),
         ofertaSelecionada: oferta,
         previewVteAvista: preview,
-        gadgetsSelecionados,
-        kitSelecionado,
+        customizacaoSelecionados,
         acabamentosArquiteto,
         valorAcoplamento: valorAcoplamentoDoLote(lote),
         ...calcs,
@@ -1039,9 +1022,8 @@ export default function JornadaClient({
   async function avancarEtapa(proximaEtapa: number, dadosExtras?: Record<string, unknown>) {
     const calcs = calcularCustomizacao(
       state.ofertaSelecionada,
-      empreendimento.itens_customizacao,
-      state.gadgetsSelecionados,
-      state.kitSelecionado,
+      empreendimento.customizacao_itens,
+      state.customizacaoSelecionados,
       state.acabamentosArquiteto,
     );
     const dados: Record<string, unknown> = {
@@ -1053,20 +1035,14 @@ export default function JornadaClient({
       valor_ja_pago: state.valorJaPago,
       empreendimento_id: state.ofertaSelecionada?.imob_empreendimento_id ?? null,
       itens_selecionados: [
-        ...state.gadgetsSelecionados,
-        ...(state.kitSelecionado
-          ? empreendimento.itens_customizacao
-              .filter((i) => i.categoria === 'kit_moni')
-              .map((i) => i.id)
-          : []),
+        ...calcs.customizacaoEscolhidos.map((i) => i.id),
         ...(state.acabamentosArquiteto ? [ID_ACABAMENTOS_ARQUITETO] : []),
       ],
+      customizacao_itens: calcs.customizacaoEscolhidos,
       valor_acoplamento: state.valorAcoplamento || null,
-      valor_kit: calcs.valorKit || null,
-      valor_gadgets: calcs.valorGadgets || null,
       valor_lote: valorLoteParaCalculo(state) || null,
       valor_casa: calcs.valorCasa || null,
-      valor_customizacao: calcs.valorCustomizacao || null,
+      valor_customizacao: calcs.valorCustomizacao,
       simulacao_id: state.simulacaoId ?? null,
       slug_empreendimento: empreendimento.slug,
       ...(corretorIdRef.current ? { corretor_id: corretorIdRef.current } : {}),
@@ -1134,7 +1110,7 @@ export default function JornadaClient({
     const oferta = montarOfertaJornada(
       stateCalc,
       empreendimento.template,
-      empreendimento.itens_customizacao,
+      empreendimento.customizacao_itens,
     );
     startTransition(() => {
       void gravarSimulacaoJornada({
@@ -1144,6 +1120,12 @@ export default function JornadaClient({
         valorLote: oferta.valor_lote,
         valorCasa: oferta.valor_casa,
         valorCustomizacao: oferta.valor_customizacao,
+        customizacaoItens: calcularCustomizacao(
+          stateCalc.ofertaSelecionada,
+          empreendimento.customizacao_itens,
+          stateCalc.customizacaoSelecionados,
+          stateCalc.acabamentosArquiteto,
+        ).customizacaoEscolhidos,
         valorJaPago: oferta.valor_ja_pago,
         rendaCliente: state.rendaMensal,
         prazoObraMeses: stateCalc.prazoObraMeses,
@@ -1172,7 +1154,7 @@ export default function JornadaClient({
   function minimoParcelaUnicaJornada(entrada: number, mensal: number): number {
     return calcularParcelaUnicaMinimaConfirmada(
       montarTemplateParaEngine(empreendimento.template),
-      montarOfertaJornada(state, empreendimento.template, empreendimento.itens_customizacao),
+      montarOfertaJornada(state, empreendimento.template, empreendimento.customizacao_itens),
       entrada,
       mensal,
       state.valorAcoplamento,
@@ -1195,7 +1177,7 @@ export default function JornadaClient({
           ...montarOfertaJornada(
             state,
             empreendimento.template,
-            empreendimento.itens_customizacao,
+            empreendimento.customizacao_itens,
           ),
           entrada_confirmada: valores.entrada,
           mensal_confirmada: valores.mensal,
@@ -1254,7 +1236,8 @@ export default function JornadaClient({
         )}
         {state.etapa === ETAPA.casa && (
           <PassoCasa
-            itens={empreendimento.itens_customizacao}
+            itens={empreendimento.customizacao_itens}
+            erroItens={empreendimento.customizacao_erro}
             state={state}
             setState={setState}
             onAvancar={() => handleAvancar(ETAPA.simulacao)}

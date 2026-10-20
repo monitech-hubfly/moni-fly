@@ -2,8 +2,12 @@
 // src/lib/actions/jornada-cliente.ts
 
 import { createClient } from '@/lib/supabase/server';
-import type { JornadaSessao } from '@/app/empreendimento/[slug]/types';
+import type {
+  ItemCustomizacaoEscolhido,
+  JornadaSessao,
+} from '@/app/empreendimento/[slug]/types';
 import { nascerCardVclDoCliente } from '@/lib/kanban/vcl-lead-nascimento';
+import { parseItensCustomizacaoEscolhidos } from '@/lib/empreendimento/customizacao-itens';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Salvar/criar sessão do cliente
@@ -98,6 +102,7 @@ export async function carregarJornadaSessao(
     itens_selecionados: Array.isArray(raw.itens_selecionados)
       ? (raw.itens_selecionados as string[])
       : [],
+    customizacao_itens: parseItensCustomizacaoEscolhidos(raw.customizacao_itens),
     valor_acoplamento: raw.valor_acoplamento != null ? Number(raw.valor_acoplamento) : null,
     valor_kit: raw.valor_kit != null ? Number(raw.valor_kit) : null,
     valor_gadgets: raw.valor_gadgets != null ? Number(raw.valor_gadgets) : null,
@@ -119,6 +124,7 @@ type GravarSimulacaoInput = {
   valorLote: number;
   valorCasa: number;
   valorCustomizacao: number;
+  customizacaoItens: ItemCustomizacaoEscolhido[];
   valorJaPago: number;
   rendaCliente: number | null;
   prazoObraMeses: number;
@@ -139,12 +145,15 @@ export async function gravarSimulacaoJornada(
   const supabase = await createClient();
   const {
     templateId, cardId, sessaoToken,
-    valorLote, valorCasa, valorCustomizacao,
+    valorLote, valorCasa, valorCustomizacao, customizacaoItens,
     valorJaPago, rendaCliente, prazoObraMeses, prazoFinanciamentoAnos, taxaFinanciamentoAnual,
     nomeCliente, telefoneCliente, condicaoLote,
   } = input;
 
-  // Insere rascunho em simulacoes_pagamento com os valores da jornada
+  // TODO(jornada→kanban): este insert roda como visitante anônimo e provavelmente falha por RLS
+  // (simulacoes_pagamento só aceita escrita de admin/team — migration 544). Só grava quando há
+  // usuário interno logado. Resolver depois do treinamento junto com a ligação jornada → kanban.
+  // Os itens escolhidos ficam garantidos em jornada_cliente_sessao.customizacao_itens.
   const { data, error } = await supabase
     .from('simulacoes_pagamento')
     .insert({
@@ -155,6 +164,7 @@ export async function gravarSimulacaoJornada(
       valor_lote: valorLote,
       valor_casa: valorCasa,
       valor_customizacao: valorCustomizacao,
+      customizacao_itens: customizacaoItens,
       valor_ja_pago: valorJaPago,
       renda_cliente: rendaCliente,
       prazo_meses: prazoObraMeses,
