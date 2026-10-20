@@ -3,6 +3,8 @@
 export type LotePublicoEmp = {
   id: string;
   codigo: string;
+  /** Exibição no step 3: Quadra + Lote (ex.: "A1"). */
+  rotulo: string;
   valor: number;
   acoplamento: number; // valor de acoplamento do lote (vem da planilha)
   /** true = à venda (Disponível = Sim). */
@@ -86,6 +88,8 @@ export type EmpreendimentoPublico = {
   itens_customizacao: ItemCustomizacao[];
   ofertas: OfertaEmpreendimento[];
   lotes: LotePublicoEmp[];
+  /** Mensagem para o cliente quando a planilha de lotes não carregou. */
+  lotes_erro: string | null;
 };
 
 export type ModoTerrenoJornada = 'disponivel' | 'informar';

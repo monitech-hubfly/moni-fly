@@ -136,6 +136,9 @@ function parseTemplate(raw: unknown): TemplateConfigPublico | null {
   };
 }
 
+const ERRO_LOTES_INDISPONIVEIS =
+  'Não foi possível carregar a lista de lotes agora. Tente novamente em alguns minutos.';
+
 async function carregarLotesDaPlanilha(
   planilhaPath: string,
   planilhaNome: string,
@@ -169,6 +172,7 @@ async function carregarLotesDaPlanilha(
       return linhas.map((l, i) => ({
         id: `planilha:${i}:${l.codigo}`,
         codigo: l.codigo,
+        rotulo: l.quadra && l.lote ? `${l.quadra}${l.lote}` : l.lote || l.codigo,
         valor: l.valor,
         acoplamento: l.valorAcoplamento,
         disponivel: l.disponivel,
@@ -384,6 +388,9 @@ export async function carregarEmpreendimento(
   } catch (err) {
     console.error('[empreendimento] enriquecer ofertas Helenna:', err);
   }
+  if (!planilhaPath) {
+    console.error('[empreendimento] card sem planilha_lotes_path', { slug: s, card_id });
+  }
 
   return {
     card_id,
@@ -399,5 +406,6 @@ export async function carregarEmpreendimento(
     itens_customizacao,
     ofertas: enriquecido.ofertas,
     lotes,
+    lotes_erro: lotes.length === 0 ? ERRO_LOTES_INDISPONIVEIS : null,
   };
 }
