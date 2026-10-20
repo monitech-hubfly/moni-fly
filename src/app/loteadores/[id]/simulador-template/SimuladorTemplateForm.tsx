@@ -201,7 +201,7 @@ export function SimuladorTemplateForm({
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
-                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
+                {'suffix' in f && f.suffix ? String(f.suffix) : ' (%)'}
               </span>
               <CampoDraftNumero
                 value={draft[f.key]}
@@ -219,7 +219,7 @@ export function SimuladorTemplateForm({
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
-                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
+                {'suffix' in f && f.suffix ? String(f.suffix) : ' (%)'}
               </span>
               <CampoDraftNumero
                 value={draft[f.key]}
@@ -254,7 +254,7 @@ export function SimuladorTemplateForm({
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
-                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
+                {'suffix' in f && f.suffix ? String(f.suffix) : ' (%)'}
               </span>
               <CampoDraftNumero
                 value={draft[f.key]}
@@ -272,7 +272,7 @@ export function SimuladorTemplateForm({
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
-                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
+                {'suffix' in f && f.suffix ? String(f.suffix) : ' (%)'}
               </span>
               <CampoDraftNumero
                 value={draft[f.key]}
@@ -365,7 +365,7 @@ export function SimuladorTemplateForm({
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
-                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
+                {'suffix' in f && f.suffix ? String(f.suffix) : ' (%)'}
               </span>
               <CampoDraftNumero
                 value={draft[f.key]}

@@ -452,7 +452,8 @@ export function calcularOferta(
   const taxa_gestao_mes = taxa_gestao_amount / N_obra;
   const taxas_plataforma_mes = montarTaxasPlataformaPorMes(taxa_plataforma_restante, N_obra);
   const lucros_cp = lucro_loteadora_amount + lucro_moni_amount + lucro_franqueado_amount;
-  const tipo_juros_cp = template.tipo_juros_cp === 'total' ? 'total' : 'mes_a_mes';
+  const tipo_juros_cp: 'mes_a_mes' | 'total' =
+    template.tipo_juros_cp === 'total' ? 'total' : 'mes_a_mes';
 
   const paramsFase2 = {
     N_obra,
@@ -485,6 +486,7 @@ export function calcularOferta(
     const sim = simularFase2({
       ...paramsFase2,
       excedente_parcela_unica: excedenteParcelaUnica(parcela_unica, min_quitar_lote),
+      tipo_juros_cp,
     });
     juros_obra_total = sim.juros_obra_total;
 
@@ -571,6 +573,7 @@ export function calcularOferta(
     excedente_parcela_unica:
       excedenteParcelaUnica(parcela_unica_fluxo, quitacao_real_fluxo) +
       Math.max(0, reserva_fase1 ?? 0),
+    tipo_juros_cp,
   });
   const saldo_cp_final = fase2Fluxo.dados.length > 0 ? fase2Fluxo.dados[fase2Fluxo.dados.length - 1].saldo : 0;
   const total_parcelas_mensais_fase2 = N_obra * mensal_fluxo;
