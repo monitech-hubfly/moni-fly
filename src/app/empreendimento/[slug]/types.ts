@@ -26,6 +26,25 @@ export type ItemCustomizacao = {
   ordem: number;
 };
 
+/** Item do banco global `customizacao_itens` (RPC jornada_customizacao_itens). */
+export type ItemCustomizacaoCasa = {
+  id: string;
+  item: string;
+  descricao: string | null;
+  /** null = item só existe nos modelos de valores_por_modelo. */
+  valor_padrao: number | null;
+  /** Chave = nome oficial do modelo (IMOB_PRODUTOS_MODELO, com ™). */
+  valores_por_modelo: Record<string, number>;
+  ordem: number;
+};
+
+/** Item marcado no step 4 com o valor aplicado ao modelo da oferta. */
+export type ItemCustomizacaoEscolhido = {
+  id: string;
+  item: string;
+  valor: number;
+};
+
 export type OfertaEmpreendimento = {
   /** id da oferta da Helenna (`simulacoes_pagamento`). */
   id: string;
@@ -86,6 +105,10 @@ export type EmpreendimentoPublico = {
   planilha_lotes_nome: string | null;
   template: TemplateConfigPublico | null;
   itens_customizacao: ItemCustomizacao[];
+  /** Itens ativos de `customizacao_itens` — lista única do step 4. */
+  customizacao_itens: ItemCustomizacaoCasa[];
+  /** Mensagem para o cliente quando a lista de customização não carregou. */
+  customizacao_erro: string | null;
   ofertas: OfertaEmpreendimento[];
   lotes: LotePublicoEmp[];
   /** Mensagem para o cliente quando a planilha de lotes não carregou. */
@@ -106,6 +129,7 @@ export type JornadaSessao = {
   valor_ja_pago: number | null;
   empreendimento_id: string | null;
   itens_selecionados: string[];
+  customizacao_itens: ItemCustomizacaoEscolhido[];
   valor_acoplamento: number | null;
   valor_kit: number | null;
   valor_gadgets: number | null;
@@ -130,13 +154,13 @@ export type JornadaLocal = {
   loteSelecionado: LotePublicoEmp | null;
   valorJaPago: number;
 
-  gadgetsSelecionados: Set<string>;
-  kitSelecionado: boolean;
+  /** ids de `customizacao_itens` marcados no step 4. */
+  customizacaoSelecionados: Set<string>;
   acabamentosArquiteto: boolean;
 
   valorAcoplamento: number;
-  valorKit: number;
-  valorGadgets: number;
+  /** Itens marcados com o valor do modelo da oferta. */
+  customizacaoEscolhidos: ItemCustomizacaoEscolhido[];
   /** Preço-base da casa da oferta (valor_base_casa), não o VTE. */
   valorCasa: number;
   valorCustomizacao: number;

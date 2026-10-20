@@ -9,10 +9,16 @@ import {
   mapTemplateRow,
   prazoFase1DePrazoSalvo,
 } from '@/lib/loteamento-simulador-template';
+import {
+  ERRO_CUSTOMIZACAO_INDISPONIVEL,
+  LOG_JORNADA_CUSTOMIZACAO,
+  parseItemCustomizacaoCasa,
+} from '@/lib/empreendimento/customizacao-itens';
 import type {
   EmpreendimentoPublico,
   LotePublicoEmp,
   ItemCustomizacao,
+  ItemCustomizacaoCasa,
   OfertaEmpreendimento,
   TemplateConfigPublico,
 } from '@/app/empreendimento/[slug]/types';
@@ -348,6 +354,32 @@ async function enriquecerOfertasETemplate(
   return { ofertas: ofertasDaHelenna, template: templateEnriquecido };
 }
 
+async function carregarCustomizacaoItens(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  slug: string,
+): Promise<{ itens: ItemCustomizacaoCasa[]; erro: string | null }> {
+  try {
+    const { data, error } = await supabase.rpc('jornada_customizacao_itens');
+    if (error) {
+      console.error(LOG_JORNADA_CUSTOMIZACAO, 'RPC jornada_customizacao_itens falhou', {
+        slug,
+        erro: error.message,
+      });
+      return { itens: [], erro: ERRO_CUSTOMIZACAO_INDISPONIVEL };
+    }
+    const itens = Array.isArray(data)
+      ? data.map(parseItemCustomizacaoCasa).filter((i): i is ItemCustomizacaoCasa => i != null)
+      : [];
+    if (itens.length === 0) {
+      console.error(LOG_JORNADA_CUSTOMIZACAO, 'nenhum item ativo em customizacao_itens', { slug });
+    }
+    return { itens, erro: null };
+  } catch (err) {
+    console.error(LOG_JORNADA_CUSTOMIZACAO, 'erro ao carregar itens', { slug, err });
+    return { itens: [], erro: ERRO_CUSTOMIZACAO_INDISPONIVEL };
+  }
+}
+
 export async function carregarEmpreendimento(
   slug: string,
 ): Promise<EmpreendimentoPublico | null> {
@@ -378,6 +410,7 @@ export async function carregarEmpreendimento(
     ofertas: [],
     template: parseTemplate(raw.template),
   };
+  const customizacaoPromise = carregarCustomizacaoItens(supabase, s);
   try {
     const [lotesCarregados, ofertasTpl] = await Promise.all([
       planilhaPath ? carregarLotesDaPlanilha(planilhaPath, planilhaNome) : Promise.resolve([]),
@@ -388,6 +421,7 @@ export async function carregarEmpreendimento(
   } catch (err) {
     console.error('[empreendimento] enriquecer ofertas Helenna:', err);
   }
+  const customizacao = await customizacaoPromise;
   if (!planilhaPath) {
     console.error('[empreendimento] card sem planilha_lotes_path', { slug: s, card_id });
   }
@@ -404,6 +438,8 @@ export async function carregarEmpreendimento(
     planilha_lotes_nome: planilhaNome,
     template: enriquecido.template,
     itens_customizacao,
+    customizacao_itens: customizacao.itens,
+    customizacao_erro: customizacao.erro,
     ofertas: enriquecido.ofertas,
     lotes,
     lotes_erro: lotes.length === 0 ? ERRO_LOTES_INDISPONIVEIS : null,

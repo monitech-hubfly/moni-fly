@@ -609,6 +609,28 @@
 }
 
 /* Gadgets */
+.jornadaCustomizacaoLista {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jornadaCustomizacaoLista + .jornadaAcoplamentoTotal {
+  margin-top: 12px;
+}
+
+@media (max-width: 640px) {
+  .jornadaCustomizacaoLista .jornadaKitToggle {
+    flex-wrap: wrap;
+    min-height: 44px;
+  }
+
+  .jornadaCustomizacaoLista .jornadaKitValor {
+    width: 100%;
+    padding-left: 32px;
+  }
+}
+
 .jornadaGadgetList {
   list-style: none;
   margin: 0;
