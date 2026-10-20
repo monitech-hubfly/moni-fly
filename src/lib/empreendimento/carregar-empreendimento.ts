@@ -57,6 +57,28 @@ function parseItem(raw: unknown): ItemCustomizacao | null {
   };
 }
 
+function parseOferta(raw: unknown): OfertaEmpreendimento | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const id = String(r.id ?? '').trim();
+  if (!id) return null;
+  return {
+    id,
+    nome: r.nome != null ? String(r.nome) : null,
+    ordem: Number(r.ordem ?? 0),
+    valor_avista: r.valor_avista != null ? Number(r.valor_avista) : null,
+    imob_empreendimento_id: id,
+    valor_base_casa: r.valor_base_casa != null ? Number(r.valor_base_casa) : null,
+    valor_acoplamento: r.valor_acoplamento != null ? Number(r.valor_acoplamento) : null,
+    valor_lote_oferta: r.valor_lote_oferta != null ? Number(r.valor_lote_oferta) : null,
+    valor_customizacao_oferta:
+      r.valor_customizacao_oferta != null ? Number(r.valor_customizacao_oferta) : null,
+    titulo_oferta: r.titulo_oferta != null ? String(r.titulo_oferta) : null,
+    produto_modelo: r.produto_modelo != null ? String(r.produto_modelo) : null,
+    descricao: r.descricao != null ? String(r.descricao) : null,
+  };
+}
+
 function n0(v: number | null | undefined): number {
   return v != null && Number.isFinite(v) ? v : 0;
 }
@@ -208,6 +230,7 @@ function jsonValorNumerico(raw: unknown): number | null {
  */
 async function enriquecerOfertasETemplate(
   cardId: string,
+  ofertasRpc: OfertaEmpreendimento[],
   template: TemplateConfigPublico | null,
 ): Promise<{ ofertas: OfertaEmpreendimento[]; template: TemplateConfigPublico | null }> {
   const admin = tryCreateAdminClient();
@@ -220,15 +243,6 @@ async function enriquecerOfertasETemplate(
     );
   }
 
-  const { data: imobRows, error: imobErr } = await client
-    .from('imob_card_empreendimentos')
-    .select('id, tipo, produto_modelo, valor_base_casa, valor_acoplamento')
-    .eq('card_id', cardId);
-
-  if (imobErr) {
-    console.error('[empreendimento] enriquecer ofertas IMOB:', imobErr.message);
-  }
-
   const imobById = new Map<
     string,
     {
@@ -237,14 +251,13 @@ async function enriquecerOfertasETemplate(
       valor_acoplamento: number | null;
     }
   >();
-  for (const row of (imobRows ?? []) as Record<string, unknown>[]) {
-    const id = String(row.id ?? '').trim();
+  for (const oferta of ofertasRpc) {
+    const id = String(oferta.id ?? '').trim();
     if (!id) continue;
-    if (String(row.tipo ?? 'empreendimento').trim() === 'showroom') continue;
     imobById.set(id, {
-      produto_modelo: row.produto_modelo != null ? String(row.produto_modelo).trim() || null : null,
-      valor_base_casa: numOrNull(row.valor_base_casa),
-      valor_acoplamento: numOrNull(row.valor_acoplamento),
+      produto_modelo: oferta.produto_modelo,
+      valor_base_casa: oferta.valor_base_casa,
+      valor_acoplamento: oferta.valor_acoplamento,
     });
   }
 
@@ -370,6 +383,9 @@ export async function carregarEmpreendimento(
   const itens_customizacao = Array.isArray(raw.itens_customizacao)
     ? raw.itens_customizacao.map(parseItem).filter((i): i is ItemCustomizacao => i != null)
     : [];
+  const ofertasRpc = Array.isArray(raw.ofertas)
+    ? raw.ofertas.map(parseOferta).filter((o): o is OfertaEmpreendimento => o != null)
+    : [];
 
   console.log('[empreendimento] planilha_lotes_path recebido:', raw.planilha_lotes_path);
   const planilhaPath = raw.planilha_lotes_path != null ? String(raw.planilha_lotes_path) : null;
@@ -382,7 +398,7 @@ export async function carregarEmpreendimento(
   try {
     const [lotesCarregados, ofertasTpl] = await Promise.all([
       planilhaPath ? carregarLotesDaPlanilha(planilhaPath, planilhaNome) : Promise.resolve([]),
-      enriquecerOfertasETemplate(card_id, parseTemplate(raw.template)),
+      enriquecerOfertasETemplate(card_id, ofertasRpc, parseTemplate(raw.template)),
     ]);
     lotes = lotesCarregados;
     enriquecido = ofertasTpl;
