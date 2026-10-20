@@ -127,6 +127,7 @@ export type JornadaLocal = {
 
   gadgetsSelecionados: Set<string>;
   kitSelecionado: boolean;
+  acabamentosArquiteto: boolean;
 
   valorAcoplamento: number;
   valorKit: number;
