@@ -39,7 +39,7 @@ export default function EmpreendimentoLayout({ children }: { children: ReactNode
   } as CSSProperties;
 
   return (
-    <div className={`${cormorant.variable} ${playfair.variable} ${inter.variable}`} style={style}>
+    <div className={`${cormorant.variable} ${playfair.variable} ${inter.variable}`} style={style} data-theme="light">
       {children}
     </div>
   );
