@@ -342,8 +342,51 @@ function PassoOferta({
   );
 }
 
+function SeletorLote({
+  id,
+  label,
+  lotes,
+  selecionado,
+  vazio,
+  onEscolher,
+}: {
+  id: string;
+  label: string;
+  lotes: LotePublicoEmp[];
+  selecionado: LotePublicoEmp | null;
+  vazio: string;
+  onEscolher: (lote: LotePublicoEmp) => void;
+}) {
+  if (lotes.length === 0) return <p className="jornadaEmpty">{vazio}</p>;
+  const atual = selecionado && lotes.some((l) => l.id === selecionado.id) ? selecionado : null;
+  return (
+    <div className="jornadaField">
+      <label htmlFor={id}>{label}</label>
+      <select
+        id={id}
+        value={atual?.id ?? ''}
+        onChange={(e) => {
+          const lote = lotes.find((l) => l.id === e.target.value);
+          if (lote) onEscolher(lote);
+        }}
+      >
+        <option value="" disabled>
+          Selecione o lote
+        </option>
+        {lotes.map((l) => (
+          <option key={l.id} value={l.id}>
+            Lote {l.rotulo}
+          </option>
+        ))}
+      </select>
+      {atual ? <span className="jornadaKitDesc">Valor do lote: {fmt(atual.valor)}</span> : null}
+    </div>
+  );
+}
+
 function PassoTerreno({
   lotes,
+  lotesErro,
   state,
   setState,
   onAvancar,
@@ -351,6 +394,7 @@ function PassoTerreno({
   salvando,
 }: {
   lotes: LotePublicoEmp[];
+  lotesErro: string | null;
   state: JornadaLocal;
   setState: (s: Partial<JornadaLocal>) => void;
   onAvancar: () => void;
@@ -428,47 +472,31 @@ function PassoTerreno({
         </button>
       </div>
 
-      {state.modoTerreno === 'disponivel' ? (
-        lotesVenda.length === 0 ? (
-          <p className="jornadaEmpty">Nenhum lote disponível no momento.</p>
-        ) : (
-          <div className="jornadaGrid" role="list">
-            {lotesVenda.map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                role="listitem"
-                className={`jornadaLoteCard ${state.loteSelecionado?.id === l.id ? 'selected' : ''}`}
-                onClick={() => escolherLote(l, 'disponivel')}
-              >
-                <span className="jornadaLoteCodigo">Lote {l.codigo}</span>
-                <span className="jornadaLoteValor">{fmt(l.valor)}</span>
-              </button>
-            ))}
-          </div>
-        )
+      {lotesErro && state.modoTerreno ? (
+        <p className="jornadaEmpty" role="alert">{lotesErro}</p>
       ) : null}
 
-      {state.modoTerreno === 'informar' ? (
+      {state.modoTerreno === 'disponivel' && !lotesErro ? (
+        <SeletorLote
+          id="lote-disponivel"
+          label="Lote disponível"
+          lotes={lotesVenda}
+          selecionado={state.loteSelecionado}
+          vazio="Nenhum lote disponível no momento."
+          onEscolher={(l) => escolherLote(l, 'disponivel')}
+        />
+      ) : null}
+
+      {state.modoTerreno === 'informar' && !lotesErro ? (
         <>
-          {lotesOcupados.length === 0 ? (
-            <p className="jornadaEmpty">Nenhum lote ocupado encontrado na planilha.</p>
-          ) : (
-            <div className="jornadaGrid" role="list">
-              {lotesOcupados.map((l) => (
-                <button
-                  key={l.id}
-                  type="button"
-                  role="listitem"
-                  className={`jornadaLoteCard ${state.loteSelecionado?.id === l.id ? 'selected' : ''}`}
-                  onClick={() => escolherLote(l, 'informar')}
-                >
-                  <span className="jornadaLoteCodigo">Lote {l.codigo}</span>
-                  <span className="jornadaLoteValor">{fmt(l.valor)}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <SeletorLote
+            id="lote-adquirido"
+            label="Seu lote"
+            lotes={lotesOcupados}
+            selecionado={state.loteSelecionado}
+            vazio="Nenhum lote vendido encontrado na planilha."
+            onEscolher={(l) => escolherLote(l, 'informar')}
+          />
           <div className="jornadaField">
             <label htmlFor="valor-ja-pago-terreno">Valor já pago (R$)</label>
             <CampoNumeroBr
@@ -585,7 +613,7 @@ function PassoCasa({
         </div>
         <p className="jornadaKitDesc">
           {state.modoTerreno === 'disponivel' && state.loteSelecionado
-            ? `Valor da tabela do lote ${state.loteSelecionado.codigo}.`
+            ? `Valor da tabela do lote ${state.loteSelecionado.rotulo}.`
             : 'Sem valor na tabela de lotes.'}
         </p>
       </section>
@@ -866,7 +894,7 @@ function Passo6({
           <p>{empreendimento.titulo}</p>
           <p>
             {state.loteSelecionado
-              ? `Lote ${state.loteSelecionado.codigo} — ${fmt(state.loteSelecionado.valor)}`
+              ? `Lote ${state.loteSelecionado.rotulo} — ${fmt(state.loteSelecionado.valor)}`
               : `Terreno — ${fmt(valorLoteParaCalculo(state))}`}
           </p>
         </div>
@@ -1193,6 +1221,7 @@ export default function JornadaClient({
         {state.etapa === ETAPA.terreno && (
           <PassoTerreno
             lotes={empreendimento.lotes}
+            lotesErro={empreendimento.lotes_erro}
             state={state}
             setState={setState}
             onAvancar={() => handleAvancar(ETAPA.casa)}

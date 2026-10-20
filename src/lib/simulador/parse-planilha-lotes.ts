@@ -3,6 +3,8 @@ import { parseMoneyText } from '@/lib/dashboard-novos-negocios/parseMoney';
 
 export type LotePlanilhaLinha = {
   codigo: string;
+  quadra: string | null;
+  lote: string | null;
   valor: number;
   valorAcoplamento: number;
   /** Sem coluna Disponível → true (planilhas antigas). */
@@ -104,6 +106,16 @@ function textoCelula(raw: unknown): string {
   return String(raw ?? '').trim();
 }
 
+/** Quadra/lote como texto, sem casa decimal quando o Excel guarda o número como 1.0 ou "1,00". */
+function identificadorCelula(raw: unknown): string {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return Number.isInteger(raw) ? String(raw) : String(raw).replace('.', ',');
+  }
+  const t = textoCelula(raw);
+  const m = /^(\d+)[.,]0+$/.exec(t);
+  return m ? m[1]! : t;
+}
+
 function valorCelula(raw: unknown): number | null {
   if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
   return parseMoneyText(String(raw ?? ''));
@@ -132,11 +144,11 @@ function montarCodigo(
   loteKey: string | undefined,
   codigoKey: string | undefined,
 ): string {
-  const lote = loteKey ? textoCelula(rec[loteKey]) : '';
-  const quadra = quadraKey ? textoCelula(rec[quadraKey]) : '';
+  const lote = loteKey ? identificadorCelula(rec[loteKey]) : '';
+  const quadra = quadraKey ? identificadorCelula(rec[quadraKey]) : '';
   if (quadra && lote) return `${quadra}-${lote}`;
   if (lote) return lote;
-  if (codigoKey) return textoCelula(rec[codigoKey]);
+  if (codigoKey) return identificadorCelula(rec[codigoKey]);
   return '';
 }
 
@@ -181,6 +193,8 @@ function parseRecords(records: Record<string, unknown>[]): LotePlanilhaLinha[] {
     if (dispKey && flag == null) continue;
     out.push({
       codigo,
+      quadra: quadraKey ? identificadorCelula(rec[quadraKey]) || null : null,
+      lote: loteKey ? identificadorCelula(rec[loteKey]) || null : null,
       valor,
       valorAcoplamento,
       disponivel: flag === true,
