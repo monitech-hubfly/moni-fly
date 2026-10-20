@@ -1094,6 +1094,12 @@
   background: var(--j-navy-dark);
 }
 
+.jornadaSimBtnRecalc:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--j-navy);
+}
+
 .jornadaSimAvisoMinimo.is-abaixo {
   color: var(--j-navy);
   font-weight: 600;

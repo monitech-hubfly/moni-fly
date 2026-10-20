@@ -70,7 +70,11 @@ export interface LinhaFluxo {
 }
 
 export interface AlertaCalculo {
-  tipo: 'capacidade_pagamento' | 'parcela_mensal_baixa' | 'parcela_unica_zero';
+  tipo:
+    | 'capacidade_pagamento'
+    | 'parcela_mensal_baixa'
+    | 'parcela_unica_zero'
+    | 'parcela_unica_insuficiente';
   mensagem: string;
 }
 
@@ -98,8 +102,13 @@ export interface ResultadoCalculo {
   parcela_mensal_usada: number;
   quantidade_parcelas_total: number;
   parcela_unica_sugerida: number;
-  /** Piso da parcela única para a hint, com entrada/mensal efetivas. */
+  /**
+   * Piso da parcela única com entrada/mensal efetivas: quitação real do lote no fluxo
+   * ou o que falta para 30% do VTE, o que for maior. Sem confirmação, = sugerida.
+   */
   parcela_unica_minima_display: number;
+  /** Quanto a parcela única do fluxo fica abaixo da quitação real do lote (0 se cobre). */
+  falta_parcela_unica: number;
   mes_parcela_unica: number;
   saldo_financiar: number;
   parcela_sac_primeira: number;
@@ -357,6 +366,15 @@ export function formatarMoeda(v: number): string {
   });
 }
 
+export function formatarMoedaCentavos(v: number): string {
+  return n0(v).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function calcularOferta(
   template: TemplateConfig,
   oferta: OfertaConfig,
@@ -514,15 +532,6 @@ export function calcularOferta(
 
   const temConfirmacaoUnica =
     oferta.entrada_confirmada != null || oferta.mensal_confirmada != null;
-  const parcela_unica_minima_display = temConfirmacaoUnica
-    ? calcularParcelaUnicaMinimaDisplay({
-        vte: VTE,
-        min_quitar_lote,
-        entrada_efetiva: ja_pago_loteadora + n0(entrada_fluxo),
-        mensal_efetiva: mensal_fluxo,
-        n_meses_fase1: prazo_meses,
-      })
-    : r2(parcela_unica);
 
   const entrada_do_lote_fluxo = Math.max(
     0,
@@ -553,15 +562,27 @@ export function calcularOferta(
     lot_balance_inicio: lot_balance_fluxo_conf,
   });
   const quitacao_real_fluxo = fase1Fluxo.min_quitar_lote;
+  const parcela_unica_minima_display = temConfirmacaoUnica
+    ? calcularParcelaUnicaMinimaDisplay({
+        vte: VTE,
+        min_quitar_lote: quitacao_real_fluxo,
+        entrada_efetiva: ja_pago_loteadora + n0(entrada_fluxo),
+        mensal_efetiva: mensal_fluxo,
+        n_meses_fase1: prazo_meses,
+      })
+    : r2(parcela_unica);
+  const falta_parcela_unica = Math.max(0, quitacao_real_fluxo - parcela_unica_fluxo);
   const loteQuitadoUnica = fase1Fluxo.lot_balance_fim * (1 + taxa_parcelado) <= 0;
+  /**
+   * Regra de negócio confirmada: se o lote já está quitado antes do mês da parcela única,
+   * a mensal desse mês continua em Entradas do cliente, mas não vai para a loteadora nem
+   * sai do caixa — vai para a reserva e reduz o crédito-ponte, como nos meses da fase 1.
+   */
   const mensal_unica_lote = loteQuitadoUnica ? 0 : mensal_fluxo;
   const reserva_fase1 =
     reserva_mes0 + fase1Fluxo.reserva_caixa + (loteQuitadoUnica ? mensal_fluxo : 0);
   const pag_loteadora_unica = mensal_unica_lote + quitacao_real_fluxo;
-  /**
-   * Caixa do mês da parcela única = quitação real do lote (fluxo) + mensal (se for à loteadora) + ITBI.
-   * Com lote quitado, a mensal fica em reserva e não sai do caixa da Moní.
-   */
+  /** Caixa do mês da parcela única = quitação real do lote (fluxo) + mensal (se for à loteadora) + ITBI. */
   const saidas_unica = mensal_unica_lote + quitacao_real_fluxo + itbi_amount;
 
   /** Lucros + impostos no último mês de obra — só saidas_total da entrega, não entram no CP. */
@@ -570,6 +591,7 @@ export function calcularOferta(
     ...paramsFase2,
     tipo_juros_cp: tipo_juros_cp as 'mes_a_mes' | 'total',
     parcela_mensal: mensal_fluxo,
+    // Só o excesso vira crédito; a falta não é absorvida aqui — vira falta_parcela_unica + alerta.
     excedente_parcela_unica:
       excedenteParcelaUnica(parcela_unica_fluxo, quitacao_real_fluxo) +
       Math.max(0, reserva_fase1 ?? 0),
@@ -680,6 +702,13 @@ export function calcularOferta(
     });
   }
 
+  if (r2(falta_parcela_unica) > 0) {
+    alertas.push({
+      tipo: 'parcela_unica_insuficiente',
+      mensagem: `A parcela única não cobre a quitação do lote. Faltam ${formatarMoedaCentavos(falta_parcela_unica)} — o mínimo é ${formatarMoedaCentavos(parcela_unica_minima_display)}.`,
+    });
+  }
+
   if (r2(parcela_unica_fluxo) === 0) {
     alertas.push({
       tipo: 'parcela_unica_zero',
@@ -713,6 +742,7 @@ export function calcularOferta(
     quantidade_parcelas_total: prazo_meses + N_obra,
     parcela_unica_sugerida: r2(parcela_unica),
     parcela_unica_minima_display,
+    falta_parcela_unica: r2(falta_parcela_unica),
     mes_parcela_unica: prazo_meses,
     saldo_financiar: r2(saldo_financiar),
     parcela_sac_primeira: r2(parcela_sac_primeira),
@@ -725,5 +755,30 @@ export function calcularOferta(
     alertas,
     fluxo,
   };
+}
+
+/**
+ * Mínimo da parcela única para entrada/mensal confirmadas, recalculado pelo motor
+ * (quitação real do lote com a mensal confirmada, ou 30% do VTE — o maior).
+ */
+export function calcularParcelaUnicaMinimaConfirmada(
+  template: TemplateConfig,
+  oferta: OfertaConfig,
+  entrada: number,
+  mensal: number,
+  valorAcoplamento = 0,
+): number {
+  const { parcela_unica_confirmada: _ignorada, ...base } = oferta;
+  void _ignorada;
+  return calcularOferta(
+    template,
+    { ...base, entrada_confirmada: entrada, mensal_confirmada: mensal },
+    valorAcoplamento,
+  ).parcela_unica_minima_display;
+}
+
+/** Tolerância de arredondamento ao comparar a parcela única digitada com o mínimo. */
+export function parcelaUnicaAbaixoDoMinimo(valor: number, minimo: number): boolean {
+  return n0(valor) < n0(minimo) - 0.005;
 }
 

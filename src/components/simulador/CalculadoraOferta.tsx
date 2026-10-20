@@ -31,6 +31,7 @@ import {
 } from '@/lib/simulador/oferta-resultado-helpers';
 import {
   calcularOferta,
+  calcularParcelaUnicaMinimaConfirmada,
   formatarMoeda,
   sugerirParcelaMensal,
   type OfertaConfig,
@@ -73,18 +74,15 @@ const dicaConfStyle = {
 } as const;
 
 function calcularParcelaUnicaMinimaHint(
+  template: TemplateConfig,
+  oferta: OfertaConfig,
   resultado: ResultadoCalculo,
   entradaEfetiva: number,
   mensalEfetiva: number,
 ): number {
   const entrada = entradaEfetiva > 0 ? entradaEfetiva : resultado.entrada_sugerida;
   const mensal = mensalEfetiva > 0 ? mensalEfetiva : resultado.parcela_mensal_usada;
-  const deltaEntrada = entrada - resultado.entrada_sugerida;
-  const deltaMensais = (mensal - resultado.parcela_mensal_usada) * resultado.mes_parcela_unica;
-  return Math.max(
-    resultado.parcela_unica_detalhe.min_quitar_lote,
-    resultado.parcela_unica_sugerida - deltaEntrada - deltaMensais,
-  );
+  return calcularParcelaUnicaMinimaConfirmada(template, oferta, entrada, mensal);
 }
 
 export function CalculadoraOferta({
@@ -380,8 +378,14 @@ export function CalculadoraOferta({
   }
 
   function aplicarMinimoParcelaUnica(entrada: number, parcela: number, unicaAtual: number): number {
-    if (!resultado) return unicaAtual;
-    const parcelaUnicaMinima = calcularParcelaUnicaMinimaHint(resultado, entrada, parcela);
+    if (!resultado || !ultimaOferta) return unicaAtual;
+    const parcelaUnicaMinima = calcularParcelaUnicaMinimaHint(
+      template,
+      ultimaOferta,
+      resultado,
+      entrada,
+      parcela,
+    );
     return unicaAtual < parcelaUnicaMinima ? parcelaUnicaMinima : unicaAtual;
   }
 
@@ -393,8 +397,10 @@ export function CalculadoraOferta({
 
   function onParcelaMensalConfirmada(n: number) {
     setParcelaMensalConf(n);
-    if (resultado) {
-      setParcelaUnicaConf(calcularParcelaUnicaMinimaHint(resultado, entradaConf, n));
+    if (resultado && ultimaOferta) {
+      setParcelaUnicaConf(
+        calcularParcelaUnicaMinimaHint(template, ultimaOferta, resultado, entradaConf, n),
+      );
     }
     setFluxoFinalResultado(null);
   }
@@ -405,9 +411,15 @@ export function CalculadoraOferta({
   }
 
   const parcelaUnicaMinimaHint = useMemo(() => {
-    if (!resultado) return 0;
-    return calcularParcelaUnicaMinimaHint(resultado, entradaConf, parcelaMensalConf);
-  }, [entradaConf, parcelaMensalConf, resultado]);
+    if (!resultado || !ultimaOferta) return 0;
+    return calcularParcelaUnicaMinimaHint(
+      template,
+      ultimaOferta,
+      resultado,
+      entradaConf,
+      parcelaMensalConf,
+    );
+  }, [entradaConf, parcelaMensalConf, resultado, template, ultimaOferta]);
 
   const avisosSalvar = useMemo(() => {
     const vazio = { entrada: [] as string[], parcela: [] as string[] };

@@ -3,7 +3,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import { inferirCondicaoLote, prazoFase1DePrazoSalvo } from '@/lib/loteamento-simulador-template';
-import { calcularOferta, type OfertaConfig } from '@/lib/simulador/calcular-oferta';
+import {
+  calcularOferta,
+  calcularParcelaUnicaMinimaConfirmada,
+  formatarMoedaCentavos,
+  parcelaUnicaAbaixoDoMinimo,
+  type OfertaConfig,
+} from '@/lib/simulador/calcular-oferta';
 import { carregarSimuladorPublico } from '@/lib/simulador/carregar-simulador-publico';
 
 export type SalvarOfertaCorretorInput = {
@@ -123,6 +129,20 @@ export async function salvarOfertaCorretor(
     mensal_confirmada: personalizada ? mensalConfirmada : undefined,
     parcela_unica_confirmada: personalizada ? parcelaUnicaConfirmada : undefined,
   };
+  if (personalizada) {
+    const minimo = calcularParcelaUnicaMinimaConfirmada(
+      view.config,
+      oferta,
+      entradaConfirmada,
+      mensalConfirmada,
+    );
+    if (parcelaUnicaAbaixoDoMinimo(parcelaUnicaConfirmada, minimo)) {
+      return {
+        ok: false,
+        error: `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(minimo)} para quitar o lote.`,
+      };
+    }
+  }
   const resultado = calcularOferta(view.config, oferta);
 
   const telefone = String(input.clienteTelefone ?? '').trim() || null;
