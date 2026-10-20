@@ -36,7 +36,7 @@ import {
   type SimuladorOfertaDraft,
 } from '@/lib/loteamento-simulador-template';
 import { vincularOfertaAoEmpreendimentoImob } from '@/lib/actions/imob-simulacoes-card';
-import { gerarSlugCard, slugPertenceAoCard } from '@/lib/utils/slug';
+import { gerarSlugCard } from '@/lib/utils/slug';
 import {
   calcularOferta,
   calcularParcelaUnicaMinimaConfirmada,
@@ -173,15 +173,8 @@ async function persistirSlugJornadaDoCard(
   return { ok: true, slug: slugLimpo, pageAtiva };
 }
 
-function slugDesteCard(
-  cardId: string,
-  nomeCondominio: string | null,
-  titulo: string,
-  slugInformado: string | null,
-): string {
-  const informado = String(slugInformado ?? '').trim();
-  if (slugPertenceAoCard(informado, cardId)) return informado.toLowerCase();
-  return gerarSlugCard(nomeCondominio, titulo, cardId);
+function slugDesteCard(cardId: string, nomeCondominio: string | null): string {
+  return gerarSlugCard(nomeCondominio, cardId);
 }
 
 async function carregarSlugJornadaDoCard(
@@ -320,7 +313,7 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
     template ? listarSimulacoesDoTemplateId(auth.supabase, template.id) : Promise.resolve([]),
     carregarSlugJornadaDoCard(auth.supabase, cardId),
   ]);
-  const slugDoCard = slugDesteCard(cardId, card.nomeCondominio, card.titulo, slugBanco);
+  const slugDoCard = slugDesteCard(cardId, card.nomeCondominio);
   let empreendimentoSlug = slugBanco;
   let pageAtiva = false;
   if (slugDoCard !== (slugBanco ?? '')) {
@@ -479,16 +472,14 @@ function draftParaRow(
 export async function salvarSimuladorTemplateDoCard(
   cardId: string,
   draft: LoteamentoSimuladorTemplateDraft,
-  pageSlugRaw = '',
+  _pageSlugRaw = '',
 ): Promise<Ok | Err> {
   const auth = await requireStaff();
   if (!auth.ok) return auth;
   const card = await carregarCardLoteadores(auth.supabase, cardId);
   if (!card.ok) return card;
 
-  const slugNorm = normalizarSlugJornadaPublica(
-    slugDesteCard(cardId, card.nomeCondominio, card.titulo, pageSlugRaw),
-  );
+  const slugNorm = normalizarSlugJornadaPublica(slugDesteCard(cardId, card.nomeCondominio));
   if (!slugNorm.ok) return slugNorm;
 
   const packed = draftParaRow(draft, {

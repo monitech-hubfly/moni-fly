@@ -1,13 +1,12 @@
 /**
  * Gera slug único para jornada pública do card.
- * Formato: {nome_condominio normalizado até 30 chars}-{primeiros 6 chars do card UUID}
+ * Formato: {nome do condomínio normalizado até 30 chars}-{primeiros 6 chars do card UUID}
  */
 export function gerarSlugCard(
   nomeCondominio: string | null | undefined,
-  titulo: string | null | undefined,
-  cardId: string
+  cardId: string,
 ): string {
-  const base = (nomeCondominio || titulo || 'empreendimento').trim()
+  const base = (nomeCondominio || 'empreendimento').trim()
   const normalizado = base
     .toLowerCase()
     .normalize('NFD')
@@ -18,8 +17,9 @@ export function gerarSlugCard(
     .replace(/-+/g, '-')
     .slice(0, 30)
     .replace(/-$/, '')
+  const corpo = normalizado || 'empreendimento'
   const sufixo = cardId.replace(/-/g, '').slice(0, 6)
-  return `${normalizado}-${sufixo}`
+  return `${corpo}-${sufixo}`
 }
 
 /** Primeiros 6 caracteres do UUID, sem hífen. Amarra o slug a este card. */

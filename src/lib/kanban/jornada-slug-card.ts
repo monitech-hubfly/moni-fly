@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { gerarSlugCard, slugPertenceAoCard } from '@/lib/utils/slug';
+import { gerarSlugCard } from '@/lib/utils/slug';
 
 type ModeloRow = {
   page_slug?: string | null;
@@ -9,7 +9,7 @@ type ModeloRow = {
 
 /**
  * Garante o slug da jornada deste card do Funil Loteadores.
- * O slug nasce do nome e do id. page_ativa só fica true com slug e planilha.
+ * O slug nasce do nome do condomínio e do id. page_ativa só fica true com slug e planilha.
  */
 export async function garantirSlugJornadaDoCard(
   supabase: SupabaseClient,
@@ -29,9 +29,7 @@ export async function garantirSlugJornadaDoCard(
 
   const row = (data as ModeloRow | null) ?? null;
   const atual = String(row?.page_slug ?? '').trim();
-  const slug = slugPertenceAoCard(atual, cardId)
-    ? atual.toLowerCase()
-    : gerarSlugCard(input.nomeCondominio, input.titulo, cardId);
+  const slug = gerarSlugCard(input.nomeCondominio, cardId);
   const planilha = String(row?.planilha_lotes_path ?? '').trim();
   const pageAtiva = Boolean(slug && planilha);
 

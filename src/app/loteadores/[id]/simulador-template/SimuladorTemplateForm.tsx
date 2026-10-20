@@ -3,7 +3,7 @@
 import { startTransition, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { salvarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
-import { gerarSlugCard, slugPertenceAoCard } from '@/lib/utils/slug';
+import { gerarSlugCard } from '@/lib/utils/slug';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
   PCT_FIELDS,
@@ -35,15 +35,8 @@ type Props = {
   pageAtivaInicial: boolean;
 };
 
-function slugInicialDoCard(
-  cardId: string,
-  nomeCondominio: string | null,
-  cardTitulo: string,
-  pageSlugInicial: string | null,
-): string {
-  const salvo = String(pageSlugInicial ?? '').trim();
-  if (slugPertenceAoCard(salvo, cardId)) return salvo;
-  return gerarSlugCard(nomeCondominio, cardTitulo, cardId);
+function slugInicialDoCard(cardId: string, nomeCondominio: string | null): string {
+  return gerarSlugCard(nomeCondominio, cardId);
 }
 
 const fieldCls =
@@ -70,13 +63,13 @@ export function SimuladorTemplateForm({
 }: Props) {
   const router = useRouter();
   const slugSugerido = useMemo(
-    () => gerarSlugCard(nomeCondominio, cardTitulo, cardId),
-    [nomeCondominio, cardTitulo, cardId],
+    () => gerarSlugCard(nomeCondominio, cardId),
+    [nomeCondominio, cardId],
   );
   const [draft, setDraft] = useState(draftInicial);
   const [rascunhoBase, setRascunhoBase] = useState(() => JSON.stringify(draftInicial));
   const [pageSlug, setPageSlug] = useState(() =>
-    slugInicialDoCard(cardId, nomeCondominio, cardTitulo, pageSlugInicial),
+    slugInicialDoCard(cardId, nomeCondominio),
   );
   const [pageSlugSalvo, setPageSlugSalvo] = useState(() => String(pageSlugInicial ?? '').trim());
   const [linkMoni, setLinkMoni] = useState<string | null>(linkMoniInicial);
@@ -91,12 +84,12 @@ export function SimuladorTemplateForm({
   useEffect(() => {
     setDraft(draftInicial);
     setRascunhoBase(JSON.stringify(draftInicial));
-    setPageSlug(slugInicialDoCard(cardId, nomeCondominio, cardTitulo, pageSlugInicial));
+    setPageSlug(slugInicialDoCard(cardId, nomeCondominio));
     setPageSlugSalvo(String(pageSlugInicial ?? '').trim());
     setLinkMoni(linkMoniInicial);
     setPageAtiva(pageAtivaInicial);
     setJaSalvo(jaSalvoInicial);
-  }, [cardId, nomeCondominio, cardTitulo, draftInicial, pageSlugInicial, linkMoniInicial, pageAtivaInicial, jaSalvoInicial]);
+  }, [cardId, nomeCondominio, draftInicial, pageSlugInicial, linkMoniInicial, pageAtivaInicial, jaSalvoInicial]);
 
   useEffect(() => {
     if (!mensagem) return;
@@ -499,17 +492,12 @@ export function SimuladorTemplateForm({
             className={fieldCls}
             style={fieldStyle}
             value={pageSlug}
-            onChange={(e) => {
-              setPageSlug(e.target.value);
-              setMensagem(null);
-              setErro(null);
-              setSlugError(null);
-            }}
+            readOnly
             placeholder={slugSugerido}
             autoComplete="off"
             spellCheck={false}
           />
-          {nomeCondominio?.trim() || cardTitulo?.trim() ? (
+          {nomeCondominio?.trim() ? (
             <p className="mt-1 text-xs text-muted-foreground" style={hintStyle}>
               Sugerido:{' '}
               <button
@@ -531,7 +519,7 @@ export function SimuladorTemplateForm({
             </p>
           ) : null}
           <span className="mt-1 block text-[11px]" style={hintStyle}>
-            Gerado a partir do nome deste card e do id. O final do slug identifica só este card.
+            Gerado a partir do nome do condomínio e do id. Sem nome do condomínio, o slug usa empreendimento e o id.
           </span>
         </label>
       </section>
