@@ -300,6 +300,8 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
     redeLoteadorId: card.redeLoteadorId,
     template,
     link: linkCompleto(template?.link_token),
+    empreendimentoSlug: jornada.pageSlug,
+    linkMoni: linkJornadaPublica(jornada.pageSlug),
     simulacoes,
     jornada,
   };
