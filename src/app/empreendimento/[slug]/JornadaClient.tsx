@@ -364,7 +364,7 @@ function PassoTerreno({
       ? Boolean(state.loteSelecionado?.disponivel)
       : state.modoTerreno === 'informar'
         ? Boolean(state.loteSelecionado) &&
-          !state.loteSelecionado.disponivel &&
+          !state.loteSelecionado?.disponivel &&
           Number.isFinite(state.valorJaPago) &&
           state.valorJaPago >= 0
         : false;
