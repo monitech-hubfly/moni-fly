@@ -3,6 +3,7 @@
 import { startTransition, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { salvarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
+import { gerarSlugCard, slugPertenceAoCard } from '@/lib/utils/slug';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
   PCT_FIELDS,
@@ -26,11 +27,24 @@ import {
 type Props = {
   cardId: string;
   cardTitulo: string;
+  nomeCondominio: string | null;
   draftInicial: LoteamentoSimuladorTemplateDraft;
   jaSalvoInicial: boolean;
   pageSlugInicial: string | null;
   linkMoniInicial: string | null;
+  pageAtivaInicial: boolean;
 };
+
+function slugInicialDoCard(
+  cardId: string,
+  nomeCondominio: string | null,
+  cardTitulo: string,
+  pageSlugInicial: string | null,
+): string {
+  const salvo = String(pageSlugInicial ?? '').trim();
+  if (slugPertenceAoCard(salvo, cardId)) return salvo;
+  return gerarSlugCard(nomeCondominio, cardTitulo, cardId);
+}
 
 const fieldCls =
   'mt-1 min-h-[44px] w-full rounded-[var(--moni-radius-md)] px-3 py-2 text-sm outline-none';
@@ -47,17 +61,27 @@ const hintStyle = { color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-
 export function SimuladorTemplateForm({
   cardId,
   cardTitulo,
+  nomeCondominio,
   draftInicial,
   jaSalvoInicial,
   pageSlugInicial,
   linkMoniInicial,
+  pageAtivaInicial,
 }: Props) {
   const router = useRouter();
+  const slugSugerido = useMemo(
+    () => gerarSlugCard(nomeCondominio, cardTitulo, cardId),
+    [nomeCondominio, cardTitulo, cardId],
+  );
   const [draft, setDraft] = useState(draftInicial);
   const [rascunhoBase, setRascunhoBase] = useState(() => JSON.stringify(draftInicial));
-  const [pageSlug, setPageSlug] = useState(() => String(pageSlugInicial ?? '').trim());
+  const [pageSlug, setPageSlug] = useState(() =>
+    slugInicialDoCard(cardId, nomeCondominio, cardTitulo, pageSlugInicial),
+  );
   const [pageSlugSalvo, setPageSlugSalvo] = useState(() => String(pageSlugInicial ?? '').trim());
   const [linkMoni, setLinkMoni] = useState<string | null>(linkMoniInicial);
+  const [pageAtiva, setPageAtiva] = useState(pageAtivaInicial);
+  const [slugError, setSlugError] = useState<string | null>(null);
   const [jaSalvo, setJaSalvo] = useState(jaSalvoInicial);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
@@ -67,11 +91,12 @@ export function SimuladorTemplateForm({
   useEffect(() => {
     setDraft(draftInicial);
     setRascunhoBase(JSON.stringify(draftInicial));
-    setPageSlug(String(pageSlugInicial ?? '').trim());
+    setPageSlug(slugInicialDoCard(cardId, nomeCondominio, cardTitulo, pageSlugInicial));
     setPageSlugSalvo(String(pageSlugInicial ?? '').trim());
     setLinkMoni(linkMoniInicial);
+    setPageAtiva(pageAtivaInicial);
     setJaSalvo(jaSalvoInicial);
-  }, [draftInicial, pageSlugInicial, linkMoniInicial, jaSalvoInicial]);
+  }, [cardId, nomeCondominio, cardTitulo, draftInicial, pageSlugInicial, linkMoniInicial, pageAtivaInicial, jaSalvoInicial]);
 
   useEffect(() => {
     if (!mensagem) return;
@@ -108,7 +133,8 @@ export function SimuladorTemplateForm({
       void (async () => {
         const res = await salvarSimuladorTemplateDoCard(cardId, snapshot, slugSnapshot);
         if (!res.ok) {
-          setErro(res.error);
+          if (/slug/i.test(res.error)) setSlugError(res.error);
+          else setErro(res.error);
           setSalvando(false);
           return;
         }
@@ -120,6 +146,8 @@ export function SimuladorTemplateForm({
         const slugSalvo = String(res.pageSlug ?? '').trim();
         setPageSlug(slugSalvo);
         setPageSlugSalvo(slugSalvo);
+        setSlugError(null);
+        setPageAtiva(res.pageAtiva === true);
         setLinkMoni(res.linkMoni);
         setMensagem(TOAST_TEMPLATE_SALVO);
         setSalvando(false);
@@ -475,14 +503,35 @@ export function SimuladorTemplateForm({
               setPageSlug(e.target.value);
               setMensagem(null);
               setErro(null);
+              setSlugError(null);
             }}
-            placeholder="ex: residencial-alfa-goiania"
+            placeholder={slugSugerido}
             autoComplete="off"
             spellCheck={false}
           />
+          {nomeCondominio?.trim() || cardTitulo?.trim() ? (
+            <p className="mt-1 text-xs text-muted-foreground" style={hintStyle}>
+              Sugerido:{' '}
+              <button
+                type="button"
+                className="underline"
+                style={{ color: 'var(--moni-navy-800)' }}
+                onClick={() => {
+                  setPageSlug(slugSugerido);
+                  setSlugError(null);
+                }}
+              >
+                {slugSugerido}
+              </button>
+            </p>
+          ) : null}
+          {slugError ? (
+            <p className="mt-1 text-xs text-destructive" style={{ color: 'var(--moni-status-overdue-border)' }}>
+              {slugError}
+            </p>
+          ) : null}
           <span className="mt-1 block text-[11px]" style={hintStyle}>
-            Usado na URL da jornada do cliente. Use apenas letras minúsculas, números e hífens. Ex:
-            /empreendimento/residencial-alfa
+            Gerado a partir do nome deste card e do id. O final do slug identifica só este card.
           </span>
         </label>
       </section>
@@ -504,7 +553,7 @@ export function SimuladorTemplateForm({
         <p className="mt-1 text-sm" style={hintStyle}>
           Jornada pública do empreendimento, sem corretor.
         </p>
-        {linkMoni ? (
+        {pageAtiva && linkMoni ? (
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
             <p
               className="min-w-0 flex-1 break-all rounded-[var(--moni-radius-md)] px-3 py-2 text-sm"
@@ -527,9 +576,17 @@ export function SimuladorTemplateForm({
             </button>
           </div>
         ) : (
-          <p className="mt-3 text-sm" style={hintStyle}>
-            Este empreendimento ainda não tem slug da jornada pública.
-          </p>
+          <div
+            className="mt-3 cursor-not-allowed rounded-[var(--moni-radius-md)] px-3 py-3 opacity-50"
+            style={{
+              background: 'var(--moni-surface-100)',
+              border: 'var(--moni-border-width) solid var(--moni-border-default)',
+            }}
+          >
+            <p className="text-sm text-muted-foreground" style={hintStyle}>
+              Configure o slug e a planilha de lotes para ativar o Link Moní
+            </p>
+          </div>
         )}
       </section>
 

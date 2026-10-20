@@ -36,6 +36,7 @@ import {
   type SimuladorOfertaDraft,
 } from '@/lib/loteamento-simulador-template';
 import { vincularOfertaAoEmpreendimentoImob } from '@/lib/actions/imob-simulacoes-card';
+import { gerarSlugCard, slugPertenceAoCard } from '@/lib/utils/slug';
 import {
   calcularOferta,
   calcularParcelaUnicaMinimaConfirmada,
@@ -51,6 +52,7 @@ type Ok = {
   link: string | null;
   linkMoni: string | null;
   pageSlug: string | null;
+  pageAtiva?: boolean;
   mensagem: string;
 };
 type Err = { ok: false; error: string };
@@ -124,19 +126,62 @@ async function persistirSlugJornadaDoCard(
   supabase: Awaited<ReturnType<typeof createClient>>,
   cardId: string,
   slug: string | null,
-): Promise<{ ok: true; slug: string | null } | Err> {
-  const patch = { page_slug: slug, updated_at: new Date().toISOString() };
+): Promise<{ ok: true; slug: string | null; pageAtiva: boolean } | Err> {
+  const slugLimpo = String(slug ?? '').trim() || null;
+  if (slugLimpo) {
+    const { data: existing, error: errSlug } = await supabase
+      .from('imob_card_modelo')
+      .select('card_id')
+      .eq('page_slug', slugLimpo)
+      .neq('card_id', cardId)
+      .maybeSingle();
+    if (errSlug && !/page_slug|schema cache|does not exist|could not find/i.test(errSlug.message)) {
+      return { ok: false, error: errSlug.message };
+    }
+    if (existing) {
+      return {
+        ok: false,
+        error: 'Este slug já está em uso por outro empreendimento. Escolha um slug diferente.',
+      };
+    }
+  }
+
+  const atual = await supabase
+    .from('imob_card_modelo')
+    .select('planilha_lotes_path')
+    .eq('card_id', cardId)
+    .maybeSingle();
+  const planilha = String(
+    (atual.data as { planilha_lotes_path?: string | null } | null)?.planilha_lotes_path ?? '',
+  ).trim();
+  const pageAtiva = !!(slugLimpo && planilha);
+  const patch = {
+    page_slug: slugLimpo,
+    page_ativa: pageAtiva,
+    updated_at: new Date().toISOString(),
+  };
   const upd = await supabase
     .from('imob_card_modelo')
     .update(patch as never)
     .eq('card_id', cardId)
     .select('card_id');
   if (upd.error) return erroSlugJornada(upd.error.message, upd.error.code);
-  if ((upd.data ?? []).length > 0) return { ok: true, slug };
+  if ((upd.data ?? []).length > 0) return { ok: true, slug: slugLimpo, pageAtiva };
 
   const ins = await supabase.from('imob_card_modelo').insert({ card_id: cardId, ...patch } as never);
   if (ins.error) return erroSlugJornada(ins.error.message, ins.error.code);
-  return { ok: true, slug };
+  return { ok: true, slug: slugLimpo, pageAtiva };
+}
+
+function slugDesteCard(
+  cardId: string,
+  nomeCondominio: string | null,
+  titulo: string,
+  slugInformado: string | null,
+): string {
+  const informado = String(slugInformado ?? '').trim();
+  if (slugPertenceAoCard(informado, cardId)) return informado.toLowerCase();
+  return gerarSlugCard(nomeCondominio, titulo, cardId);
 }
 
 async function carregarSlugJornadaDoCard(
@@ -190,16 +235,26 @@ function erroBancoSimulador(message: string): Err {
 async function carregarCardLoteadores(
   supabase: Awaited<ReturnType<typeof createClient>>,
   cardId: string,
-): Promise<{ ok: true; titulo: string; redeLoteadorId: string | null; loteadorNome: string | null } | Err> {
+): Promise<
+  | {
+      ok: true;
+      titulo: string;
+      nomeCondominio: string | null;
+      redeLoteadorId: string | null;
+      loteadorNome: string | null;
+    }
+  | Err
+> {
   const { data, error } = await supabase
     .from('kanban_cards')
-    .select('id, titulo, kanban_id, rede_loteador_id')
+    .select('id, titulo, nome_condominio, kanban_id, rede_loteador_id')
     .eq('id', cardId)
     .maybeSingle();
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: 'Card não encontrado.' };
   const row = data as {
     titulo?: string | null;
+    nome_condominio?: string | null;
     kanban_id?: string | null;
     rede_loteador_id?: string | null;
   };
@@ -219,6 +274,7 @@ async function carregarCardLoteadores(
   return {
     ok: true,
     titulo: String(row.titulo ?? '').trim() || 'Card sem título',
+    nomeCondominio: String(row.nome_condominio ?? '').trim() || null,
     redeLoteadorId,
     loteadorNome,
   };
@@ -228,12 +284,14 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
   | {
       ok: true;
       cardTitulo: string;
+      nomeCondominio: string | null;
       loteadorNome: string | null;
       redeLoteadorId: string | null;
       template: LoteamentoSimuladorTemplateRow | null;
       link: string | null;
       linkMoni: string | null;
       empreendimentoSlug: string | null;
+      pageAtiva: boolean;
       simulacoes: SimulacaoPagamentoResumo[];
     }
   | Err
@@ -258,19 +316,41 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
 
   const row = Array.isArray(data) ? data[0] : data;
   const template = row ? mapTemplateRow(row as Record<string, unknown>) : null;
-  const [simulacoes, empreendimentoSlug] = await Promise.all([
+  const [simulacoes, slugBanco] = await Promise.all([
     template ? listarSimulacoesDoTemplateId(auth.supabase, template.id) : Promise.resolve([]),
     carregarSlugJornadaDoCard(auth.supabase, cardId),
   ]);
+  const slugDoCard = slugDesteCard(cardId, card.nomeCondominio, card.titulo, slugBanco);
+  let empreendimentoSlug = slugBanco;
+  let pageAtiva = false;
+  if (slugDoCard !== (slugBanco ?? '')) {
+    const gravado = await persistirSlugJornadaDoCard(auth.supabase, cardId, slugDoCard);
+    if (gravado.ok) {
+      empreendimentoSlug = gravado.slug;
+      pageAtiva = gravado.pageAtiva;
+    } else {
+      empreendimentoSlug = slugDoCard;
+    }
+  } else {
+    const { data: modelo } = await auth.supabase
+      .from('imob_card_modelo')
+      .select('page_ativa')
+      .eq('card_id', cardId)
+      .maybeSingle();
+    pageAtiva = (modelo as { page_ativa?: boolean | null } | null)?.page_ativa === true;
+    empreendimentoSlug = slugBanco;
+  }
   return {
     ok: true,
     cardTitulo: card.titulo,
+    nomeCondominio: card.nomeCondominio,
     loteadorNome: card.loteadorNome,
     redeLoteadorId: card.redeLoteadorId,
     template,
     link: linkCompleto(template?.link_token),
-    linkMoni: linkJornadaPublica(empreendimentoSlug),
+    linkMoni: pageAtiva ? linkJornadaPublica(empreendimentoSlug) : null,
     empreendimentoSlug,
+    pageAtiva,
     simulacoes,
   };
 }
@@ -406,7 +486,9 @@ export async function salvarSimuladorTemplateDoCard(
   const card = await carregarCardLoteadores(auth.supabase, cardId);
   if (!card.ok) return card;
 
-  const slugNorm = normalizarSlugJornadaPublica(pageSlugRaw);
+  const slugNorm = normalizarSlugJornadaPublica(
+    slugDesteCard(cardId, card.nomeCondominio, card.titulo, pageSlugRaw),
+  );
   if (!slugNorm.ok) return slugNorm;
 
   const packed = draftParaRow(draft, {
@@ -549,8 +631,9 @@ export async function salvarSimuladorTemplateDoCard(
     ok: true,
     template,
     link: linkCompleto(template.link_token),
-    linkMoni: linkJornadaPublica(slugSalvo.slug),
+    linkMoni: slugSalvo.pageAtiva ? linkJornadaPublica(slugSalvo.slug) : null,
     pageSlug: slugSalvo.slug,
+    pageAtiva: slugSalvo.pageAtiva,
     mensagem: TOAST_TEMPLATE_SALVO,
   };
 }
