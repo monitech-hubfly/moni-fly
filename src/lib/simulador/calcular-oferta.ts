@@ -503,9 +503,8 @@ export function calcularOferta(
     const jurosAnterior = juros_obra_total;
     const sim = simularFase2({
       ...paramsFase2,
-      tipo_juros_cp: tipo_juros_cp as 'mes_a_mes' | 'total',
-      excedente_parcela_unica: excedenteParcelaUnica(parcela_unica, min_quitar_lote),
       tipo_juros_cp,
+      excedente_parcela_unica: excedenteParcelaUnica(parcela_unica, min_quitar_lote),
     });
     juros_obra_total = sim.juros_obra_total;
 
@@ -591,13 +590,12 @@ export function calcularOferta(
   const liquidacao_entrega = lucros_cp + impostos_amount;
   const fase2Fluxo = simularFase2({
     ...paramsFase2,
-    tipo_juros_cp: tipo_juros_cp as 'mes_a_mes' | 'total',
+    tipo_juros_cp,
     parcela_mensal: mensal_fluxo,
     // Só o excesso vira crédito; a falta não é absorvida aqui — vira falta_parcela_unica + alerta.
     excedente_parcela_unica:
       excedenteParcelaUnica(parcela_unica_fluxo, quitacao_real_fluxo) +
       Math.max(0, reserva_fase1 ?? 0),
-    tipo_juros_cp,
   });
   const saldo_cp_final = fase2Fluxo.dados.length > 0 ? fase2Fluxo.dados[fase2Fluxo.dados.length - 1].saldo : 0;
   const total_parcelas_mensais_fase2 = N_obra * mensal_fluxo;

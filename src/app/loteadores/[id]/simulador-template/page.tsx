@@ -81,12 +81,10 @@ export default async function SimuladorTemplatePage({ params }: Props) {
           key={id}
           cardId={id}
           cardTitulo={loaded.cardTitulo}
-          nomeCondominio={loaded.nomeCondominio}
           draftInicial={rowToSimuladorTemplateDraft(loaded.template)}
-          linkInicial={loaded.link}
-          pageSlugInicial={loaded.jornada.pageSlug}
-          planilhaLotesPath={loaded.jornada.planilhaLotesPath}
-          pageAtivaInicial={loaded.jornada.pageAtiva}
+          jaSalvoInicial={Boolean(loaded.template)}
+          pageSlugInicial={loaded.empreendimentoSlug}
+          linkMoniInicial={loaded.linkMoni}
         />
       </div>
     </main>
