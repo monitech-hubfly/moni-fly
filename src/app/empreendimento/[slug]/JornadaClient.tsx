@@ -45,6 +45,14 @@ const ETAPAS = [
   'Contrato',
 ];
 
+const ID_ACABAMENTOS_ARQUITETO = 'acabamentos-arquiteto';
+const VALOR_ACABAMENTOS_ARQUITETO = 50_000;
+
+function valorAcoplamentoDoLote(lote: LotePublicoEmp | null | undefined): number {
+  const n = Number(lote?.acoplamento);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 function fracaoDePercentualPublico(
   raw: number | null | undefined,
   fallback: number,
@@ -74,6 +82,7 @@ function calcularCustomizacao(
   itens: ItemCustomizacao[],
   gadgetsSelecionados: Set<string>,
   kitSelecionado: boolean,
+  acabamentosArquiteto = false,
 ): { valorKit: number; valorGadgets: number; valorCasa: number; valorCustomizacao: number } {
   const valorCasa = Math.max(0, Number(oferta?.valor_base_casa) || 0);
 
@@ -84,11 +93,13 @@ function calcularCustomizacao(
     .filter((i) => i.categoria === 'gadget' && gadgetsSelecionados.has(i.id))
     .reduce((acc, i) => acc + i.valor, 0);
 
+  const valorAcabamentos = acabamentosArquiteto ? VALOR_ACABAMENTOS_ARQUITETO : 0;
+
   return {
     valorKit,
     valorGadgets,
     valorCasa,
-    valorCustomizacao: valorKit + valorGadgets,
+    valorCustomizacao: valorKit + valorGadgets + valorAcabamentos,
   };
 }
 
@@ -113,6 +124,7 @@ function montarOfertaJornada(
     itens,
     state.gadgetsSelecionados,
     state.kitSelecionado,
+    state.acabamentosArquiteto,
   );
 
   return {
@@ -129,29 +141,14 @@ function montarOfertaJornada(
   };
 }
 
-function previewVteAvistaOferta(
-  oferta: OfertaEmpreendimento,
-  tpl: TemplateConfigPublico | null,
-): number | null {
-  const baseCasa = Number(oferta.valor_base_casa);
-  if (!Number.isFinite(baseCasa) || baseCasa <= 0) return null;
-  const valorLote = Math.max(0, Number(oferta.valor_lote_oferta) || 0);
-  const calc = calcularOferta(montarTemplateParaEngine(tpl), {
-    valor_lote: valorLote,
-    valor_casa: baseCasa,
-    valor_customizacao: Math.max(0, Number(oferta.valor_customizacao_oferta) || 0),
-    valor_acoplamento: Math.max(0, Number(oferta.valor_acoplamento) || 0),
-    valor_ja_pago: 0,
-    prazo_meses: 12,
-    parcela_mensal: sugerirParcelaMensal(valorLote),
-    renda_cliente: 0,
-    prazo_financiamento_anos: 30,
-  });
-  return calc.vte_avista;
+/** Valor total à vista da oferta da Helenna (sem recálculo no cliente). */
+function valorAvistaOferta(oferta: OfertaEmpreendimento): number | null {
+  const n = Number(oferta.valor_avista);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
 }
 
-function estadoInicial(empreendimento?: EmpreendimentoPublico): JornadaLocal {
-  const prazoTpl = Math.round(Number(empreendimento?.template?.prazo_obra_meses) || 0);
+function estadoInicial(_empreendimento?: EmpreendimentoPublico): JornadaLocal {
   return {
     etapa: 1,
     sessaoToken: null,
@@ -164,6 +161,7 @@ function estadoInicial(empreendimento?: EmpreendimentoPublico): JornadaLocal {
     valorJaPago: 0,
     gadgetsSelecionados: new Set(),
     kitSelecionado: false,
+    acabamentosArquiteto: false,
     valorAcoplamento: 0,
     valorKit: 0,
     valorGadgets: 0,
@@ -172,7 +170,7 @@ function estadoInicial(empreendimento?: EmpreendimentoPublico): JornadaLocal {
     valorLote: 0,
     simulacaoId: null,
     rendaMensal: null,
-    prazoObraMeses: prazoTpl > 0 ? prazoTpl : 12,
+    prazoObraMeses: 12,
     prazoFinanciamento: 30,
     taxaJuros: 10,
   };
@@ -257,7 +255,6 @@ function Passo1({
 
 function PassoOferta({
   ofertas,
-  template,
   state,
   setState,
   onAvancar,
@@ -265,7 +262,6 @@ function PassoOferta({
   salvando,
 }: {
   ofertas: OfertaEmpreendimento[];
-  template: TemplateConfigPublico | null;
   state: JornadaLocal;
   setState: (s: Partial<JornadaLocal>) => void;
   onAvancar: () => void;
@@ -273,11 +269,10 @@ function PassoOferta({
   salvando: boolean;
 }) {
   function escolher(o: OfertaEmpreendimento) {
-    const preview = previewVteAvistaOferta(o, template);
     setState({
       ofertaSelecionada: o,
       valorCasa: Math.max(0, Number(o.valor_base_casa) || 0),
-      previewVteAvista: preview,
+      previewVteAvista: valorAvistaOferta(o),
     });
   }
 
@@ -291,10 +286,7 @@ function PassoOferta({
       ) : (
         <div className="jornadaOfertasList">
           {ofertas.map((o) => {
-            const preview =
-              state.ofertaSelecionada?.id === o.id && state.previewVteAvista != null
-                ? state.previewVteAvista
-                : previewVteAvistaOferta(o, template);
+            const preview = valorAvistaOferta(o);
             return (
               <button
                 key={o.id}
@@ -315,7 +307,7 @@ function PassoOferta({
                   </div>
                 ) : (
                   <p className="jornadaOfertaDesc">
-                    Valor base da casa ainda não preenchido no card da oferta.
+                    Valor da oferta da Helenna ainda não disponível.
                   </p>
                 )}
                 {o.descricao && <p className="jornadaOfertaDesc">{o.descricao}</p>}
@@ -355,37 +347,48 @@ function PassoTerreno({
   onVoltar: () => void;
   salvando: boolean;
 }) {
+  const lotesVenda = lotes.filter((l) => l.disponivel);
+  const lotesOcupados = lotes.filter((l) => !l.disponivel);
   const podeAvancar =
     state.modoTerreno === 'disponivel'
-      ? Boolean(state.loteSelecionado)
+      ? Boolean(state.loteSelecionado?.disponivel)
       : state.modoTerreno === 'informar'
-        ? state.valorLote > 0 && Number.isFinite(state.valorJaPago) && state.valorJaPago >= 0
+        ? Boolean(state.loteSelecionado) &&
+          !state.loteSelecionado?.disponivel &&
+          Number.isFinite(state.valorJaPago) &&
+          state.valorJaPago >= 0
         : false;
 
   function escolherModo(modo: ModoTerrenoJornada) {
+    const atual = state.loteSelecionado;
     if (modo === 'disponivel') {
+      const keep = atual?.disponivel ? atual : null;
       setState({
         modoTerreno: 'disponivel',
+        loteSelecionado: keep,
+        valorLote: keep?.valor ?? 0,
         valorJaPago: 0,
+        valorAcoplamento: valorAcoplamentoDoLote(keep),
       });
       return;
     }
+    const keep = atual && !atual.disponivel ? atual : null;
     setState({
       modoTerreno: 'informar',
-      loteSelecionado: null,
-      valorAcoplamento: 0,
-      valorLote: 0,
-      valorJaPago: 0,
+      loteSelecionado: keep,
+      valorAcoplamento: valorAcoplamentoDoLote(keep),
+      valorLote: keep?.valor ?? 0,
+      valorJaPago: keep ? state.valorJaPago : 0,
     });
   }
 
-  function escolherLote(lote: LotePublicoEmp) {
+  function escolherLote(lote: LotePublicoEmp, modo: ModoTerrenoJornada) {
     setState({
-      modoTerreno: 'disponivel',
+      modoTerreno: modo,
       loteSelecionado: lote,
       valorLote: lote.valor,
-      valorAcoplamento: lote.acoplamento ?? 0,
-      valorJaPago: 0,
+      valorAcoplamento: valorAcoplamentoDoLote(lote),
+      valorJaPago: modo === 'informar' ? state.valorJaPago : 0,
     });
   }
 
@@ -402,7 +405,7 @@ function PassoTerreno({
           aria-selected={state.modoTerreno === 'disponivel'}
           onClick={() => escolherModo('disponivel')}
         >
-          Terreno disponível
+          Não tenho lote
         </button>
         <button
           type="button"
@@ -411,22 +414,22 @@ function PassoTerreno({
           aria-selected={state.modoTerreno === 'informar'}
           onClick={() => escolherModo('informar')}
         >
-          Informar meu terreno
+          Já tenho lote
         </button>
       </div>
 
       {state.modoTerreno === 'disponivel' ? (
-        lotes.length === 0 ? (
+        lotesVenda.length === 0 ? (
           <p className="jornadaEmpty">Nenhum lote disponível no momento.</p>
         ) : (
           <div className="jornadaGrid" role="list">
-            {lotes.map((l) => (
+            {lotesVenda.map((l) => (
               <button
                 key={l.id}
                 type="button"
                 role="listitem"
                 className={`jornadaLoteCard ${state.loteSelecionado?.id === l.id ? 'selected' : ''}`}
-                onClick={() => escolherLote(l)}
+                onClick={() => escolherLote(l, 'disponivel')}
               >
                 <span className="jornadaLoteCodigo">Lote {l.codigo}</span>
                 <span className="jornadaLoteValor">{fmt(l.valor)}</span>
@@ -438,16 +441,24 @@ function PassoTerreno({
 
       {state.modoTerreno === 'informar' ? (
         <>
-          <div className="jornadaField">
-            <label htmlFor="valor-terreno">Valor total do terreno (R$)</label>
-            <CampoNumeroBr
-              id="valor-terreno"
-              valor={state.valorLote > 0 ? state.valorLote : null}
-              onChange={(n) => setState({ valorLote: n ?? 0, loteSelecionado: null, valorAcoplamento: 0 })}
-              inteiro
-              placeholder="0"
-            />
-          </div>
+          {lotesOcupados.length === 0 ? (
+            <p className="jornadaEmpty">Nenhum lote ocupado encontrado na planilha.</p>
+          ) : (
+            <div className="jornadaGrid" role="list">
+              {lotesOcupados.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  role="listitem"
+                  className={`jornadaLoteCard ${state.loteSelecionado?.id === l.id ? 'selected' : ''}`}
+                  onClick={() => escolherLote(l, 'informar')}
+                >
+                  <span className="jornadaLoteCodigo">Lote {l.codigo}</span>
+                  <span className="jornadaLoteValor">{fmt(l.valor)}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="jornadaField">
             <label htmlFor="valor-ja-pago-terreno">Valor já pago (R$)</label>
             <CampoNumeroBr
@@ -497,6 +508,7 @@ function PassoCasa({
       itens,
       state.gadgetsSelecionados,
       state.kitSelecionado,
+      state.acabamentosArquiteto,
     );
     setState(calcs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -506,7 +518,13 @@ function PassoCasa({
     const next = new Set(state.gadgetsSelecionados);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    const calcs = calcularCustomizacao(state.ofertaSelecionada, itens, next, state.kitSelecionado);
+    const calcs = calcularCustomizacao(
+      state.ofertaSelecionada,
+      itens,
+      next,
+      state.kitSelecionado,
+      state.acabamentosArquiteto,
+    );
     setState({ gadgetsSelecionados: next, ...calcs });
   }
 
@@ -516,12 +534,26 @@ function PassoCasa({
       itens,
       state.gadgetsSelecionados,
       val,
+      state.acabamentosArquiteto,
     );
     setState({ kitSelecionado: val, ...calcs });
   }
 
+  function toggleAcabamentos(val: boolean) {
+    const calcs = calcularCustomizacao(
+      state.ofertaSelecionada,
+      itens,
+      state.gadgetsSelecionados,
+      state.kitSelecionado,
+      val,
+    );
+    setState({ acabamentosArquiteto: val, ...calcs });
+  }
+
   const kitItem = itens.find((i) => i.categoria === 'kit_moni');
   const gadgets = itens.filter((i) => i.categoria === 'gadget');
+  const letraKit = 'C';
+  const letraExtras = kitItem ? 'D' : 'C';
 
   return (
     <div className="jornadaCard passo4">
@@ -542,22 +574,44 @@ function PassoCasa({
           <CampoNumeroBr
             id="valor-acoplamento"
             valor={state.valorAcoplamento}
-            onChange={(n) => setState({ valorAcoplamento: n ?? 0 })}
+            onChange={() => undefined}
             inteiro
             placeholder="0"
+            disabled
           />
         </div>
         <p className="jornadaKitDesc">
           {state.modoTerreno === 'disponivel' && state.loteSelecionado
-            ? `Pré-preenchido com o valor do lote ${state.loteSelecionado.codigo}. Você pode ajustar.`
-            : 'Pré-preenchido com R$ 0. Você pode informar um valor.'}
+            ? `Valor da tabela do lote ${state.loteSelecionado.codigo}.`
+            : state.loteSelecionado
+              ? `Valor da tabela do lote ${state.loteSelecionado.codigo}.`
+              : 'Definido pelo lote selecionado no terreno.'}
         </p>
+      </section>
+
+      <section className="jornadaSection">
+        <h3 className="jornadaSectionTitle">
+          <span className="jornadaSectionBadge">B</span>
+          Customização
+        </h3>
+        <label className="jornadaKitToggle">
+          <input
+            type="checkbox"
+            checked={state.acabamentosArquiteto}
+            onChange={(e) => toggleAcabamentos(e.target.checked)}
+          />
+          <div className="jornadaKitInfo">
+            <span className="jornadaKitNome">Acabamentos com arquiteto</span>
+            <span className="jornadaKitDesc">Pacote de acabamentos com acompanhamento de arquiteto.</span>
+          </div>
+          <span className="jornadaKitValor">{fmt(VALOR_ACABAMENTOS_ARQUITETO)}</span>
+        </label>
       </section>
 
       {kitItem && (
         <section className="jornadaSection">
           <h3 className="jornadaSectionTitle">
-            <span className="jornadaSectionBadge">B</span>
+            <span className="jornadaSectionBadge">{letraKit}</span>
             Kit Moní
           </h3>
           <label className="jornadaKitToggle">
@@ -578,7 +632,7 @@ function PassoCasa({
       {gadgets.length > 0 && (
         <section className="jornadaSection">
           <h3 className="jornadaSectionTitle">
-            <span className="jornadaSectionBadge">C</span>
+            <span className="jornadaSectionBadge">{letraExtras}</span>
             Extras
           </h3>
           <ul className="jornadaGadgetList">
@@ -643,8 +697,6 @@ function PassoSimulacao({
   salvando: boolean;
   erroSimulacao: string | null;
 }) {
-  const prazoTpl = Math.round(Number(empreendimento.template?.prazo_obra_meses) || 0);
-  const prazoObraDoTemplate = prazoTpl > 0;
   const podeSimular =
     Boolean(empreendimento.template?.id) &&
     state.prazoFinanciamento > 0 &&
@@ -664,6 +716,7 @@ function PassoSimulacao({
   }, [resultadoSimulacao]);
 
   const extrasCustom: string[] = [];
+  if (state.acabamentosArquiteto) extrasCustom.push(`Acabamentos com arquiteto ${fmt(VALOR_ACABAMENTOS_ARQUITETO)}`);
   if (state.kitSelecionado && state.valorKit > 0) extrasCustom.push(`Kit Moní ${fmt(state.valorKit)}`);
   if (state.valorGadgets > 0) extrasCustom.push(`Extras ${fmt(state.valorGadgets)}`);
 
@@ -704,23 +757,16 @@ function PassoSimulacao({
 
       <div className="jornadaSimOferta">
         <h3>Outras informações</h3>
-        {prazoObraDoTemplate ? (
-          <div className="jornadaField">
-            <p className="jornadaInfoLabel">Prazo de entrega da obra</p>
-            <p className="jornadaInfoValor">{prazoTpl} meses</p>
-          </div>
-        ) : (
-          <div className="jornadaField">
-            <label htmlFor="sim-prazo-obra">Prazo de entrega da casa (meses)</label>
-            <CampoNumeroBr
-              id="sim-prazo-obra"
-              valor={state.prazoObraMeses}
-              onChange={(n) => setState({ prazoObraMeses: n != null && n > 0 ? Math.round(n) : 12 })}
-              inteiro
-              placeholder="12"
-            />
-          </div>
-        )}
+        <div className="jornadaField">
+          <label htmlFor="sim-prazo-obra">Prazo de entrega da obra (meses)</label>
+          <CampoNumeroBr
+            id="sim-prazo-obra"
+            valor={state.prazoObraMeses}
+            onChange={(n) => setState({ prazoObraMeses: n != null && n > 0 ? Math.round(n) : 12 })}
+            inteiro
+            placeholder="12"
+          />
+        </div>
         <div className="jornadaField">
           <label htmlFor="sim-renda-mensal">Renda mensal (R$/mês)</label>
           <CampoNumeroBr
@@ -823,6 +869,9 @@ function Passo6({
             {state.ofertaSelecionada?.produto_modelo ?? state.ofertaSelecionada?.titulo_oferta ?? state.ofertaSelecionada?.nome ?? '—'}
           </p>
           {state.valorAcoplamento > 0 && <p>Acoplamento: {fmt(state.valorAcoplamento)}</p>}
+          {state.acabamentosArquiteto && (
+            <p>Acabamentos com arquiteto: {fmt(VALOR_ACABAMENTOS_ARQUITETO)}</p>
+          )}
           {state.kitSelecionado && state.valorKit > 0 && <p>Kit Moní: {fmt(state.valorKit)}</p>}
           {state.valorGadgets > 0 && <p>Extras: {fmt(state.valorGadgets)}</p>}
         </div>
@@ -893,36 +942,40 @@ export default function JornadaClient({
         ? empreendimento.lotes.find((l) => l.codigo === sessao.lote_codigo) ?? null
         : null;
       const oferta = sessao.empreendimento_id
-        ? empreendimento.ofertas.find((o) => o.id === sessao.empreendimento_id) ?? null
+        ? empreendimento.ofertas.find((o) => o.id === sessao.empreendimento_id) ??
+          empreendimento.ofertas.find((o) => o.imob_empreendimento_id === sessao.empreendimento_id) ??
+          null
         : null;
-      const gadgetsSelecionados = new Set(sessao.itens_selecionados ?? []);
-      const kitSelecionado = (sessao.itens_selecionados ?? []).some((id) => {
+      const itensIds = sessao.itens_selecionados ?? [];
+      const acabamentosArquiteto = itensIds.includes(ID_ACABAMENTOS_ARQUITETO);
+      const gadgetsSelecionados = new Set(itensIds.filter((id) => id !== ID_ACABAMENTOS_ARQUITETO));
+      const kitSelecionado = itensIds.some((id) => {
         const item = empreendimento.itens_customizacao.find((i) => i.id === id);
         return item?.categoria === 'kit_moni';
       });
-      const modoTerreno: ModoTerrenoJornada | null = lote
-        ? 'disponivel'
-        : sessao.lote_ja_adquirido === true || (sessao.valor_lote != null && sessao.valor_lote > 0 && !lote)
+      const modoTerreno: ModoTerrenoJornada | null =
+        sessao.lote_ja_adquirido === true
           ? 'informar'
-          : sessao.lote_ja_adquirido === false
+          : lote
             ? 'disponivel'
-            : null;
+            : sessao.lote_ja_adquirido === false
+              ? 'disponivel'
+              : null;
       const calcs = calcularCustomizacao(
         oferta,
         empreendimento.itens_customizacao,
         gadgetsSelecionados,
         kitSelecionado,
+        acabamentosArquiteto,
       );
-      const preview = oferta
-        ? previewVteAvistaOferta(oferta, empreendimento.template)
-        : null;
+      const preview = oferta ? valorAvistaOferta(oferta) : null;
       setStateRaw((prev) => ({
         ...prev,
         etapa: sessao.etapa_atual,
         sessaoToken: sessao.session_token,
         nomeCliente: sessao.nome_cliente ?? '',
         telefoneCliente: maskTelefoneCelular(sessao.telefone_cliente ?? ''),
-        loteSelecionado: modoTerreno === 'disponivel' ? lote : null,
+        loteSelecionado: lote,
         modoTerreno,
         valorJaPago: sessao.valor_ja_pago ?? 0,
         valorLote: sessao.valor_lote ?? (lote?.valor ?? 0),
@@ -930,7 +983,8 @@ export default function JornadaClient({
         previewVteAvista: preview,
         gadgetsSelecionados,
         kitSelecionado,
-        valorAcoplamento: sessao.valor_acoplamento ?? (lote?.acoplamento ?? 0),
+        acabamentosArquiteto,
+        valorAcoplamento: valorAcoplamentoDoLote(lote),
         ...calcs,
         simulacaoId: sessao.simulacao_id,
       }));
@@ -943,15 +997,16 @@ export default function JornadaClient({
       empreendimento.itens_customizacao,
       state.gadgetsSelecionados,
       state.kitSelecionado,
+      state.acabamentosArquiteto,
     );
     const dados: Record<string, unknown> = {
       nome_cliente: state.nomeCliente,
       telefone_cliente: state.telefoneCliente,
-      lote_codigo: state.modoTerreno === 'disponivel' ? state.loteSelecionado?.codigo ?? null : null,
+      lote_codigo: state.loteSelecionado?.codigo ?? null,
       lote_valor: valorLoteParaCalculo(state) || null,
       lote_ja_adquirido: state.modoTerreno === 'informar',
       valor_ja_pago: state.valorJaPago,
-      empreendimento_id: state.ofertaSelecionada?.id ?? null,
+      empreendimento_id: state.ofertaSelecionada?.imob_empreendimento_id ?? null,
       itens_selecionados: [
         ...state.gadgetsSelecionados,
         ...(state.kitSelecionado
@@ -959,6 +1014,7 @@ export default function JornadaClient({
               .filter((i) => i.categoria === 'kit_moni')
               .map((i) => i.id)
           : []),
+        ...(state.acabamentosArquiteto ? [ID_ACABAMENTOS_ARQUITETO] : []),
       ],
       valor_acoplamento: state.valorAcoplamento || null,
       valor_kit: calcs.valorKit || null,
@@ -1023,9 +1079,7 @@ export default function JornadaClient({
     setErroSimulacao(null);
     setValoresConfirmados(null);
     setRecalcToken(0);
-    const prazoTpl = Math.round(Number(empreendimento.template?.prazo_obra_meses) || 0);
-    const stateCalc: JornadaLocal =
-      prazoTpl > 0 ? { ...state, prazoObraMeses: prazoTpl } : state;
+    const stateCalc: JornadaLocal = state;
     const oferta = montarOfertaJornada(
       stateCalc,
       empreendimento.template,
@@ -1112,7 +1166,6 @@ export default function JornadaClient({
         {state.etapa === 2 && (
           <PassoOferta
             ofertas={empreendimento.ofertas}
-            template={empreendimento.template}
             state={state}
             setState={setState}
             onAvancar={() => handleAvancar(3)}

@@ -667,7 +667,12 @@ export function mapSimulacaoRow(raw: Record<string, unknown>): SimulacaoPagament
       numOrNull(inp.prazo_total_meses) ??
       numOrNull(raw.prazo_total_meses),
     template_id: raw.template_id != null ? String(raw.template_id) : null,
-    empreendimento_id: raw.empreendimento_id != null ? String(raw.empreendimento_id) : null,
+    empreendimento_id:
+      raw.empreendimento_id != null
+        ? String(raw.empreendimento_id)
+        : inp.empreendimento_id != null
+          ? String(inp.empreendimento_id)
+          : null,
   };
 }
 

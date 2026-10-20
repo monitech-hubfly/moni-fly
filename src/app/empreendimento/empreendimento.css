@@ -634,7 +634,7 @@
 /* Kit */
 .jornadaKitToggle {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 14px;
   padding: 14px 16px;
   background: var(--j-surface-raised);
@@ -648,6 +648,7 @@
   height: 18px;
   accent-color: var(--j-gold);
   flex-shrink: 0;
+  margin-top: 3px;
 }
 
 .jornadaKitInfo { flex: 1; }

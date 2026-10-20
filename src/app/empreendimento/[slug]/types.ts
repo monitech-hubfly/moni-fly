@@ -4,8 +4,9 @@ export type LotePublicoEmp = {
   id: string;
   codigo: string;
   valor: number;
-  acoplamento: number; // valor de acoplamento do lote (vem da planilha, coluna Acoplamento)
-  /** Dimensões — a planilha pública ainda não traz esses campos (TODO). */
+  acoplamento: number; // valor de acoplamento do lote (vem da planilha)
+  /** true = à venda (Disponível = Sim). */
+  disponivel: boolean;
   frente_m: number | null;
   fundo_m: number | null;
   lateral1_m: number | null;
@@ -24,11 +25,14 @@ export type ItemCustomizacao = {
 };
 
 export type OfertaEmpreendimento = {
+  /** id da oferta da Helenna (`simulacoes_pagamento`). */
   id: string;
   nome: string | null;
   ordem: number;
-  /** Snapshot congelado — a jornada NÃO usa este campo. */
+  /** Valor total à vista da calculadora da Helenna. */
   valor_avista: number | null;
+  /** Bloco IMOB pai (FK da sessão). Não é o card listado no passo 2. */
+  imob_empreendimento_id: string | null;
   /** Custo de construção no card IMOB; input do engine. */
   valor_base_casa: number | null;
   /** Acoplamento de referência da oferta da Helenna (preview step 2). */
@@ -58,7 +62,9 @@ export type TemplateConfigPublico = {
   pct_taxa_plataforma?: number | null;
   pct_taxa_gestao?: number | null;
   tipo_taxa_gestao?: string | null;
+  taxa_gestao_valor?: number | null;
   tipo_juros_cp?: 'mes_a_mes' | 'total';
+  percentual_plataforma_entrada?: number | null;
   pct_plataforma_entrada?: number | null;
   pct_impostos?: number | null;
   pct_comissao_corretor?: number | null;
@@ -122,6 +128,7 @@ export type JornadaLocal = {
 
   gadgetsSelecionados: Set<string>;
   kitSelecionado: boolean;
+  acabamentosArquiteto: boolean;
 
   valorAcoplamento: number;
   valorKit: number;
