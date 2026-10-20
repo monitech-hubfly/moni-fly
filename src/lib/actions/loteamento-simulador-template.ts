@@ -29,7 +29,6 @@ import {
   TOAST_TEMPLATE_SALVO,
   inferirCondicaoLote,
   valoresImobDaSimulacao,
-  normalizarSlugJornadaPublica,
   type LoteamentoSimuladorTemplateDraft,
   type LoteamentoSimuladorTemplateRow,
   type SimulacaoPagamentoResumo,
@@ -472,9 +471,6 @@ export async function salvarSimuladorTemplateDoCard(
   const card = await carregarCardLoteadores(auth.supabase, cardId);
   if (!card.ok) return card;
 
-  const slugNorm = normalizarSlugJornadaPublica(pageSlugRaw);
-  if (!slugNorm.ok) return slugNorm;
-
   const packed = draftParaRow(draft, {
     cardId,
     redeLoteadorId: card.redeLoteadorId,
@@ -558,16 +554,22 @@ export async function salvarSimuladorTemplateDoCard(
   }
 
   const template = mapTemplateRow(saved);
-  const slugSalvo = await persistirSlugJornadaDoCard(auth.supabase, cardId, slugNorm.slug);
-  if (!slugSalvo.ok) return slugSalvo;
 
-  revalidateAposMutacaoSimulador(cardId, slugSalvo.slug);
+  // slug + page_ativa are handled by salvarTemplate above (via formData)
+  // If formData was not provided, we skip slug persistence
+  let pageSlugFinal: string | null = null;
+  if (formData) {
+    const slugRaw = (formData.get('page_slug') as string)?.trim() || null;
+    pageSlugFinal = slugRaw;
+  }
+
+  revalidateAposMutacaoSimulador(cardId, pageSlugFinal);
   return {
     ok: true,
     template,
     link: linkCompleto(template.link_token),
-    linkMoni: linkJornadaPublica(slugSalvo.slug),
-    pageSlug: slugSalvo.slug,
+    linkMoni: pageSlugFinal ? linkJornadaPublica(pageSlugFinal) : null,
+    pageSlug: pageSlugFinal,
     mensagem: TOAST_TEMPLATE_SALVO,
     pageAtiva,
   };

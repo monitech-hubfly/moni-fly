@@ -132,7 +132,6 @@ export function SimuladorTemplateForm({
           return;
         }
         marcarSimuladorTemplateSalvo(cardId);
-        setJaSalvo(true);
         setRascunhoBase(JSON.stringify(draft));
         setSlugBase(slug.trim());
         if (typeof res.pageAtiva === 'boolean') setPageAtiva(res.pageAtiva);
