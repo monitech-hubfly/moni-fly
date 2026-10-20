@@ -62,10 +62,6 @@ export function SimuladorTemplateForm({
   pageAtivaInicial,
 }: Props) {
   const router = useRouter();
-  const slugSugerido = useMemo(
-    () => gerarSlugCard(nomeCondominio, cardId),
-    [nomeCondominio, cardId],
-  );
   const [draft, setDraft] = useState(draftInicial);
   const [rascunhoBase, setRascunhoBase] = useState(() => JSON.stringify(draftInicial));
   const [pageSlug, setPageSlug] = useState(() =>
@@ -490,36 +486,20 @@ export function SimuladorTemplateForm({
           </span>
           <input
             className={fieldCls}
-            style={fieldStyle}
+            style={{ ...fieldStyle, cursor: 'default' }}
             value={pageSlug}
             readOnly
-            placeholder={slugSugerido}
+            aria-readonly="true"
             autoComplete="off"
             spellCheck={false}
           />
-          {nomeCondominio?.trim() ? (
-            <p className="mt-1 text-xs text-muted-foreground" style={hintStyle}>
-              Sugerido:{' '}
-              <button
-                type="button"
-                className="underline"
-                style={{ color: 'var(--moni-navy-800)' }}
-                onClick={() => {
-                  setPageSlug(slugSugerido);
-                  setSlugError(null);
-                }}
-              >
-                {slugSugerido}
-              </button>
-            </p>
-          ) : null}
           {slugError ? (
             <p className="mt-1 text-xs text-destructive" style={{ color: 'var(--moni-status-overdue-border)' }}>
               {slugError}
             </p>
           ) : null}
           <span className="mt-1 block text-[11px]" style={hintStyle}>
-            Gerado a partir do nome do condomínio e do id. Sem nome do condomínio, o slug usa empreendimento e o id.
+            Gerado automaticamente pelo nome do condomínio e pelo id. Não pode ser alterado.
           </span>
         </label>
       </section>
@@ -572,7 +552,7 @@ export function SimuladorTemplateForm({
             }}
           >
             <p className="text-sm text-muted-foreground" style={hintStyle}>
-              Configure o slug e a planilha de lotes para ativar o Link Moní
+              Envie a planilha de lotes para ativar o Link Moní
             </p>
           </div>
         )}
