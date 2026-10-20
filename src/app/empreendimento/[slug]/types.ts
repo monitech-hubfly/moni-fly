@@ -4,8 +4,9 @@ export type LotePublicoEmp = {
   id: string;
   codigo: string;
   valor: number;
-  acoplamento: number; // valor de acoplamento do lote (vem da planilha, coluna Acoplamento)
-  /** Dimensões — a planilha pública ainda não traz esses campos (TODO). */
+  acoplamento: number; // valor de acoplamento do lote (vem da planilha)
+  /** true = à venda (Disponível = Sim). */
+  disponivel: boolean;
   frente_m: number | null;
   fundo_m: number | null;
   lateral1_m: number | null;

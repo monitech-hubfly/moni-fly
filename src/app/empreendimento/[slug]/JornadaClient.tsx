@@ -357,38 +357,48 @@ function PassoTerreno({
   onVoltar: () => void;
   salvando: boolean;
 }) {
+  const lotesVenda = lotes.filter((l) => l.disponivel);
+  const lotesOcupados = lotes.filter((l) => !l.disponivel);
   const podeAvancar =
     state.modoTerreno === 'disponivel'
-      ? Boolean(state.loteSelecionado)
+      ? Boolean(state.loteSelecionado?.disponivel)
       : state.modoTerreno === 'informar'
-        ? state.valorLote > 0 && Number.isFinite(state.valorJaPago) && state.valorJaPago >= 0
+        ? Boolean(state.loteSelecionado) &&
+          !state.loteSelecionado.disponivel &&
+          Number.isFinite(state.valorJaPago) &&
+          state.valorJaPago >= 0
         : false;
 
   function escolherModo(modo: ModoTerrenoJornada) {
+    const atual = state.loteSelecionado;
     if (modo === 'disponivel') {
+      const keep = atual?.disponivel ? atual : null;
       setState({
         modoTerreno: 'disponivel',
+        loteSelecionado: keep,
+        valorLote: keep?.valor ?? 0,
         valorJaPago: 0,
-        valorAcoplamento: valorAcoplamentoDoLote(state.loteSelecionado),
+        valorAcoplamento: valorAcoplamentoDoLote(keep),
       });
       return;
     }
+    const keep = atual && !atual.disponivel ? atual : null;
     setState({
       modoTerreno: 'informar',
-      loteSelecionado: null,
-      valorAcoplamento: 0,
-      valorLote: 0,
-      valorJaPago: 0,
+      loteSelecionado: keep,
+      valorAcoplamento: valorAcoplamentoDoLote(keep),
+      valorLote: keep?.valor ?? 0,
+      valorJaPago: keep ? state.valorJaPago : 0,
     });
   }
 
-  function escolherLote(lote: LotePublicoEmp) {
+  function escolherLote(lote: LotePublicoEmp, modo: ModoTerrenoJornada) {
     setState({
-      modoTerreno: 'disponivel',
+      modoTerreno: modo,
       loteSelecionado: lote,
       valorLote: lote.valor,
       valorAcoplamento: valorAcoplamentoDoLote(lote),
-      valorJaPago: 0,
+      valorJaPago: modo === 'informar' ? state.valorJaPago : 0,
     });
   }
 
@@ -419,17 +429,17 @@ function PassoTerreno({
       </div>
 
       {state.modoTerreno === 'disponivel' ? (
-        lotes.length === 0 ? (
+        lotesVenda.length === 0 ? (
           <p className="jornadaEmpty">Nenhum lote disponível no momento.</p>
         ) : (
           <div className="jornadaGrid" role="list">
-            {lotes.map((l) => (
+            {lotesVenda.map((l) => (
               <button
                 key={l.id}
                 type="button"
                 role="listitem"
                 className={`jornadaLoteCard ${state.loteSelecionado?.id === l.id ? 'selected' : ''}`}
-                onClick={() => escolherLote(l)}
+                onClick={() => escolherLote(l, 'disponivel')}
               >
                 <span className="jornadaLoteCodigo">Lote {l.codigo}</span>
                 <span className="jornadaLoteValor">{fmt(l.valor)}</span>
@@ -441,16 +451,24 @@ function PassoTerreno({
 
       {state.modoTerreno === 'informar' ? (
         <>
-          <div className="jornadaField">
-            <label htmlFor="valor-terreno">Valor total do terreno (R$)</label>
-            <CampoNumeroBr
-              id="valor-terreno"
-              valor={state.valorLote > 0 ? state.valorLote : null}
-              onChange={(n) => setState({ valorLote: n ?? 0, loteSelecionado: null, valorAcoplamento: 0 })}
-              inteiro
-              placeholder="0"
-            />
-          </div>
+          {lotesOcupados.length === 0 ? (
+            <p className="jornadaEmpty">Nenhum lote ocupado encontrado na planilha.</p>
+          ) : (
+            <div className="jornadaGrid" role="list">
+              {lotesOcupados.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  role="listitem"
+                  className={`jornadaLoteCard ${state.loteSelecionado?.id === l.id ? 'selected' : ''}`}
+                  onClick={() => escolherLote(l, 'informar')}
+                >
+                  <span className="jornadaLoteCodigo">Lote {l.codigo}</span>
+                  <span className="jornadaLoteValor">{fmt(l.valor)}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="jornadaField">
             <label htmlFor="valor-ja-pago-terreno">Valor já pago (R$)</label>
             <CampoNumeroBr
@@ -943,13 +961,14 @@ export default function JornadaClient({
         const item = empreendimento.itens_customizacao.find((i) => i.id === id);
         return item?.categoria === 'kit_moni';
       });
-      const modoTerreno: ModoTerrenoJornada | null = lote
-        ? 'disponivel'
-        : sessao.lote_ja_adquirido === true || (sessao.valor_lote != null && sessao.valor_lote > 0 && !lote)
+      const modoTerreno: ModoTerrenoJornada | null =
+        sessao.lote_ja_adquirido === true
           ? 'informar'
-          : sessao.lote_ja_adquirido === false
+          : lote
             ? 'disponivel'
-            : null;
+            : sessao.lote_ja_adquirido === false
+              ? 'disponivel'
+              : null;
       const calcs = calcularCustomizacao(
         oferta,
         empreendimento.itens_customizacao,
@@ -967,7 +986,7 @@ export default function JornadaClient({
         sessaoToken: sessao.session_token,
         nomeCliente: sessao.nome_cliente ?? '',
         telefoneCliente: maskTelefoneCelular(sessao.telefone_cliente ?? ''),
-        loteSelecionado: modoTerreno === 'disponivel' ? lote : null,
+        loteSelecionado: lote,
         modoTerreno,
         valorJaPago: sessao.valor_ja_pago ?? 0,
         valorLote: sessao.valor_lote ?? (lote?.valor ?? 0),
@@ -976,8 +995,7 @@ export default function JornadaClient({
         gadgetsSelecionados,
         kitSelecionado,
         acabamentosArquiteto,
-        valorAcoplamento:
-          modoTerreno === 'disponivel' ? valorAcoplamentoDoLote(lote) : 0,
+        valorAcoplamento: valorAcoplamentoDoLote(lote),
         ...calcs,
         simulacaoId: sessao.simulacao_id,
       }));
@@ -995,7 +1013,7 @@ export default function JornadaClient({
     const dados: Record<string, unknown> = {
       nome_cliente: state.nomeCliente,
       telefone_cliente: state.telefoneCliente,
-      lote_codigo: state.modoTerreno === 'disponivel' ? state.loteSelecionado?.codigo ?? null : null,
+      lote_codigo: state.loteSelecionado?.codigo ?? null,
       lote_valor: valorLoteParaCalculo(state) || null,
       lote_ja_adquirido: state.modoTerreno === 'informar',
       valor_ja_pago: state.valorJaPago,

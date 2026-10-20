@@ -136,20 +136,6 @@ function parseTemplate(raw: unknown): TemplateConfigPublico | null {
   };
 }
 
-function loteDimensoesVazias(): Pick<
-  LotePublicoEmp,
-  'frente_m' | 'fundo_m' | 'lateral1_m' | 'lateral2_m' | 'area_m2' | 'topografia'
-> {
-  return {
-    frente_m: null,
-    fundo_m: null,
-    lateral1_m: null,
-    lateral2_m: null,
-    area_m2: null,
-    topografia: null,
-  };
-}
-
 async function carregarLotesDaPlanilha(
   planilhaPath: string,
   planilhaNome: string,
@@ -162,7 +148,13 @@ async function carregarLotesDaPlanilha(
   for (const client of clients) {
     if (!client) continue;
     const { data, error } = await client.storage.from(BUCKET).download(planilhaPath);
-    if (error || !data) continue;
+    if (error || !data) {
+      console.error('[empreendimento] download planilha de lotes:', error?.message ?? 'sem arquivo', {
+        path: planilhaPath,
+        nome: planilhaNome,
+      });
+      continue;
+    }
     try {
       let buf: ArrayBuffer;
       if (data instanceof ArrayBuffer) {
@@ -173,17 +165,31 @@ async function carregarLotesDaPlanilha(
         const view = new Uint8Array(await (data as Blob).arrayBuffer());
         buf = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer;
       }
-      return parsePlanilhaLotesBuffer(buf, planilhaNome).map((l, i) => ({
+      const linhas = parsePlanilhaLotesBuffer(buf, planilhaNome);
+      return linhas.map((l, i) => ({
         id: `planilha:${i}:${l.codigo}`,
         codigo: l.codigo,
         valor: l.valor,
         acoplamento: l.valorAcoplamento,
-        ...loteDimensoesVazias(),
+        disponivel: l.disponivel,
+        frente_m: l.frente_m,
+        fundo_m: l.fundo_m,
+        lateral1_m: l.lateral1_m,
+        lateral2_m: l.lateral2_m,
+        area_m2: l.area_m2,
+        topografia: null,
       }));
-    } catch {
-      // tenta o próximo client
+    } catch (err) {
+      console.error('[empreendimento] parse planilha de lotes:', err, {
+        path: planilhaPath,
+        nome: planilhaNome,
+      });
     }
   }
+  console.error('[empreendimento] nenhum lote carregado da planilha', {
+    path: planilhaPath,
+    nome: planilhaNome,
+  });
   return [];
 }
 
