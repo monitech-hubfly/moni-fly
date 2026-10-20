@@ -1,9 +1,7 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { createClient } from '@/lib/supabase/server';
-import { isRedeStaffRole } from '@/lib/authz';
-import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { carregarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
 import { rowToSimuladorTemplateDraft } from '@/lib/loteamento-simulador-template';
 import { SimuladorTemplateForm } from './SimuladorTemplateForm';
@@ -24,16 +22,6 @@ export default async function SimuladorTemplatePage({ params }: Props) {
     data: { user },
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  const access = await persistSeededStaffRoleIfNeeded(
-    supabase,
-    { id: user.id, email: user.email },
-    (profile as { role?: string } | null)?.role,
-  );
-  if (!isRedeStaffRole(access)) {
-    redirect('/loteadores');
-  }
 
   const loaded = await carregarSimuladorTemplateDoCard(id);
   if (!loaded.ok) {
