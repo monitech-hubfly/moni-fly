@@ -24,11 +24,14 @@ export type ItemCustomizacao = {
 };
 
 export type OfertaEmpreendimento = {
+  /** id da oferta da Helenna (`simulacoes_pagamento`). */
   id: string;
   nome: string | null;
   ordem: number;
-  /** Snapshot congelado — a jornada NÃO usa este campo. */
+  /** Valor total à vista da calculadora da Helenna. */
   valor_avista: number | null;
+  /** Bloco IMOB pai (FK da sessão). Não é o card listado no passo 2. */
+  imob_empreendimento_id: string | null;
   /** Custo de construção no card IMOB; input do engine. */
   valor_base_casa: number | null;
   /** Acoplamento de referência da oferta da Helenna (preview step 2). */

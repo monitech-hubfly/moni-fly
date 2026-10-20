@@ -264,7 +264,9 @@ export function isAnonymousAllowedPath(pathname: string): boolean {
     isBcaPublicLeituraAccessPath(pathname) ||
     isAuthFlowAccessPath(pathname) ||
     isPortalFrankAuthAccessPath(pathname) ||
-    isExternalTokenAccessPath(pathname)
+    isExternalTokenAccessPath(pathname) ||
+    pathname === '/empreendimento' ||
+    pathname.startsWith('/empreendimento/')
   );
 }
 

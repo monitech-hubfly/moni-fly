@@ -140,25 +140,11 @@ function montarOfertaJornada(
   };
 }
 
-function previewVteAvistaOferta(
-  oferta: OfertaEmpreendimento,
-  tpl: TemplateConfigPublico | null,
-): number | null {
-  const baseCasa = Number(oferta.valor_base_casa);
-  if (!Number.isFinite(baseCasa) || baseCasa <= 0) return null;
-  const valorLote = Math.max(0, Number(oferta.valor_lote_oferta) || 0);
-  const calc = calcularOferta(montarTemplateParaEngine(tpl), {
-    valor_lote: valorLote,
-    valor_casa: baseCasa,
-    valor_customizacao: Math.max(0, Number(oferta.valor_customizacao_oferta) || 0),
-    valor_acoplamento: Math.max(0, Number(oferta.valor_acoplamento) || 0),
-    valor_ja_pago: 0,
-    prazo_meses: 12,
-    parcela_mensal: sugerirParcelaMensal(valorLote),
-    renda_cliente: 0,
-    prazo_financiamento_anos: 30,
-  });
-  return calc.vte_avista;
+/** Valor total à vista da oferta da Helenna (sem recálculo no cliente). */
+function valorAvistaOferta(oferta: OfertaEmpreendimento): number | null {
+  const n = Number(oferta.valor_avista);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
 }
 
 function estadoInicial(empreendimento?: EmpreendimentoPublico): JornadaLocal {
@@ -267,7 +253,6 @@ function Passo1({
 
 function PassoOferta({
   ofertas,
-  template,
   state,
   setState,
   onAvancar,
@@ -275,7 +260,6 @@ function PassoOferta({
   salvando,
 }: {
   ofertas: OfertaEmpreendimento[];
-  template: TemplateConfigPublico | null;
   state: JornadaLocal;
   setState: (s: Partial<JornadaLocal>) => void;
   onAvancar: () => void;
@@ -283,11 +267,10 @@ function PassoOferta({
   salvando: boolean;
 }) {
   function escolher(o: OfertaEmpreendimento) {
-    const preview = previewVteAvistaOferta(o, template);
     setState({
       ofertaSelecionada: o,
       valorCasa: Math.max(0, Number(o.valor_base_casa) || 0),
-      previewVteAvista: preview,
+      previewVteAvista: valorAvistaOferta(o),
     });
   }
 
@@ -301,10 +284,7 @@ function PassoOferta({
       ) : (
         <div className="jornadaOfertasList">
           {ofertas.map((o) => {
-            const preview =
-              state.ofertaSelecionada?.id === o.id && state.previewVteAvista != null
-                ? state.previewVteAvista
-                : previewVteAvistaOferta(o, template);
+            const avista = valorAvistaOferta(o);
             return (
               <button
                 key={o.id}
@@ -318,14 +298,14 @@ function PassoOferta({
                   </span>
                   {o.produto_modelo && <span className="jornadaOfertaModelo">{o.produto_modelo}</span>}
                 </div>
-                {preview != null ? (
+                {avista != null ? (
                   <div className="jornadaOfertaValor">
                     <span className="jornadaOfertaLabel">Valor total à vista</span>
-                    <span>{fmt(preview)}</span>
+                    <span>{fmt(avista)}</span>
                   </div>
                 ) : (
                   <p className="jornadaOfertaDesc">
-                    Valor base da casa ainda não preenchido no card da oferta.
+                    Valor à vista ainda não preenchido na oferta.
                   </p>
                 )}
                 {o.descricao && <p className="jornadaOfertaDesc">{o.descricao}</p>}
@@ -904,7 +884,9 @@ export default function JornadaClient({
         ? empreendimento.lotes.find((l) => l.codigo === sessao.lote_codigo) ?? null
         : null;
       const oferta = sessao.empreendimento_id
-        ? empreendimento.ofertas.find((o) => o.id === sessao.empreendimento_id) ?? null
+        ? empreendimento.ofertas.find((o) => o.id === sessao.empreendimento_id) ??
+          empreendimento.ofertas.find((o) => o.imob_empreendimento_id === sessao.empreendimento_id) ??
+          null
         : null;
       const gadgetsSelecionados = new Set(sessao.itens_selecionados ?? []);
       const kitSelecionado = (sessao.itens_selecionados ?? []).some((id) => {
@@ -924,9 +906,7 @@ export default function JornadaClient({
         gadgetsSelecionados,
         kitSelecionado,
       );
-      const preview = oferta
-        ? previewVteAvistaOferta(oferta, empreendimento.template)
-        : null;
+      const preview = oferta ? valorAvistaOferta(oferta) : null;
       const temOferta = Boolean(oferta);
       let etapa = Math.max(ETAPA.dados, Math.round(Number(sessao.etapa_atual) || ETAPA.dados));
       if (!temOferta && etapa >= ETAPA.terreno) etapa = ETAPA.oferta;
@@ -965,7 +945,7 @@ export default function JornadaClient({
       lote_valor: valorLoteParaCalculo(state) || null,
       lote_ja_adquirido: state.modoTerreno === 'informar',
       valor_ja_pago: state.valorJaPago,
-      empreendimento_id: state.ofertaSelecionada?.id ?? null,
+      empreendimento_id: state.ofertaSelecionada?.imob_empreendimento_id ?? null,
       itens_selecionados: [
         ...state.gadgetsSelecionados,
         ...(state.kitSelecionado
@@ -1131,7 +1111,6 @@ export default function JornadaClient({
         {state.etapa === ETAPA.oferta && (
           <PassoOferta
             ofertas={empreendimento.ofertas}
-            template={empreendimento.template}
             state={state}
             setState={setState}
             onAvancar={() => handleAvancar(ETAPA.terreno)}
