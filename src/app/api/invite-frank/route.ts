@@ -3,8 +3,17 @@ import { createClient } from '@/lib/supabase/server';
 
 /**
  * POST — gera convite para o portal do franqueado (admin/consultor).
- * Body: { email?: string, franqueado_id?: string } (franqueado_id = rede_franqueados.id, opcional)
+ * Body: { email?: string, franqueado_id: string } (franqueado_id = rede_franqueados.id, obrigatório)
  */
+
+const ERRO_FRANQUEADO_ID_OBRIGATORIO =
+  'franqueado_id é obrigatório — o convite só pode ser gerado para um franqueado já cadastrado na Rede';
+
+type InviteFrankBody = {
+  email?: string | null;
+  franqueado_id?: unknown;
+};
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
@@ -19,16 +28,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Sem permissão.' }, { status: 403 });
     }
 
-    const body = (await req.json().catch(() => ({}))) as {
-      email?: string | null;
-      franqueado_id?: string | null;
-    };
+    const body = (await req.json().catch(() => ({}))) as InviteFrankBody;
 
     const email = body.email != null ? String(body.email).trim().toLowerCase() : null;
-    const franqueadoId =
-      body.franqueado_id != null && String(body.franqueado_id).trim() !== ''
-        ? String(body.franqueado_id).trim()
-        : null;
+    const franqueadoId = typeof body.franqueado_id === 'string' ? body.franqueado_id.trim() : '';
+    if (!franqueadoId) {
+      return NextResponse.json({ error: ERRO_FRANQUEADO_ID_OBRIGATORIO }, { status: 400 });
+    }
 
     const { data, error } = await supabase
       .from('convites_frank')

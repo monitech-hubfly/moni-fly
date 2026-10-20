@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+// @ts-ignore
 import remarkGfm from 'remark-gfm';
 import { recordFaqFeedback } from '@/lib/actions/faq-actions';
 import type { FaqArticle } from '@/types/faq';

@@ -214,7 +214,7 @@ export async function vincularTagCard(
   cardId: string,
   tagId: string,
   basePath?: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; id?: string } | { ok: false; error: string }> {
   try {
     const supabase = await createClient();
     const { error } = await supabase.from('kanban_card_tags').insert({ card_id: cardId, tag_id: tagId });
@@ -258,6 +258,7 @@ export type CriarSubInteracaoInput = {
   origem?: 'nativo' | 'legado';
   /** Quando true, rejeita se chamado não for editável na Sirene. */
   viaSirene?: boolean;
+  sirene_chamado_id?: number | null;
 };
 
 export type ChamadoCategoriaDb = 'chamado' | 'melhoria';
@@ -2658,6 +2659,9 @@ export type RelacionamentoCardRow = {
   fase_nome: string;
   tipo: TipoRelacionamentoDisplay;
   vinculo_id: string | null;
+  arquivado?: boolean | null;
+  concluido?: boolean | null;
+  created_at?: string | null;
 };
 
 async function perfilEhAdminOuConsultor(
@@ -4074,6 +4078,10 @@ export async function registrarConfirmacaoFasePortfolio(input: {
     opcao: { opcao_assinada: true, opcao_assinada_em: now },
     comite: { comite_aprovado: true, comite_aprovado_em: now },
     contrato: { contrato_assinado: true, contrato_assinado_em: now },
+    cto_precedentes: {
+      portfolio_cto_precedentes_assinado: true,
+      portfolio_cto_precedentes_assinado_em: now,
+    },
   } as const;
 
   const { error: updErr } = await supabase

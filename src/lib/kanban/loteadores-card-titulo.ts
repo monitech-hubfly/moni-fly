@@ -9,6 +9,8 @@ type TituloLoteadorParams = {
   nomeLoteador?: string | null;
   contatoNome?: string | null;
   nomeCondominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
   tituloFallback?: string | null;
 };
 

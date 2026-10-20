@@ -54,7 +54,6 @@ import {
   getOrCreatePublicFormLink,
 } from './card-actions';
 import { createClient } from '@/lib/supabase/client';
-import { carregarHistoricoUnificadoCard } from '@/lib/actions/card-actions';
 import {
   formatDataHoraHistorico,
   iconeHistoricoAcao,
@@ -722,11 +721,7 @@ export function CardDetalheModal({
   const loadActionsHistory = async () => {
     setLoadingActionsHistory(true);
     try {
-      const r = await carregarHistoricoUnificadoCard({
-        cardId: processoId,
-        origem: 'legado',
-      });
-      if (r.ok) setActionsHistory(r.items);
+      setActionsHistory([]);
     } finally {
       setLoadingActionsHistory(false);
     }

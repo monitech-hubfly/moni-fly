@@ -131,7 +131,7 @@ export function KanbanCardModalTagsPainel({
         alert('Erro ao vincular tag: ' + res.error);
         return;
       }
-      setTagsCard((prev) => prev.map((x) => (x.id === tempId ? { ...x, id: res.id } : x)));
+      setTagsCard((prev) => prev.map((x) => (x.id === tempId ? { ...x, id: res.id ?? tempId } : x)));
     });
   }
 
