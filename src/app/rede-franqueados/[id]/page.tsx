@@ -13,11 +13,19 @@ import { RedeFranqueadoDetalheDocsFranqueado } from './RedeFranqueadoDetalheDocs
 import { RedeFranqueadoDetalheTabs } from './RedeFranqueadoDetalheTabs';
 import { RedeFranqueadoSubstituicoesHistorico } from './RedeFranqueadoSubstituicoesHistorico';
 import type { RedeSubstituicaoRow } from '@/lib/rede-franqueado-substituicao';
+import { buscarHistoricoFormularios } from '@/lib/actions/formulario-qualificacao';
 
 export const dynamic = 'force-dynamic';
 
-export default async function RedeFranqueadoDetalhePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function RedeFranqueadoDetalhePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ aba?: string }>;
+}) {
   const { id } = await params;
+  const { aba } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -41,10 +49,11 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
     if (!own) redirect('/portal-frank/rede');
   }
 
-  const [{ row, error: loadError }, spesRows, empresasExtrasRows] = await Promise.all([
+  const [{ row, error: loadError }, spesRows, empresasExtrasRows, historicoQualificacao] = await Promise.all([
     fetchRedeFranqueadoDetalheForPage(supabase, id, { staffUseAdminFallback: staff }),
     staff ? fetchFranqueadoSpeRows(supabase) : Promise.resolve(null),
     staff ? fetchFranqueadoEmpresasExtrasRows(supabase, id) : Promise.resolve(null),
+    buscarHistoricoFormularios(id),
   ]);
   const spesDoFranqueado = (spesRows ?? []).filter((s) => s.rede_franqueado_id === id);
 
@@ -115,6 +124,10 @@ export default async function RedeFranqueadoDetalhePage({ params }: { params: Pr
             row={row}
             internalView
             podeGerarFormulario={staff}
+            abaInicial={aba}
+            qualificacaoHistorico={historicoQualificacao.data ?? []}
+            qualificacaoLoadError={Boolean(historicoQualificacao.error)}
+            podeAbrirFormulario={access === 'admin' || frank}
             cadastro={
               staff ? (
                 <RedeFranqueadoDetalheDocs

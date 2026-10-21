@@ -108,6 +108,7 @@ export async function salvarFormularioEni(
     // Non-fatal: form was saved, just log the error
   }
 
+  revalidatePath(`/rede-franqueados/${input.rede_franqueado_id}`);
   revalidatePath(`/rede-franqueados/${input.rede_franqueado_id}/formulario-qualificacao`);
   return { ok: true, id: inserted.id };
 }

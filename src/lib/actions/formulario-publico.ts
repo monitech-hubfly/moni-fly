@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { FormularioEniInput } from './formulario-qualificacao';
 
@@ -77,6 +78,8 @@ export async function salvarFormularioPublico(
   if (updateErr) {
     console.error('[formulario-publico] update rede_franqueados error', updateErr);
   }
+
+  revalidatePath(`/rede-franqueados/${rede.id}`);
 
   return { ok: true, id: inserted.id };
 }

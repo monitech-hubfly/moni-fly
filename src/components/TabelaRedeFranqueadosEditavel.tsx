@@ -846,11 +846,11 @@ export function TabelaRedeFranqueadosEditavel({
                   <td className="px-3 py-2.5 align-top">
                     <div className="flex flex-col items-start gap-1">
                       <Link
-                        href={`/rede-franqueados/${r.id}/formulario-qualificacao`}
+                        href={`/rede-franqueados/${r.id}?aba=qualificacao`}
                         className="inline-flex items-center gap-1 text-xs text-purple-700 underline underline-offset-2 hover:text-purple-900"
                       >
                         <FileText size={12} />
-                        Formulário
+                        Ver respostas
                       </Link>
                       {ultimoPreenchimentoQualificacao[r.id] ? (
                         <span

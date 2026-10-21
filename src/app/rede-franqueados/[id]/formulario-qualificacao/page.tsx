@@ -60,7 +60,7 @@ export default async function FormularioQualificacaoPage({
       {/* Breadcrumb */}
       <nav style={{ padding: '12px 24px', background: '#0F1E33' }}>
         <Link
-          href={`/rede-franqueados/${id}`}
+          href={`/rede-franqueados/${id}?aba=qualificacao`}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#94A3B8', textDecoration: 'none' }}
         >
           <ChevronLeft size={13} />
