@@ -1,13 +1,15 @@
 'use server';
 // src/lib/actions/jornada-cliente.ts
 
+import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import type {
   ItemCustomizacaoEscolhido,
   JornadaSessao,
 } from '@/app/empreendimento/[slug]/types';
-import { nascerCardVclDoCliente } from '@/lib/kanban/vcl-lead-nascimento';
 import { parseItensCustomizacaoEscolhidos } from '@/lib/empreendimento/customizacao-itens';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Salvar/criar sessão do cliente
@@ -41,26 +43,27 @@ export async function salvarJornadaSessao(
   const raw = data as { session_token?: string; etapa_atual?: number } | null;
   if (!raw?.session_token) return { ok: false, error: 'Sessão não retornada.' };
 
-  const corretorId = String(dados.corretor_id ?? '').trim();
   const nomeCliente = String(dados.nome_cliente ?? '').trim();
   const telefoneDigitos = String(dados.telefone_cliente ?? '').replace(/\D/g, '');
-  if (corretorId && nomeCliente.length >= 2 && telefoneDigitos.length >= 10) {
-    const loteValorRaw = dados.lote_valor;
-    const loteValor = loteValorRaw == null || loteValorRaw === '' ? null : Number(loteValorRaw);
-    try {
-      await nascerCardVclDoCliente({
-        sessionToken: raw.session_token,
-        cardOrigemId: cardId,
-        slug: String(dados.slug_empreendimento ?? ''),
-        corretorId,
-        nomeCliente,
-        telefone: String(dados.telefone_cliente ?? ''),
-        loteCodigo: dados.lote_codigo == null ? null : String(dados.lote_codigo),
-        loteValor: loteValor != null && Number.isFinite(loteValor) ? loteValor : null,
-      });
-    } catch (err) {
-      console.error('[vcl-lead]', err);
-    }
+  if (nomeCliente.length >= 2 && telefoneDigitos.length >= 10) {
+    const corretorBruto = String(dados.corretor_id ?? '').trim();
+    const lead = await supabase.rpc('jornada_registrar_lead', {
+      p_token: raw.session_token,
+      p_card_origem: cardId,
+      p_nome: nomeCliente,
+      p_telefone: String(dados.telefone_cliente ?? ''),
+      p_slug: String(dados.slug_empreendimento ?? ''),
+      p_corretor_id: UUID_RE.test(corretorBruto) ? corretorBruto : null,
+      p_loteamento_nome: String(dados.loteamento_nome ?? ''),
+      p_mover: dados.mover_kanban_vcl === true,
+      p_ja_tem_lote: dados.lote_ja_adquirido === true,
+      p_dados: {
+        lote_codigo: dados.lote_codigo ?? null,
+        lote_valor: dados.lote_valor ?? null,
+      },
+    });
+    if (lead.error) return { ok: false, error: lead.error.message };
+    revalidatePath('/venda-casas-loteadores');
   }
 
   return {
@@ -124,6 +127,7 @@ type GravarSimulacaoInput = {
   valorLote: number;
   valorCasa: number;
   valorCustomizacao: number;
+  valorAcoplamento: number;
   customizacaoItens: ItemCustomizacaoEscolhido[];
   valorJaPago: number;
   rendaCliente: number | null;
@@ -133,6 +137,10 @@ type GravarSimulacaoInput = {
   nomeCliente: string;
   telefoneCliente: string;
   condicaoLote: 'nao_pago' | 'parcial' | 'quitado' | 'recurso_proprio';
+  ofertaNome: string | null;
+  loteCodigo: string | null;
+  loteRotulo: string | null;
+  slug: string;
 };
 
 type GravarSimulacaoResult =
@@ -145,50 +153,41 @@ export async function gravarSimulacaoJornada(
   const supabase = await createClient();
   const {
     templateId, cardId, sessaoToken,
-    valorLote, valorCasa, valorCustomizacao, customizacaoItens,
+    valorLote, valorCasa, valorCustomizacao, valorAcoplamento, customizacaoItens,
     valorJaPago, rendaCliente, prazoObraMeses, prazoFinanciamentoAnos, taxaFinanciamentoAnual,
     nomeCliente, telefoneCliente, condicaoLote,
+    ofertaNome, loteCodigo, loteRotulo, slug,
   } = input;
 
-  // TODO(jornada→kanban): este insert roda como visitante anônimo e provavelmente falha por RLS
-  // (simulacoes_pagamento só aceita escrita de admin/team — migration 544). Só grava quando há
-  // usuário interno logado. Resolver depois do treinamento junto com a ligação jornada → kanban.
-  // Os itens escolhidos ficam garantidos em jornada_cliente_sessao.customizacao_itens.
-  const { data, error } = await supabase
-    .from('simulacoes_pagamento')
-    .insert({
+  const { data, error } = await supabase.rpc('jornada_registrar_simulacao', {
+    p_token: sessaoToken,
+    p_card_origem: cardId,
+    p_payload: {
       template_id: templateId,
-      kanban_card_id: cardId,
+      condicao_lote: condicaoLote,
       cliente_nome: nomeCliente,
       cliente_telefone: telefoneCliente,
       valor_lote: valorLote,
       valor_casa: valorCasa,
       valor_customizacao: valorCustomizacao,
-      customizacao_itens: customizacaoItens,
+      valor_acoplamento: valorAcoplamento,
       valor_ja_pago: valorJaPago,
       renda_cliente: rendaCliente,
       prazo_meses: prazoObraMeses,
       prazo_financiamento_anos: prazoFinanciamentoAnos,
       taxa_financiamento_anual: taxaFinanciamentoAnual / 100,
-      condicao_lote: condicaoLote,
-      status: 'rascunho',
-    })
-    .select('id')
-    .single();
-
-  if (error || !data?.id) {
-    return { ok: false, error: error?.message ?? 'Erro ao gravar simulação.' };
-  }
-
-  const simulacaoId = data.id as string;
-
-  // Vincula à sessão
-  await salvarJornadaSessao({
-    token: sessaoToken,
-    cardId,
-    etapa: 5,
-    dados: { simulacao_id: simulacaoId },
+      customizacao_itens: customizacaoItens,
+      oferta_nome: ofertaNome,
+      lote_codigo: loteCodigo,
+      lote_rotulo: loteRotulo,
+      slug,
+    },
   });
 
+  if (error) return { ok: false, error: error.message };
+  const simulacaoId = String((data as { id?: string } | null)?.id ?? '').trim();
+  if (!simulacaoId) return { ok: false, error: 'Simulação não retornada.' };
+
+  revalidatePath('/venda-casas-loteadores');
   return { ok: true, simulacaoId };
 }

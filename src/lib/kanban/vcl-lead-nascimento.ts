@@ -114,9 +114,8 @@ async function empreendimentoDoCardOuSlug(
 }
 
 /**
- * Quando o cliente final conclui a jornada já identificado por corretor e empreendimento,
- * nasce um card em Venda Casas Loteadores (Leads) com esses dois cadastros.
- * Não grava de novo o cadastro do empreendimento e não troca o card_id dele.
+ * Caminho antigo (service role) do lead VCL. O visitante da jornada não passa mais por aqui:
+ * o card nasce em `jornada_registrar_lead` (migration 640). Mantido para não quebrar chamadas internas.
  */
 export async function nascerCardVclDoCliente(input: NascerCardVclInput): Promise<void> {
   const sessionToken = String(input.sessionToken ?? '').trim();

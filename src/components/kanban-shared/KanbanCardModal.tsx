@@ -144,6 +144,7 @@ import { KanbanCardModalNegocioPrazoField } from './KanbanCardModalNegocioPrazoF
 import { KanbanCardModalNegociacaoLinhasField } from './KanbanCardModalNegociacaoLinhasField';
 import { KanbanCardModalMoedaField } from './KanbanCardModalMoedaField';
 import { KanbanCardModalSimulacoesImob } from './KanbanCardModalSimulacoesImob';
+import { KanbanCardModalJornadaVcl } from './KanbanCardModalJornadaVcl';
 import { KanbanCardModalListaLotes } from './KanbanCardModalListaLotes';
 import { KanbanCardModalSimuladorPagamentos } from './KanbanCardModalSimuladorPagamentos';
 import {
@@ -658,6 +659,8 @@ export function KanbanCardModal({
     atasReuniao: false,
     chamados: false,
     historico: false,
+    dadosClienteVcl: true,
+    simulacoesClienteVcl: false,
   });
   const [imobSimulacoesPrefetch, setImobSimulacoesPrefetch] = useState<{
     cardId: string;
@@ -4310,6 +4313,10 @@ export function KanbanCardModal({
     !isLegado &&
     (fonteDadosLaterais?.tipo === 'loteador' ||
       (!fonteDadosLaterais && isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))));
+  const exibirJornadaVcl =
+    card.kanban_id === KANBAN_IDS.VCL_NAO_VENDIDOS ||
+    card.kanban_id === KANBAN_IDS.VCL_VENDIDOS ||
+    card.kanban_id === KANBAN_IDS.VCL_SHOWROOM;
   const cardIdDadosLoteador =
     fonteDadosLaterais?.tipo === 'loteador' && fonteDadosLaterais.cardIdFonte
       ? fonteDadosLaterais.cardIdFonte
@@ -7100,6 +7107,20 @@ export function KanbanCardModal({
               background: 'var(--moni-surface-50)',
             }}
           >
+            {exibirJornadaVcl ? (
+              <>
+                {secaoHead(
+                  'dadosClienteVcl',
+                  'Dados do cliente',
+                  <KanbanCardModalJornadaVcl cardId={card.id} modo="dados" />,
+                )}
+                {secaoHead(
+                  'simulacoesClienteVcl',
+                  'Simulações',
+                  <KanbanCardModalJornadaVcl cardId={card.id} modo="simulacoes" />,
+                )}
+              </>
+            ) : null}
             {totalCardsSyncGrupo > 0 ? (
               <p className="mb-3 rounded border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] text-sky-900">
                 Dados compartilhados com {totalCardsSyncGrupo} card{totalCardsSyncGrupo === 1 ? '' : 's'} vinculado
