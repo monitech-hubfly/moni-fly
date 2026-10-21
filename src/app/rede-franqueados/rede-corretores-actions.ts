@@ -8,7 +8,12 @@ import {
   insertRedeCorretorRow,
   validarCamposCorretor,
 } from '@/lib/rede-corretor-persist'
-import { vincularCorretorAosEmpreendimentosAtivos } from '@/lib/corretor-empreendimentos-vinculo'
+import {
+  listarEmpreendimentosParaVinculoCorretor,
+  substituirVinculosCorretorEmpreendimentos,
+  vincularCorretorAosEmpreendimentosAtivos,
+  type EmpreendimentoVinculoOpcao,
+} from '@/lib/corretor-empreendimentos-vinculo'
 import type { RedeCorretorPatch, RedeCorretorStatus } from '@/lib/rede-corretores'
 
 type Ok = { ok: true; mensagem: string; id?: string }
@@ -31,6 +36,27 @@ async function requireRedeCorretoresStaff(): Promise<
   return { ok: true, supabase, userId: user.id }
 }
 
+export async function listarEmpreendimentosAbertosParaCorretor(): Promise<EmpreendimentoVinculoOpcao[]> {
+  const gate = await requireRedeCorretoresStaff()
+  if (!gate.ok) return []
+  return listarEmpreendimentosParaVinculoCorretor(gate.supabase)
+}
+
+export async function listarEmpreendimentosVinculadosDoCorretor(corretorId: string): Promise<string[]> {
+  const gate = await requireRedeCorretoresStaff()
+  if (!gate.ok) return []
+  const id = String(corretorId ?? '').trim()
+  if (!id) return []
+  const { data, error } = await gate.supabase
+    .from('imob_corretor_empreendimentos')
+    .select('empreendimento_id')
+    .eq('corretor_id', id)
+  if (error) return []
+  return (data ?? [])
+    .map((row: { empreendimento_id?: string }) => String(row.empreendimento_id ?? ''))
+    .filter(Boolean)
+}
+
 export async function vincularEmpreendimentosDoNovoCorretor(
   corretorId: string,
   empreendimentoIds: string[],
@@ -43,6 +69,22 @@ export async function vincularEmpreendimentosDoNovoCorretor(
     empreendimentoIds,
   )
   if (!vinculo.ok) return vinculo
+  revalidatePath('/rede-franqueados')
+  return { ok: true, mensagem: 'Empreendimentos vinculados.' }
+}
+
+export async function salvarVinculosEmpreendimentoDoCorretor(
+  corretorId: string,
+  empreendimentoIds: string[],
+): Promise<Ok | Err> {
+  const gate = await requireRedeCorretoresStaff()
+  if (!gate.ok) return gate
+  const salvo = await substituirVinculosCorretorEmpreendimentos(
+    gate.supabase,
+    corretorId,
+    empreendimentoIds,
+  )
+  if (!salvo.ok) return salvo
   revalidatePath('/rede-franqueados')
   return { ok: true, mensagem: 'Empreendimentos vinculados.' }
 }

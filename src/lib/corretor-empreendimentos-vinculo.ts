@@ -63,14 +63,37 @@ export async function vincularCorretorAosEmpreendimentosAtivos(
   if (error) return { ok: false, error: error.message }
 
   const ativos = (data ?? [])
-    .map((row) => String((row as { id?: string }).id ?? ''))
+    .map((row: { id?: string }) => String(row.id ?? ''))
     .filter(Boolean)
   if (ativos.length === 0) return { ok: true, vinculados: 0 }
 
   const { error: linkErr } = await supabase.from('imob_corretor_empreendimentos').upsert(
-    ativos.map((empreendimento_id) => ({ corretor_id: cid, empreendimento_id })),
+    ativos.map((empreendimento_id: string) => ({ corretor_id: cid, empreendimento_id })),
     { onConflict: 'corretor_id,empreendimento_id' },
   )
   if (linkErr) return { ok: false, error: linkErr.message }
   return { ok: true, vinculados: ativos.length }
+}
+
+/** Deixa o corretor ligado só aos empreendimentos ativos marcados. */
+export async function substituirVinculosCorretorEmpreendimentos(
+  supabase: Db,
+  corretorId: string,
+  empreendimentoIds: string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const cid = String(corretorId ?? '').trim()
+  const ids = idsEmpreendimentoInformados(empreendimentoIds)
+  if (!cid) return { ok: false, error: 'Corretor inválido.' }
+
+  const gravado = await vincularCorretorAosEmpreendimentosAtivos(supabase, cid, ids)
+  if (!gravado.ok) return gravado
+
+  let remover = supabase.from('imob_corretor_empreendimentos').delete().eq('corretor_id', cid)
+  if (ids.length > 0) {
+    const lista = `(${ids.map((id) => `"${id}"`).join(',')})`
+    remover = remover.not('empreendimento_id', 'in', lista)
+  }
+  const { error } = await remover
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
 }

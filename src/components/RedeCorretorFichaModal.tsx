@@ -6,7 +6,12 @@ import { Check, Loader2, X } from 'lucide-react'
 import {
   atualizarRedeCorretor,
   criarRedeCorretor,
+  listarEmpreendimentosAbertosParaCorretor,
+  listarEmpreendimentosVinculadosDoCorretor,
+  salvarVinculosEmpreendimentoDoCorretor,
 } from '@/app/rede-franqueados/rede-corretores-actions'
+import { CorretorEmpreendimentosVinculo } from '@/components/CorretorEmpreendimentosVinculo'
+import type { EmpreendimentoVinculoOpcao } from '@/lib/corretor-empreendimentos-vinculo'
 import { redeAlertError, redeAlertSuccess, redeBtnGhost, redeBtnPrimary } from '@/app/rede-franqueados/rede-ui'
 import { RedeCorretorFichaForm } from '@/components/RedeCorretorFichaForm'
 import {
@@ -30,9 +35,26 @@ export function RedeCorretorFichaModal({ row = null, onClose }: Props) {
   )
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+  const [empreendimentos, setEmpreendimentos] = useState<EmpreendimentoVinculoOpcao[]>([])
+  const [empreendimentoIds, setEmpreendimentoIds] = useState<string[]>([])
 
   useEffect(() => {
     setDraft(row ? redeCorretorRowToFichaDraft(row) : emptyRedeCorretorFichaDraft('ativo'))
+    let ativo = true
+    void (async () => {
+      const lista = await listarEmpreendimentosAbertosParaCorretor()
+      if (!ativo) return
+      setEmpreendimentos(lista)
+      if (!row) {
+        setEmpreendimentoIds([])
+        return
+      }
+      const vinculados = await listarEmpreendimentosVinculadosDoCorretor(row.id)
+      if (ativo) setEmpreendimentoIds(vinculados)
+    })()
+    return () => {
+      ativo = false
+    }
   }, [row])
 
   useEffect(() => {
@@ -50,11 +72,21 @@ export function RedeCorretorFichaModal({ row = null, onClose }: Props) {
     const r = criar
       ? await criarRedeCorretor(patch)
       : await atualizarRedeCorretor(row!.id, patch)
-    setSaving(false)
     if (!r.ok) {
+      setSaving(false)
       setMsg({ tipo: 'erro', texto: r.error })
       return
     }
+    const corretorId = criar ? r.id : row!.id
+    if (corretorId) {
+      const vinculo = await salvarVinculosEmpreendimentoDoCorretor(corretorId, empreendimentoIds)
+      if (!vinculo.ok) {
+        setSaving(false)
+        setMsg({ tipo: 'erro', texto: `Ficha salva, mas o vínculo falhou: ${vinculo.error}` })
+        return
+      }
+    }
+    setSaving(false)
     setMsg({ tipo: 'ok', texto: r.mensagem })
     router.refresh()
     setTimeout(onClose, 600)
@@ -105,6 +137,12 @@ export function RedeCorretorFichaModal({ row = null, onClose }: Props) {
           <RedeCorretorFichaForm
             draft={draft}
             onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
+          />
+          <CorretorEmpreendimentosVinculo
+            modo="interno"
+            empreendimentos={empreendimentos}
+            selecionados={empreendimentoIds}
+            onChange={setEmpreendimentoIds}
           />
         </div>
 
