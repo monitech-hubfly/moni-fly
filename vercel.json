@@ -44,10 +44,6 @@
     {
       "path": "/api/cron/kanban-indicadores",
       "schedule": "0 12 * * 1"
-    },
-    {
-      "path": "/api/cron/corretores-links-jornada",
-      "schedule": "0 11 * * 4"
     }
   ]
 }
