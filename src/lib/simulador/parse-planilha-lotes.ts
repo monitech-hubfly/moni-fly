@@ -1,12 +1,18 @@
 import * as XLSX from 'xlsx';
 import { parseMoneyText } from '@/lib/dashboard-novos-negocios/parseMoney';
+import {
+  normalizarClassificacaoAcoplamento,
+  valorAcoplamentoPorClassificacao,
+} from '@/lib/simulador/acoplamento-por-classificacao';
 
 export type LotePlanilhaLinha = {
   codigo: string;
   quadra: string | null;
   lote: string | null;
-  valor: number;
+  /** null só em lote não disponível sem valor na planilha ("Já tenho lote"). */
+  valor: number | null;
   valorAcoplamento: number;
+  classificacaoAcoplamento: string | null;
   /** Sem coluna Disponível → true (planilhas antigas). */
   disponivel: boolean;
   frente_m: number | null;
@@ -70,12 +76,11 @@ function isValorKey(k: string): boolean {
 }
 
 function isAcoplamentoKey(k: string): boolean {
-  return (
-    k === 'acoplamento' ||
-    k === 'valoracoplamento' ||
-    k === 'classificacaoacoplamento' ||
-    k === 'classificacaodoacoplamento'
-  );
+  return k === 'acoplamento' || k === 'valoracoplamento';
+}
+
+function isClassificacaoAcoplamentoKey(k: string): boolean {
+  return k === 'classificacaoacoplamento' || k === 'classificacaodoacoplamento';
 }
 
 function isDisponivelKey(k: string): boolean {
@@ -163,6 +168,7 @@ function parseRecords(records: Record<string, unknown>[]): LotePlanilhaLinha[] {
   const codigoKey = findKey(keys, isCodigoKey);
   const valorKey = findKey(keys, isValorKey);
   const acoplKey = findKey(keys, isAcoplamentoKey);
+  const classKey = findKey(keys, isClassificacaoAcoplamentoKey);
   const dispKey = findKey(keys, isDisponivelKey);
   const frenteKey = findKey(keys, isFrenteKey);
   const fundoKey = findKey(keys, isFundoKey);
@@ -184,20 +190,35 @@ function parseRecords(records: Record<string, unknown>[]): LotePlanilhaLinha[] {
   for (const rec of records) {
     const codigo = montarCodigo(rec, quadraKey, loteKey, codigoKey);
     if (!codigo) continue;
-    const valor = valorCelula(rec[valorKey]);
-    if (valor == null || !Number.isFinite(valor) || valor < 0) continue;
-    const acoplRaw = acoplKey ? valorCelula(rec[acoplKey]) : null;
-    const valorAcoplamento =
-      acoplRaw != null && Number.isFinite(acoplRaw) && acoplRaw >= 0 ? acoplRaw : 0;
     const flag = dispKey ? flagDisponivel(rec[dispKey]) : true;
     if (dispKey && flag == null) continue;
+    const disponivel = flag === true;
+    const quadra = quadraKey ? identificadorCelula(rec[quadraKey]) || null : null;
+    const lote = loteKey ? identificadorCelula(rec[loteKey]) || null : null;
+    const classificacaoAcoplamento = classKey ? normalizarClassificacaoAcoplamento(rec[classKey]) : null;
+    const valorRaw = valorCelula(rec[valorKey]);
+    const valor = valorRaw != null && Number.isFinite(valorRaw) && valorRaw >= 0 ? valorRaw : null;
+    if (disponivel) {
+      if (valor == null) continue;
+    } else if (valor == null) {
+      // "Já tenho lote": o cliente informa o valor; basta Quadra, Lote e Classificação.
+      if ((quadraKey && !quadra) || (loteKey && !lote) || !classificacaoAcoplamento) continue;
+    }
+    let valorAcoplamento = 0;
+    if (classKey) {
+      valorAcoplamento = valorAcoplamentoPorClassificacao(classificacaoAcoplamento);
+    } else if (acoplKey) {
+      const acoplRaw = valorCelula(rec[acoplKey]);
+      valorAcoplamento = acoplRaw != null && Number.isFinite(acoplRaw) && acoplRaw >= 0 ? acoplRaw : 0;
+    }
     out.push({
       codigo,
-      quadra: quadraKey ? identificadorCelula(rec[quadraKey]) || null : null,
-      lote: loteKey ? identificadorCelula(rec[loteKey]) || null : null,
+      quadra,
+      lote,
       valor,
       valorAcoplamento,
-      disponivel: flag === true,
+      classificacaoAcoplamento,
+      disponivel,
       frente_m: frenteKey ? dimCelula(rec[frenteKey]) : null,
       fundo_m: fundoKey ? dimCelula(rec[fundoKey]) : null,
       lateral1_m: lat1Key ? dimCelula(rec[lat1Key]) : null,

@@ -386,7 +386,9 @@ function SeletorLote({
           </option>
         ))}
       </select>
-      {atual ? <span className="jornadaKitDesc">Valor do lote: {fmt(atual.valor)}</span> : null}
+      {atual && atual.valor > 0 ? (
+        <span className="jornadaKitDesc">Valor do lote: {fmt(atual.valor)}</span>
+      ) : null}
     </div>
   );
 }
@@ -607,7 +609,7 @@ function PassoCasa({
           <span>{fmt(state.valorAcoplamento)}</span>
         </div>
         <p className="jornadaKitDesc">
-          {state.modoTerreno === 'disponivel' && state.loteSelecionado
+          {state.loteSelecionado
             ? `Valor da tabela do lote ${state.loteSelecionado.rotulo}.`
             : 'Sem valor na tabela de lotes.'}
         </p>
@@ -881,7 +883,9 @@ function Passo6({
           <p>{empreendimento.titulo}</p>
           <p>
             {state.loteSelecionado
-              ? `Lote ${state.loteSelecionado.rotulo} — ${fmt(state.loteSelecionado.valor)}`
+              ? state.loteSelecionado.valor > 0
+                ? `Lote ${state.loteSelecionado.rotulo} — ${fmt(state.loteSelecionado.valor)}`
+                : `Lote ${state.loteSelecionado.rotulo}`
               : `Terreno — ${fmt(valorLoteParaCalculo(state))}`}
           </p>
         </div>

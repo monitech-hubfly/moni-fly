@@ -179,7 +179,7 @@ async function carregarLotesDaPlanilha(
         id: `planilha:${i}:${l.codigo}`,
         codigo: l.codigo,
         rotulo: l.quadra && l.lote ? `${l.quadra}${l.lote}` : l.lote || l.codigo,
-        valor: l.valor,
+        valor: l.valor ?? 0,
         acoplamento: l.valorAcoplamento,
         disponivel: l.disponivel,
         frente_m: l.frente_m,
