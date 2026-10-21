@@ -8,6 +8,7 @@ import {
   insertRedeCorretorRow,
   validarCamposCorretor,
 } from '@/lib/rede-corretor-persist'
+import { vincularCorretorAosEmpreendimentosAtivos } from '@/lib/corretor-empreendimentos-vinculo'
 import type { RedeCorretorPatch, RedeCorretorStatus } from '@/lib/rede-corretores'
 
 type Ok = { ok: true; mensagem: string; id?: string }
@@ -28,6 +29,22 @@ async function requireRedeCorretoresStaff(): Promise<
     return { ok: false, error: 'Apenas administradores ou time podem gerir corretores.' }
   }
   return { ok: true, supabase, userId: user.id }
+}
+
+export async function vincularEmpreendimentosDoNovoCorretor(
+  corretorId: string,
+  empreendimentoIds: string[],
+): Promise<Ok | Err> {
+  const gate = await requireRedeCorretoresStaff()
+  if (!gate.ok) return gate
+  const vinculo = await vincularCorretorAosEmpreendimentosAtivos(
+    gate.supabase,
+    corretorId,
+    empreendimentoIds,
+  )
+  if (!vinculo.ok) return vinculo
+  revalidatePath('/rede-franqueados')
+  return { ok: true, mensagem: 'Empreendimentos vinculados.' }
 }
 
 export async function criarRedeCorretor(patch: RedeCorretorPatch): Promise<Ok | Err> {

@@ -1,8 +1,12 @@
 import { CadastroCorretorPublicoForm } from '@/components/CadastroCorretorPublicoForm'
+import { listarEmpreendimentosParaVinculoCorretor } from '@/lib/corretor-empreendimentos-vinculo'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
-export default function CadastroCorretorPublicoPage() {
+export default async function CadastroCorretorPublicoPage() {
+  const supabase = await createClient()
+  const empreendimentos = await listarEmpreendimentosParaVinculoCorretor(supabase)
   return (
     <main className="min-h-screen bg-[var(--moni-surface-50,#f7f5f2)] px-4 py-10">
       <div className="mx-auto w-full max-w-3xl">
@@ -17,7 +21,7 @@ export default function CadastroCorretorPublicoPage() {
         </header>
 
         <div className="rounded-xl border border-stone-200 bg-white px-5 py-6 shadow-sm sm:px-6">
-          <CadastroCorretorPublicoForm />
+          <CadastroCorretorPublicoForm empreendimentos={empreendimentos} />
         </div>
       </div>
     </main>
