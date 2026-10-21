@@ -783,3 +783,24 @@ export function parcelaUnicaAbaixoDoMinimo(valor: number, minimo: number): boole
   return n0(valor) < n0(minimo) - 0.005;
 }
 
+/**
+ * Entrada mínima do contrato = `entrada_sugerida` do motor: entrada mínima da loteadora
+ * (`entrada_minima_loteadora` do template, % do lote ou valor fixo, menos o já pago)
+ * + comissão do corretor + parcela da taxa de plataforma cobrada na entrada.
+ */
+export function entradaMinimaOferta(resultado: Pick<ResultadoCalculo, 'entrada_sugerida'>): number {
+  return r2(n0(resultado.entrada_sugerida));
+}
+
+export function entradaAbaixoDoMinimo(valor: number, minimo: number): boolean {
+  return n0(valor) < n0(minimo) - 0.005;
+}
+
+export function mensagemEntradaMinima(minimo: number): string {
+  return `A entrada precisa ser de pelo menos ${formatarMoedaCentavos(minimo)}.`;
+}
+
+export function mensagemParcelaUnicaMinima(minimo: number): string {
+  return `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(minimo)} para quitar o lote.`;
+}
+
