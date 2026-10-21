@@ -28,7 +28,10 @@ import {
 import {
   calcularOferta,
   calcularParcelaUnicaMinimaConfirmada,
-  formatarMoedaCentavos,
+  entradaAbaixoDoMinimo,
+  entradaMinimaOferta,
+  mensagemEntradaMinima,
+  mensagemParcelaUnicaMinima,
   parcelaUnicaAbaixoDoMinimo,
   sugerirParcelaMensal,
   type OfertaConfig,
@@ -1328,11 +1331,20 @@ export default function JornadaClient({
   function handleRecalcularSimulacao(valores: ValoresConfirmadosOferta) {
     setErroSimulacao(null);
     try {
+      const entradaMinima = entradaMinimaOferta(
+        calcularOferta(
+          montarTemplateParaEngine(empreendimento.template),
+          montarOfertaJornada(state, empreendimento.template, empreendimento.customizacao_itens),
+          state.valorAcoplamento,
+        ),
+      );
+      if (entradaAbaixoDoMinimo(valores.entrada, entradaMinima)) {
+        setErroSimulacao(mensagemEntradaMinima(entradaMinima));
+        return;
+      }
       const minimo = minimoParcelaUnicaJornada(valores.entrada, valores.mensal);
       if (parcelaUnicaAbaixoDoMinimo(valores.unica, minimo)) {
-        setErroSimulacao(
-          `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(minimo)} para quitar o lote.`,
-        );
+        setErroSimulacao(mensagemParcelaUnicaMinima(minimo));
         return;
       }
       const prazoObra = Math.max(1, Math.round(state.prazoObraMeses || 12));

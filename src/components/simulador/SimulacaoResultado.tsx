@@ -1,10 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
+  entradaAbaixoDoMinimo,
+  entradaMinimaOferta,
   formatarMoeda,
-  formatarMoedaCentavos,
+  mensagemEntradaMinima,
+  mensagemParcelaUnicaMinima,
   parcelaUnicaAbaixoDoMinimo,
   type LinhaFluxo,
   type ResultadoCalculo,
@@ -29,14 +33,31 @@ type Props = {
   onVerMemorial: () => void;
 };
 
-function AvisoMinimoUnica({ minimo, atual }: { minimo: number; atual: number }) {
-  if (!parcelaUnicaAbaixoDoMinimo(atual, minimo)) {
-    return <AvisoMinimo minimo={minimo} atual={atual} />;
+function ErroOuMinimo({ id, erro, minimo, atual }: { id: string; erro: string | null; minimo: number; atual: number }) {
+  if (erro) {
+    return (
+      <p id={id} className="jornadaFieldErro" role="alert">
+        {erro}
+      </p>
+    );
   }
+  return <AvisoMinimo minimo={minimo} atual={atual} />;
+}
+
+function AvisoBloqueio({ erros }: { erros: string[] }) {
+  if (erros.length === 0) return null;
   return (
-    <p className="jornadaSimAvisoMinimo is-abaixo" role="alert">
-      A parcela única precisa ser de pelo menos {formatarMoedaCentavos(minimo)} para quitar o lote.
-    </p>
+    <div className="jornadaAvisoBloqueio" role="alert">
+      <AlertTriangle aria-hidden />
+      <div>
+        <strong>Ajuste os valores para recalcular:</strong>
+        <ul>
+          {erros.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
 
@@ -117,6 +138,11 @@ export function SimulacaoResultado({
   const unicaCard = aplicado ? valoresConfirmados.unica : resultado.parcela_unica_sugerida;
   const unicaMinima = minimoParcelaUnica(entradaConf, mensalConf);
   const unicaAbaixo = parcelaUnicaAbaixoDoMinimo(unicaConf, unicaMinima);
+  const entradaMinima = entradaMinimaOferta(resultado);
+  const entradaAbaixo = entradaAbaixoDoMinimo(entradaConf, entradaMinima);
+  const erroEntrada = entradaAbaixo ? mensagemEntradaMinima(entradaMinima) : null;
+  const erroUnica = unicaAbaixo ? mensagemParcelaUnicaMinima(unicaMinima) : null;
+  const errosMinimos = [erroEntrada, erroUnica].filter((m): m is string => m != null);
 
   const taxaPctLabel =
     taxaJurosPct != null ? String(taxaJurosPct).replace('.', ',') : null;
@@ -147,6 +173,7 @@ export function SimulacaoResultado({
 
   function handleRecalcular() {
     const v = valoresRef.current;
+    if (entradaAbaixoDoMinimo(v.entrada, entradaMinima)) return;
     if (parcelaUnicaAbaixoDoMinimo(v.unica, minimoParcelaUnica(v.entrada, v.mensal))) return;
     onRecalcular(v);
   }
@@ -227,10 +254,18 @@ export function SimulacaoResultado({
             <label htmlFor="jornada-entrada-conf">Entrada confirmada (R$)</label>
             <CampoNumeroBr
               id="jornada-entrada-conf"
+              className={erroEntrada ? 'is-erro' : undefined}
+              aria-invalid={erroEntrada ? true : undefined}
+              aria-describedby={erroEntrada ? 'jornada-entrada-erro' : undefined}
               valor={entradaConf}
               onChange={onEntradaChange}
             />
-            <AvisoMinimo minimo={resultado.entrada_sugerida} atual={entradaConf} />
+            <ErroOuMinimo
+              id="jornada-entrada-erro"
+              erro={erroEntrada}
+              minimo={entradaMinima}
+              atual={entradaConf}
+            />
           </div>
           <div className="jornadaField">
             <label htmlFor="jornada-mensal-conf">Parcela mensal confirmada (R$)</label>
@@ -245,6 +280,9 @@ export function SimulacaoResultado({
             <label htmlFor="jornada-unica-conf">Parcela única confirmada (R$)</label>
             <CampoNumeroBr
               id="jornada-unica-conf"
+              className={erroUnica ? 'is-erro' : undefined}
+              aria-invalid={erroUnica ? true : undefined}
+              aria-describedby={erroUnica ? 'jornada-unica-erro' : undefined}
               valor={unicaConf}
               onChange={(n) => {
                 const v = n ?? 0;
@@ -252,9 +290,15 @@ export function SimulacaoResultado({
                 valoresRef.current = { ...valoresRef.current, unica: v };
               }}
             />
-            <AvisoMinimoUnica minimo={unicaMinima} atual={unicaConf} />
+            <ErroOuMinimo
+              id="jornada-unica-erro"
+              erro={erroUnica}
+              minimo={unicaMinima}
+              atual={unicaConf}
+            />
           </div>
-          <button type="submit" className="jornadaSimBtnRecalc" disabled={unicaAbaixo}>
+          <AvisoBloqueio erros={errosMinimos} />
+          <button type="submit" className="jornadaSimBtnRecalc" disabled={errosMinimos.length > 0}>
             Recalcular simulação
           </button>
         </form>
