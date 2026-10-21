@@ -651,7 +651,10 @@ export function mapSimulacaoRow(raw: Record<string, unknown>): SimulacaoPagament
     valor_lote: pick('valor_lote'),
     valor_casa: pick('valor_casa'),
     valor_customizacao: pick('valor_customizacao'),
-    valor_acoplamento: pick('valor_acoplamento'),
+    valor_acoplamento:
+      pick('valor_acoplamento') ??
+      numOrNull(res.acoplamento) ??
+      numOrNull(res.valor_acoplamento),
     valor_ja_pago: pick('valor_ja_pago'),
     prazo_meses: pick('prazo_meses'),
     renda_cliente: rendaCliente ?? rendaInformada,

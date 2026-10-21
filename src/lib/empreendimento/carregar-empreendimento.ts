@@ -265,7 +265,7 @@ async function enriquecerOfertasETemplate(
     console.error('[empreendimento] enriquecer ofertas simulação:', simQuery.error.message);
     const retry = await client
       .from('simulacoes_pagamento')
-      .select('id, nome, valor_lote, valor_customizacao, valor_acoplamento, resultado, inputs, created_at')
+      .select('id, nome, valor_lote, valor_casa, valor_customizacao, valor_ja_pago, prazo_meses, renda_cliente, prazo_financiamento_anos, taxa_financiamento_anual, parcela_mensal, resultado, inputs, created_at')
       .eq('kanban_card_id', cardId)
       .not('nome', 'is', null)
       .order('created_at', { ascending: true });

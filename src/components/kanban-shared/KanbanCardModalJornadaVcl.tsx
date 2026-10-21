@@ -135,9 +135,11 @@ function montarColuna(row: Record<string, unknown>): SimulacaoColuna {
       prazoObra: prazoObra != null ? `${prazoObra} meses` : '—',
       renda: moeda(snapshot.renda ?? inputs.renda ?? row.renda_cliente),
       financiamento,
-      entrada: moeda(snapshot.entrada ?? inputs.entrada),
-      mensal: moeda(snapshot.parcela_mensal ?? inputs.parcela_mensal),
-      unica: moeda(snapshot.parcela_unica ?? inputs.parcela_unica),
+      entrada: moeda(snapshot.entrada ?? inputs.entrada ?? row.entrada_confirmada),
+      mensal: moeda(
+        snapshot.parcela_mensal ?? inputs.parcela_mensal ?? row.parcela_mensal_confirmada ?? row.parcela_mensal,
+      ),
+      unica: moeda(snapshot.parcela_unica ?? inputs.parcela_unica ?? row.parcela_unica_confirmada),
       saldo: moeda(snapshot.saldo_a_financiar ?? inputs.saldo_a_financiar),
     },
     itens: lerItens(itensFonte),
@@ -230,7 +232,7 @@ export function KanbanCardModalJornadaVcl({
       const { data, error } = await supabase
         .from('simulacoes_pagamento')
         .select(
-          'id, created_at, inputs, resultado, valor_lote, valor_casa, valor_customizacao, valor_ja_pago, renda_cliente, prazo_meses, prazo_financiamento_anos, taxa_financiamento_anual',
+          'id, created_at, inputs, resultado, valor_lote, valor_casa, valor_customizacao, valor_ja_pago, renda_cliente, prazo_meses, prazo_financiamento_anos, taxa_financiamento_anual, parcela_mensal, customizacao_itens, entrada_confirmada, parcela_mensal_confirmada, parcela_unica_confirmada',
         )
         .eq('kanban_card_id', cardId)
         .order('created_at', { ascending: false })

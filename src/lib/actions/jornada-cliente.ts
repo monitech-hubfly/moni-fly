@@ -122,10 +122,16 @@ export async function salvarJornadaSessao(
     p_dados: dados,
   });
 
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error('[JORNADA-LEAD]', `jornada_sessao_salvar: ${mensagemSupabase(error)}`);
+    return { ok: false, error: '' };
+  }
 
   const raw = data as { session_token?: string; etapa_atual?: number } | null;
-  if (!raw?.session_token) return { ok: false, error: 'Sessão não retornada.' };
+  if (!raw?.session_token) {
+    console.error('[JORNADA-LEAD]', 'jornada_sessao_salvar: sessão não retornada.');
+    return { ok: false, error: '' };
+  }
 
   const nomeCliente = String(dados.nome_cliente ?? '').trim();
   const telefoneDigitos = String(dados.telefone_cliente ?? '').replace(/\D/g, '');
@@ -143,8 +149,7 @@ export async function salvarJornadaSessao(
       loteCodigo: dados.lote_codigo != null ? String(dados.lote_codigo) : null,
       loteValor: dados.lote_valor != null ? Number(dados.lote_valor) : null,
     });
-    if (!lead.ok) return { ok: false, error: lead.error };
-    revalidatePath('/venda-casas-loteadores');
+    if (lead.ok) revalidatePath('/venda-casas-loteadores');
   }
 
   return {
@@ -209,7 +214,7 @@ export async function garantirLeadJornada(
   }
   const lead = await chamarRegistrarLead({ ...input, nome });
   if (lead.ok) revalidatePath('/venda-casas-loteadores');
-  return lead;
+  return { ok: true, cardId: lead.ok ? lead.cardId : null };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -232,6 +237,10 @@ type GravarSimulacaoInput = {
   nomeCliente: string;
   telefoneCliente: string;
   condicaoLote: 'nao_pago' | 'parcial' | 'quitado' | 'recurso_proprio';
+  personalizada: boolean;
+  entradaConfirmada: number | null;
+  parcelaMensalConfirmada: number | null;
+  parcelaUnicaConfirmada: number | null;
   ofertaNome: string | null;
   loteCodigo: string | null;
   loteRotulo: string | null;
@@ -256,6 +265,7 @@ export async function gravarSimulacaoJornada(
     valorLote, valorCasa, valorCustomizacao, valorAcoplamento, customizacaoItens,
     valorJaPago, rendaCliente, prazoObraMeses, prazoFinanciamentoAnos, taxaFinanciamentoAnual,
     nomeCliente, telefoneCliente, condicaoLote,
+    personalizada, entradaConfirmada, parcelaMensalConfirmada, parcelaUnicaConfirmada,
     ofertaNome, loteCodigo, loteRotulo, slug, snapshot,
     loteamentoNome, corretorId, jaTemLote, moverLead,
   } = input;
@@ -277,8 +287,7 @@ export async function gravarSimulacaoJornada(
       loteValor: valorLote,
     });
     if (!lead.ok) {
-      console.error('[JORNADA-SIMULACAO]', `Simulação não gravada porque o lead falhou: ${lead.error}`);
-      return { ok: false, error: lead.error };
+      console.error('[JORNADA-SIMULACAO]', `Lead não gravado; a simulação segue para a RPC: ${lead.error}`);
     }
   }
 
@@ -302,6 +311,11 @@ export async function gravarSimulacaoJornada(
         prazo_meses: prazoObraMeses,
         prazo_financiamento_anos: prazoFinanciamentoAnos,
         taxa_financiamento_anual: taxaFinanciamentoAnual / 100,
+        parcela_mensal: snapshot.parcela_mensal,
+        personalizada,
+        entrada_confirmada: personalizada ? entradaConfirmada : null,
+        parcela_mensal_confirmada: personalizada ? parcelaMensalConfirmada : null,
+        parcela_unica_confirmada: personalizada ? parcelaUnicaConfirmada : null,
         customizacao_itens: customizacaoItens,
         oferta_nome: ofertaNome,
         lote_codigo: loteCodigo,
@@ -315,16 +329,19 @@ export async function gravarSimulacaoJornada(
   } catch (err) {
     const texto = err instanceof Error ? err.message : String(err);
     console.error('[JORNADA-SIMULACAO]', texto);
-    return { ok: false, error: texto };
+    return { ok: false, error: '' };
   }
 
   if (error) {
     const texto = mensagemSupabase(error);
     console.error('[JORNADA-SIMULACAO]', texto);
-    return { ok: false, error: texto };
+    return { ok: false, error: '' };
   }
   const simulacaoId = String((data as { id?: string } | null)?.id ?? '').trim();
-  if (!simulacaoId) return { ok: false, error: 'Simulação não retornada.' };
+  if (!simulacaoId) {
+    console.error('[JORNADA-SIMULACAO]', 'Simulação não retornada.');
+    return { ok: false, error: '' };
+  }
 
   revalidatePath('/venda-casas-loteadores');
   return { ok: true, simulacaoId };

@@ -1111,7 +1111,7 @@ export default function JornadaClient({
       const telLead = (sessao.telefone_cliente ?? '').replace(/\D/g, '');
       const vclCardId = (sessao.vcl_card_id ?? '').trim();
       if (nomeLead.length >= 2 && telLead.length >= 10 && !vclCardId) {
-        const lead = await garantirLeadJornada({
+        await garantirLeadJornada({
           token: sessao.session_token,
           cardId: empreendimento.card_id,
           nome: nomeLead,
@@ -1124,7 +1124,6 @@ export default function JornadaClient({
           loteCodigo: sessao.lote_codigo,
           loteValor: sessao.lote_valor,
         });
-        if (!lead.ok) setErroFluxo(lead.error);
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1179,7 +1178,7 @@ export default function JornadaClient({
       } else {
         setState({ etapa: proximaEtapa, ...calcs });
       }
-    } else {
+    } else if (result.error) {
       setErroFluxo(result.error);
     }
   }
@@ -1246,6 +1245,10 @@ export default function JornadaClient({
       nomeCliente: args.stateCalc.nomeCliente,
       telefoneCliente: args.stateCalc.telefoneCliente,
       condicaoLote: condicaoLoteJornada(args.stateCalc),
+      personalizada: args.valores != null,
+      entradaConfirmada: args.valores?.entrada ?? null,
+      parcelaMensalConfirmada: args.valores?.mensal ?? null,
+      parcelaUnicaConfirmada: args.valores?.unica ?? null,
       ofertaNome,
       loteCodigo: args.stateCalc.loteSelecionado?.codigo ?? null,
       loteRotulo,
@@ -1260,8 +1263,6 @@ export default function JornadaClient({
     if (result.ok) {
       ultimaSimulacaoRef.current = chave;
       setState({ simulacaoId: result.simulacaoId, prazoObraMeses: args.stateCalc.prazoObraMeses });
-    } else {
-      setErroSimulacao(result.error);
     }
   }
 
@@ -1312,8 +1313,8 @@ export default function JornadaClient({
         calc,
         valores: null,
         somenteSeMudou: false,
-      }).catch(() => {
-        setErroSimulacao('Não foi possível gravar a simulação.');
+      }).catch((err) => {
+        console.error('[JORNADA-SIMULACAO]', err);
       });
     });
   }
@@ -1374,8 +1375,8 @@ export default function JornadaClient({
           calc,
           valores,
           somenteSeMudou: true,
-        }).catch(() => {
-          setErroSimulacao('Não foi possível gravar a simulação.');
+        }).catch((err) => {
+          console.error('[JORNADA-SIMULACAO]', err);
         });
       });
     } catch {
