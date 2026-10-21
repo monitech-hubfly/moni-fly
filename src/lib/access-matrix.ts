@@ -166,6 +166,11 @@ export function isSimuladorPublicoPath(pathname: string): boolean {
   return pathname === '/simulador' || pathname.startsWith('/simulador/');
 }
 
+/** Jornada pública do empreendimento. Abre logado ou não; não cai na Rede. */
+export function isEmpreendimentoPublicoPath(pathname: string): boolean {
+  return pathname === '/empreendimento' || pathname.startsWith('/empreendimento/');
+}
+
 /**
  * Conteúdo do portal acessível sem login: guias em leitura + iframe do embed + calculadora pública.
  */
@@ -265,8 +270,7 @@ export function isAnonymousAllowedPath(pathname: string): boolean {
     isAuthFlowAccessPath(pathname) ||
     isPortalFrankAuthAccessPath(pathname) ||
     isExternalTokenAccessPath(pathname) ||
-    pathname === '/empreendimento' ||
-    pathname.startsWith('/empreendimento/')
+    isEmpreendimentoPublicoPath(pathname)
   );
 }
 
