@@ -963,6 +963,7 @@ export default function JornadaClient({
   const corretorIdRef = useRef(searchParams.get('corretor_id')?.trim() ?? '');
   const [state, setStateRaw] = useState<JornadaLocal>(() => estadoInicial(empreendimento));
   const [isPending, startTransition] = useTransition();
+  const [erroFluxo, setErroFluxo] = useState<string | null>(null);
   const [erroSimulacao, setErroSimulacao] = useState<string | null>(null);
   const [resultadoSimulacao, setResultadoSimulacao] = useState<ResultadoCalculo | null>(null);
   const [resultadoKey, setResultadoKey] = useState(0);
@@ -972,6 +973,11 @@ export default function JornadaClient({
   const setState = useCallback((partial: Partial<JornadaLocal>) => {
     setStateRaw((prev) => ({ ...prev, ...partial }));
   }, []);
+
+  useEffect(() => {
+    const id = searchParams.get('corretor_id')?.trim() ?? '';
+    if (id) corretorIdRef.current = id;
+  }, [searchParams]);
 
   useEffect(() => {
     const token = searchParams.get('sessao');
@@ -1059,6 +1065,8 @@ export default function JornadaClient({
       valor_customizacao: calcs.valorCustomizacao,
       simulacao_id: state.simulacaoId ?? null,
       slug_empreendimento: empreendimento.slug,
+      loteamento_nome: empreendimento.titulo,
+      ...(proximaEtapa === ETAPA.casa ? { mover_kanban_vcl: true } : {}),
       ...(corretorIdRef.current ? { corretor_id: corretorIdRef.current } : {}),
       ...dadosExtras,
     };
@@ -1071,6 +1079,7 @@ export default function JornadaClient({
     });
 
     if (result.ok) {
+      setErroFluxo(null);
       if (result.session_token !== state.sessaoToken) {
         const params = new URLSearchParams(searchParams.toString());
         params.set('sessao', result.session_token);
@@ -1081,7 +1090,7 @@ export default function JornadaClient({
         setState({ etapa: proximaEtapa, ...calcs });
       }
     } else {
-      setState({ etapa: proximaEtapa, ...calcs });
+      setErroFluxo(result.error);
     }
   }
 
@@ -1148,6 +1157,11 @@ export default function JornadaClient({
         nomeCliente: state.nomeCliente,
         telefoneCliente: state.telefoneCliente,
         condicaoLote: condicaoLoteJornada(stateCalc),
+        ofertaNome: state.ofertaSelecionada?.nome || state.ofertaSelecionada?.titulo_oferta || null,
+        loteCodigo: state.loteSelecionado?.codigo ?? null,
+        loteRotulo: state.loteSelecionado?.rotulo ?? null,
+        slug: empreendimento.slug,
+        valorAcoplamento: state.valorAcoplamento,
       }).then((result) => {
         if (result.ok) setState({ simulacaoId: result.simulacaoId, prazoObraMeses: stateCalc.prazoObraMeses });
         else setErroSimulacao(result.error);
@@ -1219,6 +1233,7 @@ export default function JornadaClient({
       <ProgressBar etapa={state.etapa} />
 
       <main className="jornadaMain">
+        {erroFluxo ? <p className="jornadaSimNota">{erroFluxo}</p> : null}
         {state.etapa === ETAPA.dados && (
           <Passo1
             state={state}

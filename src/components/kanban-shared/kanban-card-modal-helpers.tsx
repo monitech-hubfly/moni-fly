@@ -453,7 +453,9 @@ export type SecaoEsquerdaId =
   | 'formularios'
   | 'atasReuniao'
   | 'chamados'
-  | 'historico';
+  | 'historico'
+  | 'dadosClienteVcl'
+  | 'simulacoesClienteVcl';
 
 export function isoDateOffsetDays(days: number): string {
   const d = new Date();
