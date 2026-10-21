@@ -16,7 +16,9 @@ import type {
 import {
   salvarJornadaSessao,
   carregarJornadaSessao,
+  garantirLeadJornada,
   gravarSimulacaoJornada,
+  type SnapshotSimulacaoJornada,
 } from '@/lib/actions/jornada-cliente';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
@@ -114,6 +116,71 @@ function fracaoDePercentualPublico(
 function valorLoteParaCalculo(state: JornadaLocal): number {
   if (state.modoTerreno === 'informar') return Math.max(0, state.valorLote);
   return Math.max(0, state.loteSelecionado?.valor ?? state.valorLote);
+}
+
+function centavosSimulacao(n: number | null | undefined): number | null {
+  if (n == null || !Number.isFinite(Number(n))) return null;
+  return Math.round(Number(n) * 100) / 100;
+}
+
+function chaveSimulacaoGravada(s: SnapshotSimulacaoJornada): string {
+  return JSON.stringify({
+    oferta: s.oferta_nome ?? '',
+    lote: s.lote ?? '',
+    terreno: centavosSimulacao(s.valor_terreno),
+    jaPago: centavosSimulacao(s.valor_ja_pago),
+    acoplamento: centavosSimulacao(s.acoplamento),
+    customizacao: centavosSimulacao(s.customizacao_total),
+    prazoObra: s.prazo_obra_meses,
+    renda: centavosSimulacao(s.renda),
+    prazoFin: s.prazo_financiamento_anos,
+    taxa: centavosSimulacao(s.taxa_percentual),
+    entrada: centavosSimulacao(s.entrada),
+    mensal: centavosSimulacao(s.parcela_mensal),
+    unica: centavosSimulacao(s.parcela_unica),
+    saldo: centavosSimulacao(s.saldo_a_financiar),
+    itens: s.customizacao_itens.map((item) => `${item.id}:${centavosSimulacao(item.valor)}`).join('|'),
+  });
+}
+
+function montarSnapshotSimulacao(args: {
+  ofertaNome: string | null;
+  lote: string | null;
+  oferta: OfertaConfig;
+  calc: ResultadoCalculo;
+  valores: ValoresConfirmadosOferta | null;
+  prazoObra: number;
+  renda: number | null;
+  prazoFin: number;
+  taxaPercent: number;
+  itens: ItemCustomizacaoEscolhido[];
+}): SnapshotSimulacaoJornada {
+  return {
+    oferta_nome: args.ofertaNome,
+    lote: args.lote,
+    valor_terreno: args.oferta.valor_lote,
+    valor_ja_pago: args.oferta.valor_ja_pago,
+    acoplamento: args.oferta.valor_acoplamento ?? 0,
+    customizacao_total: args.oferta.valor_customizacao,
+    prazo_obra_meses: args.prazoObra,
+    renda: args.renda,
+    prazo_financiamento_anos: args.prazoFin,
+    taxa_financiamento_anual: args.taxaPercent / 100,
+    taxa_percentual: args.taxaPercent,
+    entrada: args.valores?.entrada ?? args.calc.entrada_sugerida,
+    parcela_mensal: args.valores?.mensal ?? args.calc.parcela_mensal_usada,
+    parcela_unica: args.valores?.unica ?? args.calc.parcela_unica_sugerida,
+    saldo_a_financiar: args.calc.saldo_financiar,
+    customizacao_itens: args.itens,
+    fluxo: args.calc.fluxo.map((linha) => ({
+      mes: linha.mes,
+      fase: linha.fase,
+      descricao: linha.descricao,
+      entrada_cliente: linha.entrada_cliente,
+      saidas_total: linha.saidas_total,
+      saldo_lote: linha.saldo_lote,
+    })),
+  };
 }
 
 function condicaoLoteJornada(state: JornadaLocal): 'nao_pago' | 'parcial' | 'quitado' {
@@ -969,6 +1036,7 @@ export default function JornadaClient({
   const [resultadoKey, setResultadoKey] = useState(0);
   const [valoresConfirmados, setValoresConfirmados] = useState<ValoresConfirmadosOferta | null>(null);
   const [recalcToken, setRecalcToken] = useState(0);
+  const ultimaSimulacaoRef = useRef<string | null>(null);
 
   const setState = useCallback((partial: Partial<JornadaLocal>) => {
     setStateRaw((prev) => ({ ...prev, ...partial }));
@@ -982,7 +1050,7 @@ export default function JornadaClient({
   useEffect(() => {
     const token = searchParams.get('sessao');
     if (!token) return;
-    carregarJornadaSessao(token, empreendimento.card_id).then((sessao) => {
+    carregarJornadaSessao(token, empreendimento.card_id).then(async (sessao) => {
       if (!sessao) return;
       const lote = sessao.lote_codigo
         ? empreendimento.lotes.find((l) => l.codigo === sessao.lote_codigo) ?? null
@@ -1036,6 +1104,25 @@ export default function JornadaClient({
         ...calcs,
         simulacaoId: sessao.simulacao_id,
       }));
+      const nomeLead = (sessao.nome_cliente ?? '').trim();
+      const telLead = (sessao.telefone_cliente ?? '').replace(/\D/g, '');
+      const vclCardId = (sessao.vcl_card_id ?? '').trim();
+      if (nomeLead.length >= 2 && telLead.length >= 10 && !vclCardId) {
+        const lead = await garantirLeadJornada({
+          token: sessao.session_token,
+          cardId: empreendimento.card_id,
+          nome: nomeLead,
+          telefone: sessao.telefone_cliente ?? '',
+          slug: empreendimento.slug,
+          loteamentoNome: empreendimento.titulo,
+          corretorId: corretorIdRef.current || null,
+          mover: etapa >= ETAPA.casa,
+          jaTemLote: sessao.lote_ja_adquirido === true,
+          loteCodigo: sessao.lote_codigo,
+          loteValor: sessao.lote_valor,
+        });
+        if (!lead.ok) setErroFluxo(lead.error);
+      }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1108,6 +1195,73 @@ export default function JornadaClient({
     setState({ etapa: Math.max(ETAPA.dados, state.etapa - 1) });
   }
 
+  async function persistirSimulacao(args: {
+    stateCalc: JornadaLocal;
+    oferta: OfertaConfig;
+    calc: ResultadoCalculo;
+    valores: ValoresConfirmadosOferta | null;
+    somenteSeMudou: boolean;
+  }) {
+    const templateId = empreendimento.template?.id;
+    if (!templateId || !args.stateCalc.sessaoToken) return;
+    const itens = calcularCustomizacao(
+      args.stateCalc.ofertaSelecionada,
+      empreendimento.customizacao_itens,
+      args.stateCalc.customizacaoSelecionados,
+      args.stateCalc.acabamentosArquiteto,
+    ).customizacaoEscolhidos;
+    const ofertaNome =
+      args.stateCalc.ofertaSelecionada?.nome || args.stateCalc.ofertaSelecionada?.titulo_oferta || null;
+    const loteRotulo = args.stateCalc.loteSelecionado?.rotulo ?? args.stateCalc.loteSelecionado?.codigo ?? null;
+    const snapshot = montarSnapshotSimulacao({
+      ofertaNome,
+      lote: loteRotulo,
+      oferta: args.oferta,
+      calc: args.calc,
+      valores: args.valores,
+      prazoObra: args.stateCalc.prazoObraMeses,
+      renda: args.stateCalc.rendaMensal,
+      prazoFin: args.stateCalc.prazoFinanciamento,
+      taxaPercent: args.stateCalc.taxaJuros || 10,
+      itens,
+    });
+    const chave = chaveSimulacaoGravada(snapshot);
+    if (args.somenteSeMudou && ultimaSimulacaoRef.current === chave) return;
+    const result = await gravarSimulacaoJornada({
+      templateId,
+      cardId: empreendimento.card_id,
+      sessaoToken: args.stateCalc.sessaoToken,
+      valorLote: args.oferta.valor_lote,
+      valorCasa: args.oferta.valor_casa,
+      valorCustomizacao: args.oferta.valor_customizacao,
+      customizacaoItens: itens,
+      valorJaPago: args.oferta.valor_ja_pago,
+      rendaCliente: args.stateCalc.rendaMensal,
+      prazoObraMeses: args.stateCalc.prazoObraMeses,
+      prazoFinanciamentoAnos: args.stateCalc.prazoFinanciamento,
+      taxaFinanciamentoAnual: args.stateCalc.taxaJuros || 10,
+      nomeCliente: args.stateCalc.nomeCliente,
+      telefoneCliente: args.stateCalc.telefoneCliente,
+      condicaoLote: condicaoLoteJornada(args.stateCalc),
+      ofertaNome,
+      loteCodigo: args.stateCalc.loteSelecionado?.codigo ?? null,
+      loteRotulo,
+      slug: empreendimento.slug,
+      valorAcoplamento: args.stateCalc.valorAcoplamento,
+      snapshot,
+      loteamentoNome: empreendimento.titulo,
+      corretorId: corretorIdRef.current || null,
+      jaTemLote: args.stateCalc.modoTerreno === 'informar',
+      moverLead: args.stateCalc.modoTerreno != null,
+    });
+    if (result.ok) {
+      ultimaSimulacaoRef.current = chave;
+      setState({ simulacaoId: result.simulacaoId, prazoObraMeses: args.stateCalc.prazoObraMeses });
+    } else {
+      setErroSimulacao(result.error);
+    }
+  }
+
   function handleVerSimulacao() {
     const templateId = empreendimento.template?.id;
     if (!templateId) {
@@ -1135,46 +1289,28 @@ export default function JornadaClient({
       empreendimento.template,
       empreendimento.customizacao_itens,
     );
+    let calc: ResultadoCalculo;
+    try {
+      calc = calcularOferta(
+        montarTemplateParaEngine(empreendimento.template),
+        oferta,
+        state.valorAcoplamento,
+      );
+    } catch {
+      setErroSimulacao('Não foi possível calcular a simulação.');
+      return;
+    }
+    setResultadoSimulacao(calc);
+    setResultadoKey((n) => n + 1);
     startTransition(() => {
-      void gravarSimulacaoJornada({
-        templateId,
-        cardId: empreendimento.card_id,
-        sessaoToken: state.sessaoToken as string,
-        valorLote: oferta.valor_lote,
-        valorCasa: oferta.valor_casa,
-        valorCustomizacao: oferta.valor_customizacao,
-        customizacaoItens: calcularCustomizacao(
-          stateCalc.ofertaSelecionada,
-          empreendimento.customizacao_itens,
-          stateCalc.customizacaoSelecionados,
-          stateCalc.acabamentosArquiteto,
-        ).customizacaoEscolhidos,
-        valorJaPago: oferta.valor_ja_pago,
-        rendaCliente: state.rendaMensal,
-        prazoObraMeses: stateCalc.prazoObraMeses,
-        prazoFinanciamentoAnos: state.prazoFinanciamento,
-        taxaFinanciamentoAnual: state.taxaJuros,
-        nomeCliente: state.nomeCliente,
-        telefoneCliente: state.telefoneCliente,
-        condicaoLote: condicaoLoteJornada(stateCalc),
-        ofertaNome: state.ofertaSelecionada?.nome || state.ofertaSelecionada?.titulo_oferta || null,
-        loteCodigo: state.loteSelecionado?.codigo ?? null,
-        loteRotulo: state.loteSelecionado?.rotulo ?? null,
-        slug: empreendimento.slug,
-        valorAcoplamento: state.valorAcoplamento,
-      }).then((result) => {
-        if (result.ok) setState({ simulacaoId: result.simulacaoId, prazoObraMeses: stateCalc.prazoObraMeses });
-        else setErroSimulacao(result.error);
+      void persistirSimulacao({
+        stateCalc,
+        oferta,
+        calc,
+        valores: null,
+        somenteSeMudou: false,
       }).catch(() => {
         setErroSimulacao('Não foi possível gravar a simulação.');
-      }).finally(() => {
-        const calc = calcularOferta(
-          montarTemplateParaEngine(empreendimento.template),
-          oferta,
-          state.valorAcoplamento,
-        );
-        setResultadoSimulacao(calc);
-        setResultadoKey((n) => n + 1);
       });
     });
   }
@@ -1199,23 +1335,37 @@ export default function JornadaClient({
         );
         return;
       }
+      const prazoObra = Math.max(1, Math.round(state.prazoObraMeses || 12));
+      const stateCalc: JornadaLocal = { ...state, prazoObraMeses: prazoObra };
+      const oferta = {
+        ...montarOfertaJornada(
+          stateCalc,
+          empreendimento.template,
+          empreendimento.customizacao_itens,
+        ),
+        entrada_confirmada: valores.entrada,
+        mensal_confirmada: valores.mensal,
+        parcela_unica_confirmada: valores.unica,
+      };
       const calc = calcularOferta(
         montarTemplateParaEngine(empreendimento.template),
-        {
-          ...montarOfertaJornada(
-            state,
-            empreendimento.template,
-            empreendimento.customizacao_itens,
-          ),
-          entrada_confirmada: valores.entrada,
-          mensal_confirmada: valores.mensal,
-          parcela_unica_confirmada: valores.unica,
-        },
+        oferta,
         state.valorAcoplamento,
       );
       setValoresConfirmados(valores);
       setResultadoSimulacao(calc);
       setRecalcToken((n) => n + 1);
+      startTransition(() => {
+        void persistirSimulacao({
+          stateCalc,
+          oferta,
+          calc,
+          valores,
+          somenteSeMudou: true,
+        }).catch(() => {
+          setErroSimulacao('Não foi possível gravar a simulação.');
+        });
+      });
     } catch {
       setErroSimulacao('Não foi possível recalcular a simulação.');
     }
