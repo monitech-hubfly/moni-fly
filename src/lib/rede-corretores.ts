@@ -3,6 +3,11 @@
 import type { createClient } from '@/lib/supabase/server'
 import type { PixTipo } from '@/lib/br-docs'
 import { isCadastroValorVazio } from '@/lib/cadastro-linha-em-branco'
+import { getPublicAppUrl } from '@/lib/app-url'
+import {
+  listarLinksJornadaPorCorretores,
+  type LinkJornadaCorretor,
+} from '@/lib/corretor-links-jornada'
 
 export type RedeCorretorStatus = 'ativo' | 'inativo' | 'em_analise' | 'pendente' | 'aprovado'
 
@@ -45,6 +50,7 @@ export type RedeCorretorRow = {
   observacoes: string | null
   link_simulador?: string | null
   email_enviado_em?: string | null
+  links_jornada?: LinkJornadaCorretor[]
   criado_por?: string | null
   ultima_atualizacao_por?: string | null
   created_at?: string | null
@@ -163,12 +169,35 @@ export async function fetchRedeCorretoresRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeCorretorRow[] | null> {
   const first = await supabase.from('rede_corretores').select(SELECT_COLS).order('ordem', { ascending: true })
-  if (!first.error) return filtrarLinhasEmBrancoRedeCorretores((first.data ?? []) as RedeCorretorRow[])
+  const rows = !first.error
+    ? ((first.data ?? []) as RedeCorretorRow[])
+    : null
+  if (rows) return anexarLinksJornada(supabase, filtrarLinhasEmBrancoRedeCorretores(rows))
 
   const fallback = await supabase.from('rede_corretores').select(SELECT_COLS_BASE).order('ordem', { ascending: true })
   if (fallback.error) {
-    console.error('[rede_corretores] fetch:', first.error.message, fallback.error.message)
+    console.error('[rede_corretores] fetch:', first.error?.message, fallback.error.message)
     return null
   }
-  return filtrarLinhasEmBrancoRedeCorretores((fallback.data ?? []) as RedeCorretorRow[])
+  return anexarLinksJornada(
+    supabase,
+    filtrarLinhasEmBrancoRedeCorretores((fallback.data ?? []) as RedeCorretorRow[]),
+  )
+}
+
+async function anexarLinksJornada(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  rows: RedeCorretorRow[],
+): Promise<RedeCorretorRow[]> {
+  try {
+    const mapa = await listarLinksJornadaPorCorretores(
+      supabase,
+      rows.map((row) => row.id),
+      getPublicAppUrl(),
+    )
+    return rows.map((row) => ({ ...row, links_jornada: mapa.get(row.id) ?? [] }))
+  } catch (err) {
+    console.error('[rede_corretores] links da jornada:', err)
+    return rows
+  }
 }

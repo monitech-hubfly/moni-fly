@@ -5,6 +5,7 @@ import {
   idsEmpreendimentoInformados,
   vincularCorretorAosEmpreendimentosAtivos,
 } from '@/lib/corretor-empreendimentos-vinculo'
+import { enviarEmailCadastroCorretorRecebido } from '@/lib/corretor-emails'
 import { insertRedeCorretorRow } from '@/lib/rede-corretor-persist'
 import type { RedeCorretorPatch } from '@/lib/rede-corretores'
 
@@ -69,6 +70,11 @@ export async function POST(req: Request) {
   if (!inserted.ok) {
     return NextResponse.json({ ok: false, error: inserted.error }, { status: 400 })
   }
+
+  await enviarEmailCadastroCorretorRecebido({
+    nome: String(patch.nome ?? ''),
+    email: patch.email,
+  })
 
   const vinculo = await vincularCorretorAosEmpreendimentosAtivos(
     admin,

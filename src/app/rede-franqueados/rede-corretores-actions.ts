@@ -8,6 +8,7 @@ import {
   insertRedeCorretorRow,
   validarCamposCorretor,
 } from '@/lib/rede-corretor-persist'
+import { enviarEmailLinksDoCorretor } from '@/lib/corretor-emails'
 import {
   listarEmpreendimentosParaVinculoCorretor,
   substituirVinculosCorretorEmpreendimentos,
@@ -147,5 +148,48 @@ export async function arquivarRedeCorretor(id: string): Promise<Ok | Err> {
 }
 
 export async function aprovarRedeCorretor(id: string): Promise<Ok | Err> {
-  return atualizarRedeCorretor(id, { status: 'aprovado' })
+  const gate = await requireRedeCorretoresStaff()
+  if (!gate.ok) return gate
+  const atualizado = await atualizarRedeCorretor(id, { status: 'aprovado' })
+  if (!atualizado.ok) return atualizado
+
+  const { data } = await gate.supabase
+    .from('rede_corretores')
+    .select('id, nome, email')
+    .eq('id', id)
+    .maybeSingle()
+  const row = data as { nome?: string | null; email?: string | null } | null
+  const email = String(row?.email ?? '').trim()
+  if (!email.includes('@')) {
+    return { ok: true, mensagem: 'Cadastro aprovado. O corretor não tem e-mail para receber os links.' }
+  }
+
+  const enviado = await enviarEmailLinksDoCorretor({
+    supabase: gate.supabase,
+    corretorId: id,
+    nome: String(row?.nome ?? ''),
+    email,
+    assunto: 'Seus links de jornada — Casa Moní',
+    titulo: 'Cadastro aprovado',
+    intro:
+      'Seu cadastro foi aprovado. Abaixo estão os links dos empreendimentos vinculados a você.',
+  })
+  if (!enviado.ok) {
+    return {
+      ok: true,
+      mensagem: `Cadastro aprovado. O e-mail dos links não foi enviado: ${enviado.error}`,
+    }
+  }
+  if (!enviado.skipped) {
+    await gate.supabase
+      .from('rede_corretores')
+      .update({ email_enviado_em: new Date().toISOString() } as never)
+      .eq('id', id)
+  }
+  return {
+    ok: true,
+    mensagem: enviado.skipped
+      ? 'Cadastro aprovado. O serviço de e-mail não está configurado neste ambiente.'
+      : 'Cadastro aprovado. O corretor recebeu os links dos empreendimentos.',
+  }
 }
