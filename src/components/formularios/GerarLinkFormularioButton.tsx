@@ -259,11 +259,6 @@ export function GerarLinkFormularioButton({
                   ) : null}
                 </div>
               )}
-
-              <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
-                O link não muda. Várias pessoas podem responder, e cada envio fica registrado como uma resposta nova.
-                Sem card e sem franqueado, quem preencher informa o número e o nome da franquia.
-              </p>
             </div>
 
             {linkGerado ? (
