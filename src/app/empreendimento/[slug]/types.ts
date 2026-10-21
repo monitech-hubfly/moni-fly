@@ -137,6 +137,7 @@ export type JornadaSessao = {
   valor_casa: number | null;
   valor_customizacao: number | null;
   simulacao_id: string | null;
+  vcl_card_id: string | null;
   concluida: boolean;
 };
 

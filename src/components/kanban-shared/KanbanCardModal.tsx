@@ -660,7 +660,7 @@ export function KanbanCardModal({
     chamados: false,
     historico: false,
     dadosClienteVcl: true,
-    simulacoesClienteVcl: false,
+    simulacoesClienteVcl: true,
   });
   const [imobSimulacoesPrefetch, setImobSimulacoesPrefetch] = useState<{
     cardId: string;
@@ -4795,7 +4795,7 @@ export function KanbanCardModal({
           <div
             className={`moni-card-modal-center order-1 flex h-full min-h-0 flex-1 flex-col p-6 sm:order-2 sm:min-w-0 ${
               abaCentro === 'calculadora' ? 'overflow-hidden' : 'overflow-y-auto'
-            }`}
+            } ${exibirJornadaVcl && abaCentro !== 'chamados' ? 'hidden' : ''}`}
             style={{ background: 'var(--moni-surface-0)' }}
           >
             {!painelCentroAlternativo ? (
@@ -7101,7 +7101,11 @@ export function KanbanCardModal({
 
           {/* Esquerda — dados colapsáveis (mobile: por último) */}
           <div
-            className="moni-card-modal-left order-3 h-full w-full overflow-y-auto border-t p-4 text-xs sm:order-1 sm:min-w-0 sm:w-[min(45%,20rem)] sm:shrink-0 sm:border-r sm:border-t-0 sm:p-5"
+            className={`moni-card-modal-left order-3 h-full w-full overflow-y-auto border-t p-4 text-xs sm:order-1 sm:min-w-0 sm:shrink-0 sm:border-r sm:border-t-0 sm:p-5 ${
+              exibirJornadaVcl && abaCentro !== 'chamados'
+                ? 'sm:w-auto sm:max-w-none sm:flex-1'
+                : 'sm:w-[min(45%,20rem)]'
+            }`}
             style={{
               borderColor: 'var(--moni-border-default)',
               background: 'var(--moni-surface-50)',
@@ -7119,8 +7123,83 @@ export function KanbanCardModal({
                   'Simulações',
                   <KanbanCardModalJornadaVcl cardId={card.id} modo="simulacoes" />,
                 )}
+                {!isLegado
+                  ? secaoHead(
+                      'atasReuniao',
+                      'Atas de reunião',
+                      <KanbanCardModalAtasReuniao
+                        key={`${card.id}-atas-vcl-${atasReuniaoTick}`}
+                        cardId={card.id}
+                        origem={origem}
+                        refreshKey={atasReuniaoTick}
+                      />,
+                    )
+                  : null}
+                {secaoHeadPainelCentro('Chamados')}
+                {card ? (
+                  <ChecklistCard
+                    cardId={card.id}
+                    userId={modalSessao.userId}
+                    isFrank={portalFrank}
+                    responsaveisOpcoes={responsaveisOpcoes}
+                    basePath={basePath}
+                    fases={fases}
+                    faseAtualId={card.fase_id}
+                    areaAtuacao={modalDetalhes.rede?.area_atuacao}
+                    negocioEspelho={negocioEspelhoChecklist}
+                    structuralRefreshKey={`${card.fase_id}-${historico.length}-${condominioTick}`}
+                  />
+                ) : null}
+                <div
+                  className="overflow-hidden rounded-lg bg-white"
+                  style={{
+                    border: '0.5px solid var(--moni-border-default)',
+                    boxShadow: 'var(--moni-shadow-sm)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleSecaoEsquerda('historico')}
+                    className="flex w-full items-center gap-2 p-2 text-left text-xs transition hover:bg-stone-50"
+                  >
+                    {secaoAberta.historico ? (
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-stone-500" aria-hidden />
+                    )}
+                    <span className="text-xs font-semibold text-stone-800">Histórico</span>
+                  </button>
+                  {secaoAberta.historico ? (
+                    <div className="border-t px-2 pb-2 pt-1.5 text-xs" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+                      {historico.length === 0 ? (
+                        <p className="text-xs text-stone-500">Nenhum evento ainda.</p>
+                      ) : (
+                        <ul className="max-h-72 list-none space-y-0 overflow-y-auto">
+                          {historico.map((h) => (
+                            <li key={h.id} className="flex gap-2.5 border-b border-stone-100 py-2.5 text-xs last:border-0">
+                              <span className="mt-0.5 shrink-0">{iconeHistoricoAcao(h.acao)}</span>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium leading-snug text-stone-800">
+                                  {textoResumidoAcaoHistorico(h.acao, h.detalhe)}
+                                </p>
+                                <p className="mt-0.5 text-[11px] leading-snug text-stone-500">
+                                  <span className="font-medium text-stone-600">
+                                    {rotuloUsuarioHistorico(h.usuario_nome)}
+                                  </span>
+                                  <span aria-hidden> · </span>
+                                  <time dateTime={h.criado_em}>{formatDataHoraHistorico(h.criado_em)}</time>
+                                </p>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
               </>
-            ) : null}
+            ) : (
+              <>
             {totalCardsSyncGrupo > 0 ? (
               <p className="mb-3 rounded border border-sky-200 bg-sky-50 px-2.5 py-2 text-[11px] text-sky-900">
                 Dados compartilhados com {totalCardsSyncGrupo} card{totalCardsSyncGrupo === 1 ? '' : 's'} vinculado
@@ -8019,6 +8098,8 @@ export function KanbanCardModal({
                 </div>
               ) : null}
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

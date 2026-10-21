@@ -12,24 +12,48 @@ type DadosCliente = {
   corretor: string;
 };
 
-type SimulacaoLinha = {
+type SimulacaoColuna = {
   id: string;
   quando: string;
-  oferta: string;
-  lote: string;
-  valorLote: string;
-  valorCasa: string;
-  valorCustomizacao: string;
-  valorJaPago: string;
+  valores: Record<string, string>;
+  itens: { item: string; valor: string }[];
+  fluxo: { mes: string; descricao: string; entrada: string; saidas: string }[];
 };
 
 const SEM_CORRETOR = 'Sem corretor — site Moní';
+
+const LINHAS: { id: string; label: string }[] = [
+  { id: 'oferta', label: 'Oferta / modelo' },
+  { id: 'lote', label: 'Lote' },
+  { id: 'terreno', label: 'Valor do terreno' },
+  { id: 'jaPago', label: 'Valor já pago' },
+  { id: 'acoplamento', label: 'Acoplamento' },
+  { id: 'customizacao', label: 'Customização (total)' },
+  { id: 'prazoObra', label: 'Prazo da obra' },
+  { id: 'renda', label: 'Renda' },
+  { id: 'financiamento', label: 'Prazo e taxa do financiamento' },
+  { id: 'entrada', label: 'Entrada' },
+  { id: 'mensal', label: 'Parcela mensal' },
+  { id: 'unica', label: 'Parcela única' },
+  { id: 'saldo', label: 'Saldo a financiar' },
+];
 
 function moeda(raw: unknown): string {
   if (raw == null || raw === '') return '—';
   const n = Number(raw);
   if (!Number.isFinite(n)) return '—';
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function numero(raw: unknown): number | null {
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function objeto(raw: unknown): Record<string, unknown> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return raw as Record<string, unknown>;
 }
 
 function quando(iso: unknown): string {
@@ -52,9 +76,78 @@ function telefoneExibicao(raw: string): string {
   return raw.trim() || '—';
 }
 
-function textoInput(inputs: unknown, chave: string): string {
-  if (!inputs || typeof inputs !== 'object' || Array.isArray(inputs)) return '';
-  return String((inputs as Record<string, unknown>)[chave] ?? '').trim();
+function texto(raw: unknown): string {
+  const s = String(raw ?? '').trim();
+  return s || '—';
+}
+
+function taxaTexto(snapshot: Record<string, unknown>, coluna: number | null): string {
+  const percentual = numero(snapshot.taxa_percentual);
+  const pct = percentual ?? (coluna == null ? null : Math.abs(coluna) <= 1 ? coluna * 100 : coluna);
+  if (pct == null) return '—';
+  return `${pct.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% a.a.`;
+}
+
+function lerItens(raw: unknown): { item: string; valor: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((item) => {
+    const row = objeto(item);
+    const nome = String(row.item ?? row.nome ?? '').trim();
+    if (!nome && row.valor == null) return [];
+    return [{ item: nome || 'Item', valor: moeda(row.valor) }];
+  });
+}
+
+function lerFluxo(raw: unknown): SimulacaoColuna['fluxo'] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((linha) => {
+    const row = objeto(linha);
+    return {
+      mes: String(row.mes ?? '—'),
+      descricao: texto(row.descricao),
+      entrada: moeda(row.entrada_cliente),
+      saidas: moeda(row.saidas_total),
+    };
+  });
+}
+
+function montarColuna(row: Record<string, unknown>): SimulacaoColuna {
+  const inputs = objeto(row.inputs);
+  const snapshot = objeto(row.resultado);
+  const anos = numero(snapshot.prazo_financiamento_anos ?? row.prazo_financiamento_anos);
+  const taxa = taxaTexto(snapshot, numero(row.taxa_financiamento_anual));
+  const prazoObra = numero(snapshot.prazo_obra_meses ?? inputs.prazo_obra_meses ?? row.prazo_meses);
+  const financiamento =
+    anos == null && taxa === '—' ? '—' : `${anos != null ? `${anos} anos` : '—'} · ${taxa}`;
+  const itensFonte = Array.isArray(snapshot.customizacao_itens)
+    ? snapshot.customizacao_itens
+    : row.customizacao_itens;
+  return {
+    id: String(row.id),
+    quando: quando(row.created_at),
+    valores: {
+      oferta: texto(snapshot.oferta_nome ?? inputs.oferta_nome),
+      lote: texto(snapshot.lote ?? inputs.lote_rotulo ?? inputs.lote_codigo),
+      terreno: moeda(snapshot.valor_terreno ?? row.valor_lote),
+      jaPago: moeda(snapshot.valor_ja_pago ?? row.valor_ja_pago),
+      acoplamento: moeda(snapshot.acoplamento ?? row.valor_acoplamento),
+      customizacao: moeda(snapshot.customizacao_total ?? row.valor_customizacao),
+      prazoObra: prazoObra != null ? `${prazoObra} meses` : '—',
+      renda: moeda(snapshot.renda ?? inputs.renda ?? row.renda_cliente),
+      financiamento,
+      entrada: moeda(snapshot.entrada ?? inputs.entrada),
+      mensal: moeda(snapshot.parcela_mensal ?? inputs.parcela_mensal),
+      unica: moeda(snapshot.parcela_unica ?? inputs.parcela_unica),
+      saldo: moeda(snapshot.saldo_a_financiar ?? inputs.saldo_a_financiar),
+    },
+    itens: lerItens(itensFonte),
+    fluxo: lerFluxo(snapshot.fluxo),
+  };
+}
+
+function mudou(coluna: SimulacaoColuna, anterior: SimulacaoColuna | undefined, linha: string): boolean {
+  if (!anterior) return false;
+  return coluna.valores[linha] !== anterior.valores[linha];
 }
 
 export function KanbanCardModalJornadaVcl({
@@ -67,7 +160,8 @@ export function KanbanCardModalJornadaVcl({
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [dados, setDados] = useState<DadosCliente | null>(null);
-  const [simulacoes, setSimulacoes] = useState<SimulacaoLinha[]>([]);
+  const [simulacoes, setSimulacoes] = useState<SimulacaoColuna[]>([]);
+  const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
 
   useEffect(() => {
     let ativo = true;
@@ -136,42 +230,18 @@ export function KanbanCardModalJornadaVcl({
       const { data, error } = await supabase
         .from('simulacoes_pagamento')
         .select(
-          'id, created_at, valor_lote, valor_casa, valor_customizacao, valor_ja_pago, inputs',
+          'id, created_at, valor_lote, valor_casa, valor_customizacao, valor_acoplamento, valor_ja_pago, renda_cliente, prazo_meses, prazo_financiamento_anos, taxa_financiamento_anual, customizacao_itens, inputs, resultado',
         )
         .eq('kanban_card_id', cardId)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
       if (!ativo) return;
       if (error) {
         setErro(error.message);
         setLoading(false);
         return;
       }
-      setSimulacoes(
-        (data ?? []).map((row) => {
-          const item = row as {
-            id: string;
-            created_at?: string | null;
-            valor_lote?: number | null;
-            valor_casa?: number | null;
-            valor_customizacao?: number | null;
-            valor_ja_pago?: number | null;
-            inputs?: unknown;
-          };
-          const rotulo = textoInput(item.inputs, 'lote_rotulo');
-          const codigo = textoInput(item.inputs, 'lote_codigo');
-          return {
-            id: item.id,
-            quando: quando(item.created_at),
-            oferta: textoInput(item.inputs, 'oferta_nome') || '—',
-            lote: rotulo || codigo || '—',
-            valorLote: moeda(item.valor_lote),
-            valorCasa: moeda(item.valor_casa),
-            valorCustomizacao: moeda(item.valor_customizacao),
-            valorJaPago: moeda(item.valor_ja_pago),
-          };
-        }),
-      );
+      setSimulacoes((data ?? []).map((item) => montarColuna(item as Record<string, unknown>)));
       setLoading(false);
     }
 
@@ -220,28 +290,231 @@ export function KanbanCardModalJornadaVcl({
     );
   }
 
+  const selecionada = simulacoes.find((sim) => sim.id === selecionadaId) ?? null;
+  const temDestaque = simulacoes.some((sim, index) =>
+    LINHAS.some((linha) => mudou(sim, simulacoes[index + 1], linha.id)),
+  );
+
   return (
-    <div style={{ display: 'grid', gap: 8, fontFamily: 'var(--moni-font-sans)' }}>
-      {simulacoes.map((sim) => (
-        <article
-          key={sim.id}
+    <div style={{ display: 'grid', gap: 10, fontFamily: 'var(--moni-font-sans)', minWidth: 0 }}>
+      {temDestaque ? (
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--moni-text-tertiary)' }}>
+          Valores em destaque mudaram em relação à simulação anterior.
+        </p>
+      ) : null}
+      <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+        <table style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: '100%' }}>
+          <thead>
+            <tr>
+              <th
+                style={{
+                  position: 'sticky',
+                  left: 0,
+                  zIndex: 1,
+                  background: 'var(--moni-surface-0)',
+                  textAlign: 'left',
+                  fontWeight: 500,
+                  fontSize: 11,
+                  color: 'var(--moni-text-tertiary)',
+                  padding: '8px 10px',
+                  borderBottom: 'var(--moni-border-width) solid var(--moni-border-default)',
+                  minWidth: 148,
+                }}
+              >
+                {' '}
+              </th>
+              {simulacoes.map((sim) => {
+                const ativa = sim.id === selecionadaId;
+                return (
+                  <th
+                    key={sim.id}
+                    style={{
+                      padding: 0,
+                      borderBottom: 'var(--moni-border-width) solid var(--moni-border-default)',
+                      background: ativa ? 'var(--moni-surface-50)' : 'transparent',
+                      outline: ativa ? 'var(--moni-border-width) solid var(--moni-navy-800)' : 'none',
+                      minWidth: 148,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setSelecionadaId((atual) => (atual === sim.id ? null : sim.id))}
+                      style={{
+                        width: '100%',
+                        minHeight: 44,
+                        padding: '8px 10px',
+                        border: 0,
+                        background: 'transparent',
+                        color: 'var(--moni-text-primary)',
+                        fontFamily: 'var(--moni-font-sans)',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {sim.quando}
+                    </button>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {LINHAS.map((linha) => (
+              <tr key={linha.id}>
+                <th
+                  scope="row"
+                  style={{
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 1,
+                    background: 'var(--moni-surface-0)',
+                    textAlign: 'left',
+                    fontWeight: 500,
+                    fontSize: 11,
+                    color: 'var(--moni-text-secondary)',
+                    padding: '8px 10px',
+                    borderBottom: 'var(--moni-border-width) solid var(--moni-border-default)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {linha.label}
+                </th>
+                {simulacoes.map((sim, index) => {
+                  const destaque = mudou(sim, simulacoes[index + 1], linha.id);
+                  const ativa = sim.id === selecionadaId;
+                  return (
+                    <td
+                      key={sim.id}
+                      style={{
+                        padding: 0,
+                        borderBottom: 'var(--moni-border-width) solid var(--moni-border-default)',
+                        background: destaque
+                          ? 'var(--moni-gold-50)'
+                          : ativa
+                            ? 'var(--moni-surface-50)'
+                            : 'transparent',
+                        minWidth: 148,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelecionadaId((atual) => (atual === sim.id ? null : sim.id))}
+                        style={{
+                          width: '100%',
+                          minHeight: 44,
+                          padding: '8px 10px',
+                          border: 0,
+                          background: 'transparent',
+                          color: 'var(--moni-text-primary)',
+                          fontFamily: 'var(--moni-font-sans)',
+                          fontSize: 12,
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {sim.valores[linha.id]}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {selecionada ? (
+        <div
           style={{
+            display: 'grid',
+            gap: 12,
+            padding: 10,
             border: 'var(--moni-border-width) solid var(--moni-border-default)',
             borderRadius: 'var(--moni-radius-md)',
-            padding: 8,
+            background: 'var(--moni-surface-0)',
           }}
         >
-          <div style={{ fontSize: 11, color: 'var(--moni-text-tertiary)' }}>{sim.quando}</div>
-          <div style={{ marginTop: 4, fontSize: 12, color: 'var(--moni-text-primary)' }}>{sim.oferta}</div>
-          <div style={{ fontSize: 12, color: 'var(--moni-text-secondary)' }}>Lote {sim.lote}</div>
-          <div style={{ marginTop: 4, display: 'grid', gap: 2, fontSize: 11, color: 'var(--moni-text-secondary)' }}>
-            <span>Terreno {sim.valorLote}</span>
-            <span>Casa {sim.valorCasa}</span>
-            <span>Customização {sim.valorCustomizacao}</span>
-            <span>Já pago {sim.valorJaPago}</span>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--moni-text-primary)' }}>
+            {selecionada.quando}
           </div>
-        </article>
-      ))}
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--moni-text-tertiary)', marginBottom: 6 }}>
+              Customização
+            </div>
+            {selecionada.itens.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--moni-text-tertiary)' }}>Nenhum item.</p>
+            ) : (
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+                {selecionada.itens.map((item) => (
+                  <li
+                    key={`${item.item}-${item.valor}`}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      fontSize: 12,
+                      color: 'var(--moni-text-secondary)',
+                    }}
+                  >
+                    <span>{item.item}</span>
+                    <span style={{ color: 'var(--moni-text-primary)', whiteSpace: 'nowrap' }}>{item.valor}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--moni-text-tertiary)', marginBottom: 6 }}>
+              Fluxo de pagamento
+            </div>
+            {selecionada.fluxo.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--moni-text-tertiary)' }}>
+                Esta simulação não tem o fluxo gravado.
+              </p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {['Mês', 'Descrição', 'Pagamento', 'Saídas'].map((titulo) => (
+                        <th
+                          key={titulo}
+                          style={{
+                            textAlign: 'left',
+                            fontWeight: 500,
+                            color: 'var(--moni-text-tertiary)',
+                            padding: '6px 8px',
+                            borderBottom: 'var(--moni-border-width) solid var(--moni-border-default)',
+                          }}
+                        >
+                          {titulo}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selecionada.fluxo.map((linha, index) => (
+                      <tr key={`${linha.mes}-${linha.descricao}-${index}`}>
+                        <td style={{ padding: '6px 8px', color: 'var(--moni-text-primary)' }}>{linha.mes}</td>
+                        <td style={{ padding: '6px 8px', color: 'var(--moni-text-secondary)' }}>{linha.descricao}</td>
+                        <td style={{ padding: '6px 8px', color: 'var(--moni-text-primary)', whiteSpace: 'nowrap' }}>
+                          {linha.entrada}
+                        </td>
+                        <td style={{ padding: '6px 8px', color: 'var(--moni-text-primary)', whiteSpace: 'nowrap' }}>
+                          {linha.saidas}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
