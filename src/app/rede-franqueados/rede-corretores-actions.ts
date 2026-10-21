@@ -94,7 +94,7 @@ export async function criarRedeCorretor(patch: RedeCorretorPatch): Promise<Ok | 
   const gate = await requireRedeCorretoresStaff()
   if (!gate.ok) return gate
 
-  const status: RedeCorretorStatus = patch.status ?? 'ativo'
+  const status: RedeCorretorStatus = patch.status ?? 'aprovado'
 
   const inserted = await insertRedeCorretorRow({
     supabase: gate.supabase,
@@ -147,49 +147,79 @@ export async function arquivarRedeCorretor(id: string): Promise<Ok | Err> {
   return atualizarRedeCorretor(id, { status: 'inativo' })
 }
 
-export async function aprovarRedeCorretor(id: string): Promise<Ok | Err> {
-  const gate = await requireRedeCorretoresStaff()
-  if (!gate.ok) return gate
-  const atualizado = await atualizarRedeCorretor(id, { status: 'aprovado' })
-  if (!atualizado.ok) return atualizado
-
-  const { data } = await gate.supabase
+async function notificarLinksDoCorretor(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  id: string,
+  textos: { titulo: string; intro: string; semEmail: string; falha: string; semServico: string; enviado: string },
+): Promise<string> {
+  const { data } = await supabase
     .from('rede_corretores')
     .select('id, nome, email')
     .eq('id', id)
     .maybeSingle()
   const row = data as { nome?: string | null; email?: string | null } | null
   const email = String(row?.email ?? '').trim()
-  if (!email.includes('@')) {
-    return { ok: true, mensagem: 'Cadastro aprovado. O corretor não tem e-mail para receber os links.' }
-  }
+  if (!email.includes('@')) return textos.semEmail
 
   const enviado = await enviarEmailLinksDoCorretor({
-    supabase: gate.supabase,
+    supabase,
     corretorId: id,
     nome: String(row?.nome ?? ''),
     email,
     assunto: 'Seus links de jornada — Casa Moní',
-    titulo: 'Cadastro aprovado',
-    intro:
-      'Seu cadastro foi aprovado. Abaixo estão os links dos empreendimentos vinculados a você.',
+    titulo: textos.titulo,
+    intro: textos.intro,
   })
-  if (!enviado.ok) {
-    return {
-      ok: true,
-      mensagem: `Cadastro aprovado. O e-mail dos links não foi enviado: ${enviado.error}`,
-    }
-  }
+  if (!enviado.ok) return `${textos.falha}: ${enviado.error}`
   if (!enviado.skipped) {
-    await gate.supabase
+    await supabase
       .from('rede_corretores')
       .update({ email_enviado_em: new Date().toISOString() } as never)
       .eq('id', id)
   }
-  return {
-    ok: true,
-    mensagem: enviado.skipped
-      ? 'Cadastro aprovado. O serviço de e-mail não está configurado neste ambiente.'
-      : 'Cadastro aprovado. O corretor recebeu os links dos empreendimentos.',
+  return enviado.skipped ? textos.semServico : textos.enviado
+}
+
+export async function aprovarRedeCorretor(id: string): Promise<Ok | Err> {
+  const gate = await requireRedeCorretoresStaff()
+  if (!gate.ok) return gate
+  const atualizado = await atualizarRedeCorretor(id, { status: 'aprovado' })
+  if (!atualizado.ok) return atualizado
+
+  const mensagem = await notificarLinksDoCorretor(gate.supabase, id, {
+    titulo: 'Cadastro aprovado',
+    intro: 'Seu cadastro foi aprovado. Abaixo estão os links dos empreendimentos vinculados a você.',
+    semEmail: 'Cadastro aprovado. O corretor não tem e-mail para receber os links.',
+    falha: 'Cadastro aprovado. O e-mail dos links não foi enviado',
+    semServico: 'Cadastro aprovado. O serviço de e-mail não está configurado neste ambiente.',
+    enviado: 'Cadastro aprovado. O corretor recebeu os links dos empreendimentos.',
+  })
+  return { ok: true, mensagem }
+}
+
+/** Cadastro feito pela equipe: status aprovado recebe na hora os links dos vínculos. */
+export async function enviarLinksDoCadastroNaRede(id: string): Promise<Ok | Err> {
+  const gate = await requireRedeCorretoresStaff()
+  if (!gate.ok) return gate
+  const corretorId = String(id ?? '').trim()
+  if (!corretorId) return { ok: false, error: 'ID inválido.' }
+
+  const { data } = await gate.supabase
+    .from('rede_corretores')
+    .select('status')
+    .eq('id', corretorId)
+    .maybeSingle()
+  if (String((data as { status?: string } | null)?.status ?? '') !== 'aprovado') {
+    return { ok: true, mensagem: 'Corretor cadastrado.' }
   }
+
+  const mensagem = await notificarLinksDoCorretor(gate.supabase, corretorId, {
+    titulo: 'Seus links de jornada',
+    intro: 'Abaixo estão os links dos empreendimentos vinculados a você.',
+    semEmail: 'Corretor cadastrado como aprovado. Não há e-mail para enviar os links.',
+    falha: 'Corretor cadastrado como aprovado. O e-mail dos links não foi enviado',
+    semServico: 'Corretor cadastrado como aprovado. O serviço de e-mail não está configurado neste ambiente.',
+    enviado: 'Corretor cadastrado como aprovado. Ele recebeu os links dos empreendimentos.',
+  })
+  return { ok: true, mensagem }
 }

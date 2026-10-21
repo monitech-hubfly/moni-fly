@@ -51,7 +51,7 @@ function normalizeCidades(raw: unknown): RedeCorretorCidadeAtuacao[] {
 }
 
 export function emptyRedeCorretorFichaDraft(
-  status: RedeCorretorStatus = 'ativo',
+  status: RedeCorretorStatus = 'aprovado',
 ): RedeCorretorFichaDraft {
   return {
     nome: '',

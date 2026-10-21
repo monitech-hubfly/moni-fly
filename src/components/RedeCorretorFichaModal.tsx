@@ -6,6 +6,7 @@ import { Check, Loader2, X } from 'lucide-react'
 import {
   atualizarRedeCorretor,
   criarRedeCorretor,
+  enviarLinksDoCadastroNaRede,
   listarEmpreendimentosAbertosParaCorretor,
   listarEmpreendimentosVinculadosDoCorretor,
   salvarVinculosEmpreendimentoDoCorretor,
@@ -31,7 +32,7 @@ export function RedeCorretorFichaModal({ row = null, onClose }: Props) {
   const router = useRouter()
   const criar = !row
   const [draft, setDraft] = useState<RedeCorretorFichaDraft>(() =>
-    row ? redeCorretorRowToFichaDraft(row) : emptyRedeCorretorFichaDraft('ativo'),
+    row ? redeCorretorRowToFichaDraft(row) : emptyRedeCorretorFichaDraft('aprovado'),
   )
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
@@ -39,7 +40,7 @@ export function RedeCorretorFichaModal({ row = null, onClose }: Props) {
   const [empreendimentoIds, setEmpreendimentoIds] = useState<string[]>([])
 
   useEffect(() => {
-    setDraft(row ? redeCorretorRowToFichaDraft(row) : emptyRedeCorretorFichaDraft('ativo'))
+    setDraft(row ? redeCorretorRowToFichaDraft(row) : emptyRedeCorretorFichaDraft('aprovado'))
     let ativo = true
     void (async () => {
       const lista = await listarEmpreendimentosAbertosParaCorretor()
@@ -86,8 +87,13 @@ export function RedeCorretorFichaModal({ row = null, onClose }: Props) {
         return
       }
     }
+    let texto = r.mensagem
+    if (criar && corretorId && draft.status === 'aprovado') {
+      const email = await enviarLinksDoCadastroNaRede(corretorId)
+      if (email.ok) texto = email.mensagem
+    }
     setSaving(false)
-    setMsg({ tipo: 'ok', texto: r.mensagem })
+    setMsg({ tipo: 'ok', texto })
     router.refresh()
     setTimeout(onClose, 600)
   }

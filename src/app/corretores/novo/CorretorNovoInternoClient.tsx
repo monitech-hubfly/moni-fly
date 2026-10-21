@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Check, Copy, ExternalLink, Loader2, Share2 } from 'lucide-react'
 import {
   criarRedeCorretor,
+  enviarLinksDoCadastroNaRede,
   vincularEmpreendimentosDoNovoCorretor,
 } from '@/app/rede-franqueados/rede-corretores-actions'
 import { CorretorEmpreendimentosVinculo } from '@/components/CorretorEmpreendimentosVinculo'
@@ -26,7 +27,7 @@ export function CorretorNovoInternoClient({
 }) {
   const router = useRouter()
   const [draft, setDraft] = useState<RedeCorretorFichaDraft>(() =>
-    emptyRedeCorretorFichaDraft('ativo'),
+    emptyRedeCorretorFichaDraft('aprovado'),
   )
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
@@ -66,8 +67,13 @@ export function CorretorNovoInternoClient({
         return
       }
     }
+    let texto = r.mensagem
+    if (r.id && draft.status === 'aprovado') {
+      const email = await enviarLinksDoCadastroNaRede(r.id)
+      if (email.ok) texto = email.mensagem
+    }
     setSaving(false)
-    setMsg({ tipo: 'ok', texto: r.mensagem })
+    setMsg({ tipo: 'ok', texto })
     router.refresh()
     setTimeout(() => router.push('/rede-franqueados?tab=corretores'), 700)
   }
