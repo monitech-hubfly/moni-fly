@@ -50,11 +50,9 @@ function lotesDeLinhasPlanilha(
   buffer: ArrayBuffer,
   nome: string,
 ): LotePublico[] {
-  return parsePlanilhaLotesBuffer(buffer, nome).map((l, i) => ({
-    id: `planilha:${i}:${l.codigo}`,
-    codigo: l.codigo,
-    valor: l.valor,
-  }));
+  return parsePlanilhaLotesBuffer(buffer, nome).flatMap((l, i) =>
+    l.valor == null ? [] : [{ id: `planilha:${i}:${l.codigo}`, codigo: l.codigo, valor: l.valor }],
+  );
 }
 
 async function refPlanilhaDoCard(
