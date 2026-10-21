@@ -79,6 +79,15 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Venda Casas Loteadores - Showroom':           KANBAN_IDS.VCL_SHOWROOM,
 };
 
+export function isKanbanVclId(id: string | null | undefined): boolean {
+  const s = String(id ?? '').trim();
+  return (
+    s === KANBAN_IDS.VCL_NAO_VENDIDOS ||
+    s === KANBAN_IDS.VCL_VENDIDOS ||
+    s === KANBAN_IDS.VCL_SHOWROOM
+  );
+}
+
 export const FASE_IDS = {
   // Portfolio — gatilhos de bastão de IDA
   PORTFOLIO_STEP_3:          '6d019704-95f7-42ee-8a85-973ffafc236b', // Enviar Opção (ex-Opção)

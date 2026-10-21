@@ -1,3 +1,4 @@
+import { isKanbanVclId } from '@/lib/constants/kanban-ids';
 import type { createAdminClient } from '@/lib/supabase/admin';
 import type { createClient } from '@/lib/supabase/server';
 import { isKanbanFunilLoteadoresRef, sincronizarTituloCardLoteadores } from '@/lib/kanban/loteadores-card-titulo';
@@ -854,7 +855,7 @@ export async function propagarCamposKanbanCards(
     } | null;
 
     isFunilLoteadores = isKanbanFunilLoteadoresRef(o?.kanban_id);
-    if (!isFunilLoteadores) {
+    if (!isFunilLoteadores && !isKanbanVclId(o?.kanban_id)) {
       tituloCanonico = await resolverTituloCardKanban(db, {
         rede_franqueado_id: syncPatch.rede_franqueado_id ?? o?.rede_franqueado_id,
         nome_condominio: syncPatch.nome_condominio ?? o?.nome_condominio,
@@ -1010,7 +1011,7 @@ export async function fetchCamposKanbanCanonicos(
 
   const { data: rows, error } = await db
     .from('kanban_cards')
-    .select(`id, ${KANBAN_CARD_CAMPOS_SYNC.join(',')}`)
+    .select(`id, kanban_id, ${KANBAN_CARD_CAMPOS_SYNC.join(',')}`)
     .in('id', cardIds);
   if (error || !rows?.length) return null;
 
@@ -1029,10 +1030,14 @@ export async function fetchCamposKanbanCanonicos(
         valor = coalesceCampoSync(valor, candidato);
       }
       if (k === 'titulo') {
-        valor = escolherTituloExibicaoCard(
-          primarioRow[k] != null ? String(primarioRow[k]) : null,
-          valor,
-        );
+        if (isKanbanVclId(String(primarioRow.kanban_id ?? ''))) {
+          valor = primarioRow[k] != null ? String(primarioRow[k]).trim() : null;
+        } else {
+          valor = escolherTituloExibicaoCard(
+            primarioRow[k] != null ? String(primarioRow[k]) : null,
+            valor,
+          );
+        }
         if (valor === '(sem título)') valor = null;
       }
     }
@@ -1040,13 +1045,16 @@ export async function fetchCamposKanbanCanonicos(
     out[k] = valor;
   }
 
-  const tituloRecalc = await resolverTituloCardKanban(db, {
-    rede_franqueado_id: out.rede_franqueado_id,
-    nome_condominio: out.nome_condominio,
-    quadra: out.quadra,
-    lote: out.lote,
-    titulo: out.titulo,
-  });
+  const kanbanIdCanonico = String(primarioRow.kanban_id ?? '').trim();
+  const tituloRecalc = isKanbanVclId(kanbanIdCanonico)
+    ? null
+    : await resolverTituloCardKanban(db, {
+        rede_franqueado_id: out.rede_franqueado_id,
+        nome_condominio: out.nome_condominio,
+        quadra: out.quadra,
+        lote: out.lote,
+        titulo: out.titulo,
+      });
   if (tituloRecalc) {
     const nFq =
       out.rede_franqueado_id != null

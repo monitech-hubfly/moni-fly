@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolveBoardStaffAuth } from '@/lib/seeded-staff-role';
-import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { isKanbanVclId, KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 import { prepareStepOneBoardSnapshot } from '@/lib/kanban/stepone-fase-slugs';
@@ -288,21 +288,26 @@ async function enrichFastPaintCardsParaExibicao(
     const nomeFranqueadoCard = redeId
       ? redeNomeDiretoMap.get(redeId)
       : franqueadoNomePorCardId.get(cardId);
-    const tituloCalc = montarTituloCardSync({
-      nFranquia: nFranquiaCard,
-      nomeFranqueado: nomeFranqueadoCard,
-      nomeCondominio,
-      quadra,
-      lote,
-      tituloFallback: tituloRaw,
-    });
-    let tituloExibicao = escolherTituloExibicaoCard(
-      tituloRaw,
-      tituloCalc,
-      nFranquiaCard,
-      nomeFranqueadoCard,
-      { nomeCondominio, quadra, lote },
-    );
+    const cardVcl = isKanbanVclId(kanbanIdStr);
+    const tituloCalc = cardVcl
+      ? null
+      : montarTituloCardSync({
+          nFranquia: nFranquiaCard,
+          nomeFranqueado: nomeFranqueadoCard,
+          nomeCondominio,
+          quadra,
+          lote,
+          tituloFallback: tituloRaw,
+        });
+    let tituloExibicao = cardVcl
+      ? tituloRaw.trim() || '(sem título)'
+      : escolherTituloExibicaoCard(
+          tituloRaw,
+          tituloCalc,
+          nFranquiaCard,
+          nomeFranqueadoCard,
+          { nomeCondominio, quadra, lote },
+        );
     let subtituloCard: string | null = null;
     let profilesLinha: KanbanCardBrief['profiles'] =
       redeId && redeNomeDiretoMap.has(redeId)
@@ -313,7 +318,7 @@ async function enrichFastPaintCardsParaExibicao(
 
     const redeLoteadorId = loteadorIdPorCard.get(cardId) ?? String(c.rede_loteador_id ?? '').trim();
     const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
-    if (isFunilLoteadores || rl) {
+    if (!cardVcl && (isFunilLoteadores || rl)) {
       const nomeHeader = nomeResponsavelHeaderLoteador(rl);
       tituloExibicao =
         tituloExibicaoCardLoteadores(
@@ -1346,24 +1351,29 @@ export async function fetchKanbanBoardSnapshot(
     const nomeFranqueadoCard = redeId
       ? redeNomeDiretoMap.get(redeId)
       : franqueadoNomePorCardId.get(cardId);
-    const tituloCalc = montarTituloCardSync({
-      nFranquia: nFranquiaCard,
-      nomeFranqueado: nomeFranqueadoCard,
-      nomeCondominio,
-      quadra,
-      lote,
-      tituloFallback: tituloRaw,
-    });
+    const cardVcl = isKanbanVclId(kanbanIdStr);
+    const tituloCalc = cardVcl
+      ? null
+      : montarTituloCardSync({
+          nFranquia: nFranquiaCard,
+          nomeFranqueado: nomeFranqueadoCard,
+          nomeCondominio,
+          quadra,
+          lote,
+          tituloFallback: tituloRaw,
+        });
 
-    let tituloExibicao = filhoBastao && tituloRaw
-      ? escolherTituloExibicaoCard(tituloRaw, null, nFranquiaCard, nomeFranqueadoCard)
-      : escolherTituloExibicaoCard(
-          tituloRaw,
-          tituloCalc,
-          nFranquiaCard,
-          nomeFranqueadoCard,
-          { nomeCondominio, quadra, lote },
-        );
+    let tituloExibicao = cardVcl
+      ? tituloRaw.trim() || '(sem título)'
+      : filhoBastao && tituloRaw
+        ? escolherTituloExibicaoCard(tituloRaw, null, nFranquiaCard, nomeFranqueadoCard)
+        : escolherTituloExibicaoCard(
+            tituloRaw,
+            tituloCalc,
+            nFranquiaCard,
+            nomeFranqueadoCard,
+            { nomeCondominio, quadra, lote },
+          );
     let subtituloCard: string | null = null;
     let profilesLinha: KanbanCardBrief['profiles'] =
       redeId && redeNomeDiretoMap.has(redeId)
@@ -1376,7 +1386,7 @@ export async function fetchKanbanBoardSnapshot(
       loteadorIdPorCard.get(cardId) ??
       String((cMerged as { rede_loteador_id?: string | null }).rede_loteador_id ?? '').trim();
     const rl = redeLoteadorId ? loteadorPorId.get(redeLoteadorId) : undefined;
-    if (isFunilLoteadores || rl) {
+    if (!cardVcl && (isFunilLoteadores || rl)) {
       const nomeHeader = nomeResponsavelHeaderLoteador(rl);
       const condominioIdCard = String(
         (cMerged as { condominio_id?: string | null }).condominio_id ?? '',
