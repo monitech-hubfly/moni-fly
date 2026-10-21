@@ -732,6 +732,62 @@
   border-bottom: none;
 }
 
+.jornadaResumoRow,
+.jornadaResumoSubRow {
+  gap: 16px;
+}
+
+.jornadaResumoRow > span:first-child,
+.jornadaResumoSubRow > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.jornadaResumoRow > span:last-child,
+.jornadaResumoSubRow > span:last-child {
+  flex-shrink: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.jornadaResumoGrupo .jornadaResumoRow {
+  border-bottom: none;
+}
+
+.jornadaResumoSubgrupo {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 6px 16px;
+}
+
+.jornadaResumoSubRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 3px 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--j-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.jornadaMemSection .jornadaResumoGrupo {
+  margin-top: 4px;
+}
+
+.jornadaMemSection .jornadaResumoRow {
+  color: var(--j-text);
+  opacity: 1;
+  padding: 0;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .jornadaResumoSubgrupo {
+    padding-left: 12px;
+  }
+}
+
 .jornadaInfoLabel {
   font-size: 0.875rem;
   font-weight: 600;

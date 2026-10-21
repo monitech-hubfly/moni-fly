@@ -68,6 +68,33 @@ const ETAPA = {
 const ID_ACABAMENTOS_ARQUITETO = 'acabamentos-arquiteto';
 const VALOR_ACABAMENTOS_ARQUITETO = 50_000;
 
+function ResumoCustomizacao({ state }: { state: JornadaLocal }) {
+  const linhas = [
+    ...(state.acabamentosArquiteto
+      ? [{ id: ID_ACABAMENTOS_ARQUITETO, item: 'Acabamentos com arquiteto parceiro', valor: VALOR_ACABAMENTOS_ARQUITETO }]
+      : []),
+    ...state.customizacaoEscolhidos,
+  ];
+  return (
+    <div className="jornadaResumoGrupo">
+      <div className="jornadaResumoRow">
+        <span>Customização</span>
+        <span>{fmt(state.valorCustomizacao)}</span>
+      </div>
+      {linhas.length > 0 ? (
+        <div className="jornadaResumoSubgrupo">
+          {linhas.map((l) => (
+            <div key={l.id} className="jornadaResumoSubRow">
+              <span>{l.item}</span>
+              <span>{fmt(l.valor)}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function valorAcoplamentoDoLote(lote: LotePublicoEmp | null | undefined): number {
   const n = Number(lote?.acoplamento);
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -742,12 +769,6 @@ function PassoSimulacao({
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [resultadoSimulacao]);
 
-  const extrasCustom: string[] = [];
-  if (state.acabamentosArquiteto) {
-    extrasCustom.push(`Acabamentos com arquiteto ${fmt(VALOR_ACABAMENTOS_ARQUITETO)}`);
-  }
-  for (const i of state.customizacaoEscolhidos) extrasCustom.push(`${i.item} ${fmt(i.valor)}`);
-
   return (
     <div className="jornadaCard">
       <h2 className="jornadaCardTitle">Sua simulação</h2>
@@ -770,16 +791,7 @@ function PassoSimulacao({
             <span>Acoplamento</span>
             <span>{fmt(state.valorAcoplamento)}</span>
           </div>
-          <div className="jornadaResumoRow">
-            <span>Customização</span>
-            <span>
-              {state.valorCustomizacao > 0
-                ? extrasCustom.length > 0
-                  ? `${fmt(state.valorCustomizacao)} (${extrasCustom.join(' · ')})`
-                  : fmt(state.valorCustomizacao)
-                : fmt(0)}
-            </span>
-          </div>
+          <ResumoCustomizacao state={state} />
         </div>
       </div>
 
@@ -900,14 +912,7 @@ function Passo6({
             {state.ofertaSelecionada?.produto_modelo ?? state.ofertaSelecionada?.titulo_oferta ?? state.ofertaSelecionada?.nome ?? '—'}
           </p>
           {state.valorAcoplamento > 0 && <p>Acoplamento: {fmt(state.valorAcoplamento)}</p>}
-          {state.acabamentosArquiteto && (
-            <p>Acabamentos com arquiteto: {fmt(VALOR_ACABAMENTOS_ARQUITETO)}</p>
-          )}
-          {state.customizacaoEscolhidos.map((i) => (
-            <p key={i.id}>
-              {i.item}: {fmt(i.valor)}
-            </p>
-          ))}
+          <ResumoCustomizacao state={state} />
         </div>
         {resultadoSimulacao ? (
           <div className="jornadaMemTotal">
