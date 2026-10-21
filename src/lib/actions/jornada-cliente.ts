@@ -1,7 +1,6 @@
 'use server';
 // src/lib/actions/jornada-cliente.ts
 
-import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import type {
   ItemCustomizacaoEscolhido,
@@ -136,7 +135,7 @@ export async function salvarJornadaSessao(
   const nomeCliente = String(dados.nome_cliente ?? '').trim();
   const telefoneDigitos = String(dados.telefone_cliente ?? '').replace(/\D/g, '');
   if (nomeCliente.length >= 2 && telefoneDigitos.length >= 10) {
-    const lead = await chamarRegistrarLead({
+    await chamarRegistrarLead({
       token: raw.session_token,
       cardId,
       nome: nomeCliente,
@@ -149,7 +148,6 @@ export async function salvarJornadaSessao(
       loteCodigo: dados.lote_codigo != null ? String(dados.lote_codigo) : null,
       loteValor: dados.lote_valor != null ? Number(dados.lote_valor) : null,
     });
-    if (lead.ok) revalidatePath('/venda-casas-loteadores');
   }
 
   return {
@@ -213,7 +211,6 @@ export async function garantirLeadJornada(
     return { ok: true, cardId: null };
   }
   const lead = await chamarRegistrarLead({ ...input, nome });
-  if (lead.ok) revalidatePath('/venda-casas-loteadores');
   return { ok: true, cardId: lead.ok ? lead.cardId : null };
 }
 
@@ -343,6 +340,5 @@ export async function gravarSimulacaoJornada(
     return { ok: false, error: '' };
   }
 
-  revalidatePath('/venda-casas-loteadores');
   return { ok: true, simulacaoId };
 }

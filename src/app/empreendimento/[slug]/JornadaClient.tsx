@@ -2,7 +2,7 @@
 // src/app/empreendimento/[slug]/JornadaClient.tsx
 
 import { useState, useCallback, useTransition, useEffect, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import type {
   EmpreendimentoPublico,
   LotePublicoEmp,
@@ -1028,9 +1028,9 @@ export default function JornadaClient({
 }: {
   empreendimento: EmpreendimentoPublico;
 }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const corretorIdRef = useRef(searchParams.get('corretor_id')?.trim() ?? '');
+  const usuarioMexeuRef = useRef(false);
   const [state, setStateRaw] = useState<JornadaLocal>(() => estadoInicial(empreendimento));
   const [isPending, startTransition] = useTransition();
   const [erroFluxo, setErroFluxo] = useState<string | null>(null);
@@ -1042,6 +1042,7 @@ export default function JornadaClient({
   const ultimaSimulacaoRef = useRef<string | null>(null);
 
   const setState = useCallback((partial: Partial<JornadaLocal>) => {
+    usuarioMexeuRef.current = true;
     setStateRaw((prev) => ({ ...prev, ...partial }));
   }, []);
 
@@ -1053,8 +1054,9 @@ export default function JornadaClient({
   useEffect(() => {
     const token = searchParams.get('sessao');
     if (!token) return;
+    let ativo = true;
     carregarJornadaSessao(token, empreendimento.card_id).then(async (sessao) => {
-      if (!sessao) return;
+      if (!ativo || !sessao) return;
       const lote = sessao.lote_codigo
         ? empreendimento.lotes.find((l) => l.codigo === sessao.lote_codigo) ?? null
         : null;
@@ -1089,24 +1091,32 @@ export default function JornadaClient({
       const temOferta = Boolean(oferta);
       let etapa = Math.max(ETAPA.dados, Math.round(Number(sessao.etapa_atual) || ETAPA.dados));
       if (!temOferta && etapa >= ETAPA.terreno) etapa = ETAPA.oferta;
-      setStateRaw((prev) => ({
-        ...prev,
-        etapa,
-        sessaoToken: sessao.session_token,
-        nomeCliente: sessao.nome_cliente ?? '',
-        telefoneCliente: maskTelefoneCelular(sessao.telefone_cliente ?? ''),
-        loteSelecionado: lote,
-        modoTerreno,
-        valorJaPago: sessao.valor_ja_pago ?? 0,
-        valorLote: sessao.valor_lote ?? (lote?.valor ?? 0),
-        ofertaSelecionada: oferta,
-        previewVteAvista: preview,
-        customizacaoSelecionados,
-        acabamentosArquiteto,
-        valorAcoplamento: valorAcoplamentoDoLote(lote),
-        ...calcs,
-        simulacaoId: sessao.simulacao_id,
-      }));
+      setStateRaw((prev) => {
+        if (usuarioMexeuRef.current) {
+          return {
+            ...prev,
+            sessaoToken: prev.sessaoToken ?? sessao.session_token,
+          };
+        }
+        return {
+          ...prev,
+          etapa,
+          sessaoToken: sessao.session_token,
+          nomeCliente: sessao.nome_cliente ?? '',
+          telefoneCliente: maskTelefoneCelular(sessao.telefone_cliente ?? ''),
+          loteSelecionado: lote,
+          modoTerreno,
+          valorJaPago: sessao.valor_ja_pago ?? 0,
+          valorLote: sessao.valor_lote ?? (lote?.valor ?? 0),
+          ofertaSelecionada: oferta,
+          previewVteAvista: preview,
+          customizacaoSelecionados,
+          acabamentosArquiteto,
+          valorAcoplamento: valorAcoplamentoDoLote(lote),
+          ...calcs,
+          simulacaoId: sessao.simulacao_id,
+        };
+      });
       const nomeLead = (sessao.nome_cliente ?? '').trim();
       const telLead = (sessao.telefone_cliente ?? '').replace(/\D/g, '');
       const vclCardId = (sessao.vcl_card_id ?? '').trim();
@@ -1126,6 +1136,9 @@ export default function JornadaClient({
         });
       }
     });
+    return () => {
+      ativo = false;
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function avancarEtapa(proximaEtapa: number, dadosExtras?: Record<string, unknown>) {
@@ -1170,10 +1183,10 @@ export default function JornadaClient({
     if (result.ok) {
       setErroFluxo(null);
       if (result.session_token !== state.sessaoToken) {
-        const params = new URLSearchParams(searchParams.toString());
-        params.set('sessao', result.session_token);
-        if (corretorIdRef.current) params.set('corretor_id', corretorIdRef.current);
-        router.replace(`?${params.toString()}`, { scroll: false });
+        const url = new URL(window.location.href);
+        url.searchParams.set('sessao', result.session_token);
+        if (corretorIdRef.current) url.searchParams.set('corretor_id', corretorIdRef.current);
+        window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
         setState({ sessaoToken: result.session_token, etapa: proximaEtapa, ...calcs });
       } else {
         setState({ etapa: proximaEtapa, ...calcs });
