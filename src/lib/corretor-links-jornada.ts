@@ -1,3 +1,5 @@
+import { getPublicAppUrl } from '@/lib/app-url'
+
 export type LinkJornadaCorretor = {
   empreendimentoId: string
   nome: string
@@ -136,4 +138,21 @@ export async function listarLinksJornadaPorCorretores(
   }
 
   return mapa
+}
+
+export async function anexarLinksJornada<T extends { id: string }>(
+  supabase: Db,
+  rows: T[],
+): Promise<(T & { links_jornada: LinkJornadaCorretor[] })[]> {
+  try {
+    const mapa = await listarLinksJornadaPorCorretores(
+      supabase,
+      rows.map((row) => row.id),
+      getPublicAppUrl(),
+    )
+    return rows.map((row) => ({ ...row, links_jornada: mapa.get(row.id) ?? [] }))
+  } catch (err) {
+    console.error('[corretor-links-jornada] anexar:', err)
+    return rows.map((row) => ({ ...row, links_jornada: [] }))
+  }
 }

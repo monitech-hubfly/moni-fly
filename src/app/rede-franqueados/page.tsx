@@ -16,6 +16,7 @@ import { mapearUltimoPreenchimentoQualificacao } from '@/lib/actions/formulario-
 
 import { fetchRedeLoteadoresRows } from '@/lib/rede-loteadores';
 import { fetchRedeCorretoresRows } from '@/lib/rede-corretores';
+import { anexarLinksJornada } from '@/lib/corretor-links-jornada';
 import { fetchCondominiosRows } from '@/lib/condominios';
 import { fetchImobEmpreendimentosRows } from '@/lib/imob-empreendimentos';
 
@@ -79,7 +80,7 @@ export default async function RedeFranqueadosPage() {
 
 
 
-  const [rows, ultimoPreenchimentoQualificacao, loteadoresRows, corretoresRows, empresasResult, spesResult, moniCapitalResult, condominiosRows, imobEmpreendimentosRows] = await Promise.all([
+  const [rows, ultimoPreenchimentoQualificacao, loteadoresRows, corretoresBase, empresasResult, spesResult, moniCapitalResult, condominiosRows, imobEmpreendimentosRows] = await Promise.all([
     fetchRedeFranqueadosRows(supabase),
     mapearUltimoPreenchimentoQualificacao(),
     showStaffTabs ? fetchRedeLoteadoresRows(supabase) : Promise.resolve(null),
@@ -90,6 +91,10 @@ export default async function RedeFranqueadosPage() {
     showCondominiosTab ? fetchCondominiosRows(supabase) : Promise.resolve(null),
     showStaffTabs ? fetchImobEmpreendimentosRows(supabase) : Promise.resolve(null),
   ]);
+
+  const corretoresRows = corretoresBase
+    ? await anexarLinksJornada(supabase, corretoresBase)
+    : corretoresBase;
 
   const empresasLoadError = showStaffTabs && empresasResult === null;
   const spesLoadError = showStaffTabs && spesResult === null;
