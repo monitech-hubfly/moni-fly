@@ -94,24 +94,26 @@ function EmpreendimentosVinculadosCell({
   const precisa = links.length > MAX_LINHAS_LISTA
   const visiveis = aberto || !precisa ? links : links.slice(0, MAX_LINHAS_LISTA)
   return (
-    <div className="flex min-w-0 max-w-[min(18rem,100%)] flex-col gap-1.5 text-xs leading-snug text-[var(--moni-text-secondary)]">
-      {visiveis.map((link) => (
-        <div key={link.empreendimentoId} className="min-w-0">
-          <div className="break-words">{link.nome}</div>
-          {link.url ? (
-            <a
-              href={link.url}
-              target="_blank"
-              rel="noreferrer"
-              className="block break-all text-[11px] leading-snug text-[var(--moni-navy-800)] underline-offset-2 hover:underline"
-            >
-              {link.url}
-            </a>
-          ) : (
-            <p className="text-[11px] text-[var(--moni-text-tertiary)]">Jornada ainda não disponível</p>
-          )}
-        </div>
-      ))}
+    <div className="flex w-[18rem] max-w-full flex-col gap-1 text-xs leading-snug text-[var(--moni-text-secondary)]">
+      {visiveis.map((link) => {
+        const texto = link.url ? `${link.nome} ${link.url}` : `${link.nome} — jornada ainda não disponível`
+        return link.url ? (
+          <a
+            key={link.empreendimentoId}
+            href={link.url}
+            target="_blank"
+            rel="noreferrer"
+            title={texto}
+            className="block truncate whitespace-nowrap text-[var(--moni-navy-800)] underline-offset-2 hover:underline"
+          >
+            {texto}
+          </a>
+        ) : (
+          <p key={link.empreendimentoId} title={texto} className="truncate whitespace-nowrap text-[var(--moni-text-tertiary)]">
+            {texto}
+          </p>
+        )
+      })}
       {precisa ? (
         <BotaoMaisLinhas
           aberto={aberto}
@@ -127,12 +129,7 @@ function EmpreendimentosVinculadosCell({
 
 function linhasCidades(row: RedeCorretorRow): string[] {
   return (row.atuacao_cidades ?? [])
-    .map((cidade) => {
-      const nome = String(cidade.nome ?? '').trim()
-      const uf = String(cidade.uf ?? '').trim()
-      if (uf && nome) return `${uf} - ${nome}`
-      return nome || uf
-    })
+    .map((cidade) => String(cidade.nome ?? '').trim())
     .filter(Boolean)
 }
 
@@ -328,7 +325,7 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                       {REDE_CORRETOR_STATUS_LABEL[row.status] ?? row.status}
                     </td>
                     <td className={`${td} min-w-[12rem]`}>{dash(row.observacoes)}</td>
-                    <td className={`${td} min-w-[18rem] max-w-[22rem]`}>
+                    <td className={`${td} w-[18rem] max-w-[18rem] overflow-hidden`}>
                       <EmpreendimentosVinculadosCell links={row.links_jornada ?? []} />
                     </td>
                     <td className={`${td} border-l border-stone-100`}>

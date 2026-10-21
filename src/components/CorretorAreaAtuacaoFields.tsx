@@ -140,7 +140,7 @@ export function CorretorAreaAtuacaoFields({ ufs, cidades, onChange }: Props) {
                 key={c.ibge_id}
                 className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs text-stone-800"
               >
-                {c.nome}/{c.uf}
+                {c.nome}
                 <button
                   type="button"
                   onClick={() => removeCidade(c.ibge_id)}
@@ -203,9 +203,7 @@ export function CorretorAreaAtuacaoFields({ ufs, cidades, onChange }: Props) {
                           on ? 'bg-emerald-50/80 text-emerald-900' : 'text-stone-700'
                         }`}
                       >
-                        <span>
-                          {m.nome} <span className="text-stone-400">({m.uf})</span>
-                        </span>
+                        <span>{m.nome}</span>
                         {on ? <span className="text-xs font-medium">✓</span> : null}
                       </button>
                     </li>
