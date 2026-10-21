@@ -130,7 +130,7 @@ function montarColuna(row: Record<string, unknown>): SimulacaoColuna {
       lote: texto(snapshot.lote ?? inputs.lote_rotulo ?? inputs.lote_codigo),
       terreno: moeda(snapshot.valor_terreno ?? row.valor_lote),
       jaPago: moeda(snapshot.valor_ja_pago ?? row.valor_ja_pago),
-      acoplamento: moeda(snapshot.acoplamento ?? row.valor_acoplamento),
+      acoplamento: moeda(snapshot.acoplamento ?? inputs.acoplamento ?? inputs.valor_acoplamento),
       customizacao: moeda(snapshot.customizacao_total ?? row.valor_customizacao),
       prazoObra: prazoObra != null ? `${prazoObra} meses` : '—',
       renda: moeda(snapshot.renda ?? inputs.renda ?? row.renda_cliente),
@@ -230,7 +230,7 @@ export function KanbanCardModalJornadaVcl({
       const { data, error } = await supabase
         .from('simulacoes_pagamento')
         .select(
-          'id, created_at, valor_lote, valor_casa, valor_customizacao, valor_acoplamento, valor_ja_pago, renda_cliente, prazo_meses, prazo_financiamento_anos, taxa_financiamento_anual, customizacao_itens, inputs, resultado',
+          'id, created_at, inputs, resultado, valor_lote, valor_casa, valor_customizacao, valor_ja_pago, renda_cliente, prazo_meses, prazo_financiamento_anos, taxa_financiamento_anual',
         )
         .eq('kanban_card_id', cardId)
         .order('created_at', { ascending: false })
@@ -284,8 +284,8 @@ export function KanbanCardModalJornadaVcl({
 
   if (simulacoes.length === 0) {
     return (
-      <p style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
-        Nenhuma simulação ainda.
+      <p style={{ margin: 0, color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+        O cliente ainda não fez nenhuma simulação.
       </p>
     );
   }
@@ -302,8 +302,8 @@ export function KanbanCardModalJornadaVcl({
           Valores em destaque mudaram em relação à simulação anterior.
         </p>
       ) : null}
-      <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
-        <table style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: '100%' }}>
+      <div style={{ overflowX: 'auto', width: '100%', maxWidth: '100%' }}>
+        <table style={{ borderCollapse: 'separate', borderSpacing: 0, width: '100%', minWidth: '100%' }}>
           <thead>
             <tr>
               <th
@@ -323,16 +323,16 @@ export function KanbanCardModalJornadaVcl({
               >
                 {' '}
               </th>
-              {simulacoes.map((sim) => {
+              {simulacoes.map((sim, index) => {
                 const ativa = sim.id === selecionadaId;
+                const numero = simulacoes.length - index;
                 return (
                   <th
                     key={sim.id}
                     style={{
                       padding: 0,
                       borderBottom: 'var(--moni-border-width) solid var(--moni-border-default)',
-                      background: ativa ? 'var(--moni-surface-50)' : 'transparent',
-                      outline: ativa ? 'var(--moni-border-width) solid var(--moni-navy-800)' : 'none',
+                      background: ativa ? 'var(--moni-surface-50)' : 'var(--moni-surface-0)',
                       minWidth: 148,
                     }}
                   >
@@ -347,13 +347,24 @@ export function KanbanCardModalJornadaVcl({
                         background: 'transparent',
                         color: 'var(--moni-text-primary)',
                         fontFamily: 'var(--moni-font-sans)',
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: 600,
                         textAlign: 'left',
                         cursor: 'pointer',
                       }}
                     >
-                      {sim.quando}
+                      <span style={{ display: 'block' }}>{`Simulação ${numero}`}</span>
+                      <span
+                        style={{
+                          display: 'block',
+                          marginTop: 2,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          color: 'var(--moni-text-tertiary)',
+                        }}
+                      >
+                        {sim.quando}
+                      </span>
                     </button>
                   </th>
                 );
@@ -410,6 +421,7 @@ export function KanbanCardModalJornadaVcl({
                           color: 'var(--moni-text-primary)',
                           fontFamily: 'var(--moni-font-sans)',
                           fontSize: 12,
+                          fontWeight: destaque ? 600 : 400,
                           textAlign: 'left',
                           cursor: 'pointer',
                           whiteSpace: 'nowrap',
