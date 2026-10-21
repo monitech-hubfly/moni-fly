@@ -418,6 +418,8 @@ function PassoTerreno({
       : state.modoTerreno === 'informar'
         ? Boolean(state.loteSelecionado) &&
           !state.loteSelecionado?.disponivel &&
+          Number.isFinite(state.valorLote) &&
+          state.valorLote > 0 &&
           Number.isFinite(state.valorJaPago) &&
           state.valorJaPago >= 0
         : false;
@@ -440,7 +442,7 @@ function PassoTerreno({
       modoTerreno: 'informar',
       loteSelecionado: keep,
       valorAcoplamento: valorAcoplamentoDoLote(keep),
-      valorLote: keep?.valor ?? 0,
+      valorLote: keep ? state.valorLote : 0,
       valorJaPago: keep ? state.valorJaPago : 0,
     });
   }
@@ -449,7 +451,7 @@ function PassoTerreno({
     setState({
       modoTerreno: modo,
       loteSelecionado: lote,
-      valorLote: lote.valor,
+      valorLote: modo === 'informar' ? state.valorLote : lote.valor,
       valorAcoplamento: valorAcoplamentoDoLote(lote),
       valorJaPago: modo === 'informar' ? state.valorJaPago : 0,
     });
@@ -506,6 +508,16 @@ function PassoTerreno({
             vazio="Nenhum lote vendido encontrado na planilha."
             onEscolher={(l) => escolherLote(l, 'informar')}
           />
+          <div className="jornadaField">
+            <label htmlFor="valor-total-terreno">Valor total do terreno (R$)</label>
+            <CampoNumeroBr
+              id="valor-total-terreno"
+              valor={state.valorLote}
+              onChange={(n) => setState({ valorLote: n ?? 0 })}
+              inteiro
+              placeholder="0"
+            />
+          </div>
           <div className="jornadaField">
             <label htmlFor="valor-ja-pago-terreno">Valor já pago (R$)</label>
             <CampoNumeroBr
@@ -620,36 +632,25 @@ function PassoCasa({
           <span className="jornadaSectionBadge">B</span>
           Customização
         </h3>
-        <label className="jornadaKitToggle">
-          <input
-            type="checkbox"
-            checked={state.acabamentosArquiteto}
-            onChange={(e) => toggleAcabamentos(e.target.checked)}
-          />
-          <div className="jornadaKitInfo">
-            <span className="jornadaKitNome">Quero definir acabamentos com arquiteto parceiro</span>
-            <span className="jornadaKitDesc">
-              Após a assinatura do contrato, você será contactado pelo escritório Studio Arquitetura
-              e Design, parceiro Moní neste empreendimento. A definição dos acabamentos ocorre antes
-              do início da obra, em sessões de design personalizadas.
-            </span>
-          </div>
-          <span className="jornadaKitValor">{fmt(VALOR_ACABAMENTOS_ARQUITETO)}</span>
-        </label>
-      </section>
-
-      <section className="jornadaSection">
-        <h3 className="jornadaSectionTitle">
-          <span className="jornadaSectionBadge">C</span>
-          Itens da casa
-        </h3>
-        {erroItens ? (
-          <p className="jornadaEmpty" role="alert">{erroItens}</p>
-        ) : itensDoModelo.length === 0 ? (
-          <p className="jornadaEmpty">Nenhum item de customização disponível para este modelo.</p>
-        ) : (
-          <div className="jornadaCustomizacaoLista">
-            {itensDoModelo.map((i) => (
+        <div className="jornadaCustomizacaoLista">
+          <label className="jornadaKitToggle">
+            <input
+              type="checkbox"
+              checked={state.acabamentosArquiteto}
+              onChange={(e) => toggleAcabamentos(e.target.checked)}
+            />
+            <div className="jornadaKitInfo">
+              <span className="jornadaKitNome">Quero definir acabamentos com arquiteto parceiro</span>
+              <span className="jornadaKitDesc">
+                Após a assinatura do contrato, você será contactado pelo escritório Studio Arquitetura
+                e Design, parceiro Moní neste empreendimento. A definição dos acabamentos ocorre antes
+                do início da obra, em sessões de design personalizadas.
+              </span>
+            </div>
+            <span className="jornadaKitValor">{fmt(VALOR_ACABAMENTOS_ARQUITETO)}</span>
+          </label>
+          {!erroItens &&
+            itensDoModelo.map((i) => (
               <label key={i.id} className="jornadaKitToggle">
                 <input
                   type="checkbox"
@@ -663,8 +664,12 @@ function PassoCasa({
                 <span className="jornadaKitValor">{fmt(i.preco)}</span>
               </label>
             ))}
-          </div>
-        )}
+        </div>
+        {erroItens ? (
+          <p className="jornadaEmpty" role="alert">{erroItens}</p>
+        ) : itensDoModelo.length === 0 ? (
+          <p className="jornadaEmpty">Nenhum outro item de customização disponível para este modelo.</p>
+        ) : null}
         {state.valorCustomizacao > 0 ? (
           <div className="jornadaAcoplamentoTotal">
             <strong>Total da customização</strong>
@@ -883,8 +888,8 @@ function Passo6({
           <p>{empreendimento.titulo}</p>
           <p>
             {state.loteSelecionado
-              ? state.loteSelecionado.valor > 0
-                ? `Lote ${state.loteSelecionado.rotulo} — ${fmt(state.loteSelecionado.valor)}`
+              ? valorLoteParaCalculo(state) > 0
+                ? `Lote ${state.loteSelecionado.rotulo} — ${fmt(valorLoteParaCalculo(state))}`
                 : `Lote ${state.loteSelecionado.rotulo}`
               : `Terreno — ${fmt(valorLoteParaCalculo(state))}`}
           </p>

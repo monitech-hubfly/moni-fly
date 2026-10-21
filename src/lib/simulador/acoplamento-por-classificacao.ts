@@ -4,9 +4,9 @@
  * Vale para "Não tenho lote" e "Já tenho lote". Classificação vazia ou fora da tabela = 0.
  */
 export const VALOR_ACOPLAMENTO_POR_CLASSIFICACAO: Readonly<Record<string, number>> = {
-  A: 0,
-  B: 0,
-  C: 0,
+  A: 200_000,
+  // B: 0,
+  // C: 0,
 };
 
 export function normalizarClassificacaoAcoplamento(raw: unknown): string | null {
