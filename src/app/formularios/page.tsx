@@ -47,7 +47,7 @@ export default async function FormulariosPage() {
           Formulários
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)' }}>
-          Modelos enviados por link público. O franqueado preenche sem entrar no Hub.
+          Cada formulário tem um link público fixo. Quem recebe pode responder mais de uma vez, e cada envio fica registrado.
         </p>
         <div className="mt-6 space-y-4">
           {grupos.map((grupo) => (

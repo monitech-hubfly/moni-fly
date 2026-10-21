@@ -16,12 +16,11 @@ export async function POST(req: Request) {
     const admin = createAdminClient();
     const { data: tokenData, error: tErr } = await admin
       .from('formulario_tokens')
-      .select('id, formulario_id, card_id, rede_franqueado_id, usado, expira_em')
+      .select('id, formulario_id, card_id, rede_franqueado_id, expira_em')
       .eq('token', token)
       .single();
 
     if (tErr || !tokenData) return NextResponse.json({ error: 'Token inválido.' }, { status: 404 });
-    if (tokenData.usado) return NextResponse.json({ error: 'Link já utilizado.' }, { status: 410 });
     if (tokenData.expira_em && new Date(tokenData.expira_em) < new Date()) {
       return NextResponse.json({ error: 'Este link expirou.' }, { status: 410 });
     }

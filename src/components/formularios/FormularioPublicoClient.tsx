@@ -252,7 +252,7 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
           Resposta enviada
         </h1>
         <p className="mt-3 text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
-          Recebemos as informações de {formulario.nome}.
+          Recebemos as informações de {formulario.nome}. Este link continua aberto: um novo envio registra outra resposta.
         </p>
       </main>
     );

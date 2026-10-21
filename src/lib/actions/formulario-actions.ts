@@ -107,7 +107,6 @@ export async function buscarFormularioPorToken(token: string): Promise<{
     .single();
 
   if (tokenErr || !tokenData) return { formulario: null, tokenData: null, error: 'Token inválido.' };
-  if (tokenData.usado) return { formulario: null, tokenData: null, error: 'Este link já foi utilizado.' };
   if (tokenData.expira_em && new Date(tokenData.expira_em) < new Date()) {
     return { formulario: null, tokenData: null, error: 'Este link expirou.' };
   }
@@ -345,12 +344,30 @@ export async function gerarTokenFormulario(params: {
   expirarEm?: Date | null;
 }): Promise<{ token: string | null; error?: string }> {
   const supabase = await createClient();
+  const cardId = params.cardId ?? null;
+  const redeFranqueadoId = params.redeFranqueadoId ?? null;
+
+  let existente = supabase
+    .from('formulario_tokens')
+    .select('token')
+    .eq('formulario_id', params.formularioId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  existente = cardId ? existente.eq('card_id', cardId) : existente.is('card_id', null);
+  existente = redeFranqueadoId
+    ? existente.eq('rede_franqueado_id', redeFranqueadoId)
+    : existente.is('rede_franqueado_id', null);
+
+  const { data: jaExiste, error: buscaErr } = await existente.maybeSingle();
+  if (buscaErr) return { token: null, error: 'Erro ao gerar link.' };
+  if (jaExiste?.token) return { token: String(jaExiste.token) };
+
   const token = randomBytes(18).toString('hex').slice(0, 24);
   const { error } = await supabase.from('formulario_tokens').insert({
     formulario_id: params.formularioId,
     token,
-    card_id: params.cardId ?? null,
-    rede_franqueado_id: params.redeFranqueadoId ?? null,
+    card_id: cardId,
+    rede_franqueado_id: redeFranqueadoId,
     expira_em: params.expirarEm ? params.expirarEm.toISOString() : null,
   });
   if (error) return { token: null, error: 'Erro ao gerar link.' };

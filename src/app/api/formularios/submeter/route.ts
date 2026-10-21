@@ -82,10 +82,6 @@ export async function POST(req: Request) {
 
     if (upErr) return NextResponse.json({ error: 'Erro ao finalizar envio.' }, { status: 500 });
 
-    if (resposta.token_id) {
-      await admin.from('formulario_tokens').update({ usado: true }).eq('id', resposta.token_id);
-    }
-
     if (resposta.card_id) {
       await admin.from('kanban_historico').insert({
         card_id: resposta.card_id,

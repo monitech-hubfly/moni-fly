@@ -261,6 +261,7 @@ export function GerarLinkFormularioButton({
               )}
 
               <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+                O link não muda. Várias pessoas podem responder, e cada envio fica registrado como uma resposta nova.
                 Sem card e sem franqueado, quem preencher informa o número e o nome da franquia.
               </p>
             </div>
@@ -268,7 +269,7 @@ export function GerarLinkFormularioButton({
             {linkGerado ? (
               <div className="space-y-1 rounded-lg p-3" style={{ background: 'var(--moni-green-50)', border: 'var(--moni-border-width) solid var(--moni-green-400)' }}>
                 <p className="text-xs font-medium" style={{ color: 'var(--moni-green-800)' }}>
-                  Link gerado
+                  Link público — sempre o mesmo
                 </p>
                 <p className="break-all font-mono text-xs" style={{ color: 'var(--moni-text-primary)' }}>
                   {linkGerado}
@@ -292,7 +293,7 @@ export function GerarLinkFormularioButton({
 
             <div className="flex flex-wrap gap-2 pt-1">
               <button type="button" onClick={() => void handleGerar()} disabled={gerandoLink} style={botao}>
-                {gerandoLink ? 'Gerando…' : 'Gerar'}
+                {gerandoLink ? 'Abrindo…' : 'Mostrar link'}
               </button>
               <button type="button" onClick={handleFechar} style={botaoSecundario}>
                 Fechar
