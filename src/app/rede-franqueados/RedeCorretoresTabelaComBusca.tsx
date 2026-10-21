@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Archive, Pencil, Check } from 'lucide-react'
+import { Archive, Check, Maximize2, Minimize2, Pencil } from 'lucide-react'
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca'
 import { redeTh } from '@/app/rede-franqueados/rede-ui'
 import { aprovarRedeCorretor, arquivarRedeCorretor } from '@/app/rede-franqueados/rede-corretores-actions'
@@ -44,19 +44,60 @@ function fmtDataBr(iso: string | null | undefined): string {
   return `${m[3]}/${m[2]}/${m[1]}`
 }
 
+const MAX_LINHAS_LISTA = 3
+
+function BotaoMaisLinhas({
+  aberto,
+  restantes,
+  singular,
+  plural,
+  onToggle,
+}: {
+  aberto: boolean
+  restantes: number
+  singular: string
+  plural: string
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
+      className="mt-0.5 inline-flex min-h-[28px] w-fit items-center gap-1 rounded-md px-1 py-0.5 text-[10px] font-semibold text-[var(--moni-navy-800)] underline-offset-2 hover:underline"
+      aria-expanded={aberto}
+    >
+      {aberto ? (
+        <>
+          <Minimize2 className="h-3 w-3 shrink-0" aria-hidden />
+          Minimizar
+        </>
+      ) : (
+        <>
+          <Maximize2 className="h-3 w-3 shrink-0" aria-hidden />
+          +{restantes} {restantes === 1 ? singular : plural}
+        </>
+      )}
+    </button>
+  )
+}
+
 function EmpreendimentosVinculadosCell({
   links,
 }: {
   links: NonNullable<RedeCorretorRow['links_jornada']>
 }) {
   const [aberto, setAberto] = useState(false)
-  if (links.length === 0) return <>{'—'}</>
-  const visiveis = aberto ? links : links.slice(0, 3)
+  if (links.length === 0) return <span className="text-[var(--moni-text-tertiary)]">—</span>
+  const precisa = links.length > MAX_LINHAS_LISTA
+  const visiveis = aberto || !precisa ? links : links.slice(0, MAX_LINHAS_LISTA)
   return (
-    <div className="space-y-2">
+    <div className="flex min-w-0 max-w-[min(18rem,100%)] flex-col gap-1.5 text-xs leading-snug text-[var(--moni-text-secondary)]">
       {visiveis.map((link) => (
-        <div key={link.empreendimentoId}>
-          <p className="text-sm text-[var(--moni-text-primary)]">{link.nome}</p>
+        <div key={link.empreendimentoId} className="min-w-0">
+          <div className="break-words">{link.nome}</div>
           {link.url ? (
             <a
               href={link.url}
@@ -71,23 +112,54 @@ function EmpreendimentosVinculadosCell({
           )}
         </div>
       ))}
-      {links.length > 3 ? (
-        <button
-          type="button"
-          onClick={() => setAberto((atual) => !atual)}
-          className="text-[11px] font-medium text-[var(--moni-navy-800)] underline-offset-2 hover:underline"
-        >
-          {aberto ? 'ver menos' : 'ver mais'}
-        </button>
+      {precisa ? (
+        <BotaoMaisLinhas
+          aberto={aberto}
+          restantes={links.length - MAX_LINHAS_LISTA}
+          singular="empreendimento"
+          plural="empreendimentos"
+          onToggle={() => setAberto((atual) => !atual)}
+        />
       ) : null}
     </div>
   )
 }
 
-function labelCidades(row: RedeCorretorRow): string {
-  const list = row.atuacao_cidades ?? []
-  if (list.length === 0) return '—'
-  return list.map((c) => (c.uf ? `${c.nome}/${c.uf}` : c.nome)).join(', ')
+function linhasCidades(row: RedeCorretorRow): string[] {
+  return (row.atuacao_cidades ?? [])
+    .map((cidade) => {
+      const nome = String(cidade.nome ?? '').trim()
+      const uf = String(cidade.uf ?? '').trim()
+      if (uf && nome) return `${uf} - ${nome}`
+      return nome || uf
+    })
+    .filter(Boolean)
+}
+
+function CidadesAtuacaoCell({ row }: { row: RedeCorretorRow }) {
+  const [aberto, setAberto] = useState(false)
+  const linhas = linhasCidades(row)
+  if (linhas.length === 0) return <span className="text-[var(--moni-text-tertiary)]">—</span>
+  const precisa = linhas.length > MAX_LINHAS_LISTA
+  const visiveis = aberto || !precisa ? linhas : linhas.slice(0, MAX_LINHAS_LISTA)
+  return (
+    <div className="flex min-w-0 max-w-[min(16rem,100%)] flex-col gap-0.5 text-xs leading-snug text-[var(--moni-text-secondary)]">
+      {visiveis.map((linha, i) => (
+        <div key={`${i}-${linha}`} className="block min-w-0 break-words">
+          {linha}
+        </div>
+      ))}
+      {precisa ? (
+        <BotaoMaisLinhas
+          aberto={aberto}
+          restantes={linhas.length - MAX_LINHAS_LISTA}
+          singular="cidade"
+          plural="cidades"
+          onToggle={() => setAberto((atual) => !atual)}
+        />
+      ) : null}
+    </div>
+  )
 }
 
 export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao = 0 }: Props) {
@@ -235,7 +307,9 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                         ? (row.atuacao_ufs ?? []).join(', ')
                         : '—'}
                     </td>
-                    <td className={`${td} min-w-[14rem]`}>{labelCidades(row)}</td>
+                    <td className={`${td} min-w-[14rem]`}>
+                      <CidadesAtuacaoCell row={row} />
+                    </td>
                     <td className={`${td} min-w-[12rem] border-l border-stone-100`}>
                       {dash(row.email)}
                     </td>
