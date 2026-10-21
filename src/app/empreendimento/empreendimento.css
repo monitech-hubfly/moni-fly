@@ -16,6 +16,9 @@
   --j-surface-raised: #faf9f6;
   --j-selected-bg: #f0ede6;
   --j-selected-border: #C9A96E;
+  --j-erro: var(--moni-status-overdue-border);
+  --j-erro-texto: var(--moni-status-overdue-text);
+  --j-erro-bg: var(--moni-status-overdue-bg);
   --j-font-display: var(--font-cormorant, Georgia, serif);
   --j-font-hero: var(--font-playfair, Georgia, serif);
   --j-font-sans: var(--font-inter, system-ui, sans-serif);
@@ -1181,6 +1184,53 @@
 .jornadaSimAvisoMinimo.is-abaixo {
   color: var(--j-navy);
   font-weight: 600;
+}
+
+.jornadaField input.is-erro,
+.jornadaField input.is-erro:focus {
+  border-color: var(--j-erro);
+  box-shadow: 0 0 0 1px var(--j-erro);
+}
+
+.jornadaFieldErro {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--j-erro-texto);
+  font-family: var(--j-font-sans);
+}
+
+.jornadaAvisoBloqueio {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 4px 0 12px;
+  padding: 12px 14px;
+  border: 0.5px solid var(--j-erro);
+  border-radius: var(--j-radius-sm);
+  background: var(--j-erro-bg);
+  color: var(--j-erro-texto);
+  font-family: var(--j-font-sans);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.jornadaAvisoBloqueio svg {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.jornadaAvisoBloqueio strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.jornadaAvisoBloqueio ul {
+  margin: 0;
+  padding-left: 18px;
 }
 
 #jornada-resultado-simulacao {

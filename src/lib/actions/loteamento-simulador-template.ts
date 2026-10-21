@@ -40,7 +40,10 @@ import { gerarSlugCard } from '@/lib/utils/slug';
 import {
   calcularOferta,
   calcularParcelaUnicaMinimaConfirmada,
-  formatarMoedaCentavos,
+  entradaAbaixoDoMinimo,
+  entradaMinimaOferta,
+  mensagemEntradaMinima,
+  mensagemParcelaUnicaMinima,
   parcelaUnicaAbaixoDoMinimo,
   type OfertaConfig,
 } from '@/lib/simulador/calcular-oferta';
@@ -678,7 +681,7 @@ function parseInteiroCampo(raw: string, label: string, opts?: { obrigatorio?: bo
 }
 
 /**
- * Recusa oferta com parcela única abaixo do mínimo do motor, com as mesmas entradas da
+ * Recusa oferta com entrada ou parcela única abaixo do mínimo do motor, com as mesmas entradas da
  * CalculadoraOferta (`parcela_mensal` do draft é a confirmada; a base é a sugerida).
  */
 async function validarParcelaUnicaMinimaOferta(
@@ -700,7 +703,7 @@ async function validarParcelaUnicaMinimaOferta(
     parcelaUnicaConfirmada: number | null;
   },
 ): Promise<Err | null> {
-  if (v.parcelaUnicaConfirmada == null) return null;
+  if (v.parcelaUnicaConfirmada == null && v.entradaConfirmada == null) return null;
   const { data, error } = await supabase.from(TABELA).select('*').eq('kanban_card_id', cardId).limit(1);
   const row = !error && Array.isArray(data) ? data[0] : null;
   if (!row) return null;
@@ -721,6 +724,11 @@ async function validarParcelaUnicaMinimaOferta(
     taxa_financiamento_anual: v.taxaFinanciamentoAnual,
   };
   const sugerido = calcularOferta(template, oferta);
+  const entradaMinima = entradaMinimaOferta(sugerido);
+  if (v.entradaConfirmada != null && entradaAbaixoDoMinimo(v.entradaConfirmada, entradaMinima)) {
+    return { ok: false, error: mensagemEntradaMinima(entradaMinima) };
+  }
+  if (v.parcelaUnicaConfirmada == null) return null;
   const entrada =
     v.entradaConfirmada != null && v.entradaConfirmada > 0
       ? v.entradaConfirmada
@@ -728,10 +736,7 @@ async function validarParcelaUnicaMinimaOferta(
   const mensal = v.mensalConfirmada > 0 ? v.mensalConfirmada : sugerido.parcela_mensal_usada;
   const minimo = calcularParcelaUnicaMinimaConfirmada(template, oferta, entrada, mensal);
   if (!parcelaUnicaAbaixoDoMinimo(v.parcelaUnicaConfirmada, minimo)) return null;
-  return {
-    ok: false,
-    error: `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(minimo)} para quitar o lote.`,
-  };
+  return { ok: false, error: mensagemParcelaUnicaMinima(minimo) };
 }
 
 export async function criarSimuladorOfertaDoCard(

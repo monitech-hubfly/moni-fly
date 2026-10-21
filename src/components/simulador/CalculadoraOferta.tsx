@@ -2,6 +2,7 @@
 
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AlertTriangle } from 'lucide-react';
 import {
   criarSimuladorOfertaDoCard,
   atualizarSimuladorOferta,
@@ -32,8 +33,11 @@ import {
 import {
   calcularOferta,
   calcularParcelaUnicaMinimaConfirmada,
+  entradaAbaixoDoMinimo,
+  entradaMinimaOferta,
   formatarMoeda,
-  formatarMoedaCentavos,
+  mensagemEntradaMinima,
+  mensagemParcelaUnicaMinima,
   parcelaUnicaAbaixoDoMinimo,
   sugerirParcelaMensal,
   type OfertaConfig,
@@ -307,10 +311,8 @@ export function CalculadoraOferta({
       setErro('Informe o nome da oferta.');
       return;
     }
-    if (unicaAbaixoMinimo) {
-      setErro(
-        `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(parcelaUnicaMinimaHint)} para quitar o lote.`,
-      );
+    if (errosMinimos.length > 0) {
+      setErro(errosMinimos[0]!);
       return;
     }
     setSalvando(true);
@@ -375,7 +377,7 @@ export function CalculadoraOferta({
   }
 
   function gerarFluxoFinal() {
-    if (!resultado || !ultimaOferta) return;
+    if (!resultado || !ultimaOferta || errosMinimos.length > 0) return;
     const ofertaConfirmada: OfertaConfig = {
       ...ultimaOferta,
       entrada_confirmada: entradaConf,
@@ -430,20 +432,17 @@ export function CalculadoraOferta({
   }, [entradaConf, parcelaMensalConf, resultado, template, ultimaOferta]);
   const unicaAbaixoMinimo =
     resultado != null && parcelaUnicaAbaixoDoMinimo(parcelaUnicaConf, parcelaUnicaMinimaHint);
+  const entradaMinima = resultado ? entradaMinimaOferta(resultado) : 0;
+  const entradaAbaixoMinimo =
+    resultado != null && entradaAbaixoDoMinimo(entradaConf, entradaMinima);
+  const erroEntrada = entradaAbaixoMinimo ? mensagemEntradaMinima(entradaMinima) : null;
+  const erroUnica = unicaAbaixoMinimo ? mensagemParcelaUnicaMinima(parcelaUnicaMinimaHint) : null;
+  const errosMinimos = [erroEntrada, erroUnica].filter((m): m is string => m != null);
 
   const avisosSalvar = useMemo(() => {
-    const vazio = { entrada: [] as string[], parcela: [] as string[] };
+    const vazio = { parcela: [] as string[] };
     if (!resultado || !ultimaOferta) return vazio;
-    const entrada: string[] = [];
     const parcela: string[] = [];
-
-    if (entradaConf < resultado.entrada_sugerida) {
-      entrada.push('⚠ Entrada abaixo do mínimo sugerido. A loteadora pode exigir o valor mínimo.');
-    }
-    const entrada_do_lote_conf = Math.max(0, entradaConf - resultado.comissao_amount);
-    if (entrada_do_lote_conf < resultado.entrada_do_lote) {
-      entrada.push('⚠ Entrada do lote insuficiente para cumprir a entrada mínima da loteadora.');
-    }
 
     if (parcelaMensalConf < resultado.parcela_mensal_usada) {
       parcela.push(
@@ -451,8 +450,8 @@ export function CalculadoraOferta({
       );
     }
 
-    return { entrada, parcela };
-  }, [entradaConf, parcelaMensalConf, resultado, ultimaOferta]);
+    return { parcela };
+  }, [parcelaMensalConf, resultado, ultimaOferta]);
 
   const cardsTotais = useMemo((): CardResultadoItem[] => {
     if (!resultado) return [];
@@ -800,13 +799,9 @@ export function CalculadoraOferta({
                 label="Entrada confirmada (R$)"
                 valor={entradaConf}
                 onValorChange={onEntradaConfirmada}
-                dica={
-                  resultado
-                    ? `⚠ Mínimo sugerido: ${formatarMoeda(resultado.entrada_sugerida)}`
-                    : undefined
-                }
-                dicaValida={entradaConf >= resultado.entrada_sugerida}
-                avisos={avisosSalvar.entrada}
+                dica={`Mínimo: ${formatarMoeda(entradaMinima)}`}
+                dicaValida
+                erro={erroEntrada}
               />
               <CampoMoedaConfirmado
                 label="Parcela mensal confirmada (R$)"
@@ -818,19 +813,18 @@ export function CalculadoraOferta({
                 label="Parcela única confirmada (R$)"
                 valor={parcelaUnicaConf}
                 onValorChange={onParcelaUnicaConfirmada}
-                dica={
-                  unicaAbaixoMinimo
-                    ? `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(parcelaUnicaMinimaHint)} para quitar o lote.`
-                    : `⚠ Mínimo sugerido: ${formatarMoeda(parcelaUnicaMinimaHint)}`
-                }
-                dicaValida={!unicaAbaixoMinimo}
+                dica={`Mínimo: ${formatarMoeda(parcelaUnicaMinimaHint)}`}
+                dicaValida
+                erro={erroUnica}
               />
             </div>
             <div className="mt-6 flex flex-col gap-4">
+            <AvisoBloqueioMinimos erros={errosMinimos} />
             <button
               type="button"
               onClick={gerarFluxoFinal}
-              className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium"
+              disabled={errosMinimos.length > 0}
+              className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 border: 'var(--moni-border-width) solid var(--moni-border-default)',
                 background: 'var(--moni-surface-0)',
@@ -885,9 +879,9 @@ export function CalculadoraOferta({
             ) : null}
             <button
               type="button"
-              disabled={salvando || unicaAbaixoMinimo}
+              disabled={salvando || errosMinimos.length > 0}
               onClick={() => void onSalvar()}
-              className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:opacity-50"
+              className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: 'var(--moni-navy-800)' }}
             >
               {salvando
@@ -999,6 +993,32 @@ function QuadroPremissasTemplate({ template }: { template: TemplateConfig }) {
   );
 }
 
+function AvisoBloqueioMinimos({ erros }: { erros: string[] }) {
+  if (erros.length === 0) return null;
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-2 rounded-[var(--moni-radius-md)] px-4 py-3 text-sm"
+      style={{
+        background: 'var(--moni-status-overdue-bg)',
+        border: 'var(--moni-border-width) solid var(--moni-status-overdue-border)',
+        color: 'var(--moni-status-overdue-text)',
+        fontFamily: 'var(--moni-font-sans)',
+      }}
+    >
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <div>
+        <p className="font-semibold">Não é possível salvar nem gerar o fluxo final:</p>
+        <ul className="mt-1 list-disc pl-4">
+          {erros.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 function CampoMoedaConfirmado({
   label,
   valor,
@@ -1006,6 +1026,7 @@ function CampoMoedaConfirmado({
   dica,
   dicaValida,
   avisos,
+  erro,
 }: {
   label: string;
   valor: number;
@@ -1013,6 +1034,7 @@ function CampoMoedaConfirmado({
   dica?: string;
   dicaValida?: boolean;
   avisos?: string[];
+  erro?: string | null;
 }) {
   const dicaStyle =
     dicaValida === true
@@ -1027,11 +1049,24 @@ function CampoMoedaConfirmado({
       </span>
       <CampoNumeroBr
         className={fieldCls}
-        style={fieldStyle}
+        style={
+          erro
+            ? { ...fieldStyle, border: 'var(--moni-border-width) solid var(--moni-status-overdue-border)', boxShadow: '0 0 0 1px var(--moni-status-overdue-border)' }
+            : fieldStyle
+        }
         valor={valor}
         onChange={(n) => onValorChange(n ?? 0)}
+        aria-invalid={erro ? true : undefined}
       />
-      {dica ? (
+      {erro ? (
+        <span
+          className="mt-1 block text-xs font-medium"
+          role="alert"
+          style={{ color: 'var(--moni-status-overdue-text)', fontFamily: 'var(--moni-font-sans)' }}
+        >
+          {erro}
+        </span>
+      ) : dica ? (
         <span
           className="mt-1 block text-[11px]"
           style={dicaStyle}
