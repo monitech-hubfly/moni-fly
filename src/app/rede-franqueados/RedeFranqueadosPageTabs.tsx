@@ -306,9 +306,8 @@ export function RedeFranqueadosPageTabs({
         {resolvedTab === 'imob-empreendimentos' && showStaffTabs ? (
           <section className="space-y-4">
             {imobEmpreendimentosRows === null ? (
-              <p className="text-sm text-red-600">
-                Erro ao carregar empreendimentos. Confira se as migrations 537 e 540 foram aplicadas no
-                Supabase.
+              <p className="text-sm text-[var(--moni-status-overdue-text)]">
+                Não foi possível carregar os empreendimentos.
               </p>
             ) : (
               <ImobEmpreendimentosTabelaComBusca

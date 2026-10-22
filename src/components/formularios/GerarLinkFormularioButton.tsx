@@ -46,6 +46,7 @@ export function GerarLinkFormularioButton({
   redeFranqueadoId,
   rotulo = 'Gerar link público',
   compacto = false,
+  denso = false,
 }: {
   formularioId: string;
   formularioNome?: string;
@@ -53,6 +54,8 @@ export function GerarLinkFormularioButton({
   redeFranqueadoId?: string | null;
   rotulo?: string;
   compacto?: boolean;
+  /** Catálogo: botão baixo, na largura da coluna do card. */
+  denso?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const [card, setCard] = useState(cardId ?? '');
@@ -154,9 +157,11 @@ export function GerarLinkFormularioButton({
           setErro(null);
         }}
         style={
-          compacto
-            ? { ...botao, width: '100%', fontSize: 10, minHeight: 36, padding: '6px 8px' }
-            : botao
+          denso
+            ? { ...botao, width: '100%', minHeight: 32, height: 32, fontSize: 12, fontWeight: 500, padding: '0 10px' }
+            : compacto
+              ? { ...botao, width: '100%', fontSize: 10, minHeight: 36, padding: '6px 8px' }
+              : botao
         }
       >
         {rotulo}

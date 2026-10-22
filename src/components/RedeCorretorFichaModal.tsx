@@ -88,7 +88,7 @@ export function RedeCorretorFichaModal({ row = null, onClose }: Props) {
       }
     }
     let texto = r.mensagem
-    if (criar && corretorId && draft.status === 'aprovado') {
+    if (criar && corretorId) {
       const email = await enviarLinksDoCadastroNaRede(corretorId)
       if (email.ok) texto = email.mensagem
     }

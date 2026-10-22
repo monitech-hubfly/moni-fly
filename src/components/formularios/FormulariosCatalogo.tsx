@@ -48,7 +48,7 @@ function idCategoria(nome: string) {
 function FormularioCard({ formulario }: { formulario: FormularioCatalogoItem }) {
   return (
     <li
-      className="flex h-full flex-col gap-3 p-4 sm:p-5"
+      className="flex h-full flex-col gap-2 p-3"
       style={{
         background: 'var(--moni-surface-0)',
         border: 'var(--moni-border-width) solid var(--moni-border-default)',
@@ -56,16 +56,16 @@ function FormularioCard({ formulario }: { formulario: FormularioCatalogoItem }) 
         boxShadow: 'var(--moni-shadow-card)',
       }}
     >
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         <Link
           href={`/formularios/${formulario.id}`}
-          className="text-sm font-semibold leading-snug"
+          className="line-clamp-2 text-[13px] font-medium leading-snug"
           style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}
         >
           {formulario.nome}
         </Link>
         {formulario.descricao ? (
-          <p className="mt-2 line-clamp-3 text-xs leading-relaxed" style={{ color: 'var(--moni-text-secondary)' }}>
+          <p className="mt-1 line-clamp-2 text-[11px] leading-snug" style={{ color: 'var(--moni-text-secondary)' }}>
             {formulario.descricao}
           </p>
         ) : null}
@@ -75,24 +75,21 @@ function FormularioCard({ formulario }: { formulario: FormularioCatalogoItem }) 
         categoria={formulario.categoria}
         visivelFranqueado={formulario.visivel_franqueado}
       />
-      <div className="mt-auto flex flex-wrap gap-2">
+      <div className="mt-auto grid grid-cols-2 gap-1.5">
         <Link
           href={`/formularios/${formulario.id}`}
-          className="inline-flex min-h-[44px] min-w-[8.5rem] flex-1 items-center justify-center px-3 font-semibold"
+          className="inline-flex h-8 items-center justify-center px-2 text-center text-[12px] font-medium leading-none"
           style={{
             borderRadius: 'var(--moni-radius-md)',
             border: 'var(--moni-border-width) solid var(--moni-border-default)',
             color: 'var(--moni-text-primary)',
             background: 'var(--moni-surface-0)',
             fontFamily: 'var(--moni-font-sans)',
-            fontSize: 13,
           }}
         >
           Ver respostas
         </Link>
-        <div className="min-w-[8.5rem] flex-1 [&_button]:w-full">
-          <GerarLinkFormularioButton formularioId={formulario.id} />
-        </div>
+        <GerarLinkFormularioButton formularioId={formulario.id} denso />
       </div>
     </li>
   );
@@ -269,9 +266,7 @@ export function FormulariosCatalogo({ grupos }: { grupos: FormularioCatalogoGrup
                     {rotuloQuantidade(grupo.itens.length)}
                   </p>
                 </div>
-                <ul
-                  className={`grid grid-cols-1 gap-4 ${grupo.itens.length > 1 ? 'lg:grid-cols-2' : 'max-w-xl'}`}
-                >
+                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {grupo.itens.map((formulario) => (
                     <FormularioCard key={formulario.id} formulario={formulario} />
                   ))}

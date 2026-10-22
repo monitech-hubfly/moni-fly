@@ -334,19 +334,32 @@ export async function criarCardFilho(
   const ehJuridico = kanbanDestinoId === KANBAN_IDS.JURIDICO;
   let tipoJuridicoResolvido: import('@/lib/kanban/juridico-tipo-documento').JuridicoTipoDocumento | null =
     null;
+  let tagJuridico: import('@/lib/kanban/juridico-portfolio-tag').JuridicoPortfolioTagNome | null = null;
   if (ehJuridico) {
-    const { isJuridicoTipoDocumento, tipoDocumentoPorTagJuridico } = await import(
-      '@/lib/kanban/juridico-tipo-documento'
-    );
+    const { isJuridicoTipoDocumento, tagPortfolioPorTipoDocumento, tipoDocumentoPorTagJuridico } =
+      await import('@/lib/kanban/juridico-tipo-documento');
+    const { isJuridicoPortfolioTagNome } = await import('@/lib/kanban/juridico-portfolio-tag');
     tipoJuridicoResolvido = isJuridicoTipoDocumento(params.juridicoTipoContrato)
       ? params.juridicoTipoContrato
       : tipoDocumentoPorTagJuridico(params.juridicoTagNome);
+    tagJuridico =
+      (params.juridicoTagNome && isJuridicoPortfolioTagNome(params.juridicoTagNome)
+        ? params.juridicoTagNome
+        : null) ?? tagPortfolioPorTipoDocumento(tipoJuridicoResolvido);
     if (tipoJuridicoResolvido) {
       const { buscarAtendimentoJuridicoAberto } = await import(
         '@/lib/kanban/juridico-atendimento-ciclo'
       );
       const aberto = await buscarAtendimentoJuridicoAberto(db, cardPaiId, tipoJuridicoResolvido);
       if (aberto?.id) {
+        if (tagJuridico) {
+          try {
+            const { aplicarTagJuridicoPortfolio } = await import('@/lib/kanban/juridico-portfolio-tag');
+            await aplicarTagJuridicoPortfolio(db, aberto.id, tagJuridico, kanbanDestinoId);
+          } catch (e) {
+            console.error('[bastao] tag juridico atendimento aberto:', e);
+          }
+        }
         const { data: row } = await db
           .from('kanban_cards')
           .select(CARD_FILHO_SELECT)
@@ -648,10 +661,10 @@ export async function criarCardFilho(
     }
   }
 
-  if (kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoTagNome) {
+  if (kanbanDestinoId === KANBAN_IDS.JURIDICO && tagJuridico) {
     try {
       const { aplicarTagJuridicoPortfolio } = await import('@/lib/kanban/juridico-portfolio-tag');
-      await aplicarTagJuridicoPortfolio(db, cardFilhoId, params.juridicoTagNome, kanbanDestinoId);
+      await aplicarTagJuridicoPortfolio(db, cardFilhoId, tagJuridico, kanbanDestinoId);
     } catch (e) {
       console.error('[bastao] tag juridico portfolio:', e);
     }

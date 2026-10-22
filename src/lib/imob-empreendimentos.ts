@@ -808,7 +808,7 @@ export async function fetchImobEmpreendimentosRows(
     .select(
       `id, nome, slug, specs, ativo, imagem_url, share_token, card_id, condominio_id, created_at, ${NEGOCIO_SELECT},
        condominios(id, nome, cidade, estado),
-       kanban_cards(id, titulo, status)`,
+       kanban_cards!imob_empreendimentos_card_id_fkey(id, titulo, status)`,
     )
     .order('nome', { ascending: true });
 

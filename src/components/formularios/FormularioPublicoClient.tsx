@@ -7,6 +7,7 @@ import {
   moedaParaNumero,
   normalizarCondicional,
 } from '@/lib/formularios/apresentacao';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { fetchMunicipiosPorUfs } from '@/lib/ibge';
 import { UFS_BRASIL } from '@/lib/uf';
 import type { Formulario, FormularioCampo, FormularioCampoGrupoDef, FormularioSecao } from '@/types/formularios';
@@ -17,6 +18,17 @@ type Props = {
   cardId?: string | null;
   redeFranqueadoId?: string | null;
 };
+
+const OPCOES_UF = UFS_BRASIL.map((uf) => ({
+  value: uf.sigla,
+  label: `${uf.sigla} — ${uf.nome}`,
+}));
+
+const selectTriggerClass =
+  '!min-h-[44px] !rounded-[var(--moni-radius-md)] !border-[color:var(--moni-border-default)] ![border-width:var(--moni-border-width)] !bg-[var(--moni-surface-0)] !px-3 !text-[15px] !font-normal ![font-family:var(--moni-font-sans)] !text-[var(--moni-text-primary)]';
+
+const selectBuscaClass = '!min-h-[44px] !px-3 !text-[15px]';
+const selectOpcaoClass = '!min-h-[44px] !px-3 !text-[15px]';
 
 const campoStyle: React.CSSProperties = {
   width: '100%',
@@ -108,6 +120,7 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
   const ultimo = passo >= secoesVisiveis.length - 1;
 
   function setTexto(id: string, valor: string) {
+    setErro(null);
     setTextos((atual) => {
       const next = { ...atual, [id]: valor };
       if ((atual[id] ?? '') === valor) return next;
@@ -124,14 +137,16 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
       if (!campo.obrigatorio || !visiveis.has(campo.id)) continue;
       if (campo.tipo === 'grupo_repetivel') {
         const linhas = parseGrupoRepetivel(textos[campo.id]);
-        const defs = campo.config?.campos ?? [];
-        const preenchidas = linhas.filter((linha) =>
-          defs.some((def) => String(linha[def.key] ?? '').trim()),
-        );
+        const defs = (campo.config?.campos ?? []).filter((def) => !ehTemaGrupo(def));
+        const preenchidas = linhas.filter((linha) => defs.some((def) => linhaTemValor(def, linha)));
         if (campo.obrigatorio && preenchidas.length === 0) return `Preencha: ${campo.label}`;
         for (const linha of preenchidas) {
           for (const def of defs) {
-            if (def.obrigatorio && !String(linha[def.key] ?? '').trim()) return `Preencha: ${def.label}`;
+            if (!def.obrigatorio) continue;
+            const incompleto = ehFaixaMoeda(def)
+              ? !String(linha[`${def.key}_de`] ?? '').trim() || !String(linha[`${def.key}_ate`] ?? '').trim()
+              : !String(linha[def.key] ?? '').trim();
+            if (incompleto) return `Preencha: ${def.label}`;
           }
         }
         continue;
@@ -339,6 +354,14 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
   );
 }
 
+function mascaraAreaM2(entrada: string): string {
+  const texto = entrada.replace(/\./g, ',').replace(/[^\d,]/g, '');
+  const [bruto, ...resto] = texto.split(',');
+  const inteiro = bruto.replace(/^0+(?=\d)/, '');
+  if (!texto.includes(',')) return inteiro;
+  return `${inteiro},${resto.join('').slice(0, 2)}`;
+}
+
 function parseGrupoRepetivel(raw: string | undefined): Record<string, string>[] {
   if (!raw?.trim()) return [];
   try {
@@ -434,22 +457,35 @@ function CampoPublico({
   }
   if (campo.tipo === 'select_estado') {
     return (
-      <label className="block">
+      <div className="block">
         {label}
-        <select value={texto} onChange={(e) => onTexto(e.target.value)} style={campoStyle}>
-          <option value="">Selecione</option>
-          {UFS_BRASIL.map((uf) => (
-            <option key={uf.sigla} value={uf.sigla}>
-              {uf.sigla} — {uf.nome}
-            </option>
-          ))}
-        </select>
-      </label>
+        <SearchableSelect
+          value={texto}
+          onChange={onTexto}
+          options={OPCOES_UF}
+          placeholder="Selecione"
+          searchPlaceholder="Buscar estado"
+          size="md"
+          menuPortal
+          aria-label={campo.label}
+          triggerClassName={selectTriggerClass}
+          searchClassName={selectBuscaClass}
+          optionClassName={selectOpcaoClass}
+        />
+      </div>
     );
   }
   if (campo.tipo === 'select_cidade') {
     const estadoId = campo.config?.estado_campo_id ?? '';
-    return <SelectCidadeCampo label={label} uf={textos[estadoId] ?? ''} valor={texto} onTexto={onTexto} />;
+    return (
+      <SelectCidadeCampo
+        label={label}
+        rotulo={campo.label}
+        uf={textos[estadoId] ?? ''}
+        valor={texto}
+        onTexto={onTexto}
+      />
+    );
   }
   if (campo.tipo === 'grupo_repetivel') {
     return (
@@ -542,11 +578,13 @@ function CampoPublico({
 
 function SelectCidadeCampo({
   label,
+  rotulo,
   uf,
   valor,
   onTexto,
 }: {
   label: ReactNode;
+  rotulo: string;
   uf: string;
   valor: string;
   onTexto: (valor: string) => void;
@@ -575,24 +613,75 @@ function SelectCidadeCampo({
     return () => ctrl.abort();
   }, [uf]);
 
+  const semEstado = !uf.trim();
+  const placeholder = semEstado ? 'Selecione o estado' : carregando ? 'Carregando cidades…' : 'Selecione';
+  const opcoes = cidades.map((cidade) => ({ value: cidade, label: cidade }));
+
   return (
-    <label className="block">
+    <div className="block">
       {label}
-      <select
+      <SearchableSelect
         value={valor}
-        disabled={!uf.trim() || carregando}
-        onChange={(e) => onTexto(e.target.value)}
-        style={campoStyle}
-      >
-        <option value="">{uf.trim() ? (carregando ? 'Carregando cidades…' : 'Selecione') : 'Selecione o estado'}</option>
-        {cidades.map((cidade) => (
-          <option key={cidade} value={cidade}>
-            {cidade}
-          </option>
-        ))}
-      </select>
-    </label>
+        onChange={onTexto}
+        options={opcoes}
+        placeholder={placeholder}
+        searchPlaceholder="Buscar cidade"
+        disabled={semEstado || carregando}
+        emptyOption={semEstado || carregando ? null : { value: '', label: 'Selecione' }}
+        size="md"
+        menuPortal
+        aria-label={rotulo}
+        triggerClassName={selectTriggerClass}
+        searchClassName={selectBuscaClass}
+        optionClassName={selectOpcaoClass}
+      />
+    </div>
   );
+}
+
+function ehTemaGrupo(def: FormularioCampoGrupoDef): boolean {
+  return def.tipo === 'titulo' || def.key === 'composicao_media';
+}
+
+function ehFaixaMoeda(def: FormularioCampoGrupoDef): boolean {
+  return def.tipo === 'faixa_moeda' || def.key === 'faixa_preco';
+}
+
+function ehNumeroInteiro(def: FormularioCampoGrupoDef): boolean {
+  return (
+    def.tipo === 'numero' ||
+    def.key === 'giro_vendas' ||
+    def.key === 'num_suites' ||
+    def.key === 'vagas_cobertas'
+  );
+}
+
+function apenasDigitos(entrada: string): string {
+  return entrada.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+}
+
+function linhaTemValor(def: FormularioCampoGrupoDef, linha: Record<string, string>): boolean {
+  if (ehFaixaMoeda(def)) {
+    const de = String(linha[`${def.key}_de`] ?? linha[def.key] ?? '').trim();
+    const ate = String(linha[`${def.key}_ate`] ?? '').trim();
+    return Boolean(de || ate);
+  }
+  return Boolean(String(linha[def.key] ?? '').trim());
+}
+
+function blocosDoGrupo(defs: FormularioCampoGrupoDef[]) {
+  const blocos: { tema: FormularioCampoGrupoDef | null; campos: FormularioCampoGrupoDef[] }[] = [];
+  let atual: { tema: FormularioCampoGrupoDef | null; campos: FormularioCampoGrupoDef[] } = { tema: null, campos: [] };
+  for (const def of defs) {
+    if (ehTemaGrupo(def)) {
+      if (atual.tema || atual.campos.length > 0) blocos.push(atual);
+      atual = { tema: def, campos: [] };
+    } else {
+      atual.campos.push(def);
+    }
+  }
+  if (atual.tema || atual.campos.length > 0) blocos.push(atual);
+  return blocos;
 }
 
 function GrupoRepetivelCampo({
@@ -609,7 +698,20 @@ function GrupoRepetivelCampo({
   onTexto: (valor: string) => void;
 }) {
   const linhas = parseGrupoRepetivel(valor);
-  const vazio = () => Object.fromEntries(defs.map((def) => [def.key, '']));
+  const blocos = blocosDoGrupo(defs);
+  const vazio = () => {
+    const entrada: Record<string, string> = {};
+    for (const def of defs) {
+      if (ehTemaGrupo(def)) continue;
+      if (ehFaixaMoeda(def)) {
+        entrada[`${def.key}_de`] = '';
+        entrada[`${def.key}_ate`] = '';
+        continue;
+      }
+      entrada[def.key] = '';
+    }
+    return entrada;
+  };
 
   function gravar(next: Record<string, string>[]) {
     onTexto(next.length > 0 ? JSON.stringify(next) : '');
@@ -624,13 +726,71 @@ function GrupoRepetivelCampo({
           className="space-y-2 rounded-[var(--moni-radius-md)] p-3"
           style={{ border: '0.5px solid var(--moni-border-subtle)' }}
         >
-          {defs.map((def) => (
-            <label key={def.key} className="block">
+          {blocos.map((bloco) => (
+            <div key={bloco.tema?.key ?? 'inicio'} className="space-y-2">
+              {bloco.tema ? (
+                <p
+                  className="pt-2 text-base"
+                  style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}
+                >
+                  {bloco.tema.label}
+                </p>
+              ) : null}
+              <div
+                className={bloco.tema ? 'space-y-2 pl-3' : 'space-y-2'}
+                style={bloco.tema ? { borderLeft: '0.5px solid var(--moni-border-default)' } : undefined}
+              >
+          {bloco.campos.map((def) => {
+            const CampoTag = ehFaixaMoeda(def) ? 'div' : 'label';
+            return (
+            <CampoTag key={def.key} className="block">
               <span className="mb-1 block text-xs" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
                 {def.label}
                 {def.obrigatorio ? ' *' : ''}
               </span>
-              {def.tipo === 'select' ? (
+              {ehFaixaMoeda(def) ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {(['de', 'à'] as const).map((rotulo) => {
+                    const lado = rotulo === 'de' ? 'de' : 'ate';
+                    const chave = `${def.key}_${lado}`;
+                    const valorAtual = String(linha[chave] ?? (lado === 'de' ? linha[def.key] : '') ?? '');
+                    return (
+                      <label key={lado} className="flex min-w-[180px] flex-1 items-center gap-2">
+                        <span
+                          className="shrink-0 text-sm"
+                          style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}
+                        >
+                          {rotulo === 'de' ? 'De' : 'à'}
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="R$ 0,00"
+                          aria-label={`${rotulo === 'de' ? 'De' : 'à'}, ${def.label}`}
+                          value={valorAtual}
+                          onChange={(e) => {
+                            const mascarado = mascaraMoeda(e.target.value);
+                            const next = linhas.map((item, i) => {
+                              if (i !== index) return item;
+                              const deAtual = String(item[`${def.key}_de`] ?? item[def.key] ?? '');
+                              const ateAtual = String(item[`${def.key}_ate`] ?? '');
+                              const resto = { ...item };
+                              delete resto[def.key];
+                              return {
+                                ...resto,
+                                [`${def.key}_de`]: lado === 'de' ? mascarado : deAtual,
+                                [`${def.key}_ate`]: lado === 'ate' ? mascarado : ateAtual,
+                              };
+                            });
+                            gravar(next);
+                          }}
+                          style={{ ...campoStyle, width: 'auto', flex: '1 1 140px' }}
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : def.tipo === 'select' ? (
                 <select
                   value={String(linha[def.key] ?? '')}
                   onChange={(e) => {
@@ -646,9 +806,63 @@ function GrupoRepetivelCampo({
                     </option>
                   ))}
                 </select>
+              ) : def.tipo === 'moeda' || def.key === 'preco_medio_venda' ? (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="R$ 0,00"
+                  value={String(linha[def.key] ?? '')}
+                  onChange={(e) => {
+                    const valor = mascaraMoeda(e.target.value);
+                    const next = linhas.map((item, i) => (i === index ? { ...item, [def.key]: valor } : item));
+                    gravar(next);
+                  }}
+                  style={campoStyle}
+                />
+              ) : def.tipo === 'm2' || def.key === 'metragem_construida' ? (
+                <div className="flex items-center" style={{ ...campoStyle, padding: 0 }}>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    aria-label={`${def.label} em metros quadrados`}
+                    value={String(linha[def.key] ?? '')}
+                    onChange={(e) => {
+                      const valor = mascaraAreaM2(e.target.value);
+                      const next = linhas.map((item, i) => (i === index ? { ...item, [def.key]: valor } : item));
+                      gravar(next);
+                    }}
+                    className="min-w-0 flex-1 bg-transparent px-3 outline-none"
+                    style={{
+                      minHeight: 44,
+                      border: 'none',
+                      color: 'var(--moni-text-primary)',
+                      fontFamily: 'var(--moni-font-sans)',
+                      fontSize: 15,
+                    }}
+                  />
+                  <span
+                    className="shrink-0 pr-3 text-sm"
+                    style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
+                  >
+                    m²
+                  </span>
+                </div>
+              ) : ehNumeroInteiro(def) ? (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={String(linha[def.key] ?? '')}
+                  onChange={(e) => {
+                    const valor = apenasDigitos(e.target.value);
+                    const next = linhas.map((item, i) => (i === index ? { ...item, [def.key]: valor } : item));
+                    gravar(next);
+                  }}
+                  style={campoStyle}
+                />
               ) : (
                 <input
-                  type={def.tipo === 'numero' ? 'number' : 'text'}
+                  type="text"
                   value={String(linha[def.key] ?? '')}
                   onChange={(e) => {
                     const next = linhas.map((item, i) => (i === index ? { ...item, [def.key]: e.target.value } : item));
@@ -657,7 +871,11 @@ function GrupoRepetivelCampo({
                   style={campoStyle}
                 />
               )}
-            </label>
+            </CampoTag>
+            );
+          })}
+              </div>
+            </div>
           ))}
           <button
             type="button"

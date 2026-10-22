@@ -27,6 +27,8 @@ type Props = {
   selectedLabelOverride?: string;
   /** Renderiza o menu em portal fixo (evita corte por overflow no painel lateral). */
   menuPortal?: boolean;
+  searchClassName?: string;
+  optionClassName?: string;
   'aria-label'?: string;
 };
 
@@ -53,6 +55,8 @@ export function SearchableSelect({
   size = 'sm',
   selectedLabelOverride,
   menuPortal = false,
+  searchClassName = '',
+  optionClassName = '',
   'aria-label': ariaLabel,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -179,8 +183,23 @@ export function SearchableSelect({
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setOpen(false);
+              setQuery('');
+              return;
+            }
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const termo = query.trim();
+            if (!termo) return;
+            const escolhida = opcoesFiltradas.find((o) => !o.disabled && o.value !== '');
+            if (escolhida) selecionar(escolhida.value);
+          }}
           placeholder={searchPlaceholder}
-          className={`w-full rounded-md border border-stone-200 outline-none focus:border-moni-accent focus:ring-1 focus:ring-moni-accent/30 ${searchInputClass}`}
+          aria-label={searchPlaceholder}
+          className={`w-full rounded-md border border-stone-200 outline-none focus:border-moni-accent focus:ring-1 focus:ring-moni-accent/30 ${searchInputClass} ${searchClassName}`}
         />
       </div>
       <ul className={`overflow-y-auto py-0.5 ${listMaxHeightClassName}`}>
@@ -204,7 +223,7 @@ export function SearchableSelect({
                     if (o.disabled) return;
                     selecionar(o.value);
                   }}
-                  className={`w-full text-left disabled:cursor-not-allowed disabled:opacity-50 ${itemClass} ${
+                  className={`w-full text-left disabled:cursor-not-allowed disabled:opacity-50 ${itemClass} ${optionClassName} ${
                     selecionada
                       ? 'bg-moni-primary/10 font-medium text-moni-dark'
                       : 'text-stone-800 hover:bg-stone-50'

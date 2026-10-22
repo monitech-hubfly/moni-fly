@@ -68,7 +68,7 @@ export function CorretorNovoInternoClient({
       }
     }
     let texto = r.mensagem
-    if (r.id && draft.status === 'aprovado') {
+    if (r.id) {
       const email = await enviarLinksDoCadastroNaRede(r.id)
       if (email.ok) texto = email.mensagem
     }

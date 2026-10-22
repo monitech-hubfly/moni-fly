@@ -94,7 +94,7 @@ export async function criarRedeCorretor(patch: RedeCorretorPatch): Promise<Ok | 
   const gate = await requireRedeCorretoresStaff()
   if (!gate.ok) return gate
 
-  const status: RedeCorretorStatus = patch.status ?? 'aprovado'
+  const status: RedeCorretorStatus = 'aprovado'
 
   const inserted = await insertRedeCorretorRow({
     supabase: gate.supabase,

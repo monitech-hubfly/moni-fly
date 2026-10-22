@@ -33,6 +33,7 @@ export function FormularioClassificacaoBarra({
   return (
     <div className="space-y-1">
       <VisualizacaoFranqueadoToggle
+        size="xs"
         value={visivel}
         onChange={(valor) => {
           setVisivel(valor);

@@ -91,15 +91,15 @@ DELETE FROM formulario_secoes WHERE id IN ('sec-pvp-cond1', 'sec-pvp-cond2', 'se
 -- 5. SEÇÃO MERCADO: transformar intro em grupo_repetivel
 UPDATE formulario_campos
 SET tipo = 'grupo_repetivel',
-    nome = 'Quais condomínios de alto padrão você considera mais interessantes para prospectar terrenos? Desejável pelo menos 3 condomínios.',
+    nome = 'Quais condomínios de alto padrão você considera mais interessantes para prospectar terrenos? Desejável pelo menos 3 condomínios. Se um condomínio tiver mais de uma faixa de preço, deve ser preenchido mais de uma vez, considerando um preenchimento para cada faixa de preço do condomínio.',
     config = '{
       "label_adicionar": "Incluir Condomínio",
       "campos": [
         {"key": "nome", "label": "Nome do condomínio", "tipo": "texto_curto", "obrigatorio": true},
-        {"key": "faixa_preco", "label": "Faixa de preço de venda das casas", "tipo": "texto_curto", "obrigatorio": false},
-        {"key": "giro_vendas", "label": "Giro de vendas nessa faixa: quantas casas são vendidas, em média, por ano?", "tipo": "texto_curto", "obrigatorio": false},
-        {"key": "composicao_media", "label": "Composição média das casas nessa faixa", "tipo": "texto_curto", "obrigatorio": false},
-        {"key": "metragem_construida", "label": "Metragem construída aproximada", "tipo": "texto_curto", "obrigatorio": false},
+        {"key": "faixa_preco", "label": "Faixa de preço de venda das casas", "tipo": "faixa_moeda", "obrigatorio": false},
+        {"key": "giro_vendas", "label": "Giro de vendas nessa faixa: quantas casas são vendidas, em média, por ano?", "tipo": "numero", "obrigatorio": false},
+        {"key": "composicao_media", "label": "Composição média das casas nessa faixa", "tipo": "titulo", "obrigatorio": false},
+        {"key": "metragem_construida", "label": "Metragem construída aproximada", "tipo": "m2", "obrigatorio": false},
         {"key": "num_suites", "label": "Número de suítes", "tipo": "numero", "obrigatorio": false},
         {"key": "possui_piscina", "label": "Possui piscina?", "tipo": "select", "opcoes": ["Sim", "Não"], "obrigatorio": false},
         {"key": "vagas_cobertas", "label": "Número de vagas cobertas", "tipo": "numero", "obrigatorio": false},
@@ -109,7 +109,8 @@ SET tipo = 'grupo_repetivel',
 WHERE secao_id = 'sec-pvp-mercado'
   AND nome IN (
     'Quais condomínios de alto padrão você considera mais interessantes para prospectar terrenos? Liste pelo menos 3 e preencha as informações abaixo para cada um.',
-    'Quais condomínios de alto padrão você considera mais interessantes para prospectar terrenos? Desejável pelo menos 3 condomínios.'
+    'Quais condomínios de alto padrão você considera mais interessantes para prospectar terrenos? Desejável pelo menos 3 condomínios.',
+    'Quais condomínios de alto padrão você considera mais interessantes para prospectar terrenos? Desejável pelo menos 3 condomínios. Se um condomínio tiver mais de uma faixa de preço, deve ser preenchido mais de uma vez, considerando um preenchimento para cada faixa de preço do condomínio.'
   );
 
 -- Ordem estável mesmo se o deslocamento tiver rodado mais de uma vez.

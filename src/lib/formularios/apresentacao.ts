@@ -42,12 +42,33 @@ export function formatarValorCampo(campo: FormularioCampo, valor: string | strin
       return rows
         .map((row, index) => {
           if (!row || typeof row !== 'object') return '';
-          const partes = Object.entries(row as Record<string, unknown>)
-            .map(([key, item]) => {
-              const texto = String(item ?? '').trim();
-              return texto ? `${key}: ${texto}` : '';
-            })
-            .filter(Boolean);
+          const temas = new Set(
+            (campo.config?.campos ?? [])
+              .filter((def) => def.tipo === 'titulo' || def.key === 'composicao_media')
+              .map((def) => def.key),
+          );
+          const faixas = (campo.config?.campos ?? [])
+            .filter((def) => def.tipo === 'faixa_moeda' || def.key === 'faixa_preco')
+            .map((def) => def.key);
+          const ignorar = new Set(faixas.flatMap((key) => [key, `${key}_de`, `${key}_ate`]));
+          const registro = row as Record<string, unknown>;
+          const partes = [
+            ...Object.entries(registro)
+              .map(([key, item]) => {
+                if (temas.has(key) || ignorar.has(key)) return '';
+                const texto = String(item ?? '').trim();
+                if (!texto) return '';
+                const valor = key === 'metragem_construida' && !texto.endsWith('m²') ? `${texto} m²` : texto;
+                return `${key}: ${valor}`;
+              }),
+            ...faixas.map((key) => {
+              const de = String(registro[`${key}_de`] ?? registro[key] ?? '').trim();
+              const ate = String(registro[`${key}_ate`] ?? '').trim();
+              if (de && ate) return `${key}: De ${de} à ${ate}`;
+              if (de || ate) return `${key}: ${de || ate}`;
+              return '';
+            }),
+          ].filter(Boolean);
           return partes.length > 0 ? `${index + 1}. ${partes.join(' · ')}` : '';
         })
         .filter(Boolean)

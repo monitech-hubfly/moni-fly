@@ -678,6 +678,8 @@ export function KanbanCardModal({
     useState<ContextoCalculadoraSyncGroup | null>(null);
   const [contextoCalculadoraCarregado, setContextoCalculadoraCarregado] = useState(false);
   const [comentariosCard, setComentariosCard] = useState<ComentarioCardRow[]>([]);
+  const [comentariosCarregando, setComentariosCarregando] = useState(false);
+  const comentariosReqRef = useRef(0);
   const [novoComentarioCard, setNovoComentarioCard] = useState('');
   const [comentarioPendingAnexos, setComentarioPendingAnexos] = useState<File[]>([]);
   const [salvandoComentario, setSalvandoComentario] = useState(false);
@@ -1116,13 +1118,30 @@ export function KanbanCardModal({
     };
   }, []);
 
+  async function recarregarComentariosCard(id: string) {
+    const req = ++comentariosReqRef.current;
+    setComentariosCarregando(true);
+    try {
+      const rows = await carregarComentariosCardModal(id);
+      if (req !== comentariosReqRef.current) return;
+      setComentariosCard(rows);
+    } catch {
+      if (req !== comentariosReqRef.current) return;
+      setComentariosCard([]);
+    } finally {
+      if (req === comentariosReqRef.current) setComentariosCarregando(false);
+    }
+  }
+
   async function loadCard(opts?: { silencioso?: boolean }) {
     const silencioso = Boolean(opts?.silencioso && card);
     if (!silencioso) {
       setLoading(true);
       setFonteDadosLaterais(null);
       setImobSimulacoesPrefetch(null);
+      setComentariosCard([]);
     }
+    void recarregarComentariosCard(cardId);
     try {
       const supabase = createClient();
 
@@ -1830,12 +1849,6 @@ export function KanbanCardModal({
         setHistoricoCalculadora([]);
         setVisitsCalculadora([]);
         setVisitsCalculadoraCarregado(false);
-      }
-
-      try {
-        setComentariosCard(await carregarComentariosCardModal(cardId));
-      } catch {
-        setComentariosCard([]);
       }
 
       try {
@@ -2932,7 +2945,7 @@ export function KanbanCardModal({
       setNovoComentarioCard('');
       setComentarioPendingAnexos([]);
       if (comentarioEditorRef.current) comentarioEditorRef.current.innerHTML = '';
-      setComentariosCard(await carregarComentariosCardModal(card.id));
+      await recarregarComentariosCard(card.id);
     } catch (err) {
       alert(`Exceção inesperada: ${String((err as Error)?.message ?? err)}`);
     } finally {
@@ -2962,7 +2975,7 @@ export function KanbanCardModal({
       setEditingComentarioId(null);
       setEditComentarioDraft('');
       if (comentarioEdicaoRef.current) comentarioEdicaoRef.current.innerHTML = '';
-      setComentariosCard(await carregarComentariosCardModal(card.id));
+      await recarregarComentariosCard(card.id);
     } catch {
       alert('Erro ao editar comentário.');
     } finally {
@@ -6413,7 +6426,9 @@ export function KanbanCardModal({
               >
                 {abaComentarios === 'comentarios' ? (
                   <>
-                    {comentariosCard.length > 0 ? (
+                    {comentariosCarregando && comentariosCard.length === 0 ? (
+                      <p className="mb-4 text-xs text-stone-500">Carregando comentários…</p>
+                    ) : comentariosCard.length > 0 ? (
                       <ul className="mb-4 max-h-48 space-y-3 overflow-y-auto">
                         {comentariosCard.map((c) => (
                           <li key={c.id} className="border-b border-stone-200/80 pb-3 text-sm last:border-0">

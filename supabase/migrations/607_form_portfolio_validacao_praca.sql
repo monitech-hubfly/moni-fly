@@ -8,7 +8,7 @@ VALUES (
   'Candidato à Franqueado Casa Moní | Etapa 2 — Validação de Praça e Mercado',
   'O objetivo deste formulário é conhecer melhor sua experiência, a região em que pretende atuar e sua percepção sobre o mercado imobiliário local. As informações serão utilizadas na próxima etapa do processo seletivo.',
   true,
-  'Portfólio',
+  'Qualificação de Franqueados',
   false
 )
 ON CONFLICT (id) DO NOTHING;

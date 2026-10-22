@@ -1,4 +1,5 @@
 import {
+  isJuridicoPortfolioTagNome,
   JURIDICO_PORTFOLIO_TAG_CTO_PRECEDENTES,
   JURIDICO_PORTFOLIO_TAG_CTO_SEM_PRECEDENTES,
   JURIDICO_PORTFOLIO_TAG_OPCAO,
@@ -7,6 +8,7 @@ import {
   JURIDICO_TAG_CTO_FRANQUIA,
   JURIDICO_TAG_CTO_PARCERIA,
   JURIDICO_TAG_NDA,
+  type JuridicoPortfolioTagNome,
 } from '@/lib/kanban/juridico-portfolio-tag';
 
 /** Valores aceitos em `kanban_cards.juridico_tipo_contrato` (migrations 597 e 620). */
@@ -52,6 +54,15 @@ export function isJuridicoTipoDocumento(
 ): valor is JuridicoTipoDocumento {
   const v = String(valor ?? '').trim();
   return (JURIDICO_TIPOS_DOCUMENTO as readonly string[]).includes(v);
+}
+
+/** Tipo documental → tag do quadro. Tipos sem tag canônica ficam sem chip. */
+export function tagPortfolioPorTipoDocumento(
+  tipo: string | null | undefined,
+): JuridicoPortfolioTagNome | null {
+  if (!isJuridicoTipoDocumento(tipo)) return null;
+  const nome = JURIDICO_TIPO_DOCUMENTO_LABEL[tipo];
+  return isJuridicoPortfolioTagNome(nome) ? nome : null;
 }
 
 /** Tag do bastão → tipo documental. Sem tag, o tipo fica em aberto. */

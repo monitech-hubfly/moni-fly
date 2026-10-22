@@ -349,7 +349,7 @@ export const FASE_SLUGS = {
   CREDITO_OBRA_APROVADO:      'credito_obra_aprovado',
   /** @deprecated legado — fase inativa (migration 494) */
   CREDITO_OBRA_REPROVADO:     'credito_obra_reprovado',
-  // Funil Projeto Legal (KANBAN_IDS.PROJETO_LEGAL) — fluxo ordem 1–14 (PROD)
+  // Funil Projeto Legal (KANBAN_IDS.PROJETO_LEGAL) — fluxo ordem 1–12
   PL_NOVA_DEMANDA:              'pl_nova_demanda',
   PL_PONTOS_EM_ABERTO:          'pl_pontos_em_aberto',
   PL_EM_EXECUCAO:               'pl_em_execucao',
@@ -357,13 +357,15 @@ export const FASE_SLUGS = {
   PL_C_PROTOCOLO_ANDAMENTO:     'pl_c_protocolo_andamento',
   PL_C_EM_COMUNIQUESE:          'pl_c_em_comuniquese',
   PL_C_VALIDACAO_COMUNIQUESE:   'pl_c_validacao_comuniquese',
+  /** @deprecated coluna removida do quadro (migration 653) */
   PL_C_PROJETO_APROVADO:        'pl_c_projeto_aprovado',
+  /** @deprecated coluna removida do quadro (migration 653) */
   PL_AGUARDANDO_PREFEITURA:     'pl_aguardando_prefeitura',
   PL_P_PROTOCOLO_ANDAMENTO:     'pl_p_protocolo_andamento',
   PL_P_EM_COMUNIQUESE:          'pl_p_em_comuniquese',
   PL_P_VALIDACAO_COMUNIQUESE:   'pl_p_validacao_comuniquese',
   PL_P_PROJETO_APROVADO:        'pl_p_projeto_aprovado',
-  // Funil Projeto Legal — terminal ordem 14
+  // Funil Projeto Legal — terminal ordem 12
   PL_PAGAMENTOS:                'pl_pagamentos',
   /** Funil Contabilidade (KANBAN_IDS.CONTABILIDADE) — aberturas ordem 1–3 */
   CONTABILIDADE_INCORPORADORA: 'contabilidade_incorporadora',
