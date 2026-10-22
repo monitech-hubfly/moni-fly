@@ -8,7 +8,20 @@ import type { FaqArticle, FaqCategory } from '@/types/faq';
 import { FaqArticlePanel } from './FaqArticlePanel';
 import { FaqCategoryCard } from './FaqCategoryCard';
 
-const CHIPS = ['Carta Fiança', 'Hub Fly', 'Alvará', 'Terrenista', 'Sirene', 'Habite-se'] as const;
+const CHIPS = [
+  'Institucional',
+  'Franquia e expansão',
+  'Franquia e remuneração',
+  'Crédito e funding',
+  'Terrenos e permuta',
+  'Recompra e liquidação',
+  'Estrutura societária e contratos',
+  'Tributação e contabilidade',
+  'Produto e catálogo',
+  'Fornecedores',
+  'Operações e obra',
+  'Comercialização',
+] as const;
 
 type Voto = 'sim' | 'nao';
 
