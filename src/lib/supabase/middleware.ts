@@ -14,6 +14,7 @@ import {
   isCalculadoraPublicLeituraPath,
   isEmpreendimentoPublicoPath,
   isSimuladorPublicoPath,
+  isAjudaPublicaPath,
   isExternalTokenAccessPath,
   isFrankAllowedPath,
   isTeamAllowedPath,
@@ -222,7 +223,12 @@ export async function updateSession(request: NextRequest) {
 
   // Só cadastro explicitamente pending — perfil ausente/timeout NÃO vai para /leitura.
   if (isExplicitPending) {
-    if (isExternalTokenAccessPath(pathname) || isBcaPublicLeituraAccessPath(pathname) || isAuthFlowAccessPath(pathname)) {
+    if (
+      isExternalTokenAccessPath(pathname) ||
+      isBcaPublicLeituraAccessPath(pathname) ||
+      isAuthFlowAccessPath(pathname) ||
+      isAjudaPublicaPath(pathname)
+    ) {
       return response;
     }
     const url = new URL('/login', request.url);

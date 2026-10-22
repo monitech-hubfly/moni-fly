@@ -60,14 +60,20 @@ function destacar(texto: string, termo: string) {
   });
 }
 
+function semAcento(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 export function FaqClient({
   categories,
   articles,
   erro,
+  publico = false,
 }: {
   categories: FaqCategory[];
   articles: FaqArticle[];
   erro: boolean;
+  publico?: boolean;
 }) {
   const buscaRef = useRef<HTMLInputElement>(null);
   const [consulta, setConsulta] = useState('');
@@ -127,6 +133,18 @@ export function FaqClient({
     const ultimo = { termo: '', total: -1 };
 
     const timerBusca = window.setTimeout(() => {
+      if (publico) {
+        const alvo = semAcento(termo);
+        const lista = articles
+          .filter((artigo) =>
+            semAcento([artigo.pergunta, artigo.resposta_resumida, artigo.resposta_completa ?? ''].join(' ')).includes(alvo),
+          )
+          .slice(0, 20);
+        if (!ativo) return;
+        setResultados(lista);
+        setBuscando(false);
+        return;
+      }
       void searchFaqArticles(termo)
         .then((lista) => {
           if (!ativo) return;
@@ -144,7 +162,9 @@ export function FaqClient({
         });
     }, 300);
 
-    const timerRegistro = window.setTimeout(() => {
+    const timerRegistro = publico
+      ? 0
+      : window.setTimeout(() => {
       const limite = Date.now() + 4000;
       const registrar = () => {
         if (!ativo) return;
@@ -163,7 +183,7 @@ export function FaqClient({
       window.clearTimeout(timerBusca);
       window.clearTimeout(timerRegistro);
     };
-  }, [consulta]);
+  }, [articles, consulta, publico]);
 
   const modoBusca = consulta.trim().length > 0;
 
@@ -240,10 +260,10 @@ export function FaqClient({
                   Nenhum artigo encontrado para essa busca.
                 </p>
                 <Link
-                  href="/sirene/novo"
+                  href="/ajuda/pergunta"
                   className="mt-4 inline-flex min-h-11 items-center font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] font-medium text-[var(--moni-navy-800)] underline"
                 >
-                  Abrir chamado no Sirene
+                  Enviar uma pergunta
                 </Link>
               </div>
             ) : null}
@@ -288,10 +308,10 @@ export function FaqClient({
                 Não encontrou o que precisa?
               </h2>
               <Link
-                href="/sirene/novo"
+                href="/ajuda/pergunta"
                 className="mt-6 inline-flex min-h-11 items-center justify-center rounded-[var(--moni-radius-md)] bg-[var(--moni-gold-400)] px-4 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] font-medium text-[var(--moni-navy-800)]"
               >
-                Abrir chamado no Sirene
+                Enviar uma pergunta
               </Link>
             </article>
           </div>
@@ -302,6 +322,7 @@ export function FaqClient({
         artigo={artigoAberto}
         categoriaNome={artigoAberto ? nomeCategoria(artigoAberto.categoria_id) : ''}
         aberto={painelAberto}
+        mostrarVoto={!publico}
         voto={artigoAberto ? (votos[artigoAberto.id] ?? null) : null}
         onFechar={fecharPainel}
         onVoto={(articleId, voto) => setVotos((atual) => ({ ...atual, [articleId]: voto }))}

@@ -3,7 +3,7 @@
 import { Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 import { AdminProvider } from '@/context/AdminContext';
-import { isCalculadoraPublicLeituraPath, isExternalTokenAccessPath, isPublicGuiaLeituraPagePath, isSimuladorPublicoPath } from '@/lib/access-matrix';
+import { isAjudaPublicaPath, isCalculadoraPublicLeituraPath, isExternalTokenAccessPath, isPublicGuiaLeituraPagePath, isSimuladorPublicoPath } from '@/lib/access-matrix';
 import { PortalSidebar } from './PortalSidebar';
 import { AppStickyHeader } from './AppStickyHeader';
 
@@ -57,6 +57,7 @@ export function AppShell({ user, userRole, userCargo = null, children }: AppShel
     isCalculadoraPublicLeituraPath(pathname) ||
     isSimuladorPublicoPath(pathname) ||
     isExternalTokenAccessPath(pathname) ||
+    isAjudaPublicaPath(pathname) ||
     pathname === '/empreendimento' ||
     pathname.startsWith('/empreendimento/');
 

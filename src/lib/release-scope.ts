@@ -54,6 +54,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/portal-frank',
   '/perfil',
   '/universidade',
+  '/ajuda',
   '/treinamento-bca',
   '/pre-batalha',
   '/casa0',

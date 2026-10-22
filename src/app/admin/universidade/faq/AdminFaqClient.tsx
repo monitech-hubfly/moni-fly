@@ -16,6 +16,31 @@ import {
   type FaqArtigoInput,
 } from '@/lib/faq/actions';
 
+function LinkPublicoAjuda() {
+  const [copiado, setCopiado] = useState(false);
+
+  async function copiar() {
+    const url = `${window.location.origin}/ajuda`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiado(true);
+      window.setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      setCopiado(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => void copiar()}
+      className="rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50"
+    >
+      {copiado ? 'Link copiado' : 'Copiar link público /ajuda'}
+    </button>
+  );
+}
+
 type Aba = 'perguntas' | 'categorias';
 const ROLES = ['frank', 'team', 'admin'] as const;
 const STATUS_LABEL: Record<FaqStatus, string> = { draft: 'Rascunho', published: 'Publicado', archived: 'Arquivado' };
@@ -65,9 +90,12 @@ export function AdminFaqClient({
             Administração independente das perguntas da FAQ da Universidade — sem relação com cursos, aulas ou progresso.
           </p>
         </div>
-        <Link href="/universidade/faq" className="text-sm font-medium text-moni-primary hover:underline">
-          Ver FAQ pública →
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <LinkPublicoAjuda />
+          <Link href="/universidade/faq" className="text-sm font-medium text-moni-primary hover:underline">
+            Ver FAQ interna →
+          </Link>
+        </div>
       </header>
 
       <div className="flex gap-1 border-b border-stone-200">
@@ -157,7 +185,7 @@ export function AdminFaqClient({
                               : 'bg-stone-200 text-stone-600'
                         }`}
                       >
-                        {STATUS_LABEL[a.status]}
+                        {a.status === 'draft' && !a.answer.trim() ? 'Aguardando resposta' : STATUS_LABEL[a.status]}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-stone-600">{a.display_order}</td>
@@ -299,6 +327,10 @@ function EditorArtigo({
     setErro(null);
     if (!question.trim() || !answer.trim()) {
       setErro('Pergunta e resposta são obrigatórias.');
+      return;
+    }
+    if (status === 'published' && !categoryId) {
+      setErro('Escolha a categoria antes de publicar.');
       return;
     }
     setSalvando(true);

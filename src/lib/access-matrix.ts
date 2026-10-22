@@ -39,6 +39,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/formularios',
   '/universidade',
   '/admin/universidade',
+  '/ajuda',
   '/carometro',
   '/marketing',
   '/manutencoes',
@@ -73,6 +74,7 @@ export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/dashboard-novos-negocios',
   '/perfil',
   '/universidade',
+  '/ajuda',
   '/casa0',
   '/casa1',
   '/minhas-empresas',
@@ -263,6 +265,11 @@ export function isExternalTokenAccessPath(pathname: string): boolean {
   );
 }
 
+/** Central de Ajuda pública, sem login. */
+export function isAjudaPublicaPath(pathname: string): boolean {
+  return pathname === '/ajuda' || pathname.startsWith('/ajuda/');
+}
+
 /** Sem sessão Supabase: só BCA público, auth, portal Frank (login) e links tokenizados. */
 export function isAnonymousAllowedPath(pathname: string): boolean {
   return (
@@ -270,7 +277,8 @@ export function isAnonymousAllowedPath(pathname: string): boolean {
     isAuthFlowAccessPath(pathname) ||
     isPortalFrankAuthAccessPath(pathname) ||
     isExternalTokenAccessPath(pathname) ||
-    isEmpreendimentoPublicoPath(pathname)
+    isEmpreendimentoPublicoPath(pathname) ||
+    isAjudaPublicaPath(pathname)
   );
 }
 
