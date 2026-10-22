@@ -52,10 +52,10 @@ const BASTOES_ESPERADOS: Record<
       kanbanNome: 'Funil Modelo Virtual',
     },
   ],
-  aprovacao_condominio: [
+  aprovacao_prefeitura: [
     {
       kanbanId: KANBAN_IDS.PROJETOS_LOCAIS,
-      faseSlug: 'projetos_locais_briefing',
+      faseSlug: 'pl_000_novo_projeto',
       kanbanNome: 'Funil Projetos Locais',
     },
   ],
@@ -92,11 +92,11 @@ const TESTS = [
   },
   {
     id: 3,
-    label: 'aprovacao_condominio → Projetos Locais / projetos_locais_briefing',
+    label: 'aprovacao_prefeitura → Projetos Locais / pl_000_novo_projeto',
     kanbanId: KANBAN_IDS.OPERACOES,
     kanbanNome: 'Funil Operações',
-    faseAnteriorSlug: 'planialtimetrico',
-    faseGatilhoSlug: 'aprovacao_condominio',
+    faseAnteriorSlug: 'aprovacao_condominio',
+    faseGatilhoSlug: 'aprovacao_prefeitura',
   },
   {
     id: 4,

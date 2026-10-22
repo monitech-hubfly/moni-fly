@@ -38,7 +38,7 @@
 | Funil Modelo Virtual | `/funil-modelo-virtual` | `92d0033b-…` | — | Shared | Interno |
 | Funil Homologações | `/funil-homologacoes` | `69bf5668-…` | — | Shared | Interno |
 | Funil Projeto Legal | `/funil-projeto-legal` | `39de341d-…` | 14 | Shared | Bastão de volta move pai Operações; interno |
-| Funil Projetos Locais | `/projetos-locais` | `c2ab09bd-…` | — | Shared | Bastão de `aprovacao_condominio`; interno |
+| Funil Projetos Locais | `/projetos-locais` | `c2ab09bd-…` | — | Shared | Bastão de `aprovacao_prefeitura`; interno |
 | Funil Projetos Legais | `/projetos-legais` | `23ad5ce1-…` | — | Shared | Interno |
 | *(legado)* painel Step One | `/painel-novos-negocios` | — | colunas fixas | `processo_step_one` | Não é kanban nativo; view de compatibilidade |
 
@@ -272,7 +272,7 @@ Mapa `kanbans.nome` → `{ basePath, cardQueryParam }`. Contabilidade e Cash Me 
 | `passagem_wayser` | Operações planialtimétrico |
 | `aguardando_credito` | Cash Me |
 | `prod_publicado` | Modelo Virtual |
-| `aprovacao_condominio` | Projetos Locais |
+| `aprovacao_prefeitura` | Projetos Locais |
 | `projeto_legal` | Funil Projeto Legal (`pl_nova_demanda`) |
 | `projeto_legal` | Funil Projetos Legais (`projetos_legais_protocolo`) |
 | `loteador_juridico` | Jurídico |
@@ -289,7 +289,7 @@ Mapa `kanbans.nome` → `{ basePath, cardQueryParam }`. Contabilidade e Cash Me 
 | `projetos_locais_concluido` | `projetos_locais_ok` |
 | `projetos_legais_concluido` | `projetos_legais_ok` |
 
-**Especial**: filho Projeto Legal em `pl_c_protocolo_andamento` → move pai Operações para `aprovacao_condominio`.
+**Especial**: filho Projeto Legal em `pl_c_protocolo_andamento` → move pai Operações para `aprovacao_condominio`. Esse movimento não abre Projetos Locais.
 
 ### 6.4 Tranche vínculos (Operações)
 
@@ -431,7 +431,7 @@ flowchart LR
   PF -->|captacao| MC[Divify]
   PF -->|passagem_wayser| OP[Operações]
   OP -->|aguardando_credito| CM[Cash Me]
-  OP -->|aprovacao_condominio| PL[Projetos Locais]
+  OP -->|aprovacao_prefeitura| PL[Projetos Locais]
   LO[Loteadores] -->|acoplamento_moni_inc| AC
 ```
 

@@ -1181,7 +1181,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     slug !== FASE_SLUGS.PASSAGEM_WAYSER &&
     slug !== FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC &&
     slug !== FASE_SLUGS.PROD_PUBLICADO &&
-    slug !== FASE_SLUGS.APROVACAO_CONDOMINIO &&
+    slug !== FASE_SLUGS.APROVACAO_PREFEITURA &&
     slug !== FASE_SLUGS.PROJETO_LEGAL &&
     slug !== FASE_SLUGS.M1_PAGAMENTO_ENTRADA
   ) {
@@ -1282,7 +1282,8 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         faseDestinoSlug: FASE_SLUGS.MV_MODELAGEM_CASA,
       },
     ],
-    [FASE_SLUGS.APROVACAO_CONDOMINIO]: [
+    /** Pré Obra e Obra → Projetos Locais só na entrada de Aprovação na Prefeitura. */
+    [FASE_SLUGS.APROVACAO_PREFEITURA]: [
       {
         kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS,
         faseDestinoSlug: 'pl_000_novo_projeto',
@@ -1420,6 +1421,7 @@ const DESFECHO_APENAS_FLAG_SEM_MOVER_PAI = new Set<string>([
 /**
  * Bastão de volta com movimento de fase: filho Projeto Legal → pai Operações.
  * Quando o filho entra em `pl_c_protocolo_andamento`, move o pai para `aprovacao_condominio`.
+ * Não abre Projetos Locais — esse filho nasce só na entrada de `aprovacao_prefeitura`.
  */
 async function executarBastaoDeVoltaMoverPaiPorFaseFilho(
   cardFilhoId: string,
@@ -1562,8 +1564,6 @@ async function executarBastaoDeVoltaMoverPaiPorFaseFilho(
   if (errHist) {
     console.error('[executarBastaoDeVoltaMoverPai] historico:', errHist.message);
   }
-
-  await executarBastoes(paiId, FASE_SLUGS.APROVACAO_CONDOMINIO);
 
   revalidatePath('/operacoes');
   revalidatePath('/funil-projeto-legal');
