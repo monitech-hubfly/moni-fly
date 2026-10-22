@@ -175,7 +175,7 @@ O documento descreve estruturas de permuta integral por valor fixo ou percentual
 
 ### 35. É possível oferecer ao terrenista entrada de 20% e saldo em 18 parcelas mensais?
 
-O esclarecimento documental registra que essa condição foi informada incorretamente e posteriormente corrigida como inviável no caso analisado. O saldo seria pago na venda da casa, respeitando o prazo contratual.
+Essa condição foi informada incorretamente e posteriormente corrigida como inviável no caso analisado. O saldo seria pago na venda da casa, respeitando o prazo contratual.
 
 ### 36. Sobre qual valor incidem os 5% de intermediação do lote?
 
@@ -345,7 +345,7 @@ Em linhas gerais, a Gestora costuma operar no Simples Nacional e a Incorporadora
 
 ### 72. Quem recolhe INSS e ISS da obra e como os valores são orçados?
 
-Segundo o esclarecimento documental, a SPE é responsável pelos recolhimentos em seu CNPJ. Os tributos são considerados nas taxas e impostos do BCA e sua operacionalização ocorre com apoio da Gestora. Bases, alíquotas e momento de recolhimento devem ser confirmados para o caso concreto.
+A SPE é responsável pelos recolhimentos em seu CNPJ. Os tributos são considerados nas taxas e impostos do BCA e sua operacionalização ocorre com apoio da Gestora. Bases, alíquotas e momento de recolhimento devem ser confirmados para o caso concreto.
 
 ### 73. Como a Gestora recebe e documenta a taxa de gestão de obra?
 
