@@ -123,6 +123,11 @@ export interface FormularioRespostaListaItem {
   numero_franquia: string | null;
   card_id: string | null;
   rede_franqueado_id: string | null;
+  card_titulo: string | null;
+  card_fase: string | null;
+  nome_completo: string | null;
+  cidade: string | null;
+  estado: string | null;
 }
 
 export interface RespostaLocal {

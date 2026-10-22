@@ -134,7 +134,7 @@ export function FormulariosCatalogo({ grupos }: { grupos: FormularioCatalogoGrup
           Formulários
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed" style={{ color: 'var(--moni-text-secondary)' }}>
-          Cada formulário tem um link público fixo. Quem recebe pode responder mais de uma vez, e cada envio fica registrado.
+          Cada formulário tem um link público fixo. Os envios ficam em Ver respostas, agrupados pela categoria e pelo formulário.
         </p>
         <p className="mt-3 text-xs" style={{ color: 'var(--moni-text-tertiary)' }}>
           {rotuloQuantidade(totalCadastrado)}

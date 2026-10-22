@@ -7,6 +7,12 @@ import { FORMULARIOS_BUCKET } from '@/lib/constants/formularios-ids';
 import { categoriaHubOuNull } from '@/lib/constants/categorias-hub';
 import { isFrankOrFranqueadoRole } from '@/lib/authz';
 import { opcoesParaLista } from '@/lib/formularios/apresentacao';
+import {
+  camposIdentidadeResposta,
+  chaveUltimoPreenchimento,
+  numeroFranquiaDoTitulo,
+  type CampoIdentidade,
+} from '@/lib/formularios/resposta-identidade';
 import type {
   Formulario,
   FormularioCampo,
@@ -83,6 +89,11 @@ function mapLista(row: ListaRow): FormularioRespostaListaItem {
     numero_franquia: row.numero_franquia,
     card_id: row.card_id,
     rede_franqueado_id: row.rede_franqueado_id,
+    card_titulo: null,
+    card_fase: null,
+    nome_completo: row.nome_franqueado,
+    cidade: null,
+    estado: null,
   };
 }
 
@@ -217,16 +228,125 @@ export async function atualizarClassificacaoFormulario(
   return { ok: true };
 }
 
+function textoDoValor(row: { valor_texto: string | null; valor_json: unknown }): string | null {
+  const texto = String(row.valor_texto ?? '').trim();
+  if (texto) return texto;
+  if (typeof row.valor_json === 'string' && row.valor_json.trim()) return row.valor_json.trim();
+  return null;
+}
+
+function instanteResposta(row: ListaRow): number {
+  const iso = row.enviado_em ?? row.created_at;
+  const ms = new Date(iso).getTime();
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
 export async function listarRespostasDoFormulario(formularioId: string): Promise<FormularioRespostaListaItem[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('formulario_respostas')
     .select(SELECT_LISTA)
     .eq('formulario_id', formularioId)
-    .order('created_at', { ascending: false });
+    .eq('status', 'enviado')
+    .order('enviado_em', { ascending: false });
 
   if (error || !data) return [];
-  return (data as unknown as ListaRow[]).map(mapLista);
+  const linhas = (data as unknown as ListaRow[]).sort((a, b) => instanteResposta(b) - instanteResposta(a));
+  const vistas = new Set<string>();
+  const ultimas: ListaRow[] = [];
+  for (const linha of linhas) {
+    const chave = chaveUltimoPreenchimento(linha);
+    if (vistas.has(chave)) continue;
+    vistas.add(chave);
+    ultimas.push(linha);
+  }
+  if (ultimas.length === 0) return [];
+
+  const { data: secoes } = await supabase.from('formulario_secoes').select('id').eq('formulario_id', formularioId);
+  const secaoIds = (secoes ?? []).map((secao) => String((secao as { id: string }).id));
+  let identidade = { nomeId: null as string | null, cidadeId: null as string | null, estadoId: null as string | null };
+  if (secaoIds.length > 0) {
+    const { data: campos } = await supabase
+      .from('formulario_campos')
+      .select('id, nome, tipo, ordem')
+      .in('secao_id', secaoIds);
+    identidade = camposIdentidadeResposta((campos ?? []) as CampoIdentidade[]);
+  }
+  const campoIds = [identidade.nomeId, identidade.cidadeId, identidade.estadoId].filter((id): id is string => Boolean(id));
+  const respostaIds = ultimas.map((linha) => linha.id);
+  const valoresPorResposta = new Map<string, Map<string, string>>();
+  if (campoIds.length > 0) {
+    const { data: valores } = await supabase
+      .from('formulario_resposta_valores')
+      .select('resposta_id, campo_id, valor_texto, valor_json')
+      .in('resposta_id', respostaIds)
+      .in('campo_id', campoIds);
+    for (const valor of valores ?? []) {
+      const row = valor as { resposta_id: string; campo_id: string; valor_texto: string | null; valor_json: unknown };
+      const texto = textoDoValor(row);
+      if (!texto) continue;
+      const mapa = valoresPorResposta.get(row.resposta_id) ?? new Map<string, string>();
+      mapa.set(row.campo_id, texto);
+      valoresPorResposta.set(row.resposta_id, mapa);
+    }
+  }
+
+  const cardIds = [...new Set(ultimas.map((linha) => linha.card_id).filter((id): id is string => Boolean(id)))];
+  const cards = new Map<string, { titulo: string | null; faseId: string | null; redeId: string | null }>();
+  if (cardIds.length > 0) {
+    const { data: cardRows } = await supabase
+      .from('kanban_cards')
+      .select('id, titulo, fase_id, rede_franqueado_id')
+      .in('id', cardIds);
+    for (const card of cardRows ?? []) {
+      const row = card as { id: string; titulo: string | null; fase_id: string | null; rede_franqueado_id: string | null };
+      cards.set(row.id, { titulo: row.titulo, faseId: row.fase_id, redeId: row.rede_franqueado_id });
+    }
+  }
+  const faseIds = [...new Set([...cards.values()].map((card) => card.faseId).filter((id): id is string => Boolean(id)))];
+  const fases = new Map<string, string>();
+  if (faseIds.length > 0) {
+    const { data: faseRows } = await supabase.from('kanban_fases').select('id, nome').in('id', faseIds);
+    for (const fase of faseRows ?? []) {
+      const row = fase as { id: string; nome: string };
+      fases.set(row.id, row.nome);
+    }
+  }
+
+  const redeIds = [
+    ...new Set(
+      ultimas
+        .flatMap((linha) => [linha.rede_franqueado_id, linha.card_id ? cards.get(linha.card_id)?.redeId ?? null : null])
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const redes = new Map<string, { nFranquia: string | null; nome: string | null }>();
+  if (redeIds.length > 0) {
+    const { data: redeRows } = await supabase
+      .from('rede_franqueados')
+      .select('id, n_franquia, nome_completo')
+      .in('id', redeIds);
+    for (const rede of redeRows ?? []) {
+      const row = rede as { id: string; n_franquia: string | null; nome_completo: string | null };
+      redes.set(row.id, { nFranquia: row.n_franquia, nome: row.nome_completo });
+    }
+  }
+
+  return ultimas.map((linha) => {
+    const item = mapLista(linha);
+    const valores = valoresPorResposta.get(linha.id);
+    const card = linha.card_id ? cards.get(linha.card_id) : undefined;
+    const redeId = linha.rede_franqueado_id || card?.redeId || null;
+    const rede = redeId ? redes.get(redeId) : undefined;
+    const nomeCampo = identidade.nomeId ? valores?.get(identidade.nomeId) ?? null : null;
+    item.nome_completo = nomeCampo || linha.nome_franqueado || rede?.nome || null;
+    item.cidade = identidade.cidadeId ? valores?.get(identidade.cidadeId) ?? null : null;
+    item.estado = identidade.estadoId ? valores?.get(identidade.estadoId) ?? null : null;
+    item.card_titulo = card?.titulo ?? null;
+    item.card_fase = card?.faseId ? fases.get(card.faseId) ?? null : null;
+    item.numero_franquia = linha.numero_franquia || rede?.nFranquia || numeroFranquiaDoTitulo(card?.titulo) || null;
+    return item;
+  });
 }
 
 export async function listarRespostasDoCard(cardId: string): Promise<FormularioRespostaListaItem[]> {
