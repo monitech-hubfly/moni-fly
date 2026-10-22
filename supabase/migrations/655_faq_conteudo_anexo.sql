@@ -1567,7 +1567,7 @@ VALUES (
   $faq079$Qual carga tributária de referência foi indicada para a Incorporadora?$faq079$,
   'cm-faq-079',
   NULL,
-  $faq079$O questionário cita carga efetiva estimada de 3% a 5% sobre o VGV no Lucro Presumido. É uma referência documental, não uma alíquota universal, e exige confirmação pelo contador.$faq079$,
+  $faq079$A carga efetiva estimada é de 3% a 5% sobre o VGV no Lucro Presumido. É uma referência documental, não uma alíquota universal, e exige confirmação pelo contador.$faq079$,
   'published',
   11,
   NULL,

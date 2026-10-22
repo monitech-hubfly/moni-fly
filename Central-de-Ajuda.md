@@ -373,7 +373,7 @@ O questionário apresenta estimativa de 6% a 12% sobre a receita de gestão de o
 
 ### 79. Qual carga tributária de referência foi indicada para a Incorporadora?
 
-O questionário cita carga efetiva estimada de 3% a 5% sobre o VGV no Lucro Presumido. É uma referência documental, não uma alíquota universal, e exige confirmação pelo contador.
+A carga efetiva estimada é de 3% a 5% sobre o VGV no Lucro Presumido. É uma referência documental, não uma alíquota universal, e exige confirmação pelo contador.
 
 ### 80. Quem recolhe INSS e ISS relacionados à construção?
 
