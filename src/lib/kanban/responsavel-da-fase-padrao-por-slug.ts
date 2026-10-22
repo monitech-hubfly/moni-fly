@@ -63,9 +63,11 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
 
   // Funil Acoplamento
   novo_acoplamento: 'moni',
+  verificar_itens_fora_do_padrao: 'moni',
   modelagem_terreno: 'moni',
   modelagem_casa_gbox: 'moni',
   gbox_acoplamento: 'moni',
+  aguardando_alteracao_gbox: 'moni',
   validacao_acoplamento: 'moni',
   aguardando_comite_acoplamento: 'moni',
   alteracoes_acoplamento: 'moni',
