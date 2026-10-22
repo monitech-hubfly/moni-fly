@@ -145,10 +145,6 @@ No exemplo documental, a remuneração de 5% incide uma única vez sobre o Valor
 
 O padrão contratual indicado transfere a responsabilidade à SPE na lavratura da escritura, sujeito às condições negociadas. As despesas são da SPE e devem ser provisionadas no capital de giro do BCA; não são cobertas pela Moní ou pelo fundo. Os valores variam conforme imóvel, município e condomínio.
 
-### 28. O aporte de R$ 105 mil para quitação de terreno é um custo padrão?
-
-Não. O documento esclarece que R$ 105 mil se referem a um saldo específico necessário para viabilizar a quitação de determinado terreno; não são reserva padrão por unidade nem custo recorrente.
-
 ### 29. Como funcionam a entrada de 30%, o saldo de 70% e a remuneração de 15% ao ano em uma aquisição de terreno?
 
 Na estrutura contratual exemplificada, 30% do valor-base são pagos na escritura e os 70% restantes são quitados na venda ou no prazo máximo contratual de 24 meses. A remuneração de 15% ao ano é calculada por juros compostos sobre o saldo devedor, até a quitação; antecipar o pagamento reduz a remuneração acumulada. Essa é uma estrutura específica, não regra universal para toda permuta.

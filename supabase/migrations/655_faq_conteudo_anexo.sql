@@ -579,25 +579,6 @@ INSERT INTO public.faq_articles (
 )
 VALUES (
   (SELECT id FROM public.faq_categories WHERE slug = 'terrenos-e-permuta'),
-  $faq028$O aporte de R$ 105 mil para quitação de terreno é um custo padrão?$faq028$,
-  'cm-faq-028',
-  NULL,
-  $faq028$Não. O documento esclarece que R$ 105 mil se referem a um saldo específico necessário para viabilizar a quitação de determinado terreno; não são reserva padrão por unidade nem custo recorrente.$faq028$,
-  'published',
-  5,
-  NULL,
-  '{}',
-  '{}',
-  false,
-  ARRAY['frank','team','admin']::text[]
-);
-INSERT INTO public.faq_articles (
-  category_id, question, slug, short_answer, answer,
-  status, display_order, responsible_area, keywords, synonyms,
-  is_featured, visibility
-)
-VALUES (
-  (SELECT id FROM public.faq_categories WHERE slug = 'terrenos-e-permuta'),
   $faq029$Como funcionam a entrada de 30%, o saldo de 70% e a remuneração de 15% ao ano em uma aquisição de terreno?$faq029$,
   'cm-faq-029',
   NULL,
