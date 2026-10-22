@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isoWeek, isoWeekYear } from '@/utils/periodos';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
-import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
+import { calcularSlaKanbanCard, faseExcluidaDoAtrasoSla } from '@/lib/kanban/kanban-card-sla';
 
 export type DiaStatus = {
   data: string;
@@ -411,6 +411,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         }>;
         const cardsComSLA = kanbanArr.filter(c => {
           const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
+          if (faseExcluidaDoAtrasoSla(fase?.slug)) return false;
           return (fase?.sla_dias ?? null) !== null;
         });
         // Cards com trava ativa → bloqueados: excluídos do score (nem bônus, nem penalidade)

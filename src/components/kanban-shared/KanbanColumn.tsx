@@ -20,6 +20,7 @@ import {
 import {
   calcularSlaKanbanCard,
   creditoObraAguardandoDocumentacao,
+  faseExcluidaDoAtrasoSla,
   CLASSE_TAG_AGUARDANDO_DOCUMENTACAO,
   TAG_AGUARDANDO_DOCUMENTACAO,
   tagSlaKanbanParaExibicao,
@@ -628,7 +629,7 @@ const KanbanColumnInner = function KanbanColumn({
             </h2>
           </div>
           <div className="moni-kanban-column-hd-actions">
-            {fase.sla_dias && !isFaseConclusaoKanban(fase) ? (
+            {fase.sla_dias && !isFaseConclusaoKanban(fase) && !faseExcluidaDoAtrasoSla(fase.slug) ? (
               <span className="moni-kanban-col-sla">
                 {fase.sla_dias}d {rotuloUnidadeSla(fase.sla_tipo)}
               </span>

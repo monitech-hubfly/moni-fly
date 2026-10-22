@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
+import { faseExcluidaDoAtrasoSla } from '@/lib/kanban/kanban-card-sla';
 
 export type HubFunisSlaItem = {
   kanbanId: string;
@@ -68,7 +69,7 @@ async function fetchSlaData(
 
   const { data: cards, error } = await supabase
     .from('kanban_cards')
-    .select('kanban_id, entered_fase_at, fase:fase_id(sla_dias)')
+    .select('kanban_id, entered_fase_at, fase:fase_id(sla_dias, slug)')
     .eq('arquivado', false)
     .eq('concluido', false)
     .in('kanban_id', HUB_KANBAN_IDS)
@@ -82,7 +83,8 @@ async function fetchSlaData(
     const kid = card.kanban_id as string;
     if (!counts[kid]) counts[kid] = { atrasados: 0, hoje: 0 };
 
-    const fase = card.fase as unknown as { sla_dias: number | null } | null;
+    const fase = card.fase as unknown as { sla_dias: number | null; slug?: string | null } | null;
+    if (faseExcluidaDoAtrasoSla(fase?.slug)) continue;
     const slaDias = fase?.sla_dias ?? null;
     if (!slaDias || !card.entered_fase_at) continue;
 

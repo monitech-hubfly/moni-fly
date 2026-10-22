@@ -70,6 +70,20 @@ export function indicadorBolinhaSlaKanban(
   };
 }
 
+/**
+ * Pós-assinatura / Retroalimentação não gera atraso no Funil Jurídico.
+ * O card continua no quadro, mas fica fora da conta de SLA.
+ */
+const FASES_EXCLUIDAS_DO_ATRASO_SLA = new Set<string>([
+  FASE_SLUGS.JURIDICO_POS_ASSINATURA,
+  FASE_SLUGS.JURIDICO_RETROALIMENTACAO,
+]);
+
+export function faseExcluidaDoAtrasoSla(slug: string | null | undefined): boolean {
+  const valor = String(slug ?? '').trim().toLowerCase();
+  return Boolean(valor) && FASES_EXCLUIDAS_DO_ATRASO_SLA.has(valor);
+}
+
 export function urlDocumentacaoCreditoObraPreenchida(value: string | null | undefined): boolean {
   return String(value ?? '').trim().length > 0;
 }
@@ -136,6 +150,9 @@ export function calcularSlaKanbanCard(input: {
   sla_tipo?: SlaTipo | string | null;
 }): SlaKanbanResult {
   if (isFaseConclusaoKanban({ slug: input.faseSlug, nome: input.faseNome })) {
+    return { status: 'ok', label: '', classe: '', pausado: false, semSla: true };
+  }
+  if (faseExcluidaDoAtrasoSla(input.faseSlug)) {
     return { status: 'ok', label: '', classe: '', pausado: false, semSla: true };
   }
   // Trava ativa → SLA congelado: não penaliza o responsável enquanto aguarda resolução.
