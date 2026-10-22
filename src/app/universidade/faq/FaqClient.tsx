@@ -8,21 +8,6 @@ import type { FaqArticle, FaqCategory } from '@/types/faq';
 import { FaqArticlePanel } from './FaqArticlePanel';
 import { FaqCategoryCard } from './FaqCategoryCard';
 
-const CHIPS = [
-  'Institucional',
-  'Franquia e expansão',
-  'Franquia e remuneração',
-  'Crédito e funding',
-  'Terrenos e permuta',
-  'Recompra e liquidação',
-  'Estrutura societária e contratos',
-  'Tributação e contabilidade',
-  'Produto e catálogo',
-  'Fornecedores',
-  'Operações e obra',
-  'Comercialização',
-] as const;
-
 type Voto = 'sim' | 'nao';
 
 function regexTermo(termo: string): RegExp | null {
@@ -128,6 +113,13 @@ export function FaqClient({
       return;
     }
 
+    const categoriaEscolhida = categories.find((categoria) => semAcento(categoria.nome) === semAcento(termo));
+    if (categoriaEscolhida) {
+      setResultados(porCategoria.get(categoriaEscolhida.id) ?? []);
+      setBuscando(false);
+      return;
+    }
+
     let ativo = true;
     setBuscando(true);
     const ultimo = { termo: '', total: -1 };
@@ -137,7 +129,9 @@ export function FaqClient({
         const alvo = semAcento(termo);
         const lista = articles
           .filter((artigo) =>
-            semAcento([artigo.pergunta, artigo.resposta_resumida, artigo.resposta_completa ?? ''].join(' ')).includes(alvo),
+            semAcento(
+              [artigo.pergunta, artigo.resposta_resumida, artigo.resposta_completa ?? '', nomeCategoria(artigo.categoria_id)].join(' '),
+            ).includes(alvo),
           )
           .slice(0, 20);
         if (!ativo) return;
@@ -183,7 +177,7 @@ export function FaqClient({
       window.clearTimeout(timerBusca);
       window.clearTimeout(timerRegistro);
     };
-  }, [articles, consulta, publico]);
+  }, [articles, categories, consulta, nomeCategoria, porCategoria, publico]);
 
   const modoBusca = consulta.trim().length > 0;
 
@@ -226,16 +220,25 @@ export function FaqClient({
             )}
           </label>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {CHIPS.map((chip) => (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => setConsulta(chip)}
-                className="inline-flex min-h-11 items-center rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-secondary)] transition-colors duration-200 hover:bg-[var(--moni-surface-100)]"
-              >
-                {chip}
-              </button>
-            ))}
+            {categories.map((categoria) => {
+              const ativa = semAcento(consulta.trim()) === semAcento(categoria.nome);
+              return (
+                <button
+                  key={categoria.id}
+                  type="button"
+                  aria-pressed={ativa}
+                  onClick={() => setConsulta(categoria.nome)}
+                  className="inline-flex min-h-11 items-center rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid px-3 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] transition-colors duration-200"
+                  style={{
+                    borderColor: ativa ? 'var(--moni-navy-800)' : 'var(--moni-border-default)',
+                    background: ativa ? 'var(--moni-navy-800)' : 'var(--moni-surface-0)',
+                    color: ativa ? 'var(--moni-text-inverse)' : 'var(--moni-text-secondary)',
+                  }}
+                >
+                  {categoria.nome}
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
