@@ -1,4 +1,119 @@
-import type { FormularioCampo, FormularioResposta, FormularioSecao } from '@/types/formularios';
+import type { FormularioCampo, FormularioCampoGrupoDef, FormularioResposta, FormularioSecao } from '@/types/formularios';
+
+export type ItemGrupoApresentado = {
+  label: string;
+  valor: string;
+  largo: boolean;
+};
+
+export type BlocoGrupoApresentado = {
+  titulo: string | null;
+  itens: ItemGrupoApresentado[];
+};
+
+export type LinhaGrupoApresentada = {
+  titulo: string;
+  blocos: BlocoGrupoApresentado[];
+};
+
+const ROTULOS_GRUPO: Record<string, string> = {
+  nome: 'Nome do condomínio',
+  faixa_preco: 'Faixa de preço de venda das casas',
+  giro_vendas: 'Giro de vendas nessa faixa',
+  metragem_construida: 'Metragem construída aproximada',
+  num_suites: 'Número de suítes',
+  possui_piscina: 'Possui piscina?',
+  vagas_cobertas: 'Número de vagas cobertas',
+  preco_medio_venda: 'Preço médio de venda das casas nessa faixa',
+  composicao_media: 'Composição média das casas nessa faixa',
+};
+
+function ehTemaGrupo(def: FormularioCampoGrupoDef): boolean {
+  return def.tipo === 'titulo' || def.key === 'composicao_media';
+}
+
+function ehFaixaGrupo(def: FormularioCampoGrupoDef): boolean {
+  return def.tipo === 'faixa_moeda' || def.key === 'faixa_preco';
+}
+
+function rotuloGrupo(def: FormularioCampoGrupoDef): string {
+  const label = def.label?.trim();
+  if (label) return label;
+  return ROTULOS_GRUPO[def.key] ?? def.key.replace(/_/g, ' ');
+}
+
+function textoDoItemGrupo(def: FormularioCampoGrupoDef, registro: Record<string, unknown>): string {
+  if (ehTemaGrupo(def)) return '';
+  if (ehFaixaGrupo(def)) {
+    const de = String(registro[`${def.key}_de`] ?? registro[def.key] ?? '').trim();
+    const ate = String(registro[`${def.key}_ate`] ?? '').trim();
+    if (de && ate && de !== ate) return `De ${de} à ${ate}`;
+    return de || ate;
+  }
+  let texto = String(registro[def.key] ?? '').trim();
+  if (!texto) return '';
+  if ((def.tipo === 'm2' || def.key === 'metragem_construida') && !/m²|m2/i.test(texto)) texto = `${texto} m²`;
+  return texto;
+}
+
+function defsDoGrupo(campo: FormularioCampo, registro: Record<string, unknown>): FormularioCampoGrupoDef[] {
+  const defs = campo.config?.campos ?? [];
+  if (defs.length > 0) return defs;
+  const ordem = ['nome', 'faixa_preco', 'giro_vendas', 'composicao_media', 'metragem_construida', 'num_suites', 'possui_piscina', 'vagas_cobertas', 'preco_medio_venda'];
+  const chaves = new Set(Object.keys(registro).filter((key) => !key.endsWith('_de') && !key.endsWith('_ate')));
+  const lista = ordem.filter((key) => chaves.has(key) || key === 'composicao_media');
+  for (const key of chaves) {
+    if (!lista.includes(key)) lista.push(key);
+  }
+  return lista.map((key) => ({
+    key,
+    label: ROTULOS_GRUPO[key] ?? key.replace(/_/g, ' '),
+    tipo: key === 'composicao_media' ? 'titulo' : key === 'faixa_preco' ? 'faixa_moeda' : 'texto',
+  }));
+}
+
+export function linhasDoGrupo(
+  campo: FormularioCampo,
+  valor: string | string[] | null | undefined,
+): LinhaGrupoApresentada[] | null {
+  if (valor === null || valor === undefined || valor === '') return [];
+  let rows: unknown;
+  try {
+    rows = JSON.parse(String(valor));
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(rows)) return null;
+
+  return rows.flatMap((row, index) => {
+    if (!row || typeof row !== 'object') return [];
+    const registro = row as Record<string, unknown>;
+    const defs = defsDoGrupo(campo, registro);
+    const nome = String(registro.nome ?? '').trim();
+    const blocos: BlocoGrupoApresentado[] = [];
+    let atual: BlocoGrupoApresentado = { titulo: null, itens: [] };
+
+    for (const def of defs) {
+      if (def.key === 'nome') continue;
+      if (ehTemaGrupo(def)) {
+        if (atual.titulo || atual.itens.length > 0) blocos.push(atual);
+        atual = { titulo: rotuloGrupo(def), itens: [] };
+        continue;
+      }
+      const texto = textoDoItemGrupo(def, registro);
+      if (!texto) continue;
+      atual.itens.push({
+        label: rotuloGrupo(def),
+        valor: texto,
+        largo: rotuloGrupo(def).length > 42,
+      });
+    }
+    if (atual.titulo || atual.itens.length > 0) blocos.push(atual);
+    const visiveis = blocos.filter((bloco) => bloco.itens.length > 0);
+    if (!nome && visiveis.length === 0) return [];
+    return [{ titulo: nome || `Condomínio ${index + 1}`, blocos: visiveis }];
+  });
+}
 
 export function labelDoStatus(status: string): string {
   const map: Record<string, string> = {
@@ -36,46 +151,18 @@ export function formatarValorCampo(campo: FormularioCampo, valor: string | strin
   }
 
   if (campo.tipo === 'grupo_repetivel') {
-    try {
-      const rows = JSON.parse(String(valor)) as unknown;
-      if (!Array.isArray(rows) || rows.length === 0) return '—';
-      return rows
-        .map((row, index) => {
-          if (!row || typeof row !== 'object') return '';
-          const temas = new Set(
-            (campo.config?.campos ?? [])
-              .filter((def) => def.tipo === 'titulo' || def.key === 'composicao_media')
-              .map((def) => def.key),
-          );
-          const faixas = (campo.config?.campos ?? [])
-            .filter((def) => def.tipo === 'faixa_moeda' || def.key === 'faixa_preco')
-            .map((def) => def.key);
-          const ignorar = new Set(faixas.flatMap((key) => [key, `${key}_de`, `${key}_ate`]));
-          const registro = row as Record<string, unknown>;
-          const partes = [
-            ...Object.entries(registro)
-              .map(([key, item]) => {
-                if (temas.has(key) || ignorar.has(key)) return '';
-                const texto = String(item ?? '').trim();
-                if (!texto) return '';
-                const valor = key === 'metragem_construida' && !texto.endsWith('m²') ? `${texto} m²` : texto;
-                return `${key}: ${valor}`;
-              }),
-            ...faixas.map((key) => {
-              const de = String(registro[`${key}_de`] ?? registro[key] ?? '').trim();
-              const ate = String(registro[`${key}_ate`] ?? '').trim();
-              if (de && ate) return `${key}: De ${de} à ${ate}`;
-              if (de || ate) return `${key}: ${de || ate}`;
-              return '';
-            }),
-          ].filter(Boolean);
-          return partes.length > 0 ? `${index + 1}. ${partes.join(' · ')}` : '';
-        })
-        .filter(Boolean)
-        .join('\n');
-    } catch {
-      return String(valor);
-    }
+    const linhas = linhasDoGrupo(campo, valor);
+    if (!linhas) return String(valor);
+    if (linhas.length === 0) return '—';
+    return linhas
+      .map((linha) => {
+        const partes = linha.blocos.flatMap((bloco) => [
+          bloco.titulo ?? '',
+          ...bloco.itens.map((item) => `${item.label}: ${item.valor}`),
+        ]);
+        return [linha.titulo, ...partes].filter(Boolean).join('\n');
+      })
+      .join('\n\n');
   }
 
   if (campo.tipo === 'data') {

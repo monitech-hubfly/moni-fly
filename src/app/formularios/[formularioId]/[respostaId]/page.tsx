@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { buscarRespostaDetalhada } from '@/lib/actions/formulario-actions';
-import { formatarValorCampo, labelDoStatus, normalizarCondicional, opcoesParaLista } from '@/lib/formularios/apresentacao';
+import { formatarValorCampo, labelDoStatus, linhasDoGrupo, normalizarCondicional, opcoesParaLista } from '@/lib/formularios/apresentacao';
 import type { FormularioCampo, FormularioCampoTipo, FormularioResposta, FormularioSecao } from '@/types/formularios';
 
 interface Props {
@@ -32,8 +32,81 @@ function textoDaResposta(secoes: FormularioSecao[], dados: FormularioResposta['d
   return null;
 }
 
+function GrupoRepetivelLeitura({ campo, valor }: { campo: FormularioCampo; valor: string | string[] | null | undefined }) {
+  const linhas = linhasDoGrupo(campo, valor);
+  if (!linhas) {
+    return (
+      <p className="whitespace-pre-wrap text-[15px] leading-relaxed" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}>
+        {String(valor)}
+      </p>
+    );
+  }
+  if (linhas.length === 0) {
+    return <p style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>—</p>;
+  }
+  return (
+    <div className="space-y-3">
+      {linhas.map((linha, index) => (
+        <article
+          key={`${linha.titulo}-${index}`}
+          className="px-4 py-4"
+          style={{
+            background: 'var(--moni-surface-100)',
+            border: 'var(--moni-border-width) solid var(--moni-border-default)',
+            borderRadius: 'var(--moni-radius-md)',
+          }}
+        >
+          <p className="text-xs uppercase tracking-[0.12em]" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+            Condomínio {index + 1}
+          </p>
+          <h3 className="mt-1 text-xl leading-tight" style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-display)' }}>
+            {linha.titulo}
+          </h3>
+          <div className="mt-4 space-y-4">
+            {linha.blocos.map((bloco, blocoIndex) => (
+              <div
+                key={`${bloco.titulo ?? 'campos'}-${blocoIndex}`}
+                className={blocoIndex > 0 ? 'pt-4' : undefined}
+                style={blocoIndex > 0 ? { borderTop: 'var(--moni-border-width) solid var(--moni-border-default)' } : undefined}
+              >
+                {bloco.titulo ? (
+                  <p className="mb-3 text-base" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}>
+                    {bloco.titulo}
+                  </p>
+                ) : null}
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                  {bloco.itens.map((item) => (
+                    <div key={item.label} className={item.largo ? 'sm:col-span-2' : ''}>
+                      <dt className="text-xs leading-snug" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+                        {item.label}
+                      </dt>
+                      <dd className="mt-1 text-[15px] leading-relaxed" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}>
+                        {item.valor}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ))}
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 function RespostaCampo({ campo, dados }: { campo: FormularioCampo; dados: FormularioResposta['dados'] }) {
   const rv = dados[campo.id];
+  if (campo.tipo === 'grupo_repetivel') {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm leading-relaxed" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+          {campo.label}
+        </p>
+        <GrupoRepetivelLeitura campo={campo} valor={rv?.valor} />
+      </div>
+    );
+  }
   const valorFormatado = formatarValorCampo(campo, rv?.valor);
   const temArquivo = Boolean(rv?.arquivos?.length);
   const temLink = campo.tipo === 'link_ou_arquivo' && Boolean(rv?.valor);
