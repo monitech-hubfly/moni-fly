@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { buscarRespostaDetalhada } from '@/lib/actions/formulario-actions';
-import { camposVisiveis, corDoStatus, formatarValorCampo, labelDoStatus, secoesVisiveis } from '@/lib/formularios/apresentacao';
+import { corDoStatus, formatarValorCampo, labelDoStatus } from '@/lib/formularios/apresentacao';
 import { opcoesParaLista } from '@/lib/formularios/apresentacao';
 import type { FormularioCampo, FormularioCampoTipo, FormularioSecao } from '@/types/formularios';
 
@@ -47,42 +47,59 @@ export default async function RespostaDetalhadaPage({ params }: Props) {
 
   const { data: secoes } = await supabase
     .from('formulario_secoes')
-    .select(
-      `id, nome, ordem, condicional_campo_id, condicional_valor,
-       formulario_campos(id, nome, tipo, ordem, opcoes, condicional_campo_id, condicional_valor)`,
-    )
+    .select('id, nome, ordem, condicional_campo_id, condicional_valor')
     .eq('formulario_id', formularioId)
     .order('ordem');
 
-  const secoesComCampos: FormularioSecao[] = (secoes ?? []).map((secao) => {
+  const secaoIds = (secoes ?? []).map((secao) => String((secao as { id: string }).id));
+  const camposPorSecao = new Map<string, FormularioCampo[]>();
+  if (secaoIds.length > 0) {
+    const selectComConfig =
+      'id, secao_id, nome, tipo, ordem, opcoes, config, condicional_campo_id, condicional_valor';
+    const selectSemConfig =
+      'id, secao_id, nome, tipo, ordem, opcoes, condicional_campo_id, condicional_valor';
+    const comConfig = await supabase.from('formulario_campos').select(selectComConfig).in('secao_id', secaoIds);
+    const fallback =
+      comConfig.error && /config/i.test(comConfig.error.message)
+        ? await supabase.from('formulario_campos').select(selectSemConfig).in('secao_id', secaoIds)
+        : null;
+    const camposRows = fallback
+      ? (fallback.data ?? []).map((campo) => ({ ...campo, config: null }))
+      : (comConfig.data ?? []);
+    for (const campo of camposRows) {
+      const row = campo as Record<string, unknown>;
+      const secaoId = String(row.secao_id ?? '');
+      const tipoRaw = String(row.tipo ?? 'texto');
+      const item: FormularioCampo = {
+        id: String(row.id),
+        secao_id: secaoId,
+        label: String(row.nome ?? ''),
+        tipo: TIPOS.includes(tipoRaw as FormularioCampoTipo) ? (tipoRaw as FormularioCampoTipo) : 'texto',
+        obrigatorio: false,
+        ordem: Number(row.ordem ?? 0),
+        placeholder: null,
+        descricao: null,
+        opcoes: opcoesParaLista(row.opcoes),
+        config: (row.config as FormularioCampo['config']) ?? null,
+        condicional_campo_id: (row.condicional_campo_id as string | null) ?? null,
+        condicional_valor: (row.condicional_valor as string | null) ?? null,
+        ativo: true,
+      };
+      const lista = camposPorSecao.get(secaoId) ?? [];
+      lista.push(item);
+      camposPorSecao.set(secaoId, lista);
+    }
+  }
+
+  const secoesParaMostrar: FormularioSecao[] = (secoes ?? []).map((secao) => {
     const row = secao as {
       id: string;
       nome: string;
       ordem: number;
       condicional_campo_id: string | null;
       condicional_valor: string | null;
-      formulario_campos?: Array<Record<string, unknown>> | null;
     };
-    const campos: FormularioCampo[] = (row.formulario_campos ?? [])
-      .map((campo) => {
-        const tipoRaw = String(campo.tipo ?? 'texto');
-        return {
-          id: String(campo.id),
-          secao_id: row.id,
-          label: String(campo.nome ?? ''),
-          tipo: TIPOS.includes(tipoRaw as FormularioCampoTipo) ? (tipoRaw as FormularioCampoTipo) : 'texto',
-          obrigatorio: false,
-          ordem: Number(campo.ordem ?? 0),
-          placeholder: null,
-          descricao: null,
-          opcoes: opcoesParaLista(campo.opcoes),
-          config: null,
-          condicional_campo_id: (campo.condicional_campo_id as string | null) ?? null,
-          condicional_valor: (campo.condicional_valor as string | null) ?? null,
-          ativo: true,
-        };
-      })
-      .sort((a, b) => a.ordem - b.ordem);
+    const campos = (camposPorSecao.get(row.id) ?? []).sort((a, b) => a.ordem - b.ordem);
     return {
       id: row.id,
       formulario_id: formularioId,
@@ -94,8 +111,6 @@ export default async function RespostaDetalhadaPage({ params }: Props) {
       campos,
     };
   });
-
-  const secoesParaMostrar = secoesVisiveis(secoesComCampos, resposta.dados);
 
   return (
     <div className="min-h-0 bg-[var(--moni-surface-50)]">
@@ -136,7 +151,7 @@ export default async function RespostaDetalhadaPage({ params }: Props) {
         </div>
         <div className="space-y-8">
           {secoesParaMostrar.map((secao) => {
-            const campos = camposVisiveis(secao.campos, resposta.dados);
+            const campos = secao.campos;
             return (
               <div key={secao.id}>
                 <h2
@@ -149,16 +164,19 @@ export default async function RespostaDetalhadaPage({ params }: Props) {
                 >
                   {secao.titulo}
                 </h2>
-                <dl className="space-y-3">
+                <dl className="space-y-4">
                   {campos.map((campo) => {
                     const rv = resposta.dados[campo.id];
                     const valorFormatado = formatarValorCampo(campo, rv?.valor);
                     return (
-                      <div key={campo.id} className="grid grid-cols-1 gap-1 sm:grid-cols-2 sm:gap-2">
+                      <div key={campo.id} className="space-y-1">
                         <dt className="text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
                           {campo.label}
                         </dt>
-                        <dd className="text-sm font-medium" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}>
+                        <dd
+                          className="whitespace-pre-wrap text-sm font-medium"
+                          style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}
+                        >
                           {campo.tipo === 'arquivo_multiplo' || campo.tipo === 'link_ou_arquivo' ? (
                             <div className="space-y-1">
                               {rv?.arquivos?.length
