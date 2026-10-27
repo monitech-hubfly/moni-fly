@@ -23,6 +23,10 @@ import {
   type OfertaConfig,
 } from '@/lib/simulador/calcular-oferta';
 import { QuadroPremissasTemplate } from '@/components/simulador/QuadroPremissasTemplate';
+import {
+  textoValorExibidoNaJornada,
+  valorExibidoNaJornada,
+} from '@/lib/simulador/valor-exibido-jornada';
 
 type Props = {
   oferta: SimulacaoPagamentoResumo;
@@ -114,6 +118,14 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
   return (
     <div className="mt-8 flex flex-col gap-6">
       <QuadroPremissasTemplate template={tpl} />
+      <p
+        className="text-sm"
+        style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}
+      >
+        {textoValorExibidoNaJornada(
+          valorExibidoNaJornada(sugerido.vte_avista, oferta.valor_lote).valor,
+        )}
+      </p>
       <div className="print-no-break mx-auto grid w-full max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2">
         {cardsTotaisResumo(sugerido).map((c) => (
           <CardResultado key={c.label} {...c} />

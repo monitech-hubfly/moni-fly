@@ -48,6 +48,7 @@ import {
   type OfertaConfig,
 } from '@/lib/simulador/calcular-oferta';
 import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
+import { MENSAGEM_TERRENO_OBRIGATORIO_OFERTA } from '@/lib/simulador/valor-exibido-jornada';
 
 type Ok = {
   ok: true;
@@ -787,8 +788,9 @@ export async function criarSimuladorOfertaDoCard(
   if (!nome) return { ok: false, error: 'Informe o nome da oferta.' };
 
   const valorLote = parseMoedaCampo(draft.valor_lote, 'o valor do lote à vista', { obrigatorio: true });
-  if (!valorLote.ok) return valorLote;
-  if (valorLote.valor <= 0) return { ok: false, error: 'Valor do lote à vista deve ser maior que zero.' };
+  if (!valorLote.ok || valorLote.valor <= 0) {
+    return { ok: false, error: MENSAGEM_TERRENO_OBRIGATORIO_OFERTA };
+  }
   const valorCasa = parseMoedaCampo(draft.valor_casa, 'o valor da casa', { obrigatorio: true });
   if (!valorCasa.ok) return valorCasa;
   const valorCustom = parseMoedaCampo(draft.valor_customizacao, 'o valor da customização', { padrao: 0 });
@@ -1118,8 +1120,9 @@ export async function atualizarSimuladorOferta(
   if (!nome) return { ok: false, error: 'Informe o nome da oferta.' };
 
   const valorLote = parseMoedaCampo(draft.valor_lote, 'o valor do lote à vista', { obrigatorio: true });
-  if (!valorLote.ok) return valorLote;
-  if (valorLote.valor <= 0) return { ok: false, error: 'Valor do lote à vista deve ser maior que zero.' };
+  if (!valorLote.ok || valorLote.valor <= 0) {
+    return { ok: false, error: MENSAGEM_TERRENO_OBRIGATORIO_OFERTA };
+  }
   const valorCasa = parseMoedaCampo(draft.valor_casa, 'o valor da casa', { obrigatorio: true });
   if (!valorCasa.ok) return valorCasa;
   const valorCustom = parseMoedaCampo(draft.valor_customizacao, 'o valor da customização', { padrao: 0 });

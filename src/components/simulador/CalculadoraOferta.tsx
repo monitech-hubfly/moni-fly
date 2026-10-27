@@ -21,6 +21,11 @@ import {
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import { QuadroPremissasTemplate } from '@/components/simulador/QuadroPremissasTemplate';
 import {
+  MENSAGEM_TERRENO_OBRIGATORIO_OFERTA,
+  textoValorExibidoNaJornada,
+  valorExibidoNaJornada,
+} from '@/lib/simulador/valor-exibido-jornada';
+import {
   CardResultado,
   Secao,
   TabelaFluxo,
@@ -312,6 +317,10 @@ export function CalculadoraOferta({
       setErro('Informe o nome da oferta.');
       return;
     }
+    if (valorLote == null || !Number.isFinite(valorLote) || valorLote <= 0) {
+      setErro(MENSAGEM_TERRENO_OBRIGATORIO_OFERTA);
+      return;
+    }
     if (errosMinimos.length > 0) {
       setErro(errosMinimos[0]!);
       return;
@@ -439,6 +448,65 @@ export function CalculadoraOferta({
   const erroEntrada = entradaAbaixoMinimo ? mensagemEntradaMinima(entradaMinima) : null;
   const erroUnica = unicaAbaixoMinimo ? mensagemParcelaUnicaMinima(parcelaUnicaMinimaHint) : null;
   const errosMinimos = [erroEntrada, erroUnica].filter((m): m is string => m != null);
+  const erroTerreno =
+    valorLote == null || !Number.isFinite(valorLote) || valorLote <= 0
+      ? MENSAGEM_TERRENO_OBRIGATORIO_OFERTA
+      : null;
+  const ofertaParaExibicao = useMemo((): OfertaConfig | null => {
+    const casa = valorCasa;
+    if (casa == null || casa < 0) return null;
+    const prazoTotalInformado = prazoTotal;
+    if (prazoTotalInformado == null || prazoTotalInformado < 1) return null;
+    const prazoFase1Calc = prazoTotalInformado - prazoObraMeses;
+    if (prazoFase1Calc < 1) return null;
+    const parcela = parcelaMensal;
+    if (parcela == null || parcela < 0) return null;
+    const prazoFin = prazoFinanciamentoAnos;
+    if (prazoFin == null || prazoFin < 1) return null;
+    const taxaFrac =
+      taxaFinanciamento == null
+        ? template.taxa_juros_financiamento_anual
+        : taxaFinanciamento / 100;
+    if (taxaFrac < 0) return null;
+    return {
+      valor_lote: valorLote ?? 0,
+      valor_casa: casa,
+      valor_customizacao: valorCustomizacao ?? 0,
+      valor_acoplamento: valorAcoplamento ?? 0,
+      valor_ja_pago: valorJaPago ?? 0,
+      prazo_meses: prazoFase1Calc,
+      parcela_mensal: parcela,
+      renda_cliente: rendaCliente ?? 0,
+      prazo_financiamento_anos: prazoFin,
+      taxa_financiamento_anual: taxaFrac,
+    };
+  }, [
+    parcelaMensal,
+    prazoFinanciamentoAnos,
+    prazoObraMeses,
+    prazoTotal,
+    rendaCliente,
+    taxaFinanciamento,
+    template.taxa_juros_financiamento_anual,
+    valorAcoplamento,
+    valorCasa,
+    valorCustomizacao,
+    valorJaPago,
+    valorLote,
+  ]);
+  const exibicaoJornada = useMemo(() => {
+    if (!ofertaParaExibicao) return null;
+    try {
+      const calc = calcularOferta(
+        template,
+        ofertaParaExibicao,
+        ofertaParaExibicao.valor_acoplamento,
+      );
+      return valorExibidoNaJornada(calc.vte_avista, ofertaParaExibicao.valor_lote);
+    } catch {
+      return null;
+    }
+  }, [ofertaParaExibicao, template]);
 
   const avisosSalvar = useMemo(() => {
     const vazio = { parcela: [] as string[] };
@@ -551,6 +619,12 @@ export function CalculadoraOferta({
           />
         </label>
         <QuadroPremissasTemplate template={template} />
+        <p
+          className="mt-4 text-sm"
+          style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}
+        >
+          {textoValorExibidoNaJornada(exibicaoJornada?.valor ?? null)}
+        </p>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
             <Campo
@@ -558,6 +632,7 @@ export function CalculadoraOferta({
               value={valorLote}
               onChange={onValorLoteChange}
               placeholder="180.000"
+              erro={erroTerreno}
             />
             {temPlanilha ? (
               <button
@@ -820,6 +895,21 @@ export function CalculadoraOferta({
               />
             </div>
             <div className="mt-6 flex flex-col gap-4">
+            {erroTerreno ? (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-[var(--moni-radius-md)] px-4 py-3 text-sm"
+                style={{
+                  background: 'var(--moni-status-overdue-bg)',
+                  border: 'var(--moni-border-width) solid var(--moni-status-overdue-border)',
+                  color: 'var(--moni-status-overdue-text)',
+                  fontFamily: 'var(--moni-font-sans)',
+                }}
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <p>{erroTerreno}</p>
+              </div>
+            ) : null}
             <AvisoBloqueioMinimos erros={errosMinimos} />
             <button
               type="button"
@@ -880,7 +970,7 @@ export function CalculadoraOferta({
             ) : null}
             <button
               type="button"
-              disabled={salvando || errosMinimos.length > 0}
+              disabled={salvando || errosMinimos.length > 0 || erroTerreno != null}
               onClick={() => void onSalvar()}
               className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: 'var(--moni-navy-800)' }}
@@ -1005,6 +1095,7 @@ function Campo({
   placeholder,
   inteiro,
   avisos,
+  erro,
 }: {
   label: string;
   value: number | null;
@@ -1012,6 +1103,7 @@ function Campo({
   placeholder?: string;
   inteiro?: boolean;
   avisos?: string[];
+  erro?: string | null;
 }) {
   return (
     <label className="block">
@@ -1020,12 +1112,33 @@ function Campo({
       </span>
       <CampoNumeroBr
         className={fieldCls}
-        style={fieldStyle}
+        style={
+          erro
+            ? {
+                ...fieldStyle,
+                border: 'var(--moni-border-width) solid var(--moni-status-overdue-border)',
+                boxShadow: '0 0 0 1px var(--moni-status-overdue-border)',
+              }
+            : fieldStyle
+        }
         valor={value}
         onChange={onChange}
         inteiro={inteiro}
         placeholder={placeholder}
+        aria-invalid={erro ? true : undefined}
       />
+      {erro ? (
+        <span
+          className="mt-1 block text-[11px]"
+          role="alert"
+          style={{
+            color: 'var(--moni-status-overdue-text)',
+            fontFamily: 'var(--moni-font-sans)',
+          }}
+        >
+          {erro}
+        </span>
+      ) : null}
       {avisos?.map((a) => (
         <span
           key={a}

@@ -38,6 +38,7 @@ import {
   type ResultadoCalculo,
 } from '@/lib/simulador/calcular-oferta';
 import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
+import { valorExibidoNaJornada } from '@/lib/simulador/valor-exibido-jornada';
 import { inferirCondicaoLote } from '@/lib/loteamento-simulador-template';
 import { maskTelefoneCelular } from '@/lib/br-docs';
 import {
@@ -400,7 +401,7 @@ function PassoOferta({
       ) : (
         <div className="jornadaOfertasList">
           {ofertas.map((o) => {
-            const avista = valorAvistaOferta(o);
+            const avista = valorExibidoNaJornada(o.valor_avista, o.valor_lote_oferta).valor;
             return (
               <button
                 key={o.id}
