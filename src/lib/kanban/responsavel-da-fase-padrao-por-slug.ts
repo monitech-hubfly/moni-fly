@@ -281,6 +281,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   // Funil Projeto Legal
   pl_nova_demanda: 'moni',
   pl_pontos_em_aberto: 'moni',
+  pl_checklist_legal: 'moni',
   pl_em_execucao: 'moni',
   pl_em_validacao: 'moni',
   pl_c_protocolo_andamento: 'moni',

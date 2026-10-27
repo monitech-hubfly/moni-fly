@@ -151,6 +151,8 @@ export const FASE_IDS = {
   OPERACOES_AGUARDANDO_CREDITO: '8b83e671-ef0c-4028-8b52-8f56579e8df0',
   OPERACOES_CREDITO_APROVADO: 'c4e8a1b2-7f41-4d9c-8e26-3a9f5b7c1d21',
   OPERACOES_ENTREGUE:        '5b85ac83-a546-4c1d-9bf0-e5e40cf3d937',
+  /** Funil Projeto Legal — Checklist Legal (após Pontos em Aberto). */
+  PROJETO_LEGAL_CHECKLIST_LEGAL: 'b8e2c4d1-7a31-4e5f-9d62-1c3f5a8e6b04',
   // Loteadores
   LOTEADORES_JURIDICO:       'b505fee6-67aa-4925-b464-b80ceaa04567',
   // Projetos Locais
@@ -352,9 +354,10 @@ export const FASE_SLUGS = {
   CREDITO_OBRA_APROVADO:      'credito_obra_aprovado',
   /** @deprecated legado — fase inativa (migration 494) */
   CREDITO_OBRA_REPROVADO:     'credito_obra_reprovado',
-  // Funil Projeto Legal (KANBAN_IDS.PROJETO_LEGAL) — fluxo ordem 1–12
+  // Funil Projeto Legal (KANBAN_IDS.PROJETO_LEGAL) — fluxo ordem 1–13
   PL_NOVA_DEMANDA:              'pl_nova_demanda',
   PL_PONTOS_EM_ABERTO:          'pl_pontos_em_aberto',
+  PL_CHECKLIST_LEGAL:           'pl_checklist_legal',
   PL_EM_EXECUCAO:               'pl_em_execucao',
   PL_EM_VALIDACAO:              'pl_em_validacao',
   PL_C_PROTOCOLO_ANDAMENTO:     'pl_c_protocolo_andamento',
@@ -368,7 +371,7 @@ export const FASE_SLUGS = {
   PL_P_EM_COMUNIQUESE:          'pl_p_em_comuniquese',
   PL_P_VALIDACAO_COMUNIQUESE:   'pl_p_validacao_comuniquese',
   PL_P_PROJETO_APROVADO:        'pl_p_projeto_aprovado',
-  // Funil Projeto Legal — terminal ordem 12
+  // Funil Projeto Legal — terminal ordem 13
   PL_PAGAMENTOS:                'pl_pagamentos',
   /** Funil Contabilidade (KANBAN_IDS.CONTABILIDADE) — aberturas ordem 1–3 */
   CONTABILIDADE_INCORPORADORA: 'contabilidade_incorporadora',
