@@ -42,6 +42,8 @@ export function rotaCardOrigem(kanbanNome: string, cardId: string | null | undef
       return `/projetos-locais?card=${q}`;
     case 'Funil Showroom':
       return `/funil-showroom?card=${q}`;
+    case 'Funil IMOB':
+      return `/funil-imob?card=${q}`;
     case 'Funil Projetos Legais':
       return `/projetos-legais?card=${q}`;
     case 'Funil Pré Obra e Obra':

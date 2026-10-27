@@ -796,6 +796,7 @@ const KANBAN_ID_TO_ORIGEM_SLUG: Record<string, string> = {
   [KANBAN_IDS.PROJETOS_LOCAIS]: 'projetos-locais',
   [KANBAN_IDS.PROJETOS_LEGAIS]: 'projetos-legais',
   [KANBAN_IDS.SHOWROOM]: 'showroom',
+  [KANBAN_IDS.IMOB]: 'imob',
 };
 
 type BastaoDestino = {

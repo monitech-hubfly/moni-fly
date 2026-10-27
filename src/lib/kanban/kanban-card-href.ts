@@ -27,6 +27,7 @@ const KANBAN_NOME_DB_PARA_APP: Record<string, { basePath: string; cardQueryParam
   'Funil Pré Obra e Obra': { basePath: '/operacoes', cardQueryParam: 'card' },
   'Funil Motor 01': { basePath: '/funil-motor01', cardQueryParam: 'card' },
   'Funil Showroom': { basePath: '/funil-showroom', cardQueryParam: 'card' },
+  'Funil IMOB': { basePath: '/funil-imob', cardQueryParam: 'card' },
   'Funil Gravação de Vídeos Externos': {
     basePath: '/marketing/gravacao-videos-externos',
     cardQueryParam: 'card',

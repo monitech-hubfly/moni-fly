@@ -137,6 +137,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
 
   // Funil Loteadores (esteira v1)
   primeiro_contato_moni_inc: 'moni',
+  imob_novo_loteador: 'moni',
   loteador_cadastro: 'moni',
   r1_conceito_moni_inc: 'moni',
   nda_moni_inc: 'moni',

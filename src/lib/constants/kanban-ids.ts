@@ -38,6 +38,8 @@ export const KANBAN_IDS = {
   VCL_SHOWROOM:          'fc000004-0000-0000-0000-000000000001',
   /** Funil Showroom — IMOB (migration 670). Não é o quadro Venda Casas Loteadores. */
   SHOWROOM:              'e7b1c4d2-8a30-4f91-9c62-5d3a8e1b4f06',
+  /** Funil IMOB (migration 671). */
+  IMOB:                  'f3a8c1d4-6b20-4e91-8d47-2c5e9a1b7f03',
 } as const
 
 /** Nome canônico em `kanbans.nome` — Funil Crédito Obra. */
@@ -80,6 +82,7 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Venda Casas Loteadores - Lotes Vendidos':     KANBAN_IDS.VCL_VENDIDOS,
   'Venda Casas Loteadores - Showroom':           KANBAN_IDS.VCL_SHOWROOM,
   'Funil Showroom':                              KANBAN_IDS.SHOWROOM,
+  'Funil IMOB':                                  KANBAN_IDS.IMOB,
 };
 
 export function isKanbanVclId(id: string | null | undefined): boolean {
@@ -221,6 +224,8 @@ export const FASE_SLUGS = {
   SR_ASSINATURAS_TERMO_RECOMPRA: 'sr_assinaturas_termo_recompra',
   SR_TERMO_RECOMPRA_ASSINADO: 'sr_termo_recompra_assinado',
   SR_CONCLUIDOS: 'sr_concluidos',
+  /** Funil IMOB — primeira fase. Campos copiados de Novo Loteador (Loteadores). */
+  IMOB_NOVO_LOTEADOR: 'imob_novo_loteador',
   PORTFOLIO_REVISOES_COMITE: 'revisoes_comite',
   /** Demais Comitês — slug legado segundo_comite. */
   PORTFOLIO_SEGUNDO_COMITE: 'segundo_comite',

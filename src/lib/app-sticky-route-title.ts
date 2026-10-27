@@ -18,6 +18,7 @@ const PREFIX_TITLE: { prefix: string; title: string }[] = [
   { prefix: '/funil-stepone', title: 'Funil Step One' },
   { prefix: '/funil-motor01', title: 'Funil Motor 01' },
   { prefix: '/funil-showroom', title: 'Showroom' },
+  { prefix: '/funil-imob', title: 'IMOB' },
   { prefix: '/painel-contabilidade', title: 'Funil Contabilidade' },
   { prefix: '/funil-credito-obra', title: 'Funil Crédito Obra' },
   { prefix: '/painel-novos-negocios', title: 'Portfolio + Operações' },
