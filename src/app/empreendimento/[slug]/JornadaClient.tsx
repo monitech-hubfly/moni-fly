@@ -416,7 +416,7 @@ function PassoOferta({
                 </div>
                 {avista != null ? (
                   <div className="jornadaOfertaValor">
-                    <span className="jornadaOfertaLabel">Valor total à vista</span>
+                    <span className="jornadaOfertaLabel">A partir de</span>
                     <span>{fmt(avista)}</span>
                   </div>
                 ) : (

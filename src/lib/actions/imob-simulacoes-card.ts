@@ -486,6 +486,23 @@ export async function vincularOfertaAoEmpreendimentoImob(
   return { ok: true };
 }
 
+async function revalidateJornadaDoCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+) {
+  revalidatePath('/');
+  revalidatePath('/hub-funis');
+  revalidatePath('/loteadores');
+  revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+  const { data } = await supabase
+    .from('imob_card_modelo')
+    .select('page_slug')
+    .eq('card_id', cardId)
+    .maybeSingle();
+  const slug = String((data as { page_slug?: string | null } | null)?.page_slug ?? '').trim();
+  if (slug) revalidatePath(`/empreendimento/${slug}`);
+}
+
 export async function excluirImobSimulacaoEmpreendimento(
   cardId: string,
   id: string,
@@ -496,13 +513,53 @@ export async function excluirImobSimulacaoEmpreendimento(
   const check = await assertCardExiste(auth.supabase, cardId);
   if (!check.ok) return check;
 
+  const { data: alvo, error: errAlvo } = await auth.supabase
+    .from('imob_card_empreendimentos')
+    .select('id, simulacao_pagamento_id')
+    .eq('id', id)
+    .eq('card_id', cardId)
+    .maybeSingle();
+  if (errAlvo) return { ok: false, error: errAlvo.message };
+
+  const simVinculada = String(
+    (alvo as { simulacao_pagamento_id?: string | null } | null)?.simulacao_pagamento_id ?? '',
+  ).trim();
+
+  const { data: sims, error: errSims } = await auth.supabase
+    .from('simulacoes_pagamento')
+    .select('id, inputs')
+    .eq('kanban_card_id', cardId)
+    .not('nome', 'is', null);
+  if (errSims) return { ok: false, error: errSims.message };
+
+  const ids = new Set<string>();
+  if (simVinculada) ids.add(simVinculada);
+  for (const row of (sims ?? []) as Array<{ id?: string; inputs?: unknown }>) {
+    const sid = String(row.id ?? '').trim();
+    if (!sid) continue;
+    const inputs =
+      row.inputs && typeof row.inputs === 'object' && !Array.isArray(row.inputs)
+        ? (row.inputs as Record<string, unknown>)
+        : {};
+    if (String(inputs.empreendimento_id ?? '').trim() === id) ids.add(sid);
+  }
+
+  if (ids.size > 0) {
+    const { error: errDelSims } = await auth.supabase
+      .from('simulacoes_pagamento')
+      .delete()
+      .in('id', [...ids])
+      .eq('kanban_card_id', cardId);
+    if (errDelSims) return { ok: false, error: errDelSims.message };
+  }
+
   const { error } = await auth.supabase
     .from('imob_card_empreendimentos')
     .delete()
     .eq('id', id)
     .eq('card_id', cardId);
   if (error) return { ok: false, error: error.message };
-  revalidatePath('/');
+  await revalidateJornadaDoCard(auth.supabase, cardId);
   return { ok: true };
 }
 

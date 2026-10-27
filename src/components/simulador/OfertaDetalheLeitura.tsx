@@ -22,6 +22,7 @@ import {
   formatarMoeda,
   type OfertaConfig,
 } from '@/lib/simulador/calcular-oferta';
+import { QuadroPremissasTemplate } from '@/components/simulador/QuadroPremissasTemplate';
 
 type Props = {
   oferta: SimulacaoPagamentoResumo;
@@ -112,6 +113,7 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
 
   return (
     <div className="mt-8 flex flex-col gap-6">
+      <QuadroPremissasTemplate template={tpl} />
       <div className="print-no-break mx-auto grid w-full max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2">
         {cardsTotaisResumo(sugerido).map((c) => (
           <CardResultado key={c.label} {...c} />

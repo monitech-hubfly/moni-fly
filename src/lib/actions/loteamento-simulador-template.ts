@@ -67,12 +67,24 @@ type AuthOk = {
 
 const TABELA = 'loteamento_simulador_templates';
 
-function revalidateAposMutacaoSimulador(cardId: string, slugJornada?: string | null) {
+async function revalidateAposMutacaoSimulador(
+  cardId: string,
+  slugJornada?: string | null,
+  supabase?: Awaited<ReturnType<typeof createClient>>,
+) {
   revalidatePath('/hub-funis');
   revalidatePath('/loteadores');
   revalidatePath(`/loteadores/${cardId}/simulador-template`);
   revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
-  const slug = String(slugJornada ?? '').trim();
+  let slug = String(slugJornada ?? '').trim();
+  if (!slug && supabase) {
+    const { data } = await supabase
+      .from('imob_card_modelo')
+      .select('page_slug')
+      .eq('card_id', cardId)
+      .maybeSingle();
+    slug = String((data as { page_slug?: string | null } | null)?.page_slug ?? '').trim();
+  }
   if (slug) revalidatePath(`/empreendimento/${slug}`);
 }
 
@@ -620,7 +632,7 @@ export async function salvarSimuladorTemplateDoCard(
   const slugSalvo = await persistirSlugJornadaDoCard(auth.supabase, cardId, slugNorm.slug);
   if (!slugSalvo.ok) return slugSalvo;
 
-  revalidateAposMutacaoSimulador(cardId, slugSalvo.slug);
+  await revalidateAposMutacaoSimulador(cardId, slugSalvo.slug);
   return {
     ok: true,
     template,
@@ -996,7 +1008,7 @@ export async function criarSimuladorOfertaDoCard(
     if (!vinculo.ok) return vinculo;
   }
 
-  revalidateAposMutacaoSimulador(cardId);
+  await revalidateAposMutacaoSimulador(cardId, null, auth.supabase);
   return {
     ok: true,
     mensagem: 'Oferta salva como rascunho!',
@@ -1065,15 +1077,19 @@ export async function excluirOfertaSimulacao(
     .update({ simulacao_pagamento_id: null })
     .eq('simulacao_pagamento_id', oid);
 
-  const { error } = await supabase
+  const { data: apagadas, error } = await supabase
     .from('simulacoes_pagamento')
     .delete()
     .eq('id', oid)
-    .eq('kanban_card_id', cid); // segurança: só deleta se pertence ao card
+    .eq('kanban_card_id', cid)
+    .select('id');
 
   if (error) return { ok: false, error: error.message };
+  if (!apagadas || apagadas.length === 0) {
+    return { ok: false, error: 'Oferta não encontrada neste card.' };
+  }
 
-  revalidateAposMutacaoSimulador(cid);
+  await revalidateAposMutacaoSimulador(cid, null, supabase);
   return { ok: true };
 }
 
@@ -1273,7 +1289,7 @@ export async function atualizarSimuladorOferta(
     if (!vinculo.ok) return vinculo;
   }
 
-  revalidateAposMutacaoSimulador(cid);
+  await revalidateAposMutacaoSimulador(cid, null, supabase);
   revalidatePath(`/loteadores/${cid}/simulador-template/ofertas/${oid}`);
   return {
     ok: true,

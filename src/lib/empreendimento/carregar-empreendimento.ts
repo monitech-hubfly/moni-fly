@@ -211,6 +211,7 @@ function jsonValorNumerico(raw: unknown): number | null {
 /**
  * Passo 2 da jornada = ofertas nomeadas da Helenna (`simulacoes_pagamento`).
  * Nunca lista o snapshot IMOB (`valor_avista` 1.465.200).
+ * Oferta cujo bloco IMOB foi removido do card também fica de fora.
  */
 async function enriquecerOfertasETemplate(
   cardId: string,
@@ -292,6 +293,7 @@ async function enriquecerOfertasETemplate(
     if (!sim.id || !nome) continue;
     const inp = asRecord(row.inputs);
     const empId = String(sim.empreendimento_id ?? inp.empreendimento_id ?? '').trim();
+    if (empId && !imobById.has(empId)) continue;
     const imob = empId ? imobById.get(empId) : undefined;
     ofertasDaHelenna.push({
       id: sim.id,
