@@ -4815,7 +4815,7 @@ export function KanbanCardModal({
           <div
             className={`moni-card-modal-center order-1 flex h-full min-h-0 flex-1 flex-col p-6 sm:order-2 sm:min-w-0 ${
               abaCentro === 'calculadora' ? 'overflow-hidden' : 'overflow-y-auto'
-            } ${exibirJornadaVcl && abaCentro !== 'chamados' ? 'hidden' : ''}`}
+            } ${exibirJornadaVcl && abaCentro !== 'chamados' && abaCentro !== 'corretores' ? 'hidden' : ''}`}
             style={{ background: 'var(--moni-surface-0)' }}
           >
             {!painelCentroAlternativo ? (
@@ -7124,7 +7124,7 @@ export function KanbanCardModal({
           {/* Esquerda — dados colapsáveis (mobile: por último) */}
           <div
             className={`moni-card-modal-left order-3 h-full w-full overflow-y-auto border-t p-4 text-xs sm:order-1 sm:min-w-0 sm:shrink-0 sm:border-r sm:border-t-0 sm:p-5 ${
-              exibirJornadaVcl && abaCentro !== 'chamados'
+              exibirJornadaVcl && abaCentro !== 'chamados' && abaCentro !== 'corretores'
                 ? 'sm:w-auto sm:max-w-none sm:flex-1'
                 : 'sm:w-[min(45%,20rem)]'
             }`}
@@ -7158,6 +7158,36 @@ export function KanbanCardModal({
                     )
                   : null}
                 {secaoHeadPainelCentro('Chamados')}
+                {secaoHead(
+                  'relacionamentos',
+                  'Vínculos',
+                  <KanbanCardModalRelacionamentos
+                    key={`${card.id}-vcl-${relacionamentosTick}`}
+                    cardId={card.id}
+                    cardTitulo={cardTitulo}
+                    kanbanId={card.kanban_id}
+                    basePath={basePath}
+                    podeGerenciar={podeGerenciarRelacionamentos}
+                    projetoId={card.projeto_id}
+                    ocultarKanbansInternos={usuarioFrank}
+                    mostrarBotaoJuridico={mostrarBotaoJuridico}
+                    cardDesabilitado={
+                      cardLegadoArquivado ||
+                      cardLegadoConcluido ||
+                      Boolean(card.arquivado) ||
+                      Boolean(card.concluido)
+                    }
+                  />,
+                )}
+                {card?.id && staffPeloContexto && !portalFrank ? (
+                  <KanbanCardCorretoresSecao
+                    key={`${card.id}-vcl-corretores`}
+                    cardId={card.id}
+                    ativo={abaCentro === 'corretores'}
+                    onAbrir={abrirPainelCorretores}
+                    refreshKey={corretoresPainelTick}
+                  />
+                ) : null}
                 {card ? (
                   <ChecklistCard
                     cardId={card.id}
