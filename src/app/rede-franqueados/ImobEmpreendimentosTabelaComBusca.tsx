@@ -12,7 +12,7 @@ import {
   hrefColunaNegocio,
   imobEmpreendimentoRowMatchesBusca,
   negocioInicialEmpreendimento,
-  ordenarImobEmpreendimentosPorNome,
+  ordenarImobEmpreendimentosPorFase,
   textoColunaNegocioEmpreendimento,
   type ImobEmpreendimentoRow,
 } from '@/lib/imob-empreendimentos';
@@ -480,7 +480,7 @@ export function ImobEmpreendimentosTabelaComBusca({
     const base = q
       ? rows.filter((r) => imobEmpreendimentoRowMatchesBusca(r, q))
       : rows;
-    return ordenarImobEmpreendimentosPorNome(base);
+    return ordenarImobEmpreendimentosPorFase(base);
   }, [rows, debouncedBusca]);
 
   const grupos = useMemo(() => agruparPorCondominio(rowsFiltradas), [rowsFiltradas]);
@@ -593,7 +593,7 @@ export function ImobEmpreendimentosTabelaComBusca({
                                 {row.nome}
                                 {!row.ativo ? (
                                   <span className="ml-2 inline-flex items-center rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500">
-                                    Inativo
+                                    {row.card_arquivado ? 'Arquivado' : 'Inativo'}
                                   </span>
                                 ) : null}
                               </td>
@@ -667,7 +667,7 @@ export function ImobEmpreendimentosTabelaComBusca({
                                   </span>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-500">
-                                    Inativo
+                                    {row.card_arquivado ? 'Arquivado' : 'Inativo'}
                                   </span>
                                 )}
                               </td>

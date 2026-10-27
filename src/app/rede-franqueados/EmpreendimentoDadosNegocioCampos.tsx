@@ -6,6 +6,7 @@ import { KanbanCardModalMoedaField } from '@/components/kanban-shared/KanbanCard
 import { KanbanCardModalNegocioPrazoField } from '@/components/kanban-shared/KanbanCardModalNegocioPrazoField';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import type { NegocioPrazoDraft, FaseNegocioPrazoOpcao } from '@/lib/kanban/dados-negocio-prazo';
+import { parseNumeroPtBr } from '@/lib/dashboard-novos-negocios/parseMoney';
 import { moedaCampoValorInicial } from '@/lib/kanban/moeda-campo';
 import {
   opcoesProdutoModeloCasaComValorAtual,
@@ -110,10 +111,8 @@ export function EmpreendimentoDadosNegocioCampos({ value, onChange }: Props) {
                 max={campo.kind === 'percent' ? 100 : undefined}
                 value={numStr(typeof atual === 'number' ? atual : null)}
                 onChange={(e) => {
-                  const raw = e.target.value.trim();
-                  const n = raw === '' ? null : Number(raw.replace(',', '.'));
                   onChange({
-                    [campo.key]: n != null && Number.isFinite(n) ? n : null,
+                    [campo.key]: parseNumeroPtBr(e.target.value),
                   } as Partial<NegocioValor>);
                 }}
                 className={inputClass}

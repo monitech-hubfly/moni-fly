@@ -5689,6 +5689,15 @@ export async function upsertFaseChecklistResposta(input: {
       const { updateProcessoNegocioCampos } = await import('@/lib/kanban/kanban-card-modal-detalhes');
       const patch = processoPatchFromChecklistNegocio(chaveCompartilhada, nextValor);
       if (patch) {
+        const { percentualNegocioForaDaFaixa, MSG_PERCENTUAL_NEGOCIO } = await import(
+          '@/lib/dashboard-novos-negocios/parseMoney'
+        );
+        if (
+          percentualNegocioForaDaFaixa(patch.pct_compra_parcial_terreno) ||
+          percentualNegocioForaDaFaixa(patch.pct_vgv_terrenista)
+        ) {
+          return { ok: false, error: MSG_PERCENTUAL_NEGOCIO };
+        }
         const { data: cardNegocio } = await supabase
           .from('kanban_cards')
           .select('processo_step_one_id')

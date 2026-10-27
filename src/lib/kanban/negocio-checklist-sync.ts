@@ -7,6 +7,7 @@ import {
   type NegocioPrazoDraft,
 } from '@/lib/kanban/dados-negocio-prazo';
 import type { ProcessoNegocioUpdatePayload } from '@/lib/kanban/kanban-card-modal-detalhes';
+import { parseNumeroPtBr } from '@/lib/dashboard-novos-negocios/parseMoney';
 import {
   parseNegociacaoChecklistValor,
   serializarNegociacaoChecklist,
@@ -104,10 +105,7 @@ export function negocioEspelhoFromProcesso(
 }
 
 function numeroOuNull(raw: string): number | null {
-  const s = raw.trim().replace(',', '.');
-  if (!s) return null;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
+  return parseNumeroPtBr(raw);
 }
 
 export function processoPatchFromChecklistNegocio(

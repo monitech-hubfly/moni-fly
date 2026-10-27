@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { calcularDiasUteis, formatIsoDateOnlyPtBr, parseIsoDateOnlyLocal } from '@/lib/dias-uteis';
+import { parseNumeroPtBr, percentualNegocioForaDaFaixa, MSG_PERCENTUAL_NEGOCIO } from '@/lib/dashboard-novos-negocios/parseMoney';
 import {
   formatMotivoArquivamento,
   isMotivoArquivamentoOutro,
@@ -3406,6 +3407,12 @@ export function KanbanCardModal({
 
   async function handleSalvarNegocio() {
     if (!card) return;
+    const pctParcial = parseNumeroPtBr(negocioDraft.pct_compra_parcial_terreno);
+    const pctVgv = parseNumeroPtBr(negocioDraft.pct_vgv_terrenista);
+    if (percentualNegocioForaDaFaixa(pctParcial) || percentualNegocioForaDaFaixa(pctVgv)) {
+      alert(MSG_PERCENTUAL_NEGOCIO);
+      return;
+    }
     setSalvandoNegocio(true);
     try {
       const prazoOpcao = negocioPrazoValoresFromDraft(negocioDraft.prazo_opcao);
@@ -3451,16 +3458,10 @@ export function KanbanCardModal({
             | null,
           prazo_instrumento_garantidor_data: prazoInstrumentoDb.prazo_instrumento_garantidor_data as string | null,
           negociacao_linhas: negociacaoLinhasToDb(negocioDraft.negociacao_linhas),
-          pct_compra_parcial_terreno: negocioDraft.pct_compra_parcial_terreno.trim()
-            ? Number(negocioDraft.pct_compra_parcial_terreno.replace(',', '.'))
-            : null,
-          pct_vgv_terrenista: negocioDraft.pct_vgv_terrenista.trim()
-            ? Number(negocioDraft.pct_vgv_terrenista.replace(',', '.'))
-            : null,
-          m2_terreno: negocioDraft.m2_terreno.trim()
-            ? Number(negocioDraft.m2_terreno.replace(',', '.'))
-            : null,
-          m2_casa: negocioDraft.m2_casa.trim() ? Number(negocioDraft.m2_casa.replace(',', '.')) : null,
+          pct_compra_parcial_terreno: pctParcial,
+          pct_vgv_terrenista: pctVgv,
+          m2_terreno: parseNumeroPtBr(negocioDraft.m2_terreno),
+          m2_casa: parseNumeroPtBr(negocioDraft.m2_casa),
           extrato_modelo_configurado: negocioDraft.extrato_modelo_configurado?.trim() || null,
           data_aprovacao_comite: negocioDraft.data_aprovacao_comite || null,
           obs_opcao: negocioDraft.obs_opcao?.trim() || null,
@@ -7664,7 +7665,7 @@ export function KanbanCardModal({
                       </label>
                       {isTipoPermutaParcial(negocioDraft.tipo_aquisicao_terreno) ? (
                       <label className="block">
-                        <span className="text-[11px] font-medium text-stone-500">VGV pretendido</span>
+                        <span className="text-[11px] font-medium text-stone-500">% Compra Parcial Terreno</span>
                         <input
                           type="number"
                           step="0.01"

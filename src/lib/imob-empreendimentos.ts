@@ -2,6 +2,7 @@
 
 import type { createClient } from '@/lib/supabase/server';
 import { isCadastroValorVazio } from '@/lib/cadastro-linha-em-branco';
+import { parseNumeroPtBr } from '@/lib/dashboard-novos-negocios/parseMoney';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import { KANBAN_IDS } from '@/lib/constants/kanban-ids';
 import {
@@ -34,8 +35,14 @@ export type ImobEmpreendimentoRow = {
   codigo: string | null;
   quadra: string | null;
   lote: string | null;
-  /** Fase mais avançada entre Step One, Portfólio e Pré Obra e Obra. */
+  /** Fase do card mais avançado: Pré Obra e Obra, Portfólio, Loteadores, Step One. */
   fase_atual: string | null;
+  /** Quanto maior, mais avançada a fase. Usado para ordenar o cadastro. */
+  fase_score: number;
+  /** O card que alimenta a linha está arquivado. */
+  card_arquivado: boolean;
+  /** Cards da mesma obra nas esteiras, sem repetir na tabela. */
+  cards_vinculados_ids?: string[];
   // computed counts (loaded separately or via rpc)
   corretores_count?: number;
   unidades_count?: number;
@@ -366,7 +373,7 @@ export function ordenarImobEmpreendimentosPorNome(
   );
 }
 
-/** Agrupa empreendimentos por condomínio. */
+/** Agrupa empreendimentos por condomínio, preservando a ordem das fases. */
 export function agruparPorCondominio(
   rows: ImobEmpreendimentoRow[],
 ): Array<{ condominio_id: string | null; condominio_nome: string; rows: ImobEmpreendimentoRow[] }> {
@@ -382,9 +389,20 @@ export function agruparPorCondominio(
     }
     map.get(key)!.rows.push(row);
   }
-  return [...map.values()].sort((a, b) =>
-    a.condominio_nome.localeCompare(b.condominio_nome, 'pt-BR', { sensitivity: 'base' }),
-  );
+  return [...map.values()];
+}
+
+/** Últimas fases primeiro: Pré Obra e Obra, Portfólio, Loteadores, Step One. */
+export function ordenarImobEmpreendimentosPorFase(
+  rows: ImobEmpreendimentoRow[],
+): ImobEmpreendimentoRow[] {
+  return [...rows].sort((a, b) => {
+    const sa = a.fase_score ?? -1;
+    const sb = b.fase_score ?? -1;
+    if (sa !== sb) return sb - sa;
+    if (a.ativo !== b.ativo) return a.ativo ? -1 : 1;
+    return (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR', { sensitivity: 'base' });
+  });
 }
 
 type RawImobEmp = Record<string, unknown> & {
@@ -398,9 +416,8 @@ function txt(v: unknown): string | null {
 }
 
 function num(v: unknown): number | null {
-  if (v == null || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+  if (typeof v === 'number' || typeof v === 'string' || v == null) return parseNumeroPtBr(v);
+  return null;
 }
 
 function ymd(v: unknown): string | null {
@@ -484,6 +501,8 @@ function mapRow(r: RawImobEmp): ImobEmpreendimentoRow {
     quadra: null,
     lote: null,
     fase_atual: null,
+    fase_score: -1,
+    card_arquivado: false,
     tipo_negocio: txt(r.tipo_negocio),
     pasta_drive: txt(r.pasta_drive),
     valor_terreno: txt(r.valor_terreno),
@@ -518,12 +537,19 @@ function mapRow(r: RawImobEmp): ImobEmpreendimentoRow {
   };
 }
 
-/** Step One, depois Portfólio ou Loteadores, depois Pré Obra e Obra (Operações). */
+/** Pré Obra e Obra, depois Portfólio, Loteadores e Step One. */
+const ESTEIRAS_CADASTRO_EMPREENDIMENTO = [
+  KANBAN_IDS.OPERACOES,
+  KANBAN_IDS.PORTFOLIO,
+  KANBAN_IDS.LOTEADORES,
+  KANBAN_IDS.STEP_ONE,
+] as const;
+
 const FUNIL_AVANCO_FASE: Record<string, number> = {
-  [KANBAN_IDS.STEP_ONE]: 1,
-  [KANBAN_IDS.PORTFOLIO]: 2,
+  [KANBAN_IDS.OPERACOES]: 4,
+  [KANBAN_IDS.PORTFOLIO]: 3,
   [KANBAN_IDS.LOTEADORES]: 2,
-  [KANBAN_IDS.OPERACOES]: 3,
+  [KANBAN_IDS.STEP_ONE]: 1,
 };
 
 const CARD_FASE_SELECT =
@@ -610,8 +636,200 @@ function mapCardFase(raw: Record<string, unknown>): CardFaseLite | null {
 
 function pontuacaoFase(card: CardFaseLite): number {
   const funil = FUNIL_AVANCO_FASE[card.kanban_id] ?? 0;
-  if (!funil || !card.fase_nome) return -1;
+  if (!funil) return -1;
   return funil * 1_000_000 + card.fase_ordem;
+}
+
+function cardMaisAvancado(cards: CardFaseLite[]): CardFaseLite {
+  let melhor = cards[0]!;
+  for (let i = 1; i < cards.length; i++) {
+    const card = cards[i]!;
+    const delta = pontuacaoFase(card) - pontuacaoFase(melhor);
+    if (delta > 0 || (delta === 0 && melhor.arquivado && !card.arquivado)) melhor = card;
+  }
+  return melhor;
+}
+
+function agruparCardsVinculados(cards: CardFaseLite[]): CardFaseLite[][] {
+  const porId = new Map(cards.map((card) => [card.id, card]));
+  const parent = new Map<string, string>();
+  const find = (id: string): string => {
+    const atual = parent.get(id) ?? id;
+    if (atual === id) return id;
+    const raiz = find(atual);
+    parent.set(id, raiz);
+    return raiz;
+  };
+  const unir = (a: string, b: string) => {
+    if (!porId.has(a) || !porId.has(b)) return;
+    const pa = find(a);
+    const pb = find(b);
+    if (pa !== pb) parent.set(pa, pb);
+  };
+  for (const card of cards) parent.set(card.id, card.id);
+  for (const card of cards) {
+    if (card.origem_card_id) unir(card.id, card.origem_card_id);
+  }
+  const porChave = (chaveDe: (card: CardFaseLite) => string) => {
+    const visto = new Map<string, string>();
+    for (const card of cards) {
+      const chave = chaveDe(card);
+      if (!chave) continue;
+      const anterior = visto.get(chave);
+      if (anterior) unir(anterior, card.id);
+      else visto.set(chave, card.id);
+      if (porId.has(chave)) unir(card.id, chave);
+    }
+  };
+  porChave((card) => card.processo_id ?? '');
+  porChave((card) => card.projeto_id ?? '');
+  porChave((card) => chaveLoteEmpreendimento(card.condominio_id, card.quadra, card.lote));
+
+  const grupos = new Map<string, CardFaseLite[]>();
+  for (const card of cards) {
+    const raiz = find(card.id);
+    const lista = grupos.get(raiz) ?? [];
+    lista.push(card);
+    grupos.set(raiz, lista);
+  }
+  return [...grupos.values()];
+}
+
+function nomeDoCardParaCadastro(card: CardFaseLite): string {
+  const titulo = card.titulo.trim();
+  if (titulo) return titulo.slice(0, 180);
+  const partes = [card.nome_condominio, card.quadra, card.lote].filter(Boolean);
+  if (partes.length > 0) return partes.join(' · ').slice(0, 180);
+  return 'Empreendimento';
+}
+
+async function carregarCardsEsteirasCadastro(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<CardFaseLite[] | null> {
+  const cards: CardFaseLite[] = [];
+  const tamanho = 1000;
+  for (let inicio = 0; ; inicio += tamanho) {
+    const { data, error } = await supabase
+      .from('kanban_cards')
+      .select(CARD_FASE_SELECT)
+      .eq('status', 'ativo')
+      .in('kanban_id', [...ESTEIRAS_CADASTRO_EMPREENDIMENTO])
+      .order('id', { ascending: true })
+      .range(inicio, inicio + tamanho - 1);
+    if (error) {
+      console.error('[imob_empreendimentos] esteiras:', error.message);
+      return null;
+    }
+    const pagina = (data ?? []) as unknown as Record<string, unknown>[];
+    for (const raw of pagina) {
+      const card = mapCardFase(raw);
+      if (card && FUNIL_AVANCO_FASE[card.kanban_id]) cards.push(card);
+    }
+    if (pagina.length < tamanho) break;
+  }
+  return cards;
+}
+
+type EmpCadastroLite = {
+  id: string;
+  card_id: string | null;
+  ativo: boolean;
+  condominio_id: string | null;
+  created_at: string | null;
+};
+
+async function sincronizarCadastroComEsteiras(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  grupos: CardFaseLite[][],
+): Promise<Map<string, string>> {
+  const keeperPorCard = new Map<string, string>();
+  const { data, error } = await supabase
+    .from('imob_empreendimentos')
+    .select('id, card_id, ativo, condominio_id, created_at');
+  if (error) {
+    console.error('[imob_empreendimentos] sync leitura:', error.message);
+    return keeperPorCard;
+  }
+  const existentes = (data ?? []) as EmpCadastroLite[];
+  const porCard = new Map<string, EmpCadastroLite[]>();
+  for (const row of existentes) {
+    const cardId = String(row.card_id ?? '').trim();
+    if (!cardId) continue;
+    const lista = porCard.get(cardId) ?? [];
+    lista.push(row);
+    porCard.set(cardId, lista);
+  }
+
+  const inserir: Array<{ nome: string; slug: string; ativo: boolean; card_id: string; condominio_id: string | null }> = [];
+  const atualizar: Array<{ id: string; card_id: string; ativo: boolean; condominio_id?: string | null }> = [];
+
+  for (const grupo of grupos) {
+    if (grupo.length === 0) continue;
+    const winner = cardMaisAvancado(grupo);
+    const ligados: EmpCadastroLite[] = [];
+    const vistos = new Set<string>();
+    for (const card of grupo) {
+      for (const row of porCard.get(card.id) ?? []) {
+        if (vistos.has(row.id)) continue;
+        vistos.add(row.id);
+        ligados.push(row);
+      }
+    }
+    ligados.sort((a, b) => String(a.created_at ?? '').localeCompare(String(b.created_at ?? '')));
+    const keeper = ligados[0] ?? null;
+    const ativo = !winner.arquivado;
+    if (!keeper) {
+      inserir.push({
+        nome: nomeDoCardParaCadastro(winner),
+        slug: `emp-${winner.id.replace(/-/g, '')}`,
+        ativo,
+        card_id: winner.id,
+        condominio_id: winner.condominio_id,
+      });
+      continue;
+    }
+    keeperPorCard.set(winner.id, keeper.id);
+    for (const card of grupo) keeperPorCard.set(card.id, keeper.id);
+    const condominioNovo = !keeper.condominio_id && winner.condominio_id ? winner.condominio_id : undefined;
+    if (keeper.card_id !== winner.id || keeper.ativo !== ativo || condominioNovo) {
+      atualizar.push({
+        id: keeper.id,
+        card_id: winner.id,
+        ativo,
+        ...(condominioNovo ? { condominio_id: condominioNovo } : {}),
+      });
+    }
+    for (const extra of ligados) {
+      if (extra.id === keeper.id || extra.ativo === false) continue;
+      atualizar.push({ id: extra.id, card_id: extra.card_id ?? winner.id, ativo: false });
+    }
+  }
+
+  for (let i = 0; i < inserir.length; i += 40) {
+    const lote = inserir.slice(i, i + 40);
+    const ins = await supabase.from('imob_empreendimentos').insert(lote).select('id, card_id');
+    if (ins.error) {
+      console.error('[imob_empreendimentos] sync insert:', ins.error.message);
+      continue;
+    }
+    for (const row of (ins.data ?? []) as Array<{ id: string; card_id: string | null }>) {
+      const cardId = String(row.card_id ?? '').trim();
+      if (cardId) keeperPorCard.set(cardId, row.id);
+    }
+  }
+  for (const patch of atualizar) {
+    const { id, ...campos } = patch;
+    const upd = await supabase.from('imob_empreendimentos').update(campos).eq('id', id);
+    if (upd.error) console.error('[imob_empreendimentos] sync update:', upd.error.message);
+  }
+  for (const grupo of grupos) {
+    if (grupo.length === 0) continue;
+    const winner = cardMaisAvancado(grupo);
+    const keeperId = keeperPorCard.get(winner.id);
+    if (!keeperId) continue;
+    for (const card of grupo) keeperPorCard.set(card.id, keeperId);
+  }
+  return keeperPorCard;
 }
 
 function primeiroPreenchido(valores: Array<string | null | undefined>): string | null {
@@ -625,24 +843,17 @@ function primeiroPreenchido(valores: Array<string | null | undefined>): string |
 async function enriquecerLocalizacaoFaseEmpreendimentos(
   supabase: Awaited<ReturnType<typeof createClient>>,
   rows: ImobEmpreendimentoRow[],
+  cardsProntos?: CardFaseLite[] | null,
+  gruposProntos?: CardFaseLite[][],
 ): Promise<void> {
   const cardIds = [...new Set(rows.map((r) => String(r.card_id ?? '').trim()).filter(Boolean))];
-  const kanbanIds = [KANBAN_IDS.STEP_ONE, KANBAN_IDS.PORTFOLIO, KANBAN_IDS.LOTEADORES, KANBAN_IDS.OPERACOES];
-
-  const { data: funilData, error: funilError } = await supabase
-    .from('kanban_cards')
-    .select(CARD_FASE_SELECT)
-    .in('kanban_id', kanbanIds);
-
-  if (funilError) {
-    console.error('[imob_empreendimentos] fase atual:', funilError.message);
-    return;
+  const funilCards = cardsProntos ?? (await carregarCardsEsteirasCadastro(supabase)) ?? [];
+  const grupoPorCard = new Map<string, CardFaseLite[]>();
+  for (const grupo of gruposProntos ?? []) {
+    for (const card of grupo) grupoPorCard.set(card.id, grupo);
   }
-
-  const funilCards: CardFaseLite[] = [];
-  for (const raw of (funilData ?? []) as unknown as Record<string, unknown>[]) {
-    const card = mapCardFase(raw);
-    if (card) funilCards.push(card);
+  if (!cardsProntos && funilCards.length === 0 && cardIds.length > 0) {
+    console.error('[imob_empreendimentos] fase atual: cards das esteiras indisponíveis');
   }
 
   const porId = new Map<string, CardFaseLite>();
@@ -769,20 +980,12 @@ async function enriquecerLocalizacaoFaseEmpreendimentos(
       }
     }
 
-    const cards = [...relacionados.values()];
-    let melhor: CardFaseLite | null = null;
-    let melhorScore = -1;
-    const ativos = cards.filter((c) => !c.arquivado && pontuacaoFase(c) >= 0);
-    const pool = ativos.length > 0 ? ativos : cards;
-    for (const card of pool) {
-      const score = pontuacaoFase(card);
-      if (score > melhorScore) {
-        melhorScore = score;
-        melhor = card;
-      }
-    }
+    const grupo = seed ? grupoPorCard.get(seed.id) : undefined;
+    const cards = grupo && grupo.length > 0 ? grupo : [...relacionados.values()];
+    const melhor = cards.length > 0 ? cardMaisAvancado(cards) : null;
+    const melhorScore = melhor ? pontuacaoFase(melhor) : -1;
 
-    const fontes = [seed, melhor, ...cards].filter((c): c is CardFaseLite => Boolean(c));
+    const fontes = [melhor, seed, ...cards].filter((c): c is CardFaseLite => Boolean(c));
     row.codigo = primeiroPreenchido(fontes.map((c) => codigoFranquiaDoTitulo(c.titulo)));
     row.quadra = primeiroPreenchido(fontes.map((c) => c.quadra));
     row.lote = primeiroPreenchido(fontes.map((c) => c.lote));
@@ -797,12 +1000,26 @@ async function enriquecerLocalizacaoFaseEmpreendimentos(
       if (!row.nome_condominio) row.nome_condominio = cond.nome;
     }
     row.fase_atual = melhor?.fase_nome ?? null;
+    row.fase_score = melhorScore;
+    row.card_arquivado = Boolean(melhor?.arquivado);
+    row.cards_vinculados_ids = cards.map((card) => card.id);
+    if (melhor) {
+      row.ativo = !melhor.arquivado;
+      row.card_id = melhor.id;
+      row.card_titulo = melhor.titulo || row.card_titulo;
+    }
   }
 }
 
 export async function fetchImobEmpreendimentosRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<ImobEmpreendimentoRow[] | null> {
+  const cardsEsteiras = await carregarCardsEsteirasCadastro(supabase);
+  const grupos = cardsEsteiras ? agruparCardsVinculados(cardsEsteiras) : [];
+  const keeperPorCard = cardsEsteiras
+    ? await sincronizarCadastroComEsteiras(supabase, grupos)
+    : new Map<string, string>();
+
   const { data, error } = await supabase
     .from('imob_empreendimentos')
     .select(
@@ -817,8 +1034,15 @@ export async function fetchImobEmpreendimentosRows(
     return null;
   }
 
-  const rows = ((data ?? []) as unknown as RawImobEmp[]).map((r) => mapRow(r));
-  await enriquecerLocalizacaoFaseEmpreendimentos(supabase, rows);
+  const keepers = new Set(keeperPorCard.values());
+  const rows = ((data ?? []) as unknown as RawImobEmp[])
+    .map((r) => mapRow(r))
+    .filter((row) => {
+      const cardId = String(row.card_id ?? '').trim();
+      if (!cardId || !keeperPorCard.has(cardId)) return true;
+      return keepers.has(row.id);
+    });
+  await enriquecerLocalizacaoFaseEmpreendimentos(supabase, rows, cardsEsteiras, grupos);
 
   // Enrich with counts
   const { data: corretoresLinks } = await supabase
@@ -851,7 +1075,12 @@ export async function fetchImobEmpreendimentosRows(
       unitMap.set(cardId, (unitMap.get(cardId) ?? 0) + 1);
     }
     for (const row of rows) {
-      row.unidades_count = row.card_id ? (unitMap.get(row.card_id) ?? 0) : 0;
+      const ids = row.cards_vinculados_ids?.length
+        ? row.cards_vinculados_ids
+        : row.card_id
+          ? [row.card_id]
+          : [];
+      row.unidades_count = ids.reduce((total, id) => total + (unitMap.get(id) ?? 0), 0);
     }
   }
 

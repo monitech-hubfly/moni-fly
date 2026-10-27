@@ -12,6 +12,7 @@ import {
   type ImobEmpreendimentoRow,
 } from '@/lib/imob-empreendimentos';
 import { labelStatusImovel } from '@/lib/kanban/imob-simulacoes-card';
+import { MSG_PERCENTUAL_NEGOCIO, percentualNegocioForaDaFaixa } from '@/lib/dashboard-novos-negocios/parseMoney';
 
 type Ok = { ok: true; mensagem: string; id?: string };
 type Err = { ok: false; error: string };
@@ -35,6 +36,18 @@ async function requireImobStaff(): Promise<
     return { ok: false, error: 'Apenas administradores ou time podem gerir empreendimentos.' };
   }
   return { ok: true, supabase, userId: user.id };
+}
+
+function erroPercentualDoPatch(row: Record<string, unknown>): string | null {
+  const parcial = row.pct_compra_parcial_terreno;
+  const vgv = row.pct_vgv_terrenista;
+  if (
+    percentualNegocioForaDaFaixa(typeof parcial === 'number' ? parcial : null) ||
+    percentualNegocioForaDaFaixa(typeof vgv === 'number' ? vgv : null)
+  ) {
+    return MSG_PERCENTUAL_NEGOCIO;
+  }
+  return null;
 }
 
 function slugify(nome: string): string {
@@ -66,6 +79,8 @@ export async function criarImobEmpreendimento(patch: ImobEmpreendimentoPatch): P
     condominio_id: patch.condominio_id ?? null,
     ...negocioDbFromPatch(patch),
   };
+  const erroPct = erroPercentualDoPatch(row);
+  if (erroPct) return { ok: false, error: erroPct };
 
   const { data, error } = await gate.supabase
     .from('imob_empreendimentos')
@@ -101,6 +116,8 @@ export async function atualizarImobEmpreendimento(
   if (patch.card_id !== undefined) row.card_id = patch.card_id;
   if (patch.condominio_id !== undefined) row.condominio_id = patch.condominio_id;
   Object.assign(row, negocioDbFromPatch(patch));
+  const erroPct = erroPercentualDoPatch(row);
+  if (erroPct) return { ok: false, error: erroPct };
 
   if (Object.keys(row).length === 0) return { ok: false, error: 'Nada para atualizar.' };
 
