@@ -96,6 +96,8 @@ export type KanbanCardBrief = {
   /** Funil Jurídico: retrocessos Assinatura → Tratativas. */
   juridico_bolinha_count?: number | null;
   credito_obra_ok?: boolean;
+  /** Pré Obra e Obra: Crédito Finalizado (filho Crédito Obra em Concluídos). */
+  credito_finalizado?: boolean;
   projetos_legais_ok?: boolean | null;
   projetos_locais_ok?: boolean | null;
   /** Operações: existe card filho no Funil Projeto Legal (`origem_card_id`). */

@@ -158,6 +158,7 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   instrumento_garantidor: 'moni',
   processos_cartorarios: 'franqueado',
   aguardando_credito: 'moni',
+  credito_aprovado: 'moni',
   em_obra: 'franqueado',
   operacoes_entregue: 'franqueado',
 

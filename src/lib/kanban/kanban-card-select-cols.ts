@@ -28,6 +28,7 @@ export const KANBAN_CARD_SELECT_BASE = `
       juridico_ok,
       juridico_bolinha_count,
       credito_obra_ok,
+      credito_finalizado,
       projetos_legais_ok,
       projetos_locais_ok,
       projeto_id,

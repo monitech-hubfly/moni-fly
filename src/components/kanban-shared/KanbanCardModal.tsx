@@ -406,6 +406,7 @@ type Card = {
   /** Funil Jurídico: rodada atual do atendimento. */
   juridico_bolinha_count?: number | null;
   credito_obra_ok?: boolean;
+  credito_finalizado?: boolean;
   projetos_legais_ok?: boolean | null;
   projetos_locais_ok?: boolean | null;
   alvara_url?: string | null;
@@ -1211,6 +1212,7 @@ export function KanbanCardModal({
         capital_ok?: boolean;
         juridico_ok?: boolean;
         credito_obra_ok?: boolean;
+        credito_finalizado?: boolean;
         alvara_url?: string | null;
         docs_terreno_url?: string | null;
         sla_iniciado_em?: string | null;
@@ -1316,7 +1318,7 @@ export function KanbanCardModal({
         const cardSelectConfirmacao =
           'opcao_assinada_em, contrato_assinado_em, obra_iniciada_em, obra_finalizada_em';
         const cardSelectCore =
-          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
+          `id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, concluido, concluido_em, arquivado, rede_franqueado_id, nome_condominio, condominio_id, quadra, lote, data_reuniao, data_followup, hora_reuniao, projeto_id, processo_step_one_id, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, credito_obra_ok, credito_finalizado, alvara_url, docs_terreno_url, proxima_atividade, prazo_atividade, ${cardSelectConfirmacao}`;
         const cardSelectPreObra =
           'condominio_aprovada_em, prefeitura_aprovada_em, alvara_emitido_em, prev_aprovacao_condominio, prev_aprovacao_prefeitura, prev_emissao_alvara, prev_envio_credito_obra, prev_inicio_obra, docs_condominio, docs_lote, link_projeto_legal, data_envio_credito_obra, data_aprovacao_credito_obra, data_inicio_obra, datas_comunique_se_condominio, datas_comunique_se_prefeitura';
         const cardSelectFunding =
@@ -1396,6 +1398,9 @@ export function KanbanCardModal({
           capital_ok: Boolean((cardData as { capital_ok?: boolean | null }).capital_ok),
           juridico_ok: Boolean((cardData as { juridico_ok?: boolean | null }).juridico_ok),
           credito_obra_ok: Boolean((cardData as { credito_obra_ok?: boolean | null }).credito_obra_ok),
+          credito_finalizado: Boolean(
+            (cardData as { credito_finalizado?: boolean | null }).credito_finalizado,
+          ),
           alvara_url: (cardData as { alvara_url?: string | null }).alvara_url ?? null,
           docs_terreno_url: (cardData as { docs_terreno_url?: string | null }).docs_terreno_url ?? null,
           sla_iniciado_em:
@@ -1504,6 +1509,7 @@ export function KanbanCardModal({
         capital_ok: loaded.capital_ok,
         juridico_ok: loaded.juridico_ok,
         credito_obra_ok: loaded.credito_obra_ok,
+        credito_finalizado: loaded.credito_finalizado,
         processo_meta: loaded.processo_meta ?? null,
         profiles,
         juridico_nome_candidato: loaded.juridico_nome_candidato ?? null,
@@ -1537,6 +1543,7 @@ export function KanbanCardModal({
           capital_ok: cardParaEstado.capital_ok,
           juridico_ok: cardParaEstado.juridico_ok,
           credito_obra_ok: cardParaEstado.credito_obra_ok,
+          credito_finalizado: cardParaEstado.credito_finalizado,
         };
         const enrichedList = await enrichCardsParalelasContext(supabase, cardParaEstado.kanban_id, [brief]);
         const enrichedRow = enrichedList[0];

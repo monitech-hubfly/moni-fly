@@ -1457,6 +1457,9 @@ export async function fetchKanbanBoardSnapshot(
         return Number.isFinite(n) ? n : 0;
       })(),
       credito_obra_ok: Boolean((cMerged as { credito_obra_ok?: boolean | null }).credito_obra_ok),
+      credito_finalizado: Boolean(
+        (cMerged as { credito_finalizado?: boolean | null }).credito_finalizado,
+      ),
       projetos_legais_ok:
         (cMerged as { projetos_legais_ok?: boolean | null }).projetos_legais_ok ?? null,
       projetos_locais_ok:
@@ -1993,6 +1996,7 @@ function mapNativeRowToEnrichmentBrief(
       return Number.isFinite(n) ? n : 0;
     })(),
     credito_obra_ok: Boolean(row.credito_obra_ok),
+    credito_finalizado: Boolean(row.credito_finalizado),
     projetos_legais_ok: (row.projetos_legais_ok as boolean | null) ?? null,
     projetos_locais_ok: (row.projetos_locais_ok as boolean | null) ?? null,
     proxima_atividade: (row.proxima_atividade as string | null) ?? null,
@@ -2021,7 +2025,7 @@ export async function fetchKanbanBoardEnrichmentPatches(
   let q = supabase
     .from('kanban_cards')
     .select(
-      'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, projeto_id, arquivado, concluido, concluido_em, entered_fase_at, sla_iniciado_em, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, juridico_bolinha_count, credito_obra_ok, projetos_legais_ok, projetos_locais_ok, proxima_atividade, prazo_atividade',
+      'id, titulo, status, created_at, fase_id, franqueado_id, kanban_id, projeto_id, arquivado, concluido, concluido_em, entered_fase_at, sla_iniciado_em, acoplamento_concluido, acoplamento_filho_fase_nome, acoplamento_filho_fase_slug, credito_terreno_ok, contabilidade_ok, capital_ok, juridico_ok, juridico_bolinha_count, credito_obra_ok, credito_finalizado, projetos_legais_ok, projetos_locais_ok, proxima_atividade, prazo_atividade',
     )
     .eq('kanban_id', kid)
     .eq('status', 'ativo')

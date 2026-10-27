@@ -478,6 +478,7 @@ export const CAMPOS_NAO_SYNC = [
   'acoplamento_concluido',
   'credito_terreno_ok',
   'credito_obra_ok',
+  'credito_finalizado',
   'contabilidade_ok',
   'juridico_ok',
   'capital_ok',

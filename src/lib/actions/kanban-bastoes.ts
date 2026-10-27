@@ -1350,7 +1350,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
 type BastaoRetornoFlagCol =
   | 'acoplamento_concluido'
   | 'credito_terreno_ok'
-  | 'credito_obra_ok'
   | 'contabilidade_ok'
   | 'juridico_ok'
   | 'capital_ok'
@@ -1360,12 +1359,6 @@ type BastaoRetornoFlagCol =
 const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'acoplamento_concluido',
   [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'acoplamento_concluido',
-  [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'credito_obra_ok',
-  [FASE_SLUGS.CO_SHAREPOINT_3A]: 'credito_obra_ok',
-  /** @deprecated legado — cards em fase inativa (migration 494) */
-  [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'credito_obra_ok',
-  /** @deprecated legado — cards em fase inativa (migration 494) */
-  [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'credito_obra_ok',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'contabilidade_ok',
   /** Funil Jurídico — bastão de volta na Fase 7 (Pós-Assinatura / Retroalimentação). */
   [FASE_SLUGS.JURIDICO_POS_ASSINATURA]: 'juridico_ok',
@@ -1382,12 +1375,6 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
 const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'Acoplamento (aprovado)',
   [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'Acoplamento (paralisado)',
-  [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'Crédito Obra (outro parceiro)',
-  [FASE_SLUGS.CO_SHAREPOINT_3A]: 'Crédito Obra (concluído)',
-  /** @deprecated legado */
-  [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'Crédito Obra (aprovado)',
-  /** @deprecated legado */
-  [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'Crédito Obra (reprovado)',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'Contabilidade',
   [FASE_SLUGS.JURIDICO_POS_ASSINATURA]: 'Jurídico',
   /** @deprecated legado */
@@ -1406,10 +1393,6 @@ const DESFECHO_APENAS_FLAG_SEM_MOVER_PAI = new Set<string>([
   FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO,
   FASE_SLUGS.ACOPLAMENTO_APROVADO,
   FASE_SLUGS.ACOPLAMENTO_REPROVADO,
-  FASE_SLUGS.CO_OUTRO_PARCEIRO,
-  FASE_SLUGS.CO_SHAREPOINT_3A,
-  FASE_SLUGS.CREDITO_OBRA_APROVADO,
-  FASE_SLUGS.CREDITO_OBRA_REPROVADO,
   FASE_SLUGS.CONTABILIDADE_CONCLUIDO,
   FASE_SLUGS.JURIDICO_POS_ASSINATURA,
   FASE_SLUGS.JURIDICO_DEMANDA_CONCLUIDA,
@@ -1569,6 +1552,208 @@ async function executarBastaoDeVoltaMoverPaiPorFaseFilho(
   revalidatePath('/funil-projeto-legal');
 }
 
+/**
+ * O trigger de fase já gravou esta entrada. 0 = histórico ausente (trata como primeira);
+ * 1 = só a entrada atual; >1 = o card já passou por essa fase.
+ */
+async function entradaDeFaseEhAPrimeira(
+  db: ReturnType<typeof createAdminClient>,
+  cardFilhoId: string,
+  faseId: string,
+): Promise<boolean> {
+  const { count, error } = await db
+    .from('kanban_historico')
+    .select('id', { count: 'exact', head: true })
+    .eq('card_id', cardFilhoId)
+    .filter('detalhe->>fase_nova_id', 'eq', faseId);
+
+  if (error) {
+    console.error('[entradaDeFaseEhAPrimeira]', error.message);
+    return false;
+  }
+  return (count ?? 0) <= 1;
+}
+
+async function registrarHistoricoBastaoCreditoObra(
+  db: ReturnType<typeof createAdminClient>,
+  paiId: string,
+  filhoId: string,
+  faseSlug: string,
+  descricao: string,
+  extra: Record<string, unknown>,
+): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const usuarioNome = await resolveUsuarioNomeHistorico(db, user?.id ?? null);
+
+  const { error } = await db.from('kanban_historico').insert({
+    card_id: paiId,
+    usuario_id: user?.id ?? null,
+    usuario_nome: usuarioNome,
+    acao: 'bastao_retorno',
+    tipo: tipoKanbanHistoricoFromAcao('bastao_retorno'),
+    detalhe: {
+      tipo: 'bastao_retorno',
+      descricao,
+      fase_slug: faseSlug,
+      card_filho_id: filhoId,
+      esteira: 'Crédito Obra',
+      ...extra,
+    },
+  } as never);
+
+  if (error) {
+    console.error('[registrarHistoricoBastaoCreditoObra]', error.message);
+  }
+}
+
+/**
+ * Crédito Obra → Pré Obra e Obra. Substitui o bastão `credito_obra_ok`.
+ * Primeira entrada em FUP Cartório avança o pai para Crédito Aprovado (sem retroceder).
+ * Primeira entrada em Concluídos marca `credito_finalizado` no pai.
+ */
+async function executarBastaoCreditoObraParaOperacoes(
+  cardFilhoId: string,
+  novaFaseSlug: string,
+): Promise<void> {
+  const slug = String(novaFaseSlug ?? '').trim();
+  const moverParaCreditoAprovado = slug === FASE_SLUGS.CO_FOLLOWUP_CARTORIO;
+  const marcarCreditoFinalizado = slug === FASE_SLUGS.CO_SHAREPOINT_3A;
+  if (!moverParaCreditoAprovado && !marcarCreditoFinalizado) return;
+
+  const filhoId = String(cardFilhoId ?? '').trim();
+  if (!filhoId) return;
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] admin client:', e);
+    return;
+  }
+
+  const { data: filhoRow, error: errFilho } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, origem_card_id, fase_id')
+    .eq('id', filhoId)
+    .maybeSingle();
+
+  if (errFilho) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] card filho:', errFilho.message);
+    return;
+  }
+  if (!filhoRow?.id) return;
+  if (String((filhoRow as { kanban_id?: string }).kanban_id ?? '') !== KANBAN_IDS.CREDITO_OBRA) {
+    return;
+  }
+
+  const paiId = String(
+    (filhoRow as { origem_card_id?: string | null }).origem_card_id ?? '',
+  ).trim();
+  if (!paiId) return;
+
+  const faseFilhoId = String((filhoRow as { fase_id?: string }).fase_id ?? '').trim();
+  if (!faseFilhoId) return;
+  if (!(await entradaDeFaseEhAPrimeira(db, filhoId, faseFilhoId))) return;
+
+  const { data: paiRow, error: errPai } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, fase_id, credito_finalizado')
+    .eq('id', paiId)
+    .maybeSingle();
+
+  if (errPai) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] card pai:', errPai.message);
+    return;
+  }
+  if (!paiRow?.id) return;
+  if (String((paiRow as { kanban_id?: string }).kanban_id ?? '') !== KANBAN_IDS.OPERACOES) return;
+
+  if (marcarCreditoFinalizado) {
+    if ((paiRow as { credito_finalizado?: boolean | null }).credito_finalizado === true) {
+      revalidatePath('/operacoes');
+      return;
+    }
+    const { error: errFlag } = await db
+      .from('kanban_cards')
+      .update({ credito_finalizado: true } as never)
+      .eq('id', paiId);
+    if (errFlag) {
+      console.error('[executarBastaoCreditoObraParaOperacoes] flag:', errFlag.message);
+      return;
+    }
+    await registrarHistoricoBastaoCreditoObra(
+      db,
+      paiId,
+      filhoId,
+      slug,
+      'Crédito Obra entrou em Concluídos pela primeira vez → Pré Obra e Obra marcado como Crédito Finalizado.',
+      { flag: 'credito_finalizado' },
+    );
+    revalidatePath('/operacoes');
+    revalidatePath('/funil-credito-obra');
+    return;
+  }
+
+  const { data: faseDestino, error: errFaseDest } = await db
+    .from('kanban_fases')
+    .select('id, ordem')
+    .eq('kanban_id', KANBAN_IDS.OPERACOES)
+    .eq('slug', FASE_SLUGS.CREDITO_APROVADO)
+    .eq('ativo', true)
+    .maybeSingle();
+
+  if (errFaseDest) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] fase destino:', errFaseDest.message);
+    return;
+  }
+  if (!faseDestino?.id) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] fase credito_aprovado não encontrada.');
+    return;
+  }
+
+  const faseDestinoId = String(faseDestino.id);
+  const ordemDestino = Number((faseDestino as { ordem?: number }).ordem ?? 0);
+  const fasePaiIdAtual = String((paiRow as { fase_id?: string }).fase_id ?? '').trim();
+  if (fasePaiIdAtual === faseDestinoId) return;
+
+  if (fasePaiIdAtual) {
+    const { data: faseAtualPai } = await db
+      .from('kanban_fases')
+      .select('slug, ordem')
+      .eq('id', fasePaiIdAtual)
+      .maybeSingle();
+    const ordemAtual = Number((faseAtualPai as { ordem?: number } | null)?.ordem ?? 0);
+    const slugAtual = String((faseAtualPai as { slug?: string | null } | null)?.slug ?? '').trim();
+    if (slugAtual === FASE_SLUGS.CREDITO_APROVADO) return;
+    if (ordemAtual > 0 && ordemDestino > 0 && ordemAtual >= ordemDestino) return;
+  }
+
+  const { error: errUpd } = await db
+    .from('kanban_cards')
+    .update({ fase_id: faseDestinoId })
+    .eq('id', paiId);
+
+  if (errUpd) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] update pai:', errUpd.message);
+    return;
+  }
+
+  await registrarHistoricoBastaoCreditoObra(
+    db,
+    paiId,
+    filhoId,
+    slug,
+    'Crédito Obra entrou em FUP Cartório pela primeira vez → Pré Obra e Obra em Crédito Aprovado.',
+    { fase_pai_slug: FASE_SLUGS.CREDITO_APROVADO },
+  );
+
+  revalidatePath('/operacoes');
+  revalidatePath('/funil-credito-obra');
+}
+
 export type ResultadoBastaoDeVolta = { ok: true } | { ok: false; error: string };
 
 /**
@@ -1600,6 +1785,11 @@ export async function executarBastaoDeVolta(
   // Projeto Legal → Operações (aprovacao_condominio). Não mexe no Portfólio.
   if (slug === FASE_SLUGS.PL_C_PROTOCOLO_ANDAMENTO) {
     await executarBastaoDeVoltaMoverPaiPorFaseFilho(cardFilhoId, slug);
+  }
+
+  // Crédito Obra → Pré Obra e Obra (substitui credito_obra_ok).
+  if (slug === FASE_SLUGS.CO_FOLLOWUP_CARTORIO || slug === FASE_SLUGS.CO_SHAREPOINT_3A) {
+    await executarBastaoCreditoObraParaOperacoes(cardFilhoId, slug);
   }
 
   if (slug === FASE_SLUGS.JURIDICO_ATENDIMENTOS_CONCLUIDOS) {

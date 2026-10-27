@@ -149,6 +149,7 @@ export const FASE_IDS = {
   OPERACOES_COMITE_OPS_APROVADO: 'b7c4e2a4-6d30-4f8a-9c15-2d8e4f6a1c14',
   OPERACOES_INSTRUMENTO_GARANTIDOR: 'b7c4e2a3-6d30-4f8a-9c15-2d8e4f6a1c13',
   OPERACOES_AGUARDANDO_CREDITO: '8b83e671-ef0c-4028-8b52-8f56579e8df0',
+  OPERACOES_CREDITO_APROVADO: 'c4e8a1b2-7f41-4d9c-8e26-3a9f5b7c1d21',
   OPERACOES_ENTREGUE:        '5b85ac83-a546-4c1d-9bf0-e5e40cf3d937',
   // Loteadores
   LOTEADORES_JURIDICO:       'b505fee6-67aa-4925-b464-b80ceaa04567',
@@ -197,6 +198,8 @@ export const FASE_SLUGS = {
   PORTFOLIO_ASSINATURAS_CTO_PRECEDENTES: 'assinaturas_cto_precedentes',
   PORTFOLIO_CTO_PRECEDENTES_ASSINADO: 'cto_precedentes_assinado',
   AGUARDANDO_CREDITO: 'aguardando_credito',
+  /** Funil Pré Obra e Obra — logo após Aguardando Crédito. */
+  CREDITO_APROVADO: 'credito_aprovado',
   PROD_PUBLICADO: 'prod_publicado',
   APROVACAO_CONDOMINIO: 'aprovacao_condominio',
   /** Funil Pré Obra e Obra — logo após Aprovação no Condomínio. */
@@ -323,7 +326,7 @@ export const FASE_SLUGS = {
   CO_SHAREPOINT_CASHME:       'co_sharepoint_cashme',
   CO_ACOMPANHAMENTO_TRANCHE:  'co_acompanhamento_tranche',
   CO_NECESSIDADE_3A_TRANCHE:  'co_necessidade_3a_tranche',
-  /** Fase terminal — Concluídos (bastão credito_obra_ok) */
+  /** Fase terminal — Concluídos (flag credito_finalizado no pai Pré Obra e Obra) */
   CO_SHAREPOINT_3A:           'co_sharepoint_3a',
   /** @deprecated legado — fase inativa (migration 494) */
   CO_ACOMPANHAMENTO_3A:       'co_acompanhamento_3a',

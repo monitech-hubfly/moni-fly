@@ -39,6 +39,7 @@ export type CardParalelasFlags = {
   capital_ok?: boolean;
   juridico_ok?: boolean;
   credito_obra_ok?: boolean;
+  credito_finalizado?: boolean;
   projetos_legais_ok?: boolean | null;
   projetos_locais_ok?: boolean | null;
 };
@@ -375,7 +376,7 @@ function montarChipsEsteirasParalelasFixas(
         temFilho: temFilhoCreditoObra,
         filhoArquivado: filhoCreditoObraArquivado,
         filhoFase: input.creditoObraFilhoFase,
-        filhoConcluido: boolFlag(f.credito_obra_ok),
+        filhoConcluido: boolFlag(f.credito_finalizado) || boolFlag(f.credito_obra_ok),
       },
       opts,
     ),
@@ -613,6 +614,7 @@ export function flagsParalelasFromCard(card: Pick<
   | 'capital_ok'
   | 'juridico_ok'
   | 'credito_obra_ok'
+  | 'credito_finalizado'
   | 'projetos_legais_ok'
   | 'projetos_locais_ok'
 >): CardParalelasFlags {
@@ -625,6 +627,7 @@ export function flagsParalelasFromCard(card: Pick<
     capital_ok: card.capital_ok,
     juridico_ok: card.juridico_ok,
     credito_obra_ok: card.credito_obra_ok,
+    credito_finalizado: card.credito_finalizado,
     projetos_legais_ok: card.projetos_legais_ok ?? null,
     projetos_locais_ok: card.projetos_locais_ok ?? null,
   };
