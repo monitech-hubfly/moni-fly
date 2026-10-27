@@ -176,6 +176,8 @@ export async function aplicarDnDKanbanCard(input: {
   kanbanNome?: string;
   motivoReprovacaoAcoplamento?: string;
   justificativaSlaQuebra?: string;
+  /** Entrada em Passagem IMOB (Funil Loteadores). Sem o boolean o servidor recusa a troca de fase. */
+  intencaoShowroom?: boolean;
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const {
@@ -217,6 +219,7 @@ export async function aplicarDnDKanbanCard(input: {
         kanbanNome: input.kanbanNome,
         motivoReprovacaoAcoplamento: input.motivoReprovacaoAcoplamento,
         justificativaSlaQuebra: input.justificativaSlaQuebra,
+        intencaoShowroom: input.intencaoShowroom,
         skipRevalidate: true,
       });
       if (!res.ok) return res;

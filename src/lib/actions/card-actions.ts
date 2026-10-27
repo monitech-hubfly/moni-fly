@@ -65,7 +65,9 @@ import {
   executarBastaoDeVolta,
   executarBastoes,
   garantirBastaoPassagemWayser,
+  vincularLoteadorPassagemImob,
 } from '@/lib/actions/kanban-bastoes';
+import { ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB } from '@/lib/kanban/loteadores-passagem-waysers';
 import { sincronizarTagAcoplamentoPaiDoFilho } from '@/lib/kanban/acoplamento-tag-pai';
 import { notificarUniversidadeSeAvancoStep2 } from '@/lib/universidade/kanban-notify';
 import { payloadInicialNegociacaoPrazo } from '@/lib/kanban/prazo-negociacao';
@@ -4818,6 +4820,11 @@ export async function moverCardParaFase(input: {
   motivoReprovacaoAcoplamento?: string;
   /** Obrigatório ao avançar de fase com SLA vencido (quando ainda não há justificativa na fase). */
   justificativaSlaQuebra?: string;
+  /**
+   * Obrigatório ao entrar em Passagem IMOB no Funil Loteadores.
+   * true vincula Showroom e IMOB; false vincula só IMOB.
+   */
+  intencaoShowroom?: boolean;
   skipRevalidate?: boolean;
 }): Promise<ActionResult> {
   const supabase = await createClient();
@@ -4843,7 +4850,7 @@ export async function moverCardParaFase(input: {
 
   const { data: cardKanban } = await supabase
     .from('kanban_cards')
-    .select('kanban_id, fase_id')
+    .select('kanban_id, fase_id, titulo, projeto_id, rede_franqueado_id')
     .eq('id', cardId)
     .maybeSingle();
   const kanbanIdMovimento = String(
@@ -4869,6 +4876,29 @@ export async function moverCardParaFase(input: {
   if (!gateChecklistLegal.ok) return gateChecklistLegal;
   if (!gateSlaJustificativa.ok) return gateSlaJustificativa;
   if (!gateBook.ok) return gateBook;
+
+  const entraPassagemImob =
+    kanbanIdMovimento === KANBAN_IDS.LOTEADORES &&
+    novaFaseSlug === FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC &&
+    faseAnteriorId !== novaFaseId;
+  if (entraPassagemImob) {
+    if (typeof input.intencaoShowroom !== 'boolean') {
+      return { ok: false, error: ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB };
+    }
+    const cardPai = cardKanban as {
+      titulo?: string | null;
+      projeto_id?: string | null;
+      rede_franqueado_id?: string | null;
+    } | null;
+    const vinculo = await vincularLoteadorPassagemImob({
+      cardPaiId: cardId,
+      intencaoShowroom: input.intencaoShowroom,
+      titulo: String(cardPai?.titulo ?? '').trim() || 'Loteador',
+      projetoId: cardPai?.projeto_id ?? null,
+      redeFranqueadoId: cardPai?.rede_franqueado_id ?? null,
+    });
+    if (!vinculo.ok) return vinculo;
+  }
 
   const { data: cardKanbanMovimento } = await supabase
     .from('kanban_cards')

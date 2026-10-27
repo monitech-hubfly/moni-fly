@@ -32,6 +32,11 @@ import {
 } from '@/lib/kanban/kanban-sla-justificativa';
 import { obterJustificativaSlaFase, cardPrecisaJustificativaSlaQuebrado } from '@/lib/actions/kanban-sla-justificativa';
 import { KanbanSlaJustificativaModal } from './KanbanSlaJustificativaModal';
+import { LoteadoresIntencaoShowroomModal } from './LoteadoresIntencaoShowroomModal';
+import {
+  devePerguntarIntencaoShowroomPassagem,
+  ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB,
+} from '@/lib/kanban/loteadores-passagem-waysers';
 
 const PERDA_GANHO_ENABLED = true;
 
@@ -93,6 +98,10 @@ export function KanbanCardMenu({
   const [assinouPendente, setAssinouPendente] = useState<{
     tipo: LoteadoresConfirmacaoFaseTipo;
     titulo: string;
+    destino: FaseOpcao;
+    justificativaSla?: string;
+  } | null>(null);
+  const [intencaoShowroomPendente, setIntencaoShowroomPendente] = useState<{
     destino: FaseOpcao;
     justificativaSla?: string;
   } | null>(null);
@@ -176,7 +185,24 @@ export function KanbanCardMenu({
     setAberto(true);
   }
 
-  function executarMoverPara(destino: FaseOpcao, justificativaSla?: string) {
+  function executarMoverPara(
+    destino: FaseOpcao,
+    justificativaSla?: string,
+    intencaoShowroom?: boolean,
+  ) {
+    if (
+      intencaoShowroom === undefined &&
+      origem !== 'legado' &&
+      devePerguntarIntencaoShowroomPassagem({
+        kanbanId,
+        faseOrigemSlug: faseAtualSlug,
+        faseDestinoSlug: destino.slug,
+      })
+    ) {
+      setIntencaoShowroomPendente({ destino, justificativaSla });
+      setAberto(false);
+      return;
+    }
     setErro(null);
     startTransition(async () => {
       const res = await moverCardParaFase({
@@ -185,6 +211,7 @@ export function KanbanCardMenu({
         basePath,
         kanbanNome,
         justificativaSlaQuebra: justificativaSla,
+        intencaoShowroom,
         skipRevalidate: true,
       });
       if (!res.ok) {
@@ -198,6 +225,10 @@ export function KanbanCardMenu({
             justificativaExistente,
             obrigatoria: justificativaSlaObrigatoria(justificativaExistente),
           });
+          return;
+        }
+        if (res.error === ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB) {
+          setIntencaoShowroomPendente({ destino, justificativaSla });
           return;
         }
         window.alert(res.error ?? 'Não foi possível mover o card de fase.');
@@ -748,6 +779,22 @@ export function KanbanCardMenu({
                 setSlaDraft('');
               }}
               onConfirm={confirmarJustificativaSlaMenu}
+            />,
+            document.body,
+          )
+        : null}
+      {intencaoShowroomPendente && typeof document !== 'undefined'
+        ? createPortal(
+            <LoteadoresIntencaoShowroomModal
+              open
+              salvando={pending}
+              onCancelar={() => setIntencaoShowroomPendente(null)}
+              onResponder={(intencaoShowroom) => {
+                const pendente = intencaoShowroomPendente;
+                if (!pendente) return;
+                setIntencaoShowroomPendente(null);
+                executarMoverPara(pendente.destino, pendente.justificativaSla, intencaoShowroom);
+              }}
             />,
             document.body,
           )

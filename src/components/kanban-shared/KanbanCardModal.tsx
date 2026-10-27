@@ -113,6 +113,11 @@ import {
 } from '@/lib/kanban/kanban-sla-justificativa';
 import { obterJustificativaSlaFase } from '@/lib/actions/kanban-sla-justificativa';
 import { KanbanSlaJustificativaModal } from './KanbanSlaJustificativaModal';
+import { LoteadoresIntencaoShowroomModal } from './LoteadoresIntencaoShowroomModal';
+import {
+  devePerguntarIntencaoShowroomPassagem,
+  ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB,
+} from '@/lib/kanban/loteadores-passagem-waysers';
 import {
   enrichCardsParalelasContext,
   flagsParalelasFromCard,
@@ -866,6 +871,11 @@ export function KanbanCardModal({
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string };
   } | null>(null);
   const [salvandoConfirmacaoPortfolio, setSalvandoConfirmacaoPortfolio] = useState(false);
+  const [modalIntencaoShowroom, setModalIntencaoShowroom] = useState<{
+    destinoFase: KanbanFase;
+    direcao: 'avancar' | 'retroceder';
+    opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string };
+  } | null>(null);
 
   const timesNovaFiltrados = useMemo(
     () => ordenarLinhasTimeKanbanPorCatalogoMoni(kanbanTimes, false),
@@ -2583,9 +2593,25 @@ export function KanbanCardModal({
 
   async function executarAvancarFase(
     proximaFase: KanbanFase,
-    opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
+    opts?: {
+      motivoReprovacaoAcoplamento?: string;
+      justificativaSlaQuebra?: string;
+      intencaoShowroom?: boolean;
+    },
   ) {
     if (!card || !faseAtual) return;
+    if (
+      opts?.intencaoShowroom === undefined &&
+      origem !== 'legado' &&
+      devePerguntarIntencaoShowroomPassagem({
+        kanbanId: card.kanban_id,
+        faseOrigemSlug: faseAtual.slug,
+        faseDestinoSlug: proximaFase.slug,
+      })
+    ) {
+      setModalIntencaoShowroom({ destinoFase: proximaFase, direcao: 'avancar', opts });
+      return;
+    }
     setMovendoFase(true);
     try {
       const supabase = createClient();
@@ -2607,10 +2633,15 @@ export function KanbanCardModal({
           kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome),
           motivoReprovacaoAcoplamento: opts?.motivoReprovacaoAcoplamento,
           justificativaSlaQuebra: opts?.justificativaSlaQuebra,
+          intencaoShowroom: opts?.intencaoShowroom,
           skipRevalidate: true,
         });
         if (!res.ok) {
           const msg = res.error ?? 'Erro ao avançar fase.';
+          if (msg === ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB) {
+            setModalIntencaoShowroom({ destinoFase: proximaFase, direcao: 'avancar', opts });
+            return;
+          }
           const destinoStep5 =
             String(proximaFase.slug ?? '').trim() === FASE_SLUGS.STEP_5 &&
             isPortfolioKanbanRef(null, typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome));
@@ -2628,8 +2659,22 @@ export function KanbanCardModal({
     }
   }
 
-  async function executarRetrocederFase(destinoFase: KanbanFase) {
+  async function executarRetrocederFase(
+    destinoFase: KanbanFase,
+    opts?: { intencaoShowroom?: boolean },
+  ) {
     if (!card || !faseAtual) return;
+    const entraPassagemImob =
+      origem !== 'legado' &&
+      devePerguntarIntencaoShowroomPassagem({
+        kanbanId: card.kanban_id,
+        faseOrigemSlug: faseAtual.slug,
+        faseDestinoSlug: destinoFase.slug,
+      });
+    if (entraPassagemImob && opts?.intencaoShowroom === undefined) {
+      setModalIntencaoShowroom({ destinoFase, direcao: 'retroceder' });
+      return;
+    }
     setMovendoFase(true);
     try {
       const supabase = createClient();
@@ -2643,6 +2688,23 @@ export function KanbanCardModal({
         const { error } = await supabase.from('processo_step_one').update({ etapa_painel: slug }).eq('id', card.id);
         if (error) throw error;
         if (fromSlug) await registrarMovimentoLegadoKanban(fromSlug, slug);
+      } else if (entraPassagemImob) {
+        const res = await moverCardParaFase({
+          cardId: card.id,
+          novaFaseId: destinoFase.id,
+          basePath,
+          kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome),
+          intencaoShowroom: opts?.intencaoShowroom,
+          skipRevalidate: true,
+        });
+        if (!res.ok) {
+          if (res.error === ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB) {
+            setModalIntencaoShowroom({ destinoFase, direcao: 'retroceder' });
+            return;
+          }
+          alert(res.error ?? 'Erro ao retroceder fase.');
+          return;
+        }
       } else {
         const { error } = await supabase.from('kanban_cards').update({ fase_id: destinoFase.id }).eq('id', card.id);
         if (error) throw error;
@@ -8362,6 +8424,25 @@ export function KanbanCardModal({
         </div>
       </div>
     ) : null}
+
+    <LoteadoresIntencaoShowroomModal
+      open={modalIntencaoShowroom != null}
+      salvando={movendoFase}
+      onCancelar={() => {
+        if (movendoFase) return;
+        setModalIntencaoShowroom(null);
+      }}
+      onResponder={(intencaoShowroom) => {
+        const pendente = modalIntencaoShowroom;
+        if (!pendente) return;
+        setModalIntencaoShowroom(null);
+        if (pendente.direcao === 'avancar') {
+          void executarAvancarFase(pendente.destinoFase, { ...pendente.opts, intencaoShowroom });
+        } else {
+          void executarRetrocederFase(pendente.destinoFase, { intencaoShowroom });
+        }
+      }}
+    />
 
     {modalConfirmacaoPortfolio ? (
       <div className="fixed inset-0 z-[225] flex items-center justify-center bg-black/50 p-4">

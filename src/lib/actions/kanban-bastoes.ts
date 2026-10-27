@@ -1159,6 +1159,55 @@ export async function garantirBastaoPassagemWaysersLoteadores(cardId: string): P
 }
 
 /**
+ * Passagem IMOB: sempre abre card no Funil IMOB.
+ * Se o loteador tem intenção de Showroom, abre também no Funil Showroom (fase Hipótese).
+ * Idempotente: filho ativo no destino não é duplicado.
+ */
+export async function vincularLoteadorPassagemImob(params: {
+  cardPaiId: string;
+  intencaoShowroom: boolean;
+  titulo: string;
+  projetoId: string | null;
+  redeFranqueadoId: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const cardPaiId = String(params.cardPaiId ?? '').trim();
+  const titulo = String(params.titulo ?? '').trim() || 'Loteador';
+  if (!cardPaiId) return { ok: false, error: 'Card do loteador não encontrado.' };
+
+  const base = {
+    cardPaiId,
+    titulo,
+    projetoId: params.projetoId,
+    redeFranqueadoId: params.redeFranqueadoId,
+    kanbanOrigemSlug: 'loteadores',
+    faseOrigemSlug: FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC,
+    origemKanbanId: KANBAN_IDS.LOTEADORES,
+  };
+
+  try {
+    await criarCardFilho({
+      ...base,
+      kanbanDestinoId: KANBAN_IDS.IMOB,
+      faseDestinoSlug: FASE_SLUGS.IMOB_NOVO_LOTEADOR,
+    });
+    if (params.intencaoShowroom) {
+      await criarCardFilho({
+        ...base,
+        kanbanDestinoId: KANBAN_IDS.SHOWROOM,
+        faseDestinoSlug: FASE_SLUGS.SR_HIPOTESE,
+      });
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Não foi possível vincular o loteador.';
+    return { ok: false, error: msg };
+  }
+
+  revalidatePath('/funil-imob');
+  if (params.intencaoShowroom) revalidatePath('/funil-showroom');
+  return { ok: true };
+}
+
+/**
  * Após mover card para `novaFaseSlug`, cria cards filhos nas esteiras de destino (idempotente).
  */
 export async function executarBastoes(cardId: string, novaFaseSlug: string): Promise<void> {
