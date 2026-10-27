@@ -4,6 +4,7 @@ import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import { parsePlanilhaLotesBuffer } from '@/lib/simulador/parse-planilha-lotes';
 import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
 import { calcularOferta } from '@/lib/simulador/calcular-oferta';
+import { valorExibidoNaJornada } from '@/lib/simulador/valor-exibido-jornada';
 import {
   mapSimulacaoRow,
   mapTemplateRow,
@@ -295,11 +296,20 @@ async function enriquecerOfertasETemplate(
     const empId = String(sim.empreendimento_id ?? inp.empreendimento_id ?? '').trim();
     if (empId && !imobById.has(empId)) continue;
     const imob = empId ? imobById.get(empId) : undefined;
+    const valorAvista = vteAvistaEspelhoHelenna(sim, templateRow);
+    if (valorExibidoNaJornada(valorAvista, sim.valor_lote).semTerreno) {
+      console.warn('[JORNADA-OFERTA] oferta sem valor de terreno gravado', {
+        ofertaId: sim.id,
+        nome,
+        cardId,
+        valor_lote: sim.valor_lote,
+      });
+    }
     ofertasDaHelenna.push({
       id: sim.id,
       nome,
       ordem: ofertasDaHelenna.length,
-      valor_avista: vteAvistaEspelhoHelenna(sim, templateRow),
+      valor_avista: valorAvista,
       imob_empreendimento_id: empId || null,
       valor_base_casa: primeiroPositivo(imob?.valor_base_casa, sim.valor_casa),
       valor_acoplamento: primeiroPositivo(sim.valor_acoplamento, imob?.valor_acoplamento),
