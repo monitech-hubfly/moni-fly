@@ -7,7 +7,9 @@ import {
   JURIDICO_TAG_COF,
   JURIDICO_TAG_CTO_FRANQUIA,
   JURIDICO_TAG_CTO_PARCERIA,
+  JURIDICO_TAG_CTO_SHOWROOM,
   JURIDICO_TAG_NDA,
+  JURIDICO_TAG_TERMO_RECOMPRA_SHOWROOM,
   type JuridicoPortfolioTagNome,
 } from '@/lib/kanban/juridico-portfolio-tag';
 
@@ -24,6 +26,8 @@ export const JURIDICO_TIPOS_DOCUMENTO = [
   'aditivo',
   'documento_padrao',
   'demais',
+  'cto_showroom',
+  'termo_recompra_showroom',
 ] as const;
 
 export type JuridicoTipoDocumento = (typeof JURIDICO_TIPOS_DOCUMENTO)[number];
@@ -40,6 +44,8 @@ export const JURIDICO_TIPO_DOCUMENTO_LABEL: Record<JuridicoTipoDocumento, string
   aditivo: 'Aditivo',
   documento_padrao: 'Documento Padrão',
   demais: 'Demais',
+  cto_showroom: 'Cto Showroom',
+  termo_recompra_showroom: 'Termo Recompra Showroom',
 };
 
 /** Tipos que o bastão Loteadores → Jurídico abre: NDA e Cto de Parceria. */
@@ -78,5 +84,7 @@ export function tipoDocumentoPorTagJuridico(
   if (nome === JURIDICO_TAG_CTO_PARCERIA) return 'parceria';
   if (nome === JURIDICO_TAG_COF) return 'cof';
   if (nome === JURIDICO_TAG_CTO_FRANQUIA) return 'franquia';
+  if (nome === JURIDICO_TAG_CTO_SHOWROOM) return 'cto_showroom';
+  if (nome === JURIDICO_TAG_TERMO_RECOMPRA_SHOWROOM) return 'termo_recompra_showroom';
   return null;
 }

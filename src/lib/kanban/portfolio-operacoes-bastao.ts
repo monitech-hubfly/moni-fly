@@ -53,7 +53,7 @@ async function idsVinculados(db: Db, cardId: string): Promise<string[]> {
   return [...ids];
 }
 
-async function portfolioVinculado(db: Db, cardOpsId: string): Promise<CardAlvo | null> {
+async function cardVinculadoNoKanban(db: Db, cardOpsId: string, kanbanId: string): Promise<CardAlvo | null> {
   const { data: ops, error } = await db
     .from('kanban_cards')
     .select('origem_card_id')
@@ -62,8 +62,12 @@ async function portfolioVinculado(db: Db, cardOpsId: string): Promise<CardAlvo |
   if (error) throw new Error(error.message);
   const origem = String((ops as { origem_card_id?: string | null } | null)?.origem_card_id ?? '').trim();
   const candidatos = [...(origem ? [origem] : []), ...(await idsVinculados(db, cardOpsId))];
-  const cards = await cardsNoKanban(db, candidatos, KANBAN_IDS.PORTFOLIO);
+  const cards = await cardsNoKanban(db, candidatos, kanbanId);
   return cards.find((c) => !c.arquivado) ?? cards[0] ?? null;
+}
+
+async function portfolioVinculado(db: Db, cardOpsId: string): Promise<CardAlvo | null> {
+  return cardVinculadoNoKanban(db, cardOpsId, KANBAN_IDS.PORTFOLIO);
 }
 
 async function operacoesVinculadas(db: Db, cardPortfolioId: string): Promise<CardAlvo[]> {
@@ -250,7 +254,8 @@ async function pularCard(input: {
 
 /**
  * Comitê Ops no Pré Obra e Obra puxa o Portfólio de Convertidos para Atualizar Material.
- * Concluídos no Portfólio puxa o Pré Obra e Obra de Comitê Ops para Comitê Ops Aprovado.
+ * A mesma regra vale para o Showroom, no card vinculado a ele — sem cruzar com o Portfólio.
+ * Concluídos no Portfólio ou no Showroom puxa o Pré Obra e Obra de Comitê Ops para Comitê Ops Aprovado.
  * Só move se o card vinculado estiver exatamente na fase de origem.
  */
 export async function executarBastaoPortfolioOperacoes(input: {
@@ -261,7 +266,13 @@ export async function executarBastaoPortfolioOperacoes(input: {
   const cardId = String(input.cardId ?? '').trim();
   const slug = String(input.novaFaseSlug ?? '').trim();
   if (!cardId || !slug) return;
-  if (slug !== FASE_SLUGS.REVISAO_BCA && slug !== FASE_SLUGS.PORTFOLIO_CONCLUIDOS) return;
+  if (
+    slug !== FASE_SLUGS.REVISAO_BCA &&
+    slug !== FASE_SLUGS.PORTFOLIO_CONCLUIDOS &&
+    slug !== FASE_SLUGS.SR_CONCLUIDOS
+  ) {
+    return;
+  }
 
   let db: Db;
   try {
@@ -300,6 +311,24 @@ export async function executarBastaoPortfolioOperacoes(input: {
         cardGatilhoId: cardId,
       });
     }
+
+    const showroom = await cardVinculadoNoKanban(db, cardId, KANBAN_IDS.SHOWROOM);
+    const destinoShowroom = await fasePorSlug(db, KANBAN_IDS.SHOWROOM, FASE_SLUGS.SR_ATUALIZAR_MATERIAL);
+    if (showroom && destinoShowroom) {
+      const titulo = String(showroom.titulo ?? '').trim() || 'Card do Showroom';
+      const saltou = await pularCard({
+        db,
+        card: showroom,
+        faseOrigemSlug: FASE_SLUGS.SR_CONVERTIDOS,
+        faseDestinoId: destinoShowroom.id,
+        faseDestinoSlug: destinoShowroom.slug,
+        kanbanNome: 'Funil Showroom',
+        mensagem: `O card "${titulo}" foi para Atualizar Material porque o Pré Obra e Obra entrou em Comitê Ops.`,
+        userId: input.userId ?? null,
+        cardGatilhoId: cardId,
+      });
+      moveu = moveu || saltou;
+    }
   }
 
   if (slug === FASE_SLUGS.PORTFOLIO_CONCLUIDOS && kanbanId === KANBAN_IDS.PORTFOLIO) {
@@ -323,8 +352,30 @@ export async function executarBastaoPortfolioOperacoes(input: {
     }
   }
 
+  if (slug === FASE_SLUGS.SR_CONCLUIDOS && kanbanId === KANBAN_IDS.SHOWROOM) {
+    const destino = await fasePorSlug(db, KANBAN_IDS.OPERACOES, FASE_SLUGS.COMITE_OPS_APROVADO);
+    if (destino) {
+      for (const ops of await operacoesVinculadas(db, cardId)) {
+        const titulo = String(ops.titulo ?? '').trim() || 'Card de Pré Obra e Obra';
+        const saltou = await pularCard({
+          db,
+          card: ops,
+          faseOrigemSlug: FASE_SLUGS.REVISAO_BCA,
+          faseDestinoId: destino.id,
+          faseDestinoSlug: destino.slug,
+          kanbanNome: 'Funil Operações',
+          mensagem: `O card "${titulo}" foi para Comitê Ops Aprovado porque o Showroom entrou em Concluídos.`,
+          userId: input.userId ?? null,
+          cardGatilhoId: cardId,
+        });
+        moveu = moveu || saltou;
+      }
+    }
+  }
+
   if (!moveu) return;
   revalidatePath('/portfolio');
+  revalidatePath('/funil-showroom');
   revalidatePath('/operacoes');
   revalidatePath('/alertas');
   revalidatePath('/');

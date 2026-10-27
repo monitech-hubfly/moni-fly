@@ -46,6 +46,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/operacoes',
   '/funil-stepone',
   '/funil-motor01',
+  '/funil-showroom',
   '/loteadores',
   '/funil-moni-inc',
   '/painel-contabilidade',
@@ -74,6 +75,7 @@ export const LIMITED_RELEASE_ALLOWED_PATHS: readonly string[] = [
   '/venda-casas-loteadores',
   '/venda-casas-franks',
   '/funil-motor01',
+  '/funil-showroom',
 ] as const;
 
 /** Mesma regra do middleware: `/` só a home exata; demais por prefixo. */

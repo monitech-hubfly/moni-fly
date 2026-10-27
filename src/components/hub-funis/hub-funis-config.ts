@@ -53,6 +53,7 @@ export const HUB_FUNIS_GRUPOS: GrupoDef[] = [
       { id: KANBAN_IDS.MOTOR01,         label: 'Motor 01',               href: '/funil-motor01' },
       { id: KANBAN_IDS.VENDA_CASAS_FRANKS,   label: "Venda Casas Frank's",   href: '/venda-casas-franks' },
       { id: KANBAN_IDS.VCL_NAO_VENDIDOS,     label: 'Venda Casas Loteadores', href: '/venda-casas-loteadores', nFases: 7 },
+      { id: KANBAN_IDS.SHOWROOM,             label: 'Showroom',              href: '/funil-showroom', nFases: 24 },
     ],
   },
   {

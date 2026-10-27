@@ -120,6 +120,7 @@ export async function updateSession(request: NextRequest) {
     '/operacoes',
     '/funil-stepone',
     '/funil-motor01',
+    '/funil-showroom',
     '/loteadores',
     '/funil-moni-inc',
     '/marketing',

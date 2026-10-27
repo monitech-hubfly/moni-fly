@@ -36,6 +36,8 @@ export const KANBAN_IDS = {
   VCL_VENDIDOS:          'fc000003-0000-0000-0000-000000000001',
   /** Venda Casas Loteadores — Showroom (migration 605) */
   VCL_SHOWROOM:          'fc000004-0000-0000-0000-000000000001',
+  /** Funil Showroom — IMOB (migration 670). Não é o quadro Venda Casas Loteadores. */
+  SHOWROOM:              'e7b1c4d2-8a30-4f91-9c62-5d3a8e1b4f06',
 } as const
 
 /** Nome canônico em `kanbans.nome` — Funil Crédito Obra. */
@@ -77,6 +79,7 @@ export const KANBAN_ID_BY_NOME: Record<string, string> = {
   'Venda Casas Loteadores - Lotes Não Vendidos': KANBAN_IDS.VCL_NAO_VENDIDOS,
   'Venda Casas Loteadores - Lotes Vendidos':     KANBAN_IDS.VCL_VENDIDOS,
   'Venda Casas Loteadores - Showroom':           KANBAN_IDS.VCL_SHOWROOM,
+  'Funil Showroom':                              KANBAN_IDS.SHOWROOM,
 };
 
 export function isKanbanVclId(id: string | null | undefined): boolean {
@@ -193,6 +196,31 @@ export const FASE_SLUGS = {
   PORTFOLIO_TERMO_RECOMPRA_ASSINADO: 'termo_recompra_assinado',
   /** Funil Portfólio — fase de conclusão. */
   PORTFOLIO_CONCLUIDOS: 'portfolio_concluidos',
+  // Funil Showroom (KANBAN_IDS.SHOWROOM) — campos copiados do Portfólio, sem vínculo com ele
+  SR_HIPOTESE: 'sr_hipotese',
+  SR_PRE_COMITE: 'sr_pre_comite',
+  SR_REVISAO_HIPOTESE: 'sr_revisao_hipotese',
+  SR_ACOPLAMENTO: 'sr_acoplamento',
+  SR_COMITE: 'sr_comite',
+  SR_REVISOES_COMITE: 'sr_revisoes_comite',
+  SR_DEMAIS_COMITES: 'sr_demais_comites',
+  SR_INICIAR_DILIGENCIA: 'sr_iniciar_diligencia',
+  SR_ENVIAR_CTO_SHOWROOM: 'sr_enviar_cto_showroom',
+  SR_JURIDICO_CTO_SHOWROOM: 'sr_juridico_cto_showroom',
+  SR_ASSINATURAS_CTO_SHOWROOM: 'sr_assinaturas_cto_showroom',
+  SR_CTO_SHOWROOM_ASSINADO: 'sr_cto_showroom_assinado',
+  SR_PASSAGEM_WAYSER: 'sr_passagem_wayser',
+  SR_CONVERTIDOS: 'sr_convertidos',
+  SR_ATUALIZAR_MATERIAL: 'sr_atualizar_material',
+  SR_MATERIAL_EM_ATUALIZACAO: 'sr_material_em_atualizacao',
+  SR_COMITE_ALVARA: 'sr_comite_alvara',
+  SR_REVISOES_COMITE_ALVARA: 'sr_revisoes_comite_alvara',
+  SR_DEMAIS_COMITES_ALVARA: 'sr_demais_comites_alvara',
+  SR_ENVIAR_TERMO_RECOMPRA: 'sr_enviar_termo_recompra',
+  SR_JURIDICO_TERMO_RECOMPRA: 'sr_juridico_termo_recompra',
+  SR_ASSINATURAS_TERMO_RECOMPRA: 'sr_assinaturas_termo_recompra',
+  SR_TERMO_RECOMPRA_ASSINADO: 'sr_termo_recompra_assinado',
+  SR_CONCLUIDOS: 'sr_concluidos',
   PORTFOLIO_REVISOES_COMITE: 'revisoes_comite',
   /** Demais Comitês — slug legado segundo_comite. */
   PORTFOLIO_SEGUNDO_COMITE: 'segundo_comite',

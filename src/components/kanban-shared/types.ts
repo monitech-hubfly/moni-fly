@@ -21,6 +21,7 @@ export type KanbanNomeDisplay =
   | 'Funil Contabilidade'
   | 'Funil Crédito Obra'
   | 'Funil Motor 01'
+  | 'Funil Showroom'
   | 'Funil Gravação de Vídeos Externos'
   | 'Funil Programação de Conteúdo Semanal'
   | 'Funil Série Inc. to Fly'

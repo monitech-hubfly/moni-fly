@@ -10,6 +10,8 @@ export const JURIDICO_TAG_NDA = 'NDA';
 export const JURIDICO_TAG_CTO_PARCERIA = 'Cto de Parceria';
 export const JURIDICO_TAG_COF = 'COF';
 export const JURIDICO_TAG_CTO_FRANQUIA = 'Cto de Franquia';
+export const JURIDICO_TAG_CTO_SHOWROOM = 'Cto Showroom';
+export const JURIDICO_TAG_TERMO_RECOMPRA_SHOWROOM = 'Termo Recompra Showroom';
 
 export const JURIDICO_PORTFOLIO_TAGS = [
   { nome: JURIDICO_PORTFOLIO_TAG_OPCAO, cor: '#3e7490', preservarSeExistir: false },
@@ -20,6 +22,8 @@ export const JURIDICO_PORTFOLIO_TAGS = [
   { nome: JURIDICO_TAG_CTO_PARCERIA, cor: '#2f4a3a', preservarSeExistir: true },
   { nome: JURIDICO_TAG_COF, cor: '#3e7490', preservarSeExistir: true },
   { nome: JURIDICO_TAG_CTO_FRANQUIA, cor: '#4a3929', preservarSeExistir: true },
+  { nome: JURIDICO_TAG_CTO_SHOWROOM, cor: '#2f4a3a', preservarSeExistir: true },
+  { nome: JURIDICO_TAG_TERMO_RECOMPRA_SHOWROOM, cor: '#D4AD68', preservarSeExistir: true },
 ] as const;
 
 export type JuridicoPortfolioTagNome = (typeof JURIDICO_PORTFOLIO_TAGS)[number]['nome'];

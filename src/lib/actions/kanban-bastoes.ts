@@ -795,6 +795,7 @@ const KANBAN_ID_TO_ORIGEM_SLUG: Record<string, string> = {
   [KANBAN_IDS.PROJETO_LEGAL]: 'projeto-legal',
   [KANBAN_IDS.PROJETOS_LOCAIS]: 'projetos-locais',
   [KANBAN_IDS.PROJETOS_LEGAIS]: 'projetos-legais',
+  [KANBAN_IDS.SHOWROOM]: 'showroom',
 };
 
 type BastaoDestino = {
@@ -1183,7 +1184,11 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     slug !== FASE_SLUGS.PROD_PUBLICADO &&
     slug !== FASE_SLUGS.APROVACAO_PREFEITURA &&
     slug !== FASE_SLUGS.PROJETO_LEGAL &&
-    slug !== FASE_SLUGS.M1_PAGAMENTO_ENTRADA
+    slug !== FASE_SLUGS.M1_PAGAMENTO_ENTRADA &&
+    slug !== FASE_SLUGS.SR_ACOPLAMENTO &&
+    slug !== FASE_SLUGS.SR_JURIDICO_CTO_SHOWROOM &&
+    slug !== FASE_SLUGS.SR_JURIDICO_TERMO_RECOMPRA &&
+    slug !== FASE_SLUGS.SR_PASSAGEM_WAYSER
   ) {
     return;
   }
@@ -1253,6 +1258,27 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
         juridicoTagNome: 'Termo Recompra',
       },
+    ],
+    /** Showroom → Jurídico. Não abre card a partir do Portfólio. */
+    [FASE_SLUGS.SR_JURIDICO_CTO_SHOWROOM]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Cto Showroom',
+      },
+    ],
+    [FASE_SLUGS.SR_JURIDICO_TERMO_RECOMPRA]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Termo Recompra Showroom',
+      },
+    ],
+    [FASE_SLUGS.SR_ACOPLAMENTO]: [
+      { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
+    ],
+    [FASE_SLUGS.SR_PASSAGEM_WAYSER]: [
+      { kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' },
     ],
     /** Loteadores → Jurídico só na entrada de Jurídico NDA e Jurídico Cto de Parceria. */
     [FASE_SLUGS.LOTEADORES_NDA]: [
@@ -1912,24 +1938,45 @@ export async function executarBastaoDeVolta(
 
   let pularHistoricoFlag = false;
   const momentoPortfolio = slug === FASE_SLUGS.JURIDICO_SUBIR_ASSINATURA || slug === FASE_SLUGS.JURIDICO_POS_ASSINATURA;
-  if (momentoPortfolio) {
+  const momentoShowroom =
+    slug === FASE_SLUGS.JURIDICO_AGUARDANDO_ASSINATURAS || slug === FASE_SLUGS.JURIDICO_POS_ASSINATURA;
+  if (momentoPortfolio || momentoShowroom) {
     const supabaseUser = await createClient();
-    const portfolio = await executarBastaoJuridicoParaPortfolio({
-      cardFilhoId,
-      novaFaseSlug: slug,
-      userId: opts?.userId ?? null,
-      faseAnteriorFilhoId: opts?.faseAnteriorId ?? null,
-      inserirHistorico: async (row) => {
-        const { error } = await supabaseUser.from('kanban_historico').insert(row as never);
-        return error?.message ?? null;
-      },
-      inserirNotificacao: async (row) => {
-        const { error } = await supabaseUser.from('sirene_notificacoes').insert(row as never);
-        return error?.message ?? null;
-      },
-    });
-    if (!portfolio.ok) return portfolio;
-    pularHistoricoFlag = portfolio.pularHistoricoFlag;
+    const gravarHistorico = async (row: Record<string, unknown>) => {
+      const { error } = await supabaseUser.from('kanban_historico').insert(row as never);
+      return error?.message ?? null;
+    };
+    const gravarNotificacao = async (row: Record<string, unknown>) => {
+      const { error } = await supabaseUser.from('sirene_notificacoes').insert(row as never);
+      return error?.message ?? null;
+    };
+
+    if (momentoPortfolio) {
+      const portfolio = await executarBastaoJuridicoParaPortfolio({
+        cardFilhoId,
+        novaFaseSlug: slug,
+        userId: opts?.userId ?? null,
+        faseAnteriorFilhoId: opts?.faseAnteriorId ?? null,
+        inserirHistorico: gravarHistorico,
+        inserirNotificacao: gravarNotificacao,
+      });
+      if (!portfolio.ok) return portfolio;
+      pularHistoricoFlag = portfolio.pularHistoricoFlag;
+    }
+
+    if (momentoShowroom) {
+      const { executarBastaoJuridicoParaShowroom } = await import('@/lib/kanban/showroom-juridico-bastao-exec');
+      const showroom = await executarBastaoJuridicoParaShowroom({
+        cardFilhoId,
+        novaFaseSlug: slug,
+        userId: opts?.userId ?? null,
+        faseAnteriorFilhoId: opts?.faseAnteriorId ?? null,
+        inserirHistorico: gravarHistorico,
+        inserirNotificacao: gravarNotificacao,
+      });
+      if (!showroom.ok) return showroom;
+      pularHistoricoFlag = pularHistoricoFlag || showroom.pularHistoricoFlag;
+    }
   }
 
   const flagCol = DESFECHO_FLAG_POR_FASE[slug];

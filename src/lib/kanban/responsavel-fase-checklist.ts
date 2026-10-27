@@ -81,6 +81,7 @@ export const EMAIL_RESPONSAVEL_LOTEADORES_ANTIGO = 'kim@moni.casa';
 /** E-mail do responsável padrão por funil (exceto Step One — usa franqueado da rede). */
 export const EMAIL_RESPONSAVEL_PADRAO_POR_KANBAN: Partial<Record<string, string>> = {
   [KANBAN_IDS.PORTFOLIO]: 'renata.silva@moni.casa',
+  [KANBAN_IDS.SHOWROOM]: 'renata.silva@moni.casa',
   [KANBAN_IDS.OPERACOES]: 'larissa.lima@moni.casa',
   [KANBAN_IDS.ACOPLAMENTO]: 'elisabete.nucci@moni.casa',
   [KANBAN_IDS.PROJETO_LEGAL]: 'elisabete.nucci@moni.casa',
