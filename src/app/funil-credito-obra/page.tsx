@@ -15,6 +15,7 @@ import { KanbanWrapper } from '@/components/kanban-shared/KanbanWrapper';
 import { fetchKanbanBoardSnapshot } from '@/components/kanban-shared/fetchKanbanBoardSnapshot';
 import { PainelPerformance } from '@/components/kanban-shared/PainelPerformance';
 import { estadoModalDePageSearchParams } from '@/lib/kanban/kanban-url-modal-state';
+import { garantirPreObraCreditoAprovadoPendentes } from '@/lib/actions/kanban-bastoes';
 
 export default async function PainelCreditoPage({
   searchParams,
@@ -31,6 +32,12 @@ export default async function PainelCreditoPage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
+
+  try {
+    await garantirPreObraCreditoAprovadoPendentes();
+  } catch (e) {
+    console.error('[funil-credito-obra] crédito aprovado pendente:', e);
+  }
 
   const snapshot = await fetchKanbanBoardSnapshot(supabase, KANBAN_NOME_CREDITO_OBRA, user.id);
 
