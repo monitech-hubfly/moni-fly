@@ -11,14 +11,27 @@ export { proximoMes, getMonthLabel, getMonthOptions };
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 export type GrupoId = 'verde-escuro' | 'verde-claro' | 'amarelo' | 'vermelho';
 
+export type MetaSimples = {
+  id: string;
+  descricao: string;
+  is_chave: boolean;
+  tipo: string | null;
+  meta_unidade: string | null;
+};
+
+export type BlockerSimples = {
+  id: string;
+  descricao: string;
+};
+
 export type AreaRelatorio = {
   id: string;
   nome: string;
   scores: { indicadores: number | null; engajamento: number | null; sirene: number | null };
   grupo: GrupoId | 'sem-dados';
-  metasConcluidas: number;
-  metasEmAberto: number;
-  blockersCount: number;
+  metasConcluidas: MetaSimples[];
+  metasEmAberto: MetaSimples[];
+  blockers: BlockerSimples[];
   comentario: string;
   fechamentoId: string | null;
 };
@@ -204,16 +217,20 @@ export function useFechamentoBoneDayPorIndicadores(effectiveProfileId: string | 
           .gte('data', primeiroDia)
           .lte('data', ultimoDia),
 
+        // Buscar descricao completa para exibir na tabela
         supabase
           .from('objetivos')
-          .select('area_id, status')
+          .select('id, area_id, status, descricao, is_chave, tipo, meta_unidade')
           .eq('mes', mes)
           .in('status', ['ativo', 'concluido', 'relancada', 'arquivado'])
-          .is('objetivo_pai_id', null),
+          .is('objetivo_pai_id', null)
+          .order('is_chave', { ascending: false })
+          .order('ordem', { ascending: true }),
 
+        // Buscar descricao do blocker para exibir na tabela
         supabase
           .from('blockers')
-          .select('area_id')
+          .select('id, area_id, descricao')
           .eq('resolvido', false)
           .gte('criado_em', primeiroDia)
           .lt('criado_em', proxMesInicio),
@@ -228,19 +245,39 @@ export function useFechamentoBoneDayPorIndicadores(effectiveProfileId: string | 
         statusPorArea.get(r.area_id)!.push(r);
       }
 
-      const metasConcPorArea = new Map<string, number>();
-      const metasAbertoPorArea = new Map<string, number>();
-      for (const o of (objRes.data ?? []) as { area_id: string; status: string }[]) {
+      type ObjRow = {
+        id: string;
+        area_id: string;
+        status: string;
+        descricao: string;
+        is_chave: boolean | null;
+        tipo: string | null;
+        meta_unidade: string | null;
+      };
+      const metasConcPorArea = new Map<string, MetaSimples[]>();
+      const metasAbertoPorArea = new Map<string, MetaSimples[]>();
+      for (const o of (objRes.data ?? []) as ObjRow[]) {
+        const meta: MetaSimples = {
+          id: o.id,
+          descricao: o.descricao,
+          is_chave: Boolean(o.is_chave),
+          tipo: o.tipo,
+          meta_unidade: o.meta_unidade,
+        };
         if (o.status === 'concluido') {
-          metasConcPorArea.set(o.area_id, (metasConcPorArea.get(o.area_id) ?? 0) + 1);
+          if (!metasConcPorArea.has(o.area_id)) metasConcPorArea.set(o.area_id, []);
+          metasConcPorArea.get(o.area_id)!.push(meta);
         } else {
-          metasAbertoPorArea.set(o.area_id, (metasAbertoPorArea.get(o.area_id) ?? 0) + 1);
+          if (!metasAbertoPorArea.has(o.area_id)) metasAbertoPorArea.set(o.area_id, []);
+          metasAbertoPorArea.get(o.area_id)!.push(meta);
         }
       }
 
-      const blockersPorArea = new Map<string, number>();
-      for (const b of (blockersRes.data ?? []) as { area_id: string }[]) {
-        blockersPorArea.set(b.area_id, (blockersPorArea.get(b.area_id) ?? 0) + 1);
+      type BlockerRow = { id: string; area_id: string; descricao: string };
+      const blockersPorArea = new Map<string, BlockerSimples[]>();
+      for (const b of (blockersRes.data ?? []) as BlockerRow[]) {
+        if (!blockersPorArea.has(b.area_id)) blockersPorArea.set(b.area_id, []);
+        blockersPorArea.get(b.area_id)!.push({ id: b.id, descricao: b.descricao });
       }
 
       type FechRow = { area_id: string; id: string; comentario: string | null };
@@ -271,9 +308,9 @@ export function useFechamentoBoneDayPorIndicadores(effectiveProfileId: string | 
           nome: a.nome,
           scores,
           grupo: calcularGrupo(scores.indicadores),
-          metasConcluidas: metasConcPorArea.get(a.id) ?? 0,
-          metasEmAberto: metasAbertoPorArea.get(a.id) ?? 0,
-          blockersCount: blockersPorArea.get(a.id) ?? 0,
+          metasConcluidas: metasConcPorArea.get(a.id) ?? [],
+          metasEmAberto: metasAbertoPorArea.get(a.id) ?? [],
+          blockers: blockersPorArea.get(a.id) ?? [],
           comentario,
           fechamentoId: fechRec?.id ?? null,
         };
