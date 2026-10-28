@@ -456,7 +456,7 @@ export default function FechamentoBoneDayPorIndicadoresPage() {
     })();
   }, [supabase]);
 
-  const { grupos, mes, setMes, isLoading, error, salvarComentario } =
+  const { grupos, areasSemDados, mes, setMes, isLoading, error, salvarComentario } =
     useFechamentoBoneDayPorIndicadores(effectiveProfileId);
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -600,6 +600,57 @@ export default function FechamentoBoneDayPorIndicadoresPage() {
                   </div>
                 );
               })}
+
+              {/* Áreas sem dados de Carômetro (ex: novas ou sem tracking ativo) */}
+              {areasSemDados.length > 0 && (
+                <div
+                  style={{
+                    background: 'var(--moni-surface-0)',
+                    border: '0.5px solid var(--moni-border-default)',
+                    borderRadius: 'var(--moni-radius-lg)',
+                    overflow: 'hidden',
+                    boxShadow: 'var(--moni-shadow-card, 0 1px 4px rgba(12,38,51,0.07))',
+                  }}
+                >
+                  <div
+                    style={{
+                      background: 'var(--moni-neutral-200)',
+                      padding: '12px 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <h2 style={{
+                      fontFamily: 'var(--moni-font-sans)',
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      color: 'var(--moni-text-primary)',
+                      margin: 0,
+                    }}>
+                      Sem dados de Carômetro
+                    </h2>
+                    <span style={{
+                      fontSize: '12px',
+                      fontFamily: 'var(--moni-font-sans)',
+                      fontWeight: 600,
+                      color: 'var(--moni-text-secondary)',
+                      background: 'rgba(0,0,0,0.08)',
+                      borderRadius: 'var(--moni-radius-md)',
+                      padding: '2px 10px',
+                      flexShrink: 0,
+                    }}>
+                      {areasSemDados.length} {areasSemDados.length === 1 ? 'área' : 'áreas'}
+                    </span>
+                  </div>
+                  <TabelaGrupo
+                    areas={areasSemDados}
+                    isAdmin={admin}
+                    onSalvarComentario={salvarComentario}
+                  />
+                </div>
+              )}
             </div>
           </>
         )}

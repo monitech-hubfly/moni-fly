@@ -384,5 +384,8 @@ export function useFechamentoBoneDayPorIndicadores(effectiveProfileId: string | 
     [areas],
   );
 
-  return { grupos, mes, setMes, isLoading, error, salvarComentario };
+  // Áreas sem dados de Carômetro (score null → não classificáveis nos 4 grupos)
+  const areasSemDados = useMemo(() => areas.filter(a => a.grupo === 'sem-dados'), [areas]);
+
+  return { grupos, areasSemDados, mes, setMes, isLoading, error, salvarComentario };
 }
