@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const TABS = [
-  { href: '/carometro/pre-bone-day',        label: 'Plano Boné Day' },
-  { href: '/carometro/dashboard-geral',     label: 'Dashboard Geral' },
-  { href: '/carometro/fechamento-bone-day', label: 'Fechamento Boné Day' },
+  { href: '/carometro/pre-bone-day',                          label: 'Plano Boné Day' },
+  { href: '/carometro/dashboard-geral',                       label: 'Dashboard Geral' },
+  { href: '/carometro/fechamento-bone-day',                   label: 'Fechamento Boné Day' },
+  { href: '/carometro/fechamento-bone-day-por-indicadores',   label: 'Fechamento por Indicadores' },
 ] as const;
 
 function BoneDayTabsInner() {
