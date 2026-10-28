@@ -6,6 +6,8 @@ const SLUGS_NAO_CONCLUSAO_EXPLICITOS = new Set<string>([
   FASE_SLUGS.MKT_GRAV_DECUPAGEM,
   /** Série Inc. — Organização (ex-Decupagem). */
   FASE_SLUGS.MKT_INC_DECUPAGEM,
+  /** Funil IMOB — primeira fase de trabalho, mesmo se for a última ativa. */
+  FASE_SLUGS.IMOB_NOVO_LOTEADOR,
 ]);
 
 /** Slugs terminais explícitos (evita falso positivo em *_projeto_aprovado). */

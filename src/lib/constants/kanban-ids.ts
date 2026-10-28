@@ -224,8 +224,17 @@ export const FASE_SLUGS = {
   SR_ASSINATURAS_TERMO_RECOMPRA: 'sr_assinaturas_termo_recompra',
   SR_TERMO_RECOMPRA_ASSINADO: 'sr_termo_recompra_assinado',
   SR_CONCLUIDOS: 'sr_concluidos',
-  /** Funil IMOB — primeira fase. Campos copiados de Novo Loteador (Loteadores). */
+  /** Funil IMOB — esteira ativa (migration 673). Novo Loteador não é fase de conclusão. */
   IMOB_NOVO_LOTEADOR: 'imob_novo_loteador',
+  IMOB_PASSAGEM: 'imob_passagem',
+  IMOB_REUNIAO_INICIAL_DIAGNOSTICO: 'imob_reuniao_inicial_diagnostico',
+  IMOB_DEFINICAO_PRODUTO: 'imob_definicao_produto',
+  IMOB_ARQUITETURA_ORCAMENTO: 'imob_arquitetura_orcamento',
+  IMOB_PRECO_PAGAMENTO: 'imob_preco_pagamento',
+  IMOB_MATERIAIS: 'imob_materiais',
+  IMOB_TREINAMENTO_CORRETORES: 'imob_treinamento_corretores',
+  IMOB_ATIVACAO_BASE: 'imob_ativacao_base',
+  IMOB_OPERACAO: 'imob_operacao',
   PORTFOLIO_REVISOES_COMITE: 'revisoes_comite',
   /** Demais Comitês — slug legado segundo_comite. */
   PORTFOLIO_SEGUNDO_COMITE: 'segundo_comite',

@@ -135,9 +135,20 @@ export const RESPONSAVEL_DA_FASE_PADRAO_POR_SLUG: Record<string, TipoResponsavel
   credito_obra_aprovado: 'moni',
   credito_obra_reprovado: 'moni',
 
+  // Funil IMOB (esteira migration 673). Novo Loteador não é conclusão.
+  imob_novo_loteador: 'moni',
+  imob_passagem: 'moni',
+  imob_reuniao_inicial_diagnostico: 'moni',
+  imob_definicao_produto: 'moni',
+  imob_arquitetura_orcamento: 'moni',
+  imob_preco_pagamento: 'moni',
+  imob_materiais: 'moni',
+  imob_treinamento_corretores: 'moni',
+  imob_ativacao_base: 'moni',
+  imob_operacao: 'moni',
+
   // Funil Loteadores (esteira v1)
   primeiro_contato_moni_inc: 'moni',
-  imob_novo_loteador: 'moni',
   loteador_cadastro: 'moni',
   r1_conceito_moni_inc: 'moni',
   nda_moni_inc: 'moni',

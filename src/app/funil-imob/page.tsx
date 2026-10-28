@@ -1,5 +1,8 @@
 /**
- * Kanban **Funil IMOB** (`kanbans.nome`). Fase Novo Loteador com os campos do Funil Loteadores.
+ * Kanban **Funil IMOB** (`kanbans.nome`).
+ * Esteira: Novo Loteador (não é conclusão) → Passagem → Reunião inicial e diagnóstico →
+ * Definição de produto → Arquitetura e orçamento → Preço e pagamento → Materiais →
+ * Treinamento dos corretores → Ativação da base → Operação.
  * Não vincula cards ao Funil Loteadores.
  */
 import { renderKanbanDatabasePage } from '@/components/kanban-shared/renderKanbanDatabasePage';
