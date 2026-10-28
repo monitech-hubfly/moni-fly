@@ -2,6 +2,7 @@
 
 import { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AlertTriangle } from 'lucide-react';
 import {
   criarSimuladorOfertaDoCard,
   atualizarSimuladorOferta,
@@ -18,6 +19,12 @@ import {
   type SimulacaoPagamentoResumo,
 } from '@/lib/loteamento-simulador-template';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
+import { QuadroPremissasTemplate } from '@/components/simulador/QuadroPremissasTemplate';
+import {
+  MENSAGEM_TERRENO_OBRIGATORIO_OFERTA,
+  textoValorExibidoNaJornada,
+  valorExibidoNaJornada,
+} from '@/lib/simulador/valor-exibido-jornada';
 import {
   CardResultado,
   Secao,
@@ -31,7 +38,13 @@ import {
 } from '@/lib/simulador/oferta-resultado-helpers';
 import {
   calcularOferta,
+  calcularParcelaUnicaMinimaConfirmada,
+  entradaAbaixoDoMinimo,
+  entradaMinimaOferta,
   formatarMoeda,
+  mensagemEntradaMinima,
+  mensagemParcelaUnicaMinima,
+  parcelaUnicaAbaixoDoMinimo,
   sugerirParcelaMensal,
   type OfertaConfig,
   type ResultadoCalculo,
@@ -51,6 +64,8 @@ type Props = {
   ofertaId?: string;
   /** Dados da oferta existente para pré-preencher os campos */
   ofertaInicial?: SimulacaoPagamentoResumo;
+  /** Custo de construção do card IMOB (`valor_base_casa`). Usado se a simulação ainda não tiver valor_casa. */
+  valorBaseCasaInicial?: number | null;
 };
 
 const fieldCls =
@@ -71,18 +86,15 @@ const dicaConfStyle = {
 } as const;
 
 function calcularParcelaUnicaMinimaHint(
+  template: TemplateConfig,
+  oferta: OfertaConfig,
   resultado: ResultadoCalculo,
   entradaEfetiva: number,
   mensalEfetiva: number,
 ): number {
   const entrada = entradaEfetiva > 0 ? entradaEfetiva : resultado.entrada_sugerida;
   const mensal = mensalEfetiva > 0 ? mensalEfetiva : resultado.parcela_mensal_usada;
-  const deltaEntrada = entrada - resultado.entrada_sugerida;
-  const deltaMensais = (mensal - resultado.parcela_mensal_usada) * resultado.mes_parcela_unica;
-  return Math.max(
-    resultado.parcela_unica_detalhe.min_quitar_lote,
-    resultado.parcela_unica_sugerida - deltaEntrada - deltaMensais,
-  );
+  return calcularParcelaUnicaMinimaConfirmada(template, oferta, entrada, mensal);
 }
 
 export function CalculadoraOferta({
@@ -92,6 +104,7 @@ export function CalculadoraOferta({
   empreendimentoId,
   ofertaId,
   ofertaInicial,
+  valorBaseCasaInicial = null,
 }: Props) {
   const router = useRouter();
   const cardId = kanbanCardId || loteadorId;
@@ -103,11 +116,20 @@ export function CalculadoraOferta({
   const [valorLote, setValorLote] = useState<number | null>(
     () => ofertaInicial?.valor_lote ?? null,
   );
-  const [valorCasa, setValorCasa] = useState<number | null>(
-    () => ofertaInicial?.valor_casa ?? null,
-  );
+  const [valorCasa, setValorCasa] = useState<number | null>(() => {
+    const daSimulacao = ofertaInicial?.valor_casa;
+    if (daSimulacao != null && Number.isFinite(daSimulacao) && daSimulacao > 0) {
+      return daSimulacao;
+    }
+    const daOfertaImob = Number(valorBaseCasaInicial);
+    if (Number.isFinite(daOfertaImob) && daOfertaImob > 0) return daOfertaImob;
+    return null;
+  });
   const [valorCustomizacao, setValorCustomizacao] = useState<number | null>(
     () => ofertaInicial?.valor_customizacao ?? 0,
+  );
+  const [valorAcoplamento, setValorAcoplamento] = useState<number | null>(
+    () => ofertaInicial?.valor_acoplamento ?? 0,
   );
   const [valorJaPago, setValorJaPago] = useState<number | null>(
     () => ofertaInicial?.valor_ja_pago ?? 0,
@@ -218,6 +240,7 @@ export function CalculadoraOferta({
       return;
     }
     const custom = valorCustomizacao ?? 0;
+    const acoplamento = valorAcoplamento ?? 0;
     const jaPago = valorJaPago ?? 0;
     const prazoTotalInformado = prazoTotal;
     if (prazoTotalInformado == null || prazoTotalInformado < 1) {
@@ -253,6 +276,7 @@ export function CalculadoraOferta({
       valor_lote: lote,
       valor_casa: casa,
       valor_customizacao: custom,
+      valor_acoplamento: acoplamento,
       valor_ja_pago: jaPago,
       prazo_meses: prazoFase1Calc,
       parcela_mensal: parcela,
@@ -260,7 +284,7 @@ export function CalculadoraOferta({
       prazo_financiamento_anos: prazoFin,
       taxa_financiamento_anual: taxaFrac,
     };
-    const calc = calcularOferta(template, oferta);
+    const calc = calcularOferta(template, oferta, acoplamento);
     setUltimaOferta(oferta);
     setResultado(calc);
     setEntradaConf(calc.entrada_sugerida);
@@ -293,6 +317,14 @@ export function CalculadoraOferta({
       setErro('Informe o nome da oferta.');
       return;
     }
+    if (valorLote == null || !Number.isFinite(valorLote) || valorLote <= 0) {
+      setErro(MENSAGEM_TERRENO_OBRIGATORIO_OFERTA);
+      return;
+    }
+    if (errosMinimos.length > 0) {
+      setErro(errosMinimos[0]!);
+      return;
+    }
     setSalvando(true);
     setErro(null);
     setMensagem(null);
@@ -302,6 +334,7 @@ export function CalculadoraOferta({
       valor_lote: numeroParaInputBr(ultimaOferta.valor_lote),
       valor_casa: numeroParaInputBr(ultimaOferta.valor_casa),
       valor_customizacao: numeroParaInputBr(ultimaOferta.valor_customizacao),
+      valor_acoplamento: numeroParaInputBr(valorAcoplamento ?? 0),
       valor_ja_pago: numeroParaInputBr(ultimaOferta.valor_ja_pago),
       prazo_meses: String(prazoTotal ?? ultimaOferta.prazo_meses + prazoObraMeses),
       parcela_mensal: numeroParaInputBr(parcelaMensalConf),
@@ -354,7 +387,7 @@ export function CalculadoraOferta({
   }
 
   function gerarFluxoFinal() {
-    if (!resultado || !ultimaOferta) return;
+    if (!resultado || !ultimaOferta || errosMinimos.length > 0) return;
     const ofertaConfirmada: OfertaConfig = {
       ...ultimaOferta,
       entrada_confirmada: entradaConf,
@@ -365,8 +398,14 @@ export function CalculadoraOferta({
   }
 
   function aplicarMinimoParcelaUnica(entrada: number, parcela: number, unicaAtual: number): number {
-    if (!resultado) return unicaAtual;
-    const parcelaUnicaMinima = calcularParcelaUnicaMinimaHint(resultado, entrada, parcela);
+    if (!resultado || !ultimaOferta) return unicaAtual;
+    const parcelaUnicaMinima = calcularParcelaUnicaMinimaHint(
+      template,
+      ultimaOferta,
+      resultado,
+      entrada,
+      parcela,
+    );
     return unicaAtual < parcelaUnicaMinima ? parcelaUnicaMinima : unicaAtual;
   }
 
@@ -378,8 +417,10 @@ export function CalculadoraOferta({
 
   function onParcelaMensalConfirmada(n: number) {
     setParcelaMensalConf(n);
-    if (resultado) {
-      setParcelaUnicaConf(calcularParcelaUnicaMinimaHint(resultado, entradaConf, n));
+    if (resultado && ultimaOferta) {
+      setParcelaUnicaConf(
+        calcularParcelaUnicaMinimaHint(template, ultimaOferta, resultado, entradaConf, n),
+      );
     }
     setFluxoFinalResultado(null);
   }
@@ -390,23 +431,87 @@ export function CalculadoraOferta({
   }
 
   const parcelaUnicaMinimaHint = useMemo(() => {
-    if (!resultado) return 0;
-    return calcularParcelaUnicaMinimaHint(resultado, entradaConf, parcelaMensalConf);
-  }, [entradaConf, parcelaMensalConf, resultado]);
+    if (!resultado || !ultimaOferta) return 0;
+    return calcularParcelaUnicaMinimaHint(
+      template,
+      ultimaOferta,
+      resultado,
+      entradaConf,
+      parcelaMensalConf,
+    );
+  }, [entradaConf, parcelaMensalConf, resultado, template, ultimaOferta]);
+  const unicaAbaixoMinimo =
+    resultado != null && parcelaUnicaAbaixoDoMinimo(parcelaUnicaConf, parcelaUnicaMinimaHint);
+  const entradaMinima = resultado ? entradaMinimaOferta(resultado) : 0;
+  const entradaAbaixoMinimo =
+    resultado != null && entradaAbaixoDoMinimo(entradaConf, entradaMinima);
+  const erroEntrada = entradaAbaixoMinimo ? mensagemEntradaMinima(entradaMinima) : null;
+  const erroUnica = unicaAbaixoMinimo ? mensagemParcelaUnicaMinima(parcelaUnicaMinimaHint) : null;
+  const errosMinimos = [erroEntrada, erroUnica].filter((m): m is string => m != null);
+  const erroTerreno =
+    valorLote == null || !Number.isFinite(valorLote) || valorLote <= 0
+      ? MENSAGEM_TERRENO_OBRIGATORIO_OFERTA
+      : null;
+  const ofertaParaExibicao = useMemo((): OfertaConfig | null => {
+    const casa = valorCasa;
+    if (casa == null || casa < 0) return null;
+    const prazoTotalInformado = prazoTotal;
+    if (prazoTotalInformado == null || prazoTotalInformado < 1) return null;
+    const prazoFase1Calc = prazoTotalInformado - prazoObraMeses;
+    if (prazoFase1Calc < 1) return null;
+    const parcela = parcelaMensal;
+    if (parcela == null || parcela < 0) return null;
+    const prazoFin = prazoFinanciamentoAnos;
+    if (prazoFin == null || prazoFin < 1) return null;
+    const taxaFrac =
+      taxaFinanciamento == null
+        ? template.taxa_juros_financiamento_anual
+        : taxaFinanciamento / 100;
+    if (taxaFrac < 0) return null;
+    return {
+      valor_lote: valorLote ?? 0,
+      valor_casa: casa,
+      valor_customizacao: valorCustomizacao ?? 0,
+      valor_acoplamento: valorAcoplamento ?? 0,
+      valor_ja_pago: valorJaPago ?? 0,
+      prazo_meses: prazoFase1Calc,
+      parcela_mensal: parcela,
+      renda_cliente: rendaCliente ?? 0,
+      prazo_financiamento_anos: prazoFin,
+      taxa_financiamento_anual: taxaFrac,
+    };
+  }, [
+    parcelaMensal,
+    prazoFinanciamentoAnos,
+    prazoObraMeses,
+    prazoTotal,
+    rendaCliente,
+    taxaFinanciamento,
+    template.taxa_juros_financiamento_anual,
+    valorAcoplamento,
+    valorCasa,
+    valorCustomizacao,
+    valorJaPago,
+    valorLote,
+  ]);
+  const exibicaoJornada = useMemo(() => {
+    if (!ofertaParaExibicao) return null;
+    try {
+      const calc = calcularOferta(
+        template,
+        ofertaParaExibicao,
+        ofertaParaExibicao.valor_acoplamento,
+      );
+      return valorExibidoNaJornada(calc.vte_avista, ofertaParaExibicao.valor_lote);
+    } catch {
+      return null;
+    }
+  }, [ofertaParaExibicao, template]);
 
   const avisosSalvar = useMemo(() => {
-    const vazio = { entrada: [] as string[], parcela: [] as string[] };
+    const vazio = { parcela: [] as string[] };
     if (!resultado || !ultimaOferta) return vazio;
-    const entrada: string[] = [];
     const parcela: string[] = [];
-
-    if (entradaConf < resultado.entrada_sugerida) {
-      entrada.push('⚠ Entrada abaixo do mínimo sugerido. A loteadora pode exigir o valor mínimo.');
-    }
-    const entrada_do_lote_conf = Math.max(0, entradaConf - resultado.comissao_amount);
-    if (entrada_do_lote_conf < resultado.entrada_do_lote) {
-      entrada.push('⚠ Entrada do lote insuficiente para cumprir a entrada mínima da loteadora.');
-    }
 
     if (parcelaMensalConf < resultado.parcela_mensal_usada) {
       parcela.push(
@@ -414,8 +519,8 @@ export function CalculadoraOferta({
       );
     }
 
-    return { entrada, parcela };
-  }, [entradaConf, parcelaMensalConf, resultado, ultimaOferta]);
+    return { parcela };
+  }, [parcelaMensalConf, resultado, ultimaOferta]);
 
   const cardsTotais = useMemo((): CardResultadoItem[] => {
     if (!resultado) return [];
@@ -514,6 +619,12 @@ export function CalculadoraOferta({
           />
         </label>
         <QuadroPremissasTemplate template={template} />
+        <p
+          className="mt-4 text-sm"
+          style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}
+        >
+          {textoValorExibidoNaJornada(exibicaoJornada?.valor ?? null)}
+        </p>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
             <Campo
@@ -521,6 +632,7 @@ export function CalculadoraOferta({
               value={valorLote}
               onChange={onValorLoteChange}
               placeholder="180.000"
+              erro={erroTerreno}
             />
             {temPlanilha ? (
               <button
@@ -552,6 +664,15 @@ export function CalculadoraOferta({
             value={valorCustomizacao}
             onChange={(v) => {
               setValorCustomizacao(v);
+              setResultado(null);
+            }}
+            placeholder="0"
+          />
+          <Campo
+            label="Valor do acoplamento (R$)"
+            value={valorAcoplamento}
+            onChange={(v) => {
+              setValorAcoplamento(v);
               setResultado(null);
             }}
             placeholder="0"
@@ -754,13 +875,9 @@ export function CalculadoraOferta({
                 label="Entrada confirmada (R$)"
                 valor={entradaConf}
                 onValorChange={onEntradaConfirmada}
-                dica={
-                  resultado
-                    ? `⚠ Mínimo sugerido: ${formatarMoeda(resultado.entrada_sugerida)}`
-                    : undefined
-                }
-                dicaValida={entradaConf >= resultado.entrada_sugerida}
-                avisos={avisosSalvar.entrada}
+                dica={`Mínimo: ${formatarMoeda(entradaMinima)}`}
+                dicaValida
+                erro={erroEntrada}
               />
               <CampoMoedaConfirmado
                 label="Parcela mensal confirmada (R$)"
@@ -772,15 +889,33 @@ export function CalculadoraOferta({
                 label="Parcela única confirmada (R$)"
                 valor={parcelaUnicaConf}
                 onValorChange={onParcelaUnicaConfirmada}
-                dica={`⚠ Mínimo sugerido: ${formatarMoeda(parcelaUnicaMinimaHint)}`}
-                dicaValida={parcelaUnicaConf >= parcelaUnicaMinimaHint}
+                dica={`Mínimo: ${formatarMoeda(parcelaUnicaMinimaHint)}`}
+                dicaValida
+                erro={erroUnica}
               />
             </div>
             <div className="mt-6 flex flex-col gap-4">
+            {erroTerreno ? (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-[var(--moni-radius-md)] px-4 py-3 text-sm"
+                style={{
+                  background: 'var(--moni-status-overdue-bg)',
+                  border: 'var(--moni-border-width) solid var(--moni-status-overdue-border)',
+                  color: 'var(--moni-status-overdue-text)',
+                  fontFamily: 'var(--moni-font-sans)',
+                }}
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                <p>{erroTerreno}</p>
+              </div>
+            ) : null}
+            <AvisoBloqueioMinimos erros={errosMinimos} />
             <button
               type="button"
               onClick={gerarFluxoFinal}
-              className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium"
+              disabled={errosMinimos.length > 0}
+              className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
               style={{
                 border: 'var(--moni-border-width) solid var(--moni-border-default)',
                 background: 'var(--moni-surface-0)',
@@ -835,9 +970,9 @@ export function CalculadoraOferta({
             ) : null}
             <button
               type="button"
-              disabled={salvando}
+              disabled={salvando || errosMinimos.length > 0 || erroTerreno != null}
               onClick={() => void onSalvar()}
-              className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:opacity-50"
+              className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: 'var(--moni-navy-800)' }}
             >
               {salvando
@@ -854,76 +989,28 @@ export function CalculadoraOferta({
   );
 }
 
-function pctLabel(fracao: number, casas = 2): string {
-  return `${(Number(fracao) * 100).toFixed(casas)}%`;
-}
-
-function textoEntradaMinima(entrada: TemplateConfig['entrada_minima_loteadora']): string {
-  if (!entrada) return 'Não configurada';
-  if (entrada.tipo === 'percentual') {
-    return `${(entrada.valor * 100).toFixed(0)}% do valor do lote`;
-  }
-  return formatarMoeda(entrada.valor);
-}
-
-function QuadroPremissasTemplate({ template }: { template: TemplateConfig }) {
-  const linhas: Array<{ label: string; valor: string }> = [
-    { label: 'ITBI', valor: pctLabel(template.percentual_itbi) },
-    { label: 'Impostos', valor: pctLabel(template.percentual_impostos) },
-    { label: 'Taxa de plataforma', valor: pctLabel(template.percentual_taxa_plataforma) },
-    { label: 'Taxa de gestão', valor: pctLabel(template.percentual_taxa_gestao) },
-    { label: 'Lucro loteadora', valor: pctLabel(template.percentual_lucro_loteadora) },
-    { label: 'Lucro Moní', valor: pctLabel(template.percentual_lucro_moni) },
-    { label: 'Lucro Franqueado', valor: pctLabel(template.percentual_lucro_franqueado) },
-    { label: 'Comissão corretor', valor: pctLabel(template.percentual_comissao_corretor) },
-    { label: 'Prazo de obra', valor: `${template.prazo_obra_meses} meses` },
-    {
-      label: 'Juros crédito-ponte',
-      valor: `${pctLabel(template.taxa_juros_credito_ponte)} ao mês`,
-    },
-    {
-      label: 'Juros parcelado (lote)',
-      valor: `${pctLabel(template.taxa_juros_parcelado_mes)} ao mês`,
-    },
-    {
-      label: 'Taxa de financiamento padrão',
-      valor: `${pctLabel(template.taxa_juros_financiamento_anual)} ao ano`,
-    },
-    {
-      label: 'Entrada mínima loteadora',
-      valor: textoEntradaMinima(template.entrada_minima_loteadora),
-    },
-  ];
-
+function AvisoBloqueioMinimos({ erros }: { erros: string[] }) {
+  if (erros.length === 0) return null;
   return (
     <div
-      className="mt-4 rounded-[var(--moni-radius-md)] p-3 sm:p-4"
+      role="alert"
+      className="flex items-start gap-2 rounded-[var(--moni-radius-md)] px-4 py-3 text-sm"
       style={{
-        border: 'var(--moni-border-width) solid var(--moni-border-default)',
-        background: 'var(--moni-surface-100)',
+        background: 'var(--moni-status-overdue-bg)',
+        border: 'var(--moni-border-width) solid var(--moni-status-overdue-border)',
+        color: 'var(--moni-status-overdue-text)',
+        fontFamily: 'var(--moni-font-sans)',
       }}
     >
-      <h3
-        className="text-xs font-medium"
-        style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}
-      >
-        Premissas do template
-      </h3>
-      <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
-        {linhas.map((l) => (
-          <div key={l.label} className="flex items-baseline justify-between gap-3">
-            <dt className="text-[11px]" style={hintStyle}>
-              {l.label}
-            </dt>
-            <dd
-              className="text-[11px] font-medium"
-              style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}
-            >
-              {l.valor}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <div>
+        <p className="font-semibold">Não é possível salvar nem gerar o fluxo final:</p>
+        <ul className="mt-1 list-disc pl-4">
+          {erros.map((e) => (
+            <li key={e}>{e}</li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
@@ -935,6 +1022,7 @@ function CampoMoedaConfirmado({
   dica,
   dicaValida,
   avisos,
+  erro,
 }: {
   label: string;
   valor: number;
@@ -942,6 +1030,7 @@ function CampoMoedaConfirmado({
   dica?: string;
   dicaValida?: boolean;
   avisos?: string[];
+  erro?: string | null;
 }) {
   const dicaStyle =
     dicaValida === true
@@ -956,11 +1045,24 @@ function CampoMoedaConfirmado({
       </span>
       <CampoNumeroBr
         className={fieldCls}
-        style={fieldStyle}
+        style={
+          erro
+            ? { ...fieldStyle, border: 'var(--moni-border-width) solid var(--moni-status-overdue-border)', boxShadow: '0 0 0 1px var(--moni-status-overdue-border)' }
+            : fieldStyle
+        }
         valor={valor}
         onChange={(n) => onValorChange(n ?? 0)}
+        aria-invalid={erro ? true : undefined}
       />
-      {dica ? (
+      {erro ? (
+        <span
+          className="mt-1 block text-xs font-medium"
+          role="alert"
+          style={{ color: 'var(--moni-status-overdue-text)', fontFamily: 'var(--moni-font-sans)' }}
+        >
+          {erro}
+        </span>
+      ) : dica ? (
         <span
           className="mt-1 block text-[11px]"
           style={dicaStyle}
@@ -993,6 +1095,7 @@ function Campo({
   placeholder,
   inteiro,
   avisos,
+  erro,
 }: {
   label: string;
   value: number | null;
@@ -1000,6 +1103,7 @@ function Campo({
   placeholder?: string;
   inteiro?: boolean;
   avisos?: string[];
+  erro?: string | null;
 }) {
   return (
     <label className="block">
@@ -1008,12 +1112,33 @@ function Campo({
       </span>
       <CampoNumeroBr
         className={fieldCls}
-        style={fieldStyle}
+        style={
+          erro
+            ? {
+                ...fieldStyle,
+                border: 'var(--moni-border-width) solid var(--moni-status-overdue-border)',
+                boxShadow: '0 0 0 1px var(--moni-status-overdue-border)',
+              }
+            : fieldStyle
+        }
         valor={value}
         onChange={onChange}
         inteiro={inteiro}
         placeholder={placeholder}
+        aria-invalid={erro ? true : undefined}
       />
+      {erro ? (
+        <span
+          className="mt-1 block text-[11px]"
+          role="alert"
+          style={{
+            color: 'var(--moni-status-overdue-text)',
+            fontFamily: 'var(--moni-font-sans)',
+          }}
+        >
+          {erro}
+        </span>
+      ) : null}
       {avisos?.map((a) => (
         <span
           key={a}

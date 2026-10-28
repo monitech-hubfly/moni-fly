@@ -39,9 +39,15 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/formularios',
   '/universidade',
   '/admin/universidade',
+  '/ajuda',
   '/carometro',
   '/marketing',
   '/manutencoes',
+  '/venda-casas-loteadores',
+  '/venda-casas-franks',
+  '/funil-motor01',
+  '/funil-showroom',
+  '/funil-imob',
 ] as const;
 
 export function isTeamAllowedPath(pathname: string): boolean {
@@ -70,6 +76,7 @@ export const FRANK_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/dashboard-novos-negocios',
   '/perfil',
   '/universidade',
+  '/ajuda',
   '/casa0',
   '/casa1',
   '/minhas-empresas',
@@ -161,6 +168,11 @@ export function isCalculadoraPublicLeituraPath(pathname: string): boolean {
 /** Página pública do corretor — QR /simulador/[token], sem login. */
 export function isSimuladorPublicoPath(pathname: string): boolean {
   return pathname === '/simulador' || pathname.startsWith('/simulador/');
+}
+
+/** Jornada pública do empreendimento. Abre logado ou não; não cai na Rede. */
+export function isEmpreendimentoPublicoPath(pathname: string): boolean {
+  return pathname === '/empreendimento' || pathname.startsWith('/empreendimento/');
 }
 
 /**
@@ -255,13 +267,20 @@ export function isExternalTokenAccessPath(pathname: string): boolean {
   );
 }
 
+/** Central de Ajuda pública, sem login. */
+export function isAjudaPublicaPath(pathname: string): boolean {
+  return pathname === '/ajuda' || pathname.startsWith('/ajuda/');
+}
+
 /** Sem sessão Supabase: só BCA público, auth, portal Frank (login) e links tokenizados. */
 export function isAnonymousAllowedPath(pathname: string): boolean {
   return (
     isBcaPublicLeituraAccessPath(pathname) ||
     isAuthFlowAccessPath(pathname) ||
     isPortalFrankAuthAccessPath(pathname) ||
-    isExternalTokenAccessPath(pathname)
+    isExternalTokenAccessPath(pathname) ||
+    isEmpreendimentoPublicoPath(pathname) ||
+    isAjudaPublicaPath(pathname)
   );
 }
 

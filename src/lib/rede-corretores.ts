@@ -3,6 +3,7 @@
 import type { createClient } from '@/lib/supabase/server'
 import type { PixTipo } from '@/lib/br-docs'
 import { isCadastroValorVazio } from '@/lib/cadastro-linha-em-branco'
+import type { LinkJornadaCorretor } from '@/lib/corretor-links-jornada'
 
 export type RedeCorretorStatus = 'ativo' | 'inativo' | 'em_analise' | 'pendente' | 'aprovado'
 
@@ -45,6 +46,7 @@ export type RedeCorretorRow = {
   observacoes: string | null
   link_simulador?: string | null
   email_enviado_em?: string | null
+  links_jornada?: LinkJornadaCorretor[]
   criado_por?: string | null
   ultima_atualizacao_por?: string | null
   created_at?: string | null
@@ -163,11 +165,13 @@ export async function fetchRedeCorretoresRows(
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<RedeCorretorRow[] | null> {
   const first = await supabase.from('rede_corretores').select(SELECT_COLS).order('ordem', { ascending: true })
-  if (!first.error) return filtrarLinhasEmBrancoRedeCorretores((first.data ?? []) as RedeCorretorRow[])
+  if (!first.error) {
+    return filtrarLinhasEmBrancoRedeCorretores((first.data ?? []) as RedeCorretorRow[])
+  }
 
   const fallback = await supabase.from('rede_corretores').select(SELECT_COLS_BASE).order('ordem', { ascending: true })
   if (fallback.error) {
-    console.error('[rede_corretores] fetch:', first.error.message, fallback.error.message)
+    console.error('[rede_corretores] fetch:', first.error?.message, fallback.error.message)
     return null
   }
   return filtrarLinhasEmBrancoRedeCorretores((fallback.data ?? []) as RedeCorretorRow[])

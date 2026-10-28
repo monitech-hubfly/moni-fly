@@ -32,9 +32,15 @@ type Props = {
   franquiaSomenteLeitura: RedeFrankFranquiaSomenteLeitura;
   value: RedeFrankCadastroPayload;
   onChange: (next: RedeFrankCadastroPayload) => void;
+  incluirSocios?: boolean;
 };
 
-export function RedeFrankDadosCampos({ franquiaSomenteLeitura, value, onChange }: Props) {
+export function RedeFrankDadosCampos({
+  franquiaSomenteLeitura,
+  value,
+  onChange,
+  incluirSocios = false,
+}: Props) {
   function patch<K extends keyof RedeFrankCadastroPayload>(k: K, v: RedeFrankCadastroPayload[K]) {
     onChange({ ...value, [k]: v });
   }
@@ -165,6 +171,17 @@ export function RedeFrankDadosCampos({ franquiaSomenteLeitura, value, onChange }
             className={inputCls}
           />
         </label>
+        {incluirSocios ? (
+          <label className="block text-sm font-medium text-stone-700">
+            Sócios
+            <textarea
+              rows={3}
+              value={value.socios}
+              onChange={(e) => patch('socios', e.target.value)}
+              className={inputCls + ' resize-y'}
+            />
+          </label>
+        ) : null}
       </section>
     </div>
   );

@@ -1,11 +1,14 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createClientWithAccessToken } from '@/lib/supabase/server';
 import { KANBAN_NOME_FUNIL_LOTEADORES } from '@/lib/kanban/funil-loteadores';
 import { KanbanBoard } from './KanbanBoard';
-import { fetchKanbanBoardSnapshot, KANBAN_BOARD_DEFERRED_FETCH_OPTS } from './fetchKanbanBoardSnapshot';
+import {
+  fetchKanbanBoardSnapshot,
+  KANBAN_BOARD_DEFERRED_FETCH_OPTS,
+} from './fetchKanbanBoardSnapshot';
 import { PainelPerformance } from './PainelPerformance';
 import type { KanbanCardBrief, KanbanFase } from './types';
 
-/** Só cards/painel — modais ficam no `KanbanWrapper` pai (fora do Suspense). */
+/** Cards/painel em Suspense — o modal do `KanbanWrapper` não espera este snapshot. */
 export async function KanbanLoteadoresBoardCardsLoader({
   userId,
   activeTab,
@@ -13,6 +16,7 @@ export async function KanbanLoteadoresBoardCardsLoader({
   fases,
   role,
   exibirNovoCard,
+  accessToken,
 }: {
   userId: string;
   activeTab: 'kanban' | 'painel';
@@ -20,8 +24,10 @@ export async function KanbanLoteadoresBoardCardsLoader({
   fases: KanbanFase[];
   role: string;
   exibirNovoCard: boolean;
+  accessToken: string | null;
 }) {
-  const supabase = await createClient();
+  const cookieClient = await createClient();
+  const supabase = accessToken ? createClientWithAccessToken(accessToken) : cookieClient;
   const { cards, cardsConcluidos, snapshotMode } = await fetchKanbanBoardSnapshot(
     supabase,
     KANBAN_NOME_FUNIL_LOTEADORES,

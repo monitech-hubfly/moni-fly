@@ -5,10 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { recordFaqSearch, searchFaqArticles } from '@/lib/actions/faq-actions';
 import type { FaqArticle, FaqCategory } from '@/types/faq';
+import { FaqAcessoQr } from '@/components/faq/FaqAcessoQr';
 import { FaqArticlePanel } from './FaqArticlePanel';
 import { FaqCategoryCard } from './FaqCategoryCard';
-
-const CHIPS = ['Carta Fiança', 'Hub Fly', 'Alvará', 'Terrenista', 'Sirene', 'Habite-se'] as const;
 
 type Voto = 'sim' | 'nao';
 
@@ -47,14 +46,20 @@ function destacar(texto: string, termo: string) {
   });
 }
 
+function semAcento(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 export function FaqClient({
   categories,
   articles,
   erro,
+  publico = false,
 }: {
   categories: FaqCategory[];
   articles: FaqArticle[];
   erro: boolean;
+  publico?: boolean;
 }) {
   const buscaRef = useRef<HTMLInputElement>(null);
   const [consulta, setConsulta] = useState('');
@@ -109,11 +114,32 @@ export function FaqClient({
       return;
     }
 
+    const categoriaEscolhida = categories.find((categoria) => semAcento(categoria.nome) === semAcento(termo));
+    if (categoriaEscolhida) {
+      setResultados(porCategoria.get(categoriaEscolhida.id) ?? []);
+      setBuscando(false);
+      return;
+    }
+
     let ativo = true;
     setBuscando(true);
     const ultimo = { termo: '', total: -1 };
 
     const timerBusca = window.setTimeout(() => {
+      if (publico) {
+        const alvo = semAcento(termo);
+        const lista = articles
+          .filter((artigo) =>
+            semAcento(
+              [artigo.pergunta, artigo.resposta_resumida, artigo.resposta_completa ?? '', nomeCategoria(artigo.categoria_id)].join(' '),
+            ).includes(alvo),
+          )
+          .slice(0, 20);
+        if (!ativo) return;
+        setResultados(lista);
+        setBuscando(false);
+        return;
+      }
       void searchFaqArticles(termo)
         .then((lista) => {
           if (!ativo) return;
@@ -131,7 +157,9 @@ export function FaqClient({
         });
     }, 300);
 
-    const timerRegistro = window.setTimeout(() => {
+    const timerRegistro = publico
+      ? 0
+      : window.setTimeout(() => {
       const limite = Date.now() + 4000;
       const registrar = () => {
         if (!ativo) return;
@@ -150,21 +178,29 @@ export function FaqClient({
       window.clearTimeout(timerBusca);
       window.clearTimeout(timerRegistro);
     };
-  }, [consulta]);
+  }, [articles, categories, consulta, nomeCategoria, porCategoria, publico]);
 
   const modoBusca = consulta.trim().length > 0;
 
   return (
     <div className="min-h-full bg-[var(--moni-surface-50)]">
-      <section className="px-4 pb-8 pt-10 sm:pt-14">
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="font-[family-name:var(--moni-font-display)] text-[length:var(--moni-text-3xl)] font-semibold leading-tight text-[var(--moni-text-primary)]">
+      <section className="px-4 pb-2 pt-14 sm:pt-20">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-xs)] uppercase tracking-[0.16em] text-[var(--moni-text-tertiary)]">
+            Central de Ajuda
+          </p>
+          <h1 className="mt-3 font-[family-name:var(--moni-font-display)] text-[length:var(--moni-text-3xl)] font-semibold leading-[var(--moni-leading-tight)] text-[var(--moni-text-primary)]">
             Como podemos ajudar?
           </h1>
-          <p className="mt-2 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-tertiary)]">
+          <span
+            className="mx-auto mt-4 block h-px w-10"
+            style={{ background: 'var(--moni-gold-400)' }}
+            aria-hidden
+          />
+          <p className="mt-4 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] leading-[var(--moni-leading-body)] text-[var(--moni-text-secondary)]">
             Base de conhecimento Moní para franqueados
           </p>
-          <label className="relative mx-auto mt-6 block max-w-xl">
+          <label className="relative mx-auto mt-8 block">
             <span className="sr-only">Buscar na Central de Ajuda</span>
             <Search
               className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--moni-text-tertiary)]"
@@ -175,7 +211,7 @@ export function FaqClient({
               value={consulta}
               onChange={(evento) => setConsulta(evento.target.value)}
               placeholder="Busque por tema, dúvida ou palavra"
-              className="h-12 w-full rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] pl-11 pr-16 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-base)] text-[var(--moni-text-primary)] shadow-[var(--moni-shadow-sm)] outline-none placeholder:text-[var(--moni-text-tertiary)] focus:shadow-[var(--moni-shadow-md)]"
+              className="h-12 w-full rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] pl-11 pr-16 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-base)] text-[var(--moni-text-primary)] shadow-[var(--moni-shadow-sm)] outline-none placeholder:text-[var(--moni-text-tertiary)] focus:border-[var(--moni-navy-800)] focus:shadow-[var(--moni-shadow-md)]"
             />
             {consulta ? (
               <button
@@ -192,22 +228,33 @@ export function FaqClient({
               </kbd>
             )}
           </label>
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {CHIPS.map((chip) => (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => setConsulta(chip)}
-                className="inline-flex min-h-11 items-center rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] px-3 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-secondary)] transition-colors duration-200 hover:bg-[var(--moni-surface-100)]"
-              >
-                {chip}
-              </button>
-            ))}
+          <div className="mt-4 flex justify-center">
+            <FaqAcessoQr />
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 pb-16">
+      {!modoBusca && categories.length > 0 ? (
+        <section className="mx-auto max-w-5xl px-4 pb-2 pt-8">
+          <p className="mb-3 text-center font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-xs)] uppercase tracking-[0.14em] text-[var(--moni-text-tertiary)]">
+            Temas
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {categories.map((categoria) => (
+              <button
+                key={categoria.id}
+                type="button"
+                onClick={() => setConsulta(categoria.nome)}
+                className="inline-flex min-h-11 items-center rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] px-4 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-secondary)] transition-colors duration-200 hover:border-[var(--moni-navy-800)] hover:text-[var(--moni-text-primary)]"
+              >
+                {categoria.nome}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="mx-auto max-w-6xl px-4 pb-16 pt-10">
         {erro ? (
           <p className="text-center font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-base)] text-[var(--moni-text-secondary)]">
             Não foi possível carregar a base de conhecimento agora.
@@ -227,10 +274,10 @@ export function FaqClient({
                   Nenhum artigo encontrado para essa busca.
                 </p>
                 <Link
-                  href="/sirene/novo"
+                  href="/ajuda/pergunta"
                   className="mt-4 inline-flex min-h-11 items-center font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] font-medium text-[var(--moni-navy-800)] underline"
                 >
-                  Abrir chamado no Sirene
+                  Enviar uma pergunta
                 </Link>
               </div>
             ) : null}
@@ -261,7 +308,7 @@ export function FaqClient({
             ) : null}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
             {categories.map((categoria) => (
               <FaqCategoryCard
                 key={categoria.id}
@@ -275,10 +322,10 @@ export function FaqClient({
                 Não encontrou o que precisa?
               </h2>
               <Link
-                href="/sirene/novo"
+                href="/ajuda/pergunta"
                 className="mt-6 inline-flex min-h-11 items-center justify-center rounded-[var(--moni-radius-md)] bg-[var(--moni-gold-400)] px-4 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] font-medium text-[var(--moni-navy-800)]"
               >
-                Abrir chamado no Sirene
+                Enviar uma pergunta
               </Link>
             </article>
           </div>
@@ -289,6 +336,7 @@ export function FaqClient({
         artigo={artigoAberto}
         categoriaNome={artigoAberto ? nomeCategoria(artigoAberto.categoria_id) : ''}
         aberto={painelAberto}
+        mostrarVoto={!publico}
         voto={artigoAberto ? (votos[artigoAberto.id] ?? null) : null}
         onFechar={fecharPainel}
         onVoto={(articleId, voto) => setVotos((atual) => ({ ...atual, [articleId]: voto }))}

@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Loader2 } from 'lucide-react'
+import { CorretorEmpreendimentosVinculo } from '@/components/CorretorEmpreendimentosVinculo'
 import { RedeCorretorFichaForm } from '@/components/RedeCorretorFichaForm'
+import type { EmpreendimentoVinculoOpcao } from '@/lib/corretor-empreendimentos-vinculo'
 import {
   emptyRedeCorretorFichaDraft,
   redeCorretorFichaDraftToPatch,
@@ -12,13 +14,15 @@ import {
 
 type Props = {
   onSuccess?: () => void
+  empreendimentos?: EmpreendimentoVinculoOpcao[]
 }
 
-export function CadastroCorretorPublicoForm({ onSuccess }: Props) {
+export function CadastroCorretorPublicoForm({ onSuccess, empreendimentos = [] }: Props) {
   const router = useRouter()
   const [draft, setDraft] = useState<RedeCorretorFichaDraft>(() =>
     emptyRedeCorretorFichaDraft('pendente'),
   )
+  const [empreendimentoIds, setEmpreendimentoIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,7 +35,7 @@ export function CadastroCorretorPublicoForm({ onSuccess }: Props) {
       const res = await fetch('/api/public/cadastro-corretor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
+        body: JSON.stringify({ ...patch, empreendimento_ids: empreendimentoIds }),
       })
       const json = (await res.json().catch(() => null)) as
         | { ok: true }
@@ -64,6 +68,13 @@ export function CadastroCorretorPublicoForm({ onSuccess }: Props) {
         draft={draft}
         onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
         showStatus={false}
+      />
+
+      <CorretorEmpreendimentosVinculo
+        modo="publico"
+        empreendimentos={empreendimentos}
+        selecionados={empreendimentoIds}
+        onChange={setEmpreendimentoIds}
       />
 
       <button

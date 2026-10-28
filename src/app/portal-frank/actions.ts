@@ -50,7 +50,7 @@ export async function validarTokenConviteFrank(token: string): Promise<ConviteFr
   if (franqueadoId) {
     const { data: redeRow } = await admin
       .from('rede_franqueados')
-      .select(REDE_SELECT_FIELDS)
+      .select(`${REDE_SELECT_FIELDS}, socios`)
       .eq('id', franqueadoId)
       .maybeSingle();
     if (redeRow) {
@@ -74,8 +74,6 @@ export async function validarTokenConviteFrank(token: string): Promise<ConviteFr
 export type ConfirmarConviteFrankResult = { ok: true } | { ok: false; error: string };
 
 /** PATCH permitido para o Frank (nunca inclui campos bloqueados da franquia). */
-// INTENCIONAL: 'socios' não está no payload Frank.
-// Frank não visualiza nem edita sócios — bloqueio por omissão (Matriz Frank).
 function montarPatchRedeFrank(d: RedeFrankCadastroPayload): Record<string, unknown> {
   return {
     email_frank: trimOrNull(d.email_frank),
@@ -167,7 +165,10 @@ export async function confirmarCadastroPortalFrank(
   });
 
   if (franqueadoId) {
-    const patchRede = montarPatchRedeFrank(dadosRede);
+    const patchRede = {
+      ...montarPatchRedeFrank(dadosRede),
+      socios: trimOrNull(dadosRede.socios),
+    };
     const { error: upRede } = await admin.from('rede_franqueados').update(patchRede).eq('id', franqueadoId);
     if (upRede) return { ok: false, error: upRede.message };
   }

@@ -234,6 +234,37 @@ export async function criarImobSimulacaoEmpreendimento(
   return { ok: true, item: rowToImobDraft(mapImobCardEmpreendimentoRow(data as Record<string, unknown>)) };
 }
 
+export async function salvarValorBaseCasa(
+  ofertaId: string,
+  cardId: string,
+  valor: number,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const auth = await requireUser();
+  if (!auth.ok) return auth;
+  if (!auth.isStaff) return { ok: false, error: 'Apenas admin/team podem editar Modelo e Simulações IMOB.' };
+  const id = String(ofertaId ?? '').trim();
+  const cid = String(cardId ?? '').trim();
+  const n = Math.round(Number(valor) * 100) / 100;
+  if (!id || !cid) return { ok: false, error: 'Oferta inválida.' };
+  if (!Number.isFinite(n) || n <= 0) {
+    return { ok: false, error: 'Informe o valor base da casa.' };
+  }
+  const check = await assertCardExiste(auth.supabase, cid);
+  if (!check.ok) return check;
+
+  const { data, error } = await auth.supabase
+    .from('imob_card_empreendimentos')
+    .update({ valor_base_casa: n } as never)
+    .eq('id', id)
+    .eq('card_id', cid)
+    .select('id, valor_base_casa');
+  if (error) return { ok: false, error: error.message };
+  if (!data?.length) {
+    return { ok: false, error: 'Não foi possível salvar o valor da casa.' };
+  }
+  return { ok: true };
+}
+
 export async function salvarImobSimulacaoEmpreendimento(
   cardId: string,
   draft: ImobCardEmpreendimentoDraft,
@@ -245,22 +276,73 @@ export async function salvarImobSimulacaoEmpreendimento(
   if (!check.ok) return check;
 
   const patch = draftToImobPatch(draft);
-  const { error } = await auth.supabase
+  if (normalizeImobBlocoTipo(draft.tipo) !== 'showroom') {
+    const base = Number(patch.valor_base_casa);
+    if (!Number.isFinite(base) || base <= 0) {
+      return {
+        ok: false,
+        error: 'Informe o valor base da casa (custo de construção, antes do markup).',
+      };
+    }
+  }
+
+  let supabase: ReturnType<typeof createAdminClient>;
+  try {
+    supabase = createAdminClient();
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Admin client indisponível para salvar a oferta.',
+    };
+  }
+
+  console.error('[DEBUG-SAVE] patch completo:', JSON.stringify(patch, null, 2));
+  const { data, error, count } = await supabase
     .from('imob_card_empreendimentos')
-    .update(patch as never)
+    .update(patch as never, { count: 'exact' })
     .eq('id', draft.id)
-    .eq('card_id', cardId);
+    .eq('card_id', cardId)
+    .select('valor_base_casa');
+  console.error('[UPDATE-RESULT]', { data, error, count });
   if (error) {
+    const errText = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' ');
+    // PGRST204 / 42703 / schema cache desta coluna: não omitir o campo nem fingir sucesso.
+    if (/valor_base_casa/i.test(errText)) {
+      return { ok: false, error: 'Erro ao salvar valor da casa. Tente novamente.' };
+    }
+    if (/valor_acoplamento/i.test(error.message)) {
+      const { valor_acoplamento, ...sem571 } = patch;
+      void valor_acoplamento;
+      const retry = await supabase
+        .from('imob_card_empreendimentos')
+        .update(sem571 as never)
+        .eq('id', draft.id)
+        .eq('card_id', cardId);
+      if (retry.error) return { ok: false, error: retry.error.message };
+      revalidatePath('/');
+      return { ok: true };
+    }
     if (/parcela_unica|simulacao_pagamento_id|schema cache|does not exist/i.test(error.message)) {
       const { parcela_unica, simulacao_pagamento_id, ...sem550 } = patch;
       void parcela_unica;
       void simulacao_pagamento_id;
-      const retry = await auth.supabase
+      if (normalizeImobBlocoTipo(draft.tipo) !== 'showroom') {
+        sem550.valor_base_casa = patch.valor_base_casa;
+      }
+      const retry = await supabase
         .from('imob_card_empreendimentos')
         .update(sem550 as never)
         .eq('id', draft.id)
         .eq('card_id', cardId);
-      if (retry.error) return { ok: false, error: retry.error.message };
+      if (retry.error) {
+        const retryText = [retry.error.code, retry.error.message, retry.error.details, retry.error.hint]
+          .filter(Boolean)
+          .join(' ');
+        if (/valor_base_casa/i.test(retryText)) {
+          return { ok: false, error: 'Erro ao salvar valor da casa. Tente novamente.' };
+        }
+        return { ok: false, error: retry.error.message };
+      }
       revalidatePath('/');
       return { ok: true };
     }
@@ -280,6 +362,8 @@ export async function vincularOfertaAoEmpreendimentoImob(
     parcelas_mensais: number | null;
     parcela_unica: number | null;
     prazo_total_meses: number | null;
+    valor_acoplamento?: number | null;
+    valor_base_casa?: number | null;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const auth = await requireUser();
@@ -288,21 +372,76 @@ export async function vincularOfertaAoEmpreendimentoImob(
   const check = await assertCardExiste(auth.supabase, cardId);
   if (!check.ok) return check;
 
-  const { error } = await auth.supabase
+  const payload = {
+    simulacao_pagamento_id: valores.simulacao_pagamento_id,
+    valor_avista: valores.valor_avista,
+    entrada: valores.entrada,
+    parcelas_mensais: valores.parcelas_mensais,
+    prazo_total_meses: valores.prazo_total_meses,
+    parcela_unica: valores.parcela_unica,
+    valor_acoplamento: valores.valor_acoplamento ?? null,
+    valor_base_casa: valores.valor_base_casa ?? 0,
+    updated_at: new Date().toISOString(),
+  };
+  let { error } = await auth.supabase
     .from('imob_card_empreendimentos')
-    .update({
-      simulacao_pagamento_id: valores.simulacao_pagamento_id,
-      valor_avista: valores.valor_avista,
-      entrada: valores.entrada,
-      parcelas_mensais: valores.parcelas_mensais,
-      prazo_total_meses: valores.prazo_total_meses,
-      parcela_unica: valores.parcela_unica,
-      updated_at: new Date().toISOString(),
-    } as never)
+    .update(payload as never)
     .eq('id', empreendimentoId)
     .eq('card_id', cardId)
     .eq('tipo', 'empreendimento');
+  if (error && /valor_base_casa/i.test(error.message)) {
+    const { valor_base_casa: _omit, ...sem573 } = payload;
+    void _omit;
+    const retry573 = await auth.supabase
+      .from('imob_card_empreendimentos')
+      .update(sem573 as never)
+      .eq('id', empreendimentoId)
+      .eq('card_id', cardId)
+      .eq('tipo', 'empreendimento');
+    if (!retry573.error) {
+      revalidatePath('/');
+      revalidatePath('/hub-funis');
+      revalidatePath('/loteadores');
+      revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+      return { ok: true };
+    }
+    error = retry573.error;
+  }
   if (error) {
+    if (/valor_acoplamento/i.test(error.message)) {
+      const { error: retryAcopl } = await auth.supabase
+        .from('imob_card_empreendimentos')
+        .update({
+          simulacao_pagamento_id: valores.simulacao_pagamento_id,
+          valor_avista: valores.valor_avista,
+          entrada: valores.entrada,
+          parcelas_mensais: valores.parcelas_mensais,
+          prazo_total_meses: valores.prazo_total_meses,
+          parcela_unica: valores.parcela_unica,
+          updated_at: new Date().toISOString(),
+        } as never)
+        .eq('id', empreendimentoId)
+        .eq('card_id', cardId)
+        .eq('tipo', 'empreendimento');
+      if (retryAcopl) {
+        if (/prazo_total_meses/i.test(retryAcopl.message)) {
+          // cai no retry abaixo sem acoplamento
+        } else if (/parcela_unica|simulacao_pagamento_id|schema cache|does not exist/i.test(retryAcopl.message)) {
+          return {
+            ok: false,
+            error: 'Falta a migration 550 (parcela_unica / vínculo da oferta) neste banco.',
+          };
+        } else {
+          return { ok: false, error: retryAcopl.message };
+        }
+      } else {
+        revalidatePath('/');
+        revalidatePath('/hub-funis');
+        revalidatePath('/loteadores');
+        revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+        return { ok: true };
+      }
+    }
     if (/prazo_total_meses/i.test(error.message)) {
       const { error: retryErr } = await auth.supabase
         .from('imob_card_empreendimentos')
@@ -347,6 +486,23 @@ export async function vincularOfertaAoEmpreendimentoImob(
   return { ok: true };
 }
 
+async function revalidateJornadaDoCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+) {
+  revalidatePath('/');
+  revalidatePath('/hub-funis');
+  revalidatePath('/loteadores');
+  revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+  const { data } = await supabase
+    .from('imob_card_modelo')
+    .select('page_slug')
+    .eq('card_id', cardId)
+    .maybeSingle();
+  const slug = String((data as { page_slug?: string | null } | null)?.page_slug ?? '').trim();
+  if (slug) revalidatePath(`/empreendimento/${slug}`);
+}
+
 export async function excluirImobSimulacaoEmpreendimento(
   cardId: string,
   id: string,
@@ -357,13 +513,53 @@ export async function excluirImobSimulacaoEmpreendimento(
   const check = await assertCardExiste(auth.supabase, cardId);
   if (!check.ok) return check;
 
+  const { data: alvo, error: errAlvo } = await auth.supabase
+    .from('imob_card_empreendimentos')
+    .select('id, simulacao_pagamento_id')
+    .eq('id', id)
+    .eq('card_id', cardId)
+    .maybeSingle();
+  if (errAlvo) return { ok: false, error: errAlvo.message };
+
+  const simVinculada = String(
+    (alvo as { simulacao_pagamento_id?: string | null } | null)?.simulacao_pagamento_id ?? '',
+  ).trim();
+
+  const { data: sims, error: errSims } = await auth.supabase
+    .from('simulacoes_pagamento')
+    .select('id, inputs')
+    .eq('kanban_card_id', cardId)
+    .not('nome', 'is', null);
+  if (errSims) return { ok: false, error: errSims.message };
+
+  const ids = new Set<string>();
+  if (simVinculada) ids.add(simVinculada);
+  for (const row of (sims ?? []) as Array<{ id?: string; inputs?: unknown }>) {
+    const sid = String(row.id ?? '').trim();
+    if (!sid) continue;
+    const inputs =
+      row.inputs && typeof row.inputs === 'object' && !Array.isArray(row.inputs)
+        ? (row.inputs as Record<string, unknown>)
+        : {};
+    if (String(inputs.empreendimento_id ?? '').trim() === id) ids.add(sid);
+  }
+
+  if (ids.size > 0) {
+    const { error: errDelSims } = await auth.supabase
+      .from('simulacoes_pagamento')
+      .delete()
+      .in('id', [...ids])
+      .eq('kanban_card_id', cardId);
+    if (errDelSims) return { ok: false, error: errDelSims.message };
+  }
+
   const { error } = await auth.supabase
     .from('imob_card_empreendimentos')
     .delete()
     .eq('id', id)
     .eq('card_id', cardId);
   if (error) return { ok: false, error: error.message };
-  revalidatePath('/');
+  await revalidateJornadaDoCard(auth.supabase, cardId);
   return { ok: true };
 }
 

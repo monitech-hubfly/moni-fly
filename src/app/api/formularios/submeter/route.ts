@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { resolverRedeFranqueadoPorNumero } from '@/lib/formularios/resolver-franqueado';
 
 type ValorEntrada = {
   campo_id?: string;
@@ -32,7 +31,7 @@ export async function POST(req: Request) {
     const admin = createAdminClient();
     const { data: resposta, error: rErr } = await admin
       .from('formulario_respostas')
-      .select('id, status, token_id, card_id, rede_franqueado_id, formulario_id, numero_franquia')
+      .select('id, status, token_id, card_id, formulario_id')
       .eq('id', respostaId)
       .single();
 
@@ -73,35 +72,15 @@ export async function POST(req: Request) {
       }
     }
 
-    const numero = String(body.numero_franquia ?? body.numeroFranquia ?? resposta.numero_franquia ?? '').trim();
-    const nome = String(body.nome_franqueado ?? body.nomeFranqueado ?? '').trim();
-    let redeId = (resposta.rede_franqueado_id as string | null) ?? null;
-    if (!redeId && !resposta.card_id && numero) {
-      redeId = await resolverRedeFranqueadoPorNumero(admin, numero);
-    }
-    if (!resposta.card_id && !redeId) {
-      return NextResponse.json(
-        { ok: false, error: 'Não encontramos a franquia informada. Confira o número e envie de novo.' },
-        { status: 422 },
-      );
-    }
-
     const { error: upErr } = await admin
       .from('formulario_respostas')
       .update({
         status: 'enviado',
         enviado_em: new Date().toISOString(),
-        rede_franqueado_id: redeId,
-        numero_franquia: numero || null,
-        nome_franqueado: nome || null,
       })
       .eq('id', respostaId);
 
     if (upErr) return NextResponse.json({ error: 'Erro ao finalizar envio.' }, { status: 500 });
-
-    if (resposta.token_id) {
-      await admin.from('formulario_tokens').update({ usado: true }).eq('id', resposta.token_id);
-    }
 
     if (resposta.card_id) {
       await admin.from('kanban_historico').insert({

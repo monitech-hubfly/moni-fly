@@ -173,6 +173,7 @@ export function deveDispararBastaoAcoplamentoAutomatico(
   const slug = String(novaFaseSlug ?? '').trim();
   const kid = String(kanbanPaiId ?? '').trim();
   if (slug === FASE_SLUGS.ACOPLAMENTO && kid === KANBAN_IDS.PORTFOLIO) return true;
+  if (slug === FASE_SLUGS.SR_ACOPLAMENTO && kid === KANBAN_IDS.SHOWROOM) return true;
   if (
     kid === KANBAN_IDS.LOTEADORES &&
     (LOTEADORES_FASES_BASTAO_ACOPLAMENTO as readonly string[]).includes(slug)

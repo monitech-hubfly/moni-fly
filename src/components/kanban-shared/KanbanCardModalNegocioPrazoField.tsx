@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import type { NegocioPrazoDraft, FaseNegocioPrazoOpcao } from '@/lib/kanban/dados-negocio-prazo';
 import { SearchableSelect } from '@/components/SearchableSelect';
 
@@ -9,6 +10,7 @@ type Props = {
   onChange: (draft: NegocioPrazoDraft) => void;
   faseOpcoes: FaseNegocioPrazoOpcao[];
   disabled?: boolean;
+  children?: ReactNode;
 };
 
 const inputClass =
@@ -24,6 +26,7 @@ export function KanbanCardModalNegocioPrazoField({
   onChange,
   faseOpcoes,
   disabled = false,
+  children,
 }: Props) {
   const modo = draft.modo;
 
@@ -131,6 +134,7 @@ export function KanbanCardModalNegocioPrazoField({
           </label>
         </div>
       )}
+      {children}
     </fieldset>
   );
 }

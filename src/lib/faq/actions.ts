@@ -9,6 +9,7 @@ import type { FaqStatus } from './types';
 function revalidateFaq() {
   revalidatePath(appPath('/universidade/faq'));
   revalidatePath(appPath('/admin/universidade/faq'));
+  revalidatePath('/ajuda');
 }
 
 async function requireUser() {
@@ -201,6 +202,18 @@ export async function definirStatusArtigoFaq(
   const { supabase, user } = staff;
   const aid = id.trim();
   if (!aid) return { ok: false, error: 'Artigo inválido.' };
+  if (status === 'published') {
+    const { data: atual } = await supabase
+      .from('faq_articles')
+      .select('answer, category_id')
+      .eq('id', aid)
+      .maybeSingle();
+    const resposta = String((atual as { answer?: string | null } | null)?.answer ?? '').trim();
+    const categoria = (atual as { category_id?: string | null } | null)?.category_id;
+    if (!resposta || !categoria) {
+      return { ok: false, error: 'Escreva a resposta e escolha a categoria antes de publicar.' };
+    }
+  }
   const patch: Record<string, unknown> = { status, updated_by: user.id };
   patch.archived_at = status === 'archived' ? new Date().toISOString() : null;
   if (status === 'published') patch.reviewed_at = new Date().toISOString();

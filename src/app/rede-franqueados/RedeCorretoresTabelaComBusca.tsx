@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Pencil, Check } from 'lucide-react'
+import { Archive, Check, Maximize2, Minimize2, Pencil } from 'lucide-react'
 import { RedeTabelaToolbarBusca } from '@/app/rede-franqueados/RedeTabelaToolbarBusca'
 import { redeTh } from '@/app/rede-franqueados/rede-ui'
-import { aprovarRedeCorretor } from '@/app/rede-franqueados/rede-corretores-actions'
+import { aprovarRedeCorretor, arquivarRedeCorretor } from '@/app/rede-franqueados/rede-corretores-actions'
 import { RedeCorretorFichaModal } from '@/components/RedeCorretorFichaModal'
 import { MoniTabelaScrollSync } from '@/components/MoniTabelaScrollSync'
 import { labelBanco } from '@/lib/bancos-br'
@@ -30,7 +30,7 @@ type Props = {
 const td = 'px-3 py-2.5 text-stone-700'
 const tdNowrap = `${td} whitespace-nowrap`
 const thGroup =
-  'border-b border-stone-200 bg-stone-100/90 px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-stone-600'
+  'border-b border-stone-200 bg-[var(--moni-surface-0)] px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-wider text-stone-600'
 
 function dash(s: string | null | undefined): string {
   const t = String(s ?? '').trim()
@@ -44,10 +44,119 @@ function fmtDataBr(iso: string | null | undefined): string {
   return `${m[3]}/${m[2]}/${m[1]}`
 }
 
-function labelCidades(row: RedeCorretorRow): string {
-  const list = row.atuacao_cidades ?? []
-  if (list.length === 0) return '—'
-  return list.map((c) => (c.uf ? `${c.nome}/${c.uf}` : c.nome)).join(', ')
+const MAX_LINHAS_LISTA = 3
+
+function BotaoMaisLinhas({
+  aberto,
+  restantes,
+  singular,
+  plural,
+  onToggle,
+}: {
+  aberto: boolean
+  restantes: number
+  singular: string
+  plural: string
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
+      className="mt-0.5 inline-flex min-h-[28px] w-fit items-center gap-1 rounded-md px-1 py-0.5 text-[10px] font-semibold text-[var(--moni-navy-800)] underline-offset-2 hover:underline"
+      aria-expanded={aberto}
+    >
+      {aberto ? (
+        <>
+          <Minimize2 className="h-3 w-3 shrink-0" aria-hidden />
+          Minimizar
+        </>
+      ) : (
+        <>
+          <Maximize2 className="h-3 w-3 shrink-0" aria-hidden />
+          +{restantes} {restantes === 1 ? singular : plural}
+        </>
+      )}
+    </button>
+  )
+}
+
+function EmpreendimentosVinculadosCell({
+  links,
+}: {
+  links: NonNullable<RedeCorretorRow['links_jornada']>
+}) {
+  const [aberto, setAberto] = useState(false)
+  if (links.length === 0) return <span className="text-[var(--moni-text-tertiary)]">—</span>
+  const precisa = links.length > MAX_LINHAS_LISTA
+  const visiveis = aberto || !precisa ? links : links.slice(0, MAX_LINHAS_LISTA)
+  return (
+    <div className="flex w-[18rem] max-w-full flex-col gap-1 text-xs leading-snug text-[var(--moni-text-secondary)]">
+      {visiveis.map((link) => {
+        const texto = link.url ? `${link.nome} ${link.url}` : `${link.nome} — jornada ainda não disponível`
+        return link.url ? (
+          <a
+            key={link.empreendimentoId}
+            href={link.url}
+            target="_blank"
+            rel="noreferrer"
+            title={texto}
+            className="block truncate whitespace-nowrap text-[var(--moni-navy-800)] underline-offset-2 hover:underline"
+          >
+            {texto}
+          </a>
+        ) : (
+          <p key={link.empreendimentoId} title={texto} className="truncate whitespace-nowrap text-[var(--moni-text-tertiary)]">
+            {texto}
+          </p>
+        )
+      })}
+      {precisa ? (
+        <BotaoMaisLinhas
+          aberto={aberto}
+          restantes={links.length - MAX_LINHAS_LISTA}
+          singular="empreendimento"
+          plural="empreendimentos"
+          onToggle={() => setAberto((atual) => !atual)}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function linhasCidades(row: RedeCorretorRow): string[] {
+  return (row.atuacao_cidades ?? [])
+    .map((cidade) => String(cidade.nome ?? '').trim())
+    .filter(Boolean)
+}
+
+function CidadesAtuacaoCell({ row }: { row: RedeCorretorRow }) {
+  const [aberto, setAberto] = useState(false)
+  const linhas = linhasCidades(row)
+  if (linhas.length === 0) return <span className="text-[var(--moni-text-tertiary)]">—</span>
+  const precisa = linhas.length > MAX_LINHAS_LISTA
+  const visiveis = aberto || !precisa ? linhas : linhas.slice(0, MAX_LINHAS_LISTA)
+  return (
+    <div className="flex min-w-0 max-w-[min(16rem,100%)] flex-col gap-0.5 text-xs leading-snug text-[var(--moni-text-secondary)]">
+      {visiveis.map((linha, i) => (
+        <div key={`${i}-${linha}`} className="block min-w-0 break-words">
+          {linha}
+        </div>
+      ))}
+      {precisa ? (
+        <BotaoMaisLinhas
+          aberto={aberto}
+          restantes={linhas.length - MAX_LINHAS_LISTA}
+          singular="cidade"
+          plural="cidades"
+          onToggle={() => setAberto((atual) => !atual)}
+        />
+      ) : null}
+    </div>
+  )
 }
 
 export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao = 0 }: Props) {
@@ -55,6 +164,8 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
   const debouncedBusca = useDebounce(busca);
   const [modalRow, setModalRow] = useState<RedeCorretorRow | null | undefined>(undefined)
   const [aprovandoId, setAprovandoId] = useState<string | null>(null)
+  const [arquivandoId, setArquivandoId] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -71,8 +182,20 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
 
   async function aprovar(id: string) {
     setAprovandoId(id)
-    await aprovarRedeCorretor(id)
+    setAviso(null)
+    const r = await aprovarRedeCorretor(id)
     setAprovandoId(null)
+    setAviso(r.ok ? r.mensagem : r.error)
+    router.refresh()
+  }
+
+  async function arquivar(id: string, nome: string) {
+    if (!confirm(`Arquivar ${nome}? O status passa para inativo.`)) return
+    setArquivandoId(id)
+    setAviso(null)
+    const r = await arquivarRedeCorretor(id)
+    setArquivandoId(null)
+    setAviso(r.ok ? 'Corretor arquivado. Status: inativo.' : r.error)
     router.refresh()
   }
 
@@ -89,8 +212,14 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
         {children}
       </RedeTabelaToolbarBusca>
 
-      <MoniTabelaScrollSync className="rounded-lg border border-stone-200 bg-white shadow-sm">
-        <table className="min-w-[2400px] border-collapse text-left text-sm">
+      {aviso ? (
+        <p className="text-sm text-[var(--moni-text-secondary)]" role="status">
+          {aviso}
+        </p>
+      ) : null}
+
+      <MoniTabelaScrollSync className="rounded-lg border border-stone-200 bg-[var(--moni-surface-0)] shadow-sm">
+        <table className="moni-tabela-corretores min-w-[2400px] border-collapse bg-[var(--moni-surface-0)] text-left text-sm">
           <thead>
             <tr>
               <th colSpan={3} className={thGroup}>
@@ -115,7 +244,7 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                 <span className="sr-only">Ações</span>
               </th>
             </tr>
-            <tr className="border-b border-stone-200 bg-stone-50">
+            <tr className="border-b border-stone-200 bg-[var(--moni-surface-0)]">
               <th className={redeTh}>Código</th>
               <th className={redeTh}>Nome / Razão social</th>
               <th className={redeTh}>CPF/CNPJ</th>
@@ -135,7 +264,7 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
               <th className={redeTh}>Pix</th>
               <th className={`${redeTh} border-l border-stone-200`}>Status</th>
               <th className={redeTh}>Observações</th>
-              <th className={redeTh}>Link simulador</th>
+              <th className={redeTh}>Empreendimentos vinculados</th>
             </tr>
           </thead>
           <tbody>
@@ -154,7 +283,7 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                   : ''
                 const pix = [pixTipo, row.conta_pix_chave?.trim()].filter(Boolean).join(' · ')
                 return (
-                  <tr key={row.id} className="border-b border-stone-100 hover:bg-stone-50/70">
+                  <tr key={row.id} className="border-b border-stone-100">
                     <td className={`${tdNowrap} font-medium text-stone-900`}>
                       {dash(row.n_corretor)}
                     </td>
@@ -175,7 +304,9 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                         ? (row.atuacao_ufs ?? []).join(', ')
                         : '—'}
                     </td>
-                    <td className={`${td} min-w-[14rem]`}>{labelCidades(row)}</td>
+                    <td className={`${td} min-w-[14rem]`}>
+                      <CidadesAtuacaoCell row={row} />
+                    </td>
                     <td className={`${td} min-w-[12rem] border-l border-stone-100`}>
                       {dash(row.email)}
                     </td>
@@ -194,19 +325,8 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                       {REDE_CORRETOR_STATUS_LABEL[row.status] ?? row.status}
                     </td>
                     <td className={`${td} min-w-[12rem]`}>{dash(row.observacoes)}</td>
-                    <td className={`${td} min-w-[12rem]`}>
-                      {row.link_simulador?.trim() ? (
-                        <a
-                          href={row.link_simulador}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="break-all text-[var(--moni-navy-800)] underline-offset-2 hover:underline"
-                        >
-                          {row.link_simulador}
-                        </a>
-                      ) : (
-                        '—'
-                      )}
+                    <td className={`${td} w-[18rem] max-w-[18rem] overflow-hidden`}>
+                      <EmpreendimentosVinculadosCell links={row.links_jornada ?? []} />
                     </td>
                     <td className={`${td} border-l border-stone-100`}>
                       <div className="flex items-center gap-0.5">
@@ -216,16 +336,27 @@ export function RedeCorretoresTabelaComBusca({ rows, children, solicitarCriacao 
                             title="Aprovar cadastro"
                             disabled={aprovandoId === row.id}
                             onClick={() => void aprovar(row.id)}
-                            className="rounded-md p-1.5 text-[var(--moni-green-800)] hover:bg-[var(--moni-surface-100)] disabled:opacity-50"
+                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-[var(--moni-green-800)] hover:bg-[var(--moni-surface-100)] disabled:opacity-50"
                           >
                             <Check className="h-4 w-4" />
+                          </button>
+                        ) : null}
+                        {row.status !== 'inativo' ? (
+                          <button
+                            type="button"
+                            title="Arquivar"
+                            disabled={arquivandoId === row.id}
+                            onClick={() => void arquivar(row.id, row.nome)}
+                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-[var(--moni-text-secondary)] hover:bg-[var(--moni-surface-100)] disabled:opacity-50"
+                          >
+                            <Archive className="h-4 w-4" />
                           </button>
                         ) : null}
                         <button
                           type="button"
                           title="Editar ficha"
                           onClick={() => setModalRow(row)}
-                          className="rounded-md p-1.5 text-stone-600 hover:bg-stone-200/80"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-stone-600 hover:bg-stone-200/80"
                         >
                           <Pencil className="h-4 w-4" />
                         </button>

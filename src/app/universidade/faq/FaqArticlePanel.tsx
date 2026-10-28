@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+// @ts-ignore
 import remarkGfm from 'remark-gfm';
 import { recordFaqFeedback } from '@/lib/actions/faq-actions';
 import type { FaqArticle } from '@/types/faq';
@@ -13,6 +14,7 @@ export function FaqArticlePanel({
   categoriaNome,
   aberto,
   voto,
+  mostrarVoto = true,
   onFechar,
   onVoto,
 }: {
@@ -20,6 +22,7 @@ export function FaqArticlePanel({
   categoriaNome: string;
   aberto: boolean;
   voto: Voto | null;
+  mostrarVoto?: boolean;
   onFechar: () => void;
   onVoto: (articleId: string, voto: Voto) => void;
 }) {
@@ -123,7 +126,7 @@ export function FaqArticlePanel({
             <span />
           )}
           <div className="flex flex-wrap items-center gap-2">
-            {voto ? (
+            {!mostrarVoto ? null : voto ? (
               <p className="font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-secondary)]">
                 Obrigado pelo retorno.
               </p>

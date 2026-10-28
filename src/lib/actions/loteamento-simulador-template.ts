@@ -1,6 +1,5 @@
 'use server';
 
-import { randomBytes } from 'node:crypto';
 import { revalidatePath, unstable_noStore as noStore } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { isRedeStaffRole } from '@/lib/authz';
@@ -14,6 +13,9 @@ import {
   isColunaSimulador546Ausente,
   isColunaSimulador547Ausente,
   isColunaSimulador548Ausente,
+  isColunaSimulador571Ausente,
+  isColunaSimulador575Ausente,
+  isColunaSimulador576Ausente,
   isColunaSimuladorAjusteAusente,
   isTabelaSimuladorAusente,
   mapTemplateRow,
@@ -27,17 +29,34 @@ import {
   TOAST_TEMPLATE_SALVO,
   inferirCondicaoLote,
   valoresImobDaSimulacao,
+  normalizarSlugJornadaPublica,
   type LoteamentoSimuladorTemplateDraft,
   type LoteamentoSimuladorTemplateRow,
   type SimulacaoPagamentoResumo,
   type SimuladorOfertaDraft,
 } from '@/lib/loteamento-simulador-template';
 import { vincularOfertaAoEmpreendimentoImob } from '@/lib/actions/imob-simulacoes-card';
+import { gerarSlugCard } from '@/lib/utils/slug';
+import {
+  calcularOferta,
+  calcularParcelaUnicaMinimaConfirmada,
+  entradaAbaixoDoMinimo,
+  entradaMinimaOferta,
+  mensagemEntradaMinima,
+  mensagemParcelaUnicaMinima,
+  parcelaUnicaAbaixoDoMinimo,
+  type OfertaConfig,
+} from '@/lib/simulador/calcular-oferta';
+import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
+import { MENSAGEM_TERRENO_OBRIGATORIO_OFERTA } from '@/lib/simulador/valor-exibido-jornada';
 
 type Ok = {
   ok: true;
   template: LoteamentoSimuladorTemplateRow;
   link: string | null;
+  linkMoni: string | null;
+  pageSlug: string | null;
+  pageAtiva?: boolean;
   mensagem: string;
 };
 type Err = { ok: false; error: string };
@@ -49,11 +68,25 @@ type AuthOk = {
 
 const TABELA = 'loteamento_simulador_templates';
 
-function revalidateAposMutacaoSimulador(cardId: string) {
+async function revalidateAposMutacaoSimulador(
+  cardId: string,
+  slugJornada?: string | null,
+  supabase?: Awaited<ReturnType<typeof createClient>>,
+) {
   revalidatePath('/hub-funis');
   revalidatePath('/loteadores');
   revalidatePath(`/loteadores/${cardId}/simulador-template`);
   revalidatePath(`/loteadores/${cardId}/simulador-template/ofertas`);
+  let slug = String(slugJornada ?? '').trim();
+  if (!slug && supabase) {
+    const { data } = await supabase
+      .from('imob_card_modelo')
+      .select('page_slug')
+      .eq('card_id', cardId)
+      .maybeSingle();
+    slug = String((data as { page_slug?: string | null } | null)?.page_slug ?? '').trim();
+  }
+  if (slug) revalidatePath(`/empreendimento/${slug}`);
 }
 
 async function requireUser(): Promise<AuthOk | Err> {
@@ -89,12 +122,105 @@ function linkCompleto(token: string | null | undefined): string | null {
   return `${getPublicAppUrl()}/simulador/${t}`;
 }
 
+function linkJornadaPublica(slug: string | null | undefined): string | null {
+  const s = String(slug ?? '').trim();
+  if (!s) return null;
+  return `${getPublicAppUrl()}/empreendimento/${encodeURIComponent(s)}`;
+}
+
+function erroSlugJornada(message: string, code?: string): Err {
+  if (code === '23505' || /duplicate key|idx_imob_card_modelo_page_slug/i.test(message)) {
+    return { ok: false, error: 'Este slug já está em uso por outro empreendimento.' };
+  }
+  if (/page_slug|schema cache|does not exist|could not find/i.test(message)) {
+    return { ok: false, error: 'Coluna page_slug ainda não existe neste banco. Aplique a migration 560 no DEV.' };
+  }
+  return { ok: false, error: message };
+}
+
+async function persistirSlugJornadaDoCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+  slug: string | null,
+): Promise<{ ok: true; slug: string | null; pageAtiva: boolean } | Err> {
+  const slugLimpo = String(slug ?? '').trim() || null;
+  if (slugLimpo) {
+    const { data: existing, error: errSlug } = await supabase
+      .from('imob_card_modelo')
+      .select('card_id')
+      .eq('page_slug', slugLimpo)
+      .neq('card_id', cardId)
+      .maybeSingle();
+    if (errSlug && !/page_slug|schema cache|does not exist|could not find/i.test(errSlug.message)) {
+      return { ok: false, error: errSlug.message };
+    }
+    if (existing) {
+      return {
+        ok: false,
+        error: 'Este slug já está em uso por outro empreendimento. Escolha um slug diferente.',
+      };
+    }
+  }
+
+  const atual = await supabase
+    .from('imob_card_modelo')
+    .select('planilha_lotes_path')
+    .eq('card_id', cardId)
+    .maybeSingle();
+  const planilha = String(
+    (atual.data as { planilha_lotes_path?: string | null } | null)?.planilha_lotes_path ?? '',
+  ).trim();
+  const pageAtiva = !!(slugLimpo && planilha);
+  const patch = {
+    page_slug: slugLimpo,
+    page_ativa: pageAtiva,
+    updated_at: new Date().toISOString(),
+  };
+  const upd = await supabase
+    .from('imob_card_modelo')
+    .update(patch as never)
+    .eq('card_id', cardId)
+    .select('card_id');
+  if (upd.error) return erroSlugJornada(upd.error.message, upd.error.code);
+  if ((upd.data ?? []).length > 0) return { ok: true, slug: slugLimpo, pageAtiva };
+
+  const ins = await supabase.from('imob_card_modelo').insert({ card_id: cardId, ...patch } as never);
+  if (ins.error) return erroSlugJornada(ins.error.message, ins.error.code);
+  return { ok: true, slug: slugLimpo, pageAtiva };
+}
+
+function slugDesteCard(cardId: string, nomeCondominio: string | null): string {
+  return gerarSlugCard(nomeCondominio, cardId);
+}
+
+async function carregarSlugJornadaDoCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('imob_card_modelo')
+    .select('page_slug')
+    .eq('card_id', cardId)
+    .maybeSingle();
+  if (error) {
+    if (!/page_slug|schema cache|does not exist|could not find/i.test(error.message)) {
+      console.warn('[simulador-template] slug da jornada:', error.message);
+    }
+    return null;
+  }
+  return String((data as { page_slug?: string | null } | null)?.page_slug ?? '').trim() || null;
+}
+
 function mensagemTabelaAusente(): string {
   return 'Tabela do simulador ainda não existe neste banco. Aplique a migration 544 no DEV.';
 }
 
 function mensagemColunaAusente(): string {
-  return 'Faltam colunas do simulador neste banco. Aplique as migrations 545, 546, 547 e 548 no DEV.';
+  return 'Faltam colunas do simulador neste banco. Aplique as migrations 545, 546, 547, 548, 575 e 576 no DEV.';
+}
+
+function mensagemColunas575(): string {
+  return 'Colunas tipo_taxa_gestao / taxa_gestao_valor / percentual_plataforma_entrada ausentes neste banco. Aplique a migration 636 e rode NOTIFY pgrst, \'reload schema\'.';
 }
 
 function erroBancoSimulador(message: string): Err {
@@ -102,6 +228,9 @@ function erroBancoSimulador(message: string): Err {
     isColunaSimulador548Ausente(message) ||
     isColunaSimulador547Ausente(message) ||
     isColunaSimulador546Ausente(message) ||
+    isColunaSimulador571Ausente(message) ||
+    isColunaSimulador575Ausente(message) ||
+    isColunaSimulador576Ausente(message) ||
     isColunaSimuladorAjusteAusente(message)
   ) {
     return { ok: false, error: mensagemColunaAusente() };
@@ -115,16 +244,26 @@ function erroBancoSimulador(message: string): Err {
 async function carregarCardLoteadores(
   supabase: Awaited<ReturnType<typeof createClient>>,
   cardId: string,
-): Promise<{ ok: true; titulo: string; redeLoteadorId: string | null; loteadorNome: string | null } | Err> {
+): Promise<
+  | {
+      ok: true;
+      titulo: string;
+      nomeCondominio: string | null;
+      redeLoteadorId: string | null;
+      loteadorNome: string | null;
+    }
+  | Err
+> {
   const { data, error } = await supabase
     .from('kanban_cards')
-    .select('id, titulo, kanban_id, rede_loteador_id')
+    .select('id, titulo, nome_condominio, kanban_id, rede_loteador_id')
     .eq('id', cardId)
     .maybeSingle();
   if (error) return { ok: false, error: error.message };
   if (!data) return { ok: false, error: 'Card não encontrado.' };
   const row = data as {
     titulo?: string | null;
+    nome_condominio?: string | null;
     kanban_id?: string | null;
     rede_loteador_id?: string | null;
   };
@@ -144,6 +283,7 @@ async function carregarCardLoteadores(
   return {
     ok: true,
     titulo: String(row.titulo ?? '').trim() || 'Card sem título',
+    nomeCondominio: String(row.nome_condominio ?? '').trim() || null,
     redeLoteadorId,
     loteadorNome,
   };
@@ -153,10 +293,14 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
   | {
       ok: true;
       cardTitulo: string;
+      nomeCondominio: string | null;
       loteadorNome: string | null;
       redeLoteadorId: string | null;
       template: LoteamentoSimuladorTemplateRow | null;
       link: string | null;
+      linkMoni: string | null;
+      empreendimentoSlug: string | null;
+      pageAtiva: boolean;
       simulacoes: SimulacaoPagamentoResumo[];
     }
   | Err
@@ -181,27 +325,49 @@ export async function carregarSimuladorTemplateDoCard(cardId: string): Promise<
 
   const row = Array.isArray(data) ? data[0] : data;
   const template = row ? mapTemplateRow(row as Record<string, unknown>) : null;
-  const simulacoes = template ? await listarSimulacoesDoTemplateId(auth.supabase, template.id) : [];
+  const [simulacoes, slugBanco] = await Promise.all([
+    template ? listarSimulacoesDoTemplateId(auth.supabase, template.id) : Promise.resolve([]),
+    carregarSlugJornadaDoCard(auth.supabase, cardId),
+  ]);
+  const slugDoCard = slugDesteCard(cardId, card.nomeCondominio);
+  let empreendimentoSlug = slugBanco;
+  let pageAtiva = false;
+  if (slugDoCard !== (slugBanco ?? '')) {
+    const gravado = await persistirSlugJornadaDoCard(auth.supabase, cardId, slugDoCard);
+    if (gravado.ok) {
+      empreendimentoSlug = gravado.slug;
+      pageAtiva = gravado.pageAtiva;
+    } else {
+      empreendimentoSlug = slugDoCard;
+    }
+  } else {
+    const { data: modelo } = await auth.supabase
+      .from('imob_card_modelo')
+      .select('page_ativa')
+      .eq('card_id', cardId)
+      .maybeSingle();
+    pageAtiva = (modelo as { page_ativa?: boolean | null } | null)?.page_ativa === true;
+    empreendimentoSlug = slugBanco;
+  }
   return {
     ok: true,
     cardTitulo: card.titulo,
+    nomeCondominio: card.nomeCondominio,
     loteadorNome: card.loteadorNome,
     redeLoteadorId: card.redeLoteadorId,
     template,
     link: linkCompleto(template?.link_token),
+    linkMoni: pageAtiva ? linkJornadaPublica(empreendimentoSlug) : null,
+    empreendimentoSlug,
+    pageAtiva,
     simulacoes,
   };
 }
 
-function rowSemColunas546(row: Record<string, unknown>): Record<string, unknown> {
-  const {
-    taxa_juros_parcelado_mes,
-    taxa_juros_financiamento_anual,
-    ...rest
-  } = row;
-  void taxa_juros_parcelado_mes;
-  void taxa_juros_financiamento_anual;
-  return rest;
+function omitKeys(row: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  const next = { ...row };
+  for (const key of keys) delete next[key];
+  return next;
 }
 
 function rowSemColunas545(row: Record<string, unknown>): Record<string, unknown> {
@@ -214,6 +380,54 @@ function rowSemColunas545(row: Record<string, unknown>): Record<string, unknown>
     ...rest,
     prazo_desembolso_sugerido: prazo_obra_meses ?? rest.prazo_desembolso_sugerido,
     premissa_entrada_lote_nao_pago: entrada_minima_loteadora ?? null,
+  };
+}
+
+const COLUNAS_575 = ['tipo_taxa_gestao', 'taxa_gestao_valor', 'percentual_plataforma_entrada'] as const;
+
+/**
+ * PostgREST/Postgres: "Could not find the 'tipo_juros_cp' column ... schema cache"
+ * ou `column "tipo_juros_cp" of relation "..." does not exist`.
+ * Só aceita o nome extraído desses padrões — não varre qualquer trecho entre aspas.
+ */
+function colunaAusenteDoErro(
+  message: string,
+  payload: Record<string, unknown>,
+): string | null {
+  const m = message ?? '';
+  const especificos = [
+    /Could not find the ['"]([a-z_][a-z0-9_]*)['"] column/i,
+    /column ['"]([a-z_][a-z0-9_]*)['"] of relation/i,
+    /column ([a-z_][a-z0-9_]*) does not exist/i,
+  ];
+  for (const re of especificos) {
+    const hit = m.match(re);
+    const col = hit?.[1];
+    if (col && Object.prototype.hasOwnProperty.call(payload, col)) return col;
+  }
+  return null;
+}
+
+function payloadAposErroColuna(
+  payload: Record<string, unknown>,
+  message: string,
+): Record<string, unknown> | null {
+  const col = colunaAusenteDoErro(message, payload);
+  if (!col) return null;
+  if ((COLUNAS_575 as readonly string[]).includes(col)) return null;
+  if (col === 'prazo_obra_meses' || col === 'entrada_minima_loteadora') {
+    return rowSemColunas545(payload);
+  }
+  return omitKeys(payload, [col]);
+}
+
+/** Valores já convertidos em draftParaRow: fração (7% → 0.07), fixo em R$. */
+function patchCamposGestaoPlataforma(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    pct_taxa_gestao: Number(row.pct_taxa_gestao ?? 0),
+    tipo_taxa_gestao: row.tipo_taxa_gestao === 'fixo' ? 'fixo' : 'percentual',
+    taxa_gestao_valor: Number(row.taxa_gestao_valor ?? 0),
+    percentual_plataforma_entrada: Number(row.percentual_plataforma_entrada ?? 0),
   };
 }
 
@@ -236,18 +450,29 @@ function draftParaRow(
       nome,
       pct_itbi: percentualUiParaFracao(draft.pct_itbi),
       pct_taxa_plataforma: percentualUiParaFracao(draft.pct_taxa_plataforma),
-      pct_taxa_gestao: percentualUiParaFracao(draft.pct_taxa_gestao),
+      pct_taxa_gestao: Number(percentualUiParaFracao(draft.pct_taxa_gestao)),
+      tipo_taxa_gestao: draft.tipo_taxa_gestao === 'fixo' ? 'fixo' : 'percentual',
+      taxa_gestao_valor: Math.max(
+        0,
+        parseMoneyText(draft.taxa_gestao_valor) ?? parseDecimalInput(draft.taxa_gestao_valor) ?? 0,
+      ),
+      percentual_plataforma_entrada: Number(
+        Math.min(1, Math.max(0, percentualUiOpcionalParaFracao(draft.percentual_plataforma_entrada) ?? 0)),
+      ),
       pct_lucro_loteadora: percentualUiParaFracao(draft.pct_lucro_loteadora),
       pct_lucro_moni: percentualUiParaFracao(draft.pct_lucro_moni),
       pct_lucro_franqueado: percentualUiParaFracao(draft.pct_lucro_franqueado),
       pct_impostos: percentualUiParaFracao(draft.pct_impostos),
       pct_comissao_corretor: percentualUiParaFracao(draft.pct_comissao_corretor),
-      taxa_juros_credito_ponte: draft.taxa_juros_credito_ponte.trim()
-        ? percentualUiParaFracao(draft.taxa_juros_credito_ponte)
-        : JUROS_CREDITO_PONTE_PADRAO_FRACAO,
-      taxa_juros_financiamento_anual: draft.taxa_juros_financiamento_anual.trim()
-        ? percentualUiParaFracao(draft.taxa_juros_financiamento_anual)
-        : TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO,
+      taxa_juros_credito_ponte:
+        draft.taxa_juros_credito_ponte.trim() === ''
+          ? JUROS_CREDITO_PONTE_PADRAO_FRACAO
+          : percentualUiParaFracao(draft.taxa_juros_credito_ponte),
+      tipo_juros_cp: draft.tipo_juros_cp === 'total' ? 'total' : 'mes_a_mes',
+      taxa_juros_financiamento_anual:
+        draft.taxa_juros_financiamento_anual.trim() === ''
+          ? TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO
+          : percentualUiParaFracao(draft.taxa_juros_financiamento_anual),
       taxa_juros_parcelado_mes: percentualUiOpcionalParaFracao(draft.taxa_juros_parcelado_mes),
       entrada_minima_loteadora: montarPremissa(
         draft.entrada_minima_tipo,
@@ -263,11 +488,15 @@ function draftParaRow(
 export async function salvarSimuladorTemplateDoCard(
   cardId: string,
   draft: LoteamentoSimuladorTemplateDraft,
+  _pageSlugRaw = '',
 ): Promise<Ok | Err> {
   const auth = await requireStaff();
   if (!auth.ok) return auth;
   const card = await carregarCardLoteadores(auth.supabase, cardId);
   if (!card.ok) return card;
+
+  const slugNorm = normalizarSlugJornadaPublica(slugDesteCard(cardId, card.nomeCondominio));
+  if (!slugNorm.ok) return slugNorm;
 
   const packed = draftParaRow(draft, {
     cardId,
@@ -277,6 +506,14 @@ export async function salvarSimuladorTemplateDoCard(
   });
   if (!packed.ok) return packed;
   const row = packed.row;
+  console.log('[salvarSimuladorTemplate] payload enviado ao Supabase', {
+    keys: Object.keys(row),
+    tipo_taxa_gestao: row.tipo_taxa_gestao,
+    pct_taxa_gestao: row.pct_taxa_gestao,
+    taxa_gestao_valor: row.taxa_gestao_valor,
+    percentual_plataforma_entrada: row.percentual_plataforma_entrada,
+    payload: row,
+  });
 
   const { data: existente, error: errExist } = await auth.supabase
     .from(TABELA)
@@ -287,14 +524,10 @@ export async function salvarSimuladorTemplateDoCard(
     return erroBancoSimulador(errExist.message);
   }
 
-  const payloads = [
-    row,
-    rowSemColunas546(row),
-    rowSemColunas545(rowSemColunas546(row)),
-  ];
+  let payload: Record<string, unknown> = row;
   let saved: Record<string, unknown> | null = null;
   let lastError: string | null = null;
-  for (const payload of payloads) {
+  for (let tentativa = 0; tentativa < 6; tentativa += 1) {
     if (existente?.id) {
       const { data, error } = await auth.supabase
         .from(TABELA)
@@ -307,9 +540,19 @@ export async function salvarSimuladorTemplateDoCard(
         break;
       }
       lastError = error.message;
-      if (!isColunaSimulador546Ausente(error.message) && !isColunaSimuladorAjusteAusente(error.message)) {
-        return erroBancoSimulador(error.message);
+      console.warn('[salvarSimuladorTemplate] update falhou', {
+        tentativa,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      if ((COLUNAS_575 as readonly string[]).includes(colunaAusenteDoErro(error.message, payload) ?? '')) {
+        return { ok: false, error: mensagemColunas575() };
       }
+      const next = payloadAposErroColuna(payload, error.message);
+      if (!next) return erroBancoSimulador(error.message);
+      payload = next;
     } else {
       const { data, error } = await auth.supabase
         .from(TABELA)
@@ -321,21 +564,83 @@ export async function salvarSimuladorTemplateDoCard(
         break;
       }
       lastError = error.message;
-      if (!isColunaSimulador546Ausente(error.message) && !isColunaSimuladorAjusteAusente(error.message)) {
-        return erroBancoSimulador(error.message);
+      console.warn('[salvarSimuladorTemplate] insert falhou', {
+        tentativa,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
+      if ((COLUNAS_575 as readonly string[]).includes(colunaAusenteDoErro(error.message, payload) ?? '')) {
+        return { ok: false, error: mensagemColunas575() };
       }
+      const next = payloadAposErroColuna(payload, error.message);
+      if (!next) return erroBancoSimulador(error.message);
+      payload = next;
     }
   }
   if (!saved) {
     return erroBancoSimulador(lastError ?? 'Não foi possível salvar o template.');
   }
 
+  const idSalvo = String(saved.id ?? existente?.id ?? '').trim();
+  if (idSalvo) {
+    const patch575 = patchCamposGestaoPlataforma(row);
+    console.log('[salvarSimuladorTemplate] patch dedicado 575', patch575);
+    for (const [coluna, valor] of Object.entries(patch575)) {
+      const { data: savedCampo, error: errCampo } = await auth.supabase
+        .from(TABELA)
+        .update({ [coluna]: valor } as never)
+        .eq('id', idSalvo)
+        .select('*')
+        .single();
+      if (!errCampo && savedCampo) {
+        saved = savedCampo as Record<string, unknown>;
+        continue;
+      }
+      if (!errCampo) continue;
+      console.warn('[salvarSimuladorTemplate] patch 575 falhou', {
+        coluna,
+        valor,
+        code: errCampo.code,
+        message: errCampo.message,
+      });
+      const ausente = colunaAusenteDoErro(errCampo.message, { [coluna]: valor });
+      if (ausente === coluna && (COLUNAS_575 as readonly string[]).includes(coluna)) {
+        return { ok: false, error: mensagemColunas575() };
+      }
+      if (ausente === coluna) continue;
+      return erroBancoSimulador(errCampo.message);
+    }
+  }
+
+  console.log('[salvarSimuladorTemplate] row retornada pelo banco', {
+    tipo_taxa_gestao: saved.tipo_taxa_gestao,
+    pct_taxa_gestao: saved.pct_taxa_gestao,
+    taxa_gestao_valor: saved.taxa_gestao_valor,
+    percentual_plataforma_entrada: saved.percentual_plataforma_entrada,
+    keys: Object.keys(saved),
+  });
+  if (
+    !Object.prototype.hasOwnProperty.call(saved, 'tipo_taxa_gestao') ||
+    !Object.prototype.hasOwnProperty.call(saved, 'percentual_plataforma_entrada') ||
+    !Object.prototype.hasOwnProperty.call(saved, 'taxa_gestao_valor')
+  ) {
+    return { ok: false, error: mensagemColunas575() };
+  }
+
   const template = mapTemplateRow(saved);
-  revalidateAposMutacaoSimulador(cardId);
+  const slugSalvo = await persistirSlugJornadaDoCard(auth.supabase, cardId, slugNorm.slug);
+  if (!slugSalvo.ok) return slugSalvo;
+
+  await revalidateAposMutacaoSimulador(cardId, slugSalvo.slug);
   return {
     ok: true,
     template,
     link: linkCompleto(template.link_token),
+    linkMoni: slugSalvo.pageAtiva ? linkJornadaPublica(slugSalvo.slug) : null,
+    pageSlug: slugSalvo.slug,
+    pageAtiva: slugSalvo.pageAtiva,
     mensagem: TOAST_TEMPLATE_SALVO,
   };
 }
@@ -362,43 +667,6 @@ async function listarSimulacoesDoTemplateId(
     .filter((s) => Boolean(s.nome?.trim()));
 }
 
-export async function regenerarLinkSimuladorTemplate(cardId: string): Promise<Ok | Err> {
-  const auth = await requireStaff();
-  if (!auth.ok) return auth;
-  const card = await carregarCardLoteadores(auth.supabase, cardId);
-  if (!card.ok) return card;
-
-  const novoToken = randomBytes(32).toString('hex');
-  const { data: existente, error: errExist } = await auth.supabase
-    .from(TABELA)
-    .select('id')
-    .eq('kanban_card_id', cardId)
-    .maybeSingle();
-  if (errExist && errExist.code !== 'PGRST116') {
-    return erroBancoSimulador(errExist.message);
-  }
-  if (!existente?.id) {
-    return { ok: false, error: 'Salve o template antes de gerar o link.' };
-  }
-
-  const { data, error } = await auth.supabase
-    .from(TABELA)
-    .update({ link_token: novoToken, updated_by: auth.userId } as never)
-    .eq('id', existente.id)
-    .select('*')
-    .single();
-  if (error) return erroBancoSimulador(error.message);
-
-  const template = mapTemplateRow(data as Record<string, unknown>);
-  revalidateAposMutacaoSimulador(cardId);
-  return {
-    ok: true,
-    template,
-    link: linkCompleto(template.link_token),
-    mensagem: 'Novo link gerado. O QR anterior deixa de funcionar.',
-  };
-}
-
 function parseMoedaCampo(raw: string, label: string, opts?: { obrigatorio?: boolean; padrao?: number }):
   | { ok: true; valor: number }
   | Err {
@@ -423,6 +691,65 @@ function parseInteiroCampo(raw: string, label: string, opts?: { obrigatorio?: bo
   const n = parseDecimalInput(t);
   if (n == null || n < 1) return { ok: false, error: `${label} deve ser um inteiro ≥ 1.` };
   return { ok: true, valor: Math.round(n) };
+}
+
+/**
+ * Recusa oferta com entrada ou parcela única abaixo do mínimo do motor, com as mesmas entradas da
+ * CalculadoraOferta (`parcela_mensal` do draft é a confirmada; a base é a sugerida).
+ */
+async function validarParcelaUnicaMinimaOferta(
+  supabase: AuthOk['supabase'],
+  cardId: string,
+  v: {
+    valorLote: number;
+    valorCasa: number;
+    valorCustomizacao: number;
+    valorAcoplamento: number;
+    valorJaPago: number;
+    prazoTotalMeses: number | null;
+    parcelaMensalBase: number;
+    renda: number;
+    prazoFinanciamentoAnos: number | null;
+    taxaFinanciamentoAnual: number;
+    entradaConfirmada: number | null;
+    mensalConfirmada: number;
+    parcelaUnicaConfirmada: number | null;
+  },
+): Promise<Err | null> {
+  if (v.parcelaUnicaConfirmada == null && v.entradaConfirmada == null) return null;
+  const { data, error } = await supabase.from(TABELA).select('*').eq('kanban_card_id', cardId).limit(1);
+  const row = !error && Array.isArray(data) ? data[0] : null;
+  if (!row) return null;
+  const template = montarTemplateParaEngine(mapTemplateRow(row as Record<string, unknown>));
+  const prazoFase1 = (v.prazoTotalMeses ?? 0) - Math.max(0, Math.round(template.prazo_obra_meses));
+  if (prazoFase1 < 1) return null;
+
+  const oferta: OfertaConfig = {
+    valor_lote: v.valorLote,
+    valor_casa: v.valorCasa,
+    valor_customizacao: v.valorCustomizacao,
+    valor_acoplamento: v.valorAcoplamento,
+    valor_ja_pago: v.valorJaPago,
+    prazo_meses: prazoFase1,
+    parcela_mensal: v.parcelaMensalBase,
+    renda_cliente: v.renda,
+    prazo_financiamento_anos: v.prazoFinanciamentoAnos ?? 30,
+    taxa_financiamento_anual: v.taxaFinanciamentoAnual,
+  };
+  const sugerido = calcularOferta(template, oferta);
+  const entradaMinima = entradaMinimaOferta(sugerido);
+  if (v.entradaConfirmada != null && entradaAbaixoDoMinimo(v.entradaConfirmada, entradaMinima)) {
+    return { ok: false, error: mensagemEntradaMinima(entradaMinima) };
+  }
+  if (v.parcelaUnicaConfirmada == null) return null;
+  const entrada =
+    v.entradaConfirmada != null && v.entradaConfirmada > 0
+      ? v.entradaConfirmada
+      : sugerido.entrada_sugerida;
+  const mensal = v.mensalConfirmada > 0 ? v.mensalConfirmada : sugerido.parcela_mensal_usada;
+  const minimo = calcularParcelaUnicaMinimaConfirmada(template, oferta, entrada, mensal);
+  if (!parcelaUnicaAbaixoDoMinimo(v.parcelaUnicaConfirmada, minimo)) return null;
+  return { ok: false, error: mensagemParcelaUnicaMinima(minimo) };
 }
 
 export async function criarSimuladorOfertaDoCard(
@@ -461,12 +788,15 @@ export async function criarSimuladorOfertaDoCard(
   if (!nome) return { ok: false, error: 'Informe o nome da oferta.' };
 
   const valorLote = parseMoedaCampo(draft.valor_lote, 'o valor do lote à vista', { obrigatorio: true });
-  if (!valorLote.ok) return valorLote;
-  if (valorLote.valor <= 0) return { ok: false, error: 'Valor do lote à vista deve ser maior que zero.' };
+  if (!valorLote.ok || valorLote.valor <= 0) {
+    return { ok: false, error: MENSAGEM_TERRENO_OBRIGATORIO_OFERTA };
+  }
   const valorCasa = parseMoedaCampo(draft.valor_casa, 'o valor da casa', { obrigatorio: true });
   if (!valorCasa.ok) return valorCasa;
   const valorCustom = parseMoedaCampo(draft.valor_customizacao, 'o valor da customização', { padrao: 0 });
   if (!valorCustom.ok) return valorCustom;
+  const valorAcoplamento = parseMoedaCampo(draft.valor_acoplamento ?? '', 'o valor do acoplamento', { padrao: 0 });
+  if (!valorAcoplamento.ok) return valorAcoplamento;
   const valorPago = parseMoedaCampo(draft.valor_ja_pago, 'o valor já pago à loteadora', { padrao: 0 });
   if (!valorPago.ok) return valorPago;
   const prazoMeses = parseInteiroCampo(draft.prazo_meses, 'o prazo total do contrato', { obrigatorio: true });
@@ -497,12 +827,32 @@ export async function criarSimuladorOfertaDoCard(
     : { ok: true as const, valor: parcelaMensal.valor };
   if (!parcelaMensalConfirmada.ok) return parcelaMensalConfirmada;
 
+  const erroMinimo = await validarParcelaUnicaMinimaOferta(auth.supabase, cardId, {
+    valorLote: valorLote.valor,
+    valorCasa: valorCasa.valor,
+    valorCustomizacao: valorCustom.valor,
+    valorAcoplamento: valorAcoplamento.valor,
+    valorJaPago: valorPago.valor,
+    prazoTotalMeses: prazoMeses.valor,
+    parcelaMensalBase: draft.parcela_mensal_sugerida ?? parcelaMensal.valor,
+    renda: renda.valor,
+    prazoFinanciamentoAnos: prazoFin.valor,
+    taxaFinanciamentoAnual: taxaFin,
+    entradaConfirmada: draft.entrada_confirmada?.trim() ? entradaConfirmada.valor : null,
+    mensalConfirmada: parcelaMensalConfirmada.valor,
+    parcelaUnicaConfirmada: draft.parcela_unica_confirmada?.trim()
+      ? parcelaUnicaConfirmada.valor
+      : null,
+  });
+  if (erroMinimo) return erroMinimo;
+
   const inputs = {
     nome,
     empreendimento_id: String(draft.empreendimento_id ?? '').trim() || null,
     valor_lote: valorLote.valor,
     valor_casa: valorCasa.valor,
     valor_customizacao: valorCustom.valor,
+    valor_acoplamento: valorAcoplamento.valor,
     valor_ja_pago: valorPago.valor,
     prazo_meses: prazoMeses.valor,
     parcela_mensal: parcelaMensal.valor,
@@ -542,6 +892,7 @@ export async function criarSimuladorOfertaDoCard(
     valor_lote: valorLote.valor,
     valor_casa: valorCasa.valor,
     valor_customizacao: valorCustom.valor,
+    valor_acoplamento: valorAcoplamento.valor,
     valor_ja_pago: valorPago.valor,
     prazo_meses: prazoMeses.valor,
     parcela_mensal: parcelaMensal.valor,
@@ -561,7 +912,17 @@ export async function criarSimuladorOfertaDoCard(
     .single();
 
   let saved = data as Record<string, unknown> | null;
-  if (error && isColunaSimulador547Ausente(error.message)) {
+  if (error && isColunaSimulador571Ausente(error.message)) {
+    const { valor_acoplamento, ...sem571 } = rowCheio;
+    void valor_acoplamento;
+    const retry571 = await auth.supabase
+      .from('simulacoes_pagamento')
+      .insert(sem571 as never)
+      .select('*')
+      .single();
+    if (retry571.error) return erroBancoSimulador(retry571.error.message);
+    saved = retry571.data as Record<string, unknown>;
+  } else if (error && isColunaSimulador547Ausente(error.message)) {
     const { parcela_mensal, ...sem547 } = rowCheio;
     void parcela_mensal;
     const retry547 = await auth.supabase
@@ -649,7 +1010,7 @@ export async function criarSimuladorOfertaDoCard(
     if (!vinculo.ok) return vinculo;
   }
 
-  revalidateAposMutacaoSimulador(cardId);
+  await revalidateAposMutacaoSimulador(cardId, null, auth.supabase);
   return {
     ok: true,
     mensagem: 'Oferta salva como rascunho!',
@@ -718,15 +1079,19 @@ export async function excluirOfertaSimulacao(
     .update({ simulacao_pagamento_id: null })
     .eq('simulacao_pagamento_id', oid);
 
-  const { error } = await supabase
+  const { data: apagadas, error } = await supabase
     .from('simulacoes_pagamento')
     .delete()
     .eq('id', oid)
-    .eq('kanban_card_id', cid); // segurança: só deleta se pertence ao card
+    .eq('kanban_card_id', cid)
+    .select('id');
 
   if (error) return { ok: false, error: error.message };
+  if (!apagadas || apagadas.length === 0) {
+    return { ok: false, error: 'Oferta não encontrada neste card.' };
+  }
 
-  revalidateAposMutacaoSimulador(cid);
+  await revalidateAposMutacaoSimulador(cid, null, supabase);
   return { ok: true };
 }
 
@@ -755,12 +1120,15 @@ export async function atualizarSimuladorOferta(
   if (!nome) return { ok: false, error: 'Informe o nome da oferta.' };
 
   const valorLote = parseMoedaCampo(draft.valor_lote, 'o valor do lote à vista', { obrigatorio: true });
-  if (!valorLote.ok) return valorLote;
-  if (valorLote.valor <= 0) return { ok: false, error: 'Valor do lote à vista deve ser maior que zero.' };
+  if (!valorLote.ok || valorLote.valor <= 0) {
+    return { ok: false, error: MENSAGEM_TERRENO_OBRIGATORIO_OFERTA };
+  }
   const valorCasa = parseMoedaCampo(draft.valor_casa, 'o valor da casa', { obrigatorio: true });
   if (!valorCasa.ok) return valorCasa;
   const valorCustom = parseMoedaCampo(draft.valor_customizacao, 'o valor da customização', { padrao: 0 });
   if (!valorCustom.ok) return valorCustom;
+  const valorAcoplamento = parseMoedaCampo(draft.valor_acoplamento ?? '', 'o valor do acoplamento', { padrao: 0 });
+  if (!valorAcoplamento.ok) return valorAcoplamento;
   const valorPago = parseMoedaCampo(draft.valor_ja_pago, 'o valor já pago à loteadora', { padrao: 0 });
   if (!valorPago.ok) return valorPago;
   const prazoMeses = parseInteiroCampo(draft.prazo_meses, 'o prazo total do contrato', { obrigatorio: true });
@@ -789,12 +1157,30 @@ export async function atualizarSimuladorOferta(
     : { ok: true as const, valor: parcelaMensal.valor };
   if (!parcelaMensalConfirmada.ok) return parcelaMensalConfirmada;
 
+  const erroMinimo = await validarParcelaUnicaMinimaOferta(supabase, cid, {
+    valorLote: valorLote.valor,
+    valorCasa: valorCasa.valor,
+    valorCustomizacao: valorCustom.valor,
+    valorAcoplamento: valorAcoplamento.valor,
+    valorJaPago: valorPago.valor,
+    prazoTotalMeses: prazoMeses.valor,
+    parcelaMensalBase: draft.parcela_mensal_sugerida ?? parcelaMensal.valor,
+    renda: renda.valor,
+    prazoFinanciamentoAnos: prazoFin.valor,
+    taxaFinanciamentoAnual: taxaFin,
+    entradaConfirmada: draft.entrada_confirmada?.trim() ? entradaConfirmada.valor : null,
+    mensalConfirmada: parcelaMensalConfirmada.valor,
+    parcelaUnicaConfirmada: draft.parcela_unica_confirmada?.trim() ? parcelaUnicaConfirmada.valor : null,
+  });
+  if (erroMinimo) return erroMinimo;
+
   const inputs = {
     nome,
     empreendimento_id: String(draft.empreendimento_id ?? '').trim() || null,
     valor_lote: valorLote.valor,
     valor_casa: valorCasa.valor,
     valor_customizacao: valorCustom.valor,
+    valor_acoplamento: valorAcoplamento.valor,
     valor_ja_pago: valorPago.valor,
     prazo_meses: prazoMeses.valor,
     parcela_mensal: parcelaMensal.valor,
@@ -828,6 +1214,7 @@ export async function atualizarSimuladorOferta(
     valor_lote: valorLote.valor,
     valor_casa: valorCasa.valor,
     valor_customizacao: valorCustom.valor,
+    valor_acoplamento: valorAcoplamento.valor,
     valor_ja_pago: valorPago.valor,
     prazo_meses: prazoMeses.valor,
     parcela_mensal: parcelaMensal.valor,
@@ -851,7 +1238,13 @@ export async function atualizarSimuladorOferta(
 
   let saved = data as Record<string, unknown> | null;
 
-  if (error && isColunaSimulador547Ausente(error.message)) {
+  if (error && isColunaSimulador571Ausente(error.message)) {
+    const { valor_acoplamento, ...sem571 } = rowCheio;
+    void valor_acoplamento;
+    const retry571 = await doUpdate(sem571);
+    if (retry571.error) return erroBancoSimulador(retry571.error.message);
+    saved = retry571.data as Record<string, unknown>;
+  } else if (error && isColunaSimulador547Ausente(error.message)) {
     const { parcela_mensal, ...sem547 } = rowCheio;
     void parcela_mensal;
     const retry547 = await doUpdate(sem547);
@@ -889,8 +1282,17 @@ export async function atualizarSimuladorOferta(
   if (!saved) return { ok: false, error: 'Oferta não encontrada ou sem permissão.' };
 
   const oferta = mapSimulacaoRow(saved);
+  const empId = String(draft.empreendimento_id ?? oferta.empreendimento_id ?? '').trim();
+  if (empId) {
+    const valores = valoresImobDaSimulacao(oferta);
+    const vinculo = await vincularOfertaAoEmpreendimentoImob(cid, empId, {
+      simulacao_pagamento_id: oferta.id,
+      ...valores,
+    });
+    if (!vinculo.ok) return vinculo;
+  }
 
-  revalidateAposMutacaoSimulador(cid);
+  await revalidateAposMutacaoSimulador(cid, null, supabase);
   revalidatePath(`/loteadores/${cid}/simulador-template/ofertas/${oid}`);
   return {
     ok: true,

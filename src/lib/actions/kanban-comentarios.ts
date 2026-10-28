@@ -107,6 +107,25 @@ export async function fetchKanbanComentariosCountPorCardIds(
   return { ok: true, counts };
 }
 
+/**
+ * A policy de SELECT em kanban_card_comentarios puxa todos os cards visíveis
+ * antes de filtrar um card. Conferir o card uma vez e ler pelo service role
+ * evita esse scan em todo card que tem comentário.
+ */
+async function usuarioEnxergaCardDosComentarios(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  cardId: string,
+): Promise<{ ok: true } | { ok: false; error?: string }> {
+  const cardRes = await supabase.from('kanban_cards').select('id').eq('id', cardId).maybeSingle();
+  if (cardRes.error) return { ok: false, error: cardRes.error.message };
+  if (cardRes.data?.id) return { ok: true };
+
+  const procRes = await supabase.from('processo_step_one').select('id').eq('id', cardId).maybeSingle();
+  if (procRes.error) return { ok: false, error: procRes.error.message };
+  if (procRes.data?.id) return { ok: true };
+  return { ok: false };
+}
+
 /** Lista comentários do card com nomes de autor (service role contorna RLS de profiles). */
 export async function listarComentariosKanbanCard(
   cardId: string,
@@ -120,7 +139,14 @@ export async function listarComentariosKanbanCard(
   const id = String(cardId ?? '').trim();
   if (!id) return { ok: false, error: 'Card inválido.' };
 
-  const { data: rows, error } = await supabase
+  const acesso = await usuarioEnxergaCardDosComentarios(supabase, id);
+  if (!acesso.ok) {
+    if (acesso.error) return { ok: false, error: acesso.error };
+    return { ok: true, items: [] };
+  }
+
+  const db = await dbParaMencoes(supabase);
+  const { data: rows, error } = await db
     .from('kanban_card_comentarios')
     .select('id, conteudo, created_at, autor_id, autor_nome')
     .eq('card_id', id)
@@ -129,7 +155,6 @@ export async function listarComentariosKanbanCard(
 
   if (error) return { ok: false, error: error.message };
 
-  const db = await dbParaMencoes(supabase);
   const nomePorId = await resolverNomesAutoresComentarios(db, (rows ?? []) as ComentarioDbRow[]);
   const items = ((rows ?? []) as ComentarioDbRow[]).map((r) => mapComentarioDbRow(r, nomePorId));
 

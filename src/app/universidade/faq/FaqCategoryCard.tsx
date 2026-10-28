@@ -81,11 +81,20 @@ function IconeCategoria({ categoria }: { categoria: FaqCategory }) {
   const salvo = categoria.icone?.trim() ?? '';
   const Lucide = salvo ? LUCIDE[salvo] : undefined;
   if (Lucide) {
-    return <Lucide className="h-5 w-5 shrink-0 text-[var(--moni-navy-800)]" aria-hidden />;
+    return (
+      <span
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--moni-radius-md)] bg-[var(--moni-surface-100)]"
+      >
+        <Lucide className="h-4 w-4 text-[var(--moni-navy-800)]" aria-hidden />
+      </span>
+    );
   }
   const emoji = salvo && /[^\w-]/.test(salvo) ? salvo : emojiFallback(categoria.nome, categoria.slug);
   return (
-    <span className="text-lg leading-none" aria-hidden>
+    <span
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--moni-radius-md)] bg-[var(--moni-surface-100)] text-base leading-none"
+      aria-hidden
+    >
       {emoji}
     </span>
   );
@@ -107,18 +116,12 @@ export function FaqCategoryCard({
   const restantes = artigos.length - LIMITE;
 
   return (
-    <article className="group flex h-full flex-col rounded-[var(--moni-radius-lg)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5 shadow-[var(--moni-shadow-card)] transition-shadow duration-200 hover:shadow-[var(--moni-shadow-lg)]">
-      <header className="mb-3 flex items-center gap-2">
+    <article className="flex h-full flex-col rounded-[var(--moni-radius-lg)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] p-5 shadow-[var(--moni-shadow-card)] sm:p-6">
+      <header className="mb-4 flex items-center gap-3">
         <IconeCategoria categoria={categoria} />
         <h2 className="min-w-0 flex-1 font-[family-name:var(--moni-font-display)] text-[length:var(--moni-text-lg)] font-semibold leading-tight text-[var(--moni-text-primary)]">
           {categoria.nome}
         </h2>
-        <span
-          className="text-[var(--moni-text-tertiary)] transition-transform duration-200 group-hover:translate-x-1"
-          aria-hidden
-        >
-          →
-        </span>
       </header>
       <ul className="flex flex-1 flex-col gap-1">
         {visiveis.map((artigo) => (

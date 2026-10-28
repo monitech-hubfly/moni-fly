@@ -13,15 +13,20 @@ import {
 import {
   formatarMoedaBr,
   prazoFase1DePrazoSalvo,
-  rowToTemplateConfig,
   type LoteamentoSimuladorTemplateRow,
   type SimulacaoPagamentoResumo,
 } from '@/lib/loteamento-simulador-template';
+import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
 import {
   calcularOferta,
   formatarMoeda,
   type OfertaConfig,
 } from '@/lib/simulador/calcular-oferta';
+import { QuadroPremissasTemplate } from '@/components/simulador/QuadroPremissasTemplate';
+import {
+  textoValorExibidoNaJornada,
+  valorExibidoNaJornada,
+} from '@/lib/simulador/valor-exibido-jornada';
 
 type Props = {
   oferta: SimulacaoPagamentoResumo;
@@ -40,6 +45,7 @@ function ofertaParaConfig(
     valor_lote: n(oferta.valor_lote),
     valor_casa: n(oferta.valor_casa),
     valor_customizacao: n(oferta.valor_customizacao),
+    valor_acoplamento: n(oferta.valor_acoplamento),
     valor_ja_pago: n(oferta.valor_ja_pago),
     prazo_meses: prazoFase1DePrazoSalvo(oferta.prazo_meses, prazoObraMeses),
     parcela_mensal: n(oferta.parcela_mensal),
@@ -87,7 +93,7 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
     );
   }
 
-  const tpl = rowToTemplateConfig(template);
+  const tpl = montarTemplateParaEngine(template);
   const cfg = ofertaParaConfig(oferta, tpl.prazo_obra_meses);
   const sugerido = calcularOferta(tpl, cfg);
 
@@ -111,6 +117,15 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
 
   return (
     <div className="mt-8 flex flex-col gap-6">
+      <QuadroPremissasTemplate template={tpl} />
+      <p
+        className="text-sm"
+        style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}
+      >
+        {textoValorExibidoNaJornada(
+          valorExibidoNaJornada(sugerido.vte_avista, oferta.valor_lote).valor,
+        )}
+      </p>
       <div className="print-no-break mx-auto grid w-full max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2">
         {cardsTotaisResumo(sugerido).map((c) => (
           <CardResultado key={c.label} {...c} />

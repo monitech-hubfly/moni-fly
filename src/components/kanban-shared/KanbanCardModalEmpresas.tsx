@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   FRANQUEADO_EMPRESA_STATUS_LABEL,
@@ -118,11 +118,43 @@ export function KanbanCardModalEmpresas({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const speIgnorarRef = useRef(true);
+  const speDirtyRef = useRef(false);
+  const speTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const speIdRef = useRef(spe?.id ?? '');
+  speIdRef.current = spe?.id || speIdRef.current;
+  const salvarSpeRef = useRef<(silencioso?: boolean) => Promise<void>>(async () => {});
 
   useEffect(() => {
+    speIgnorarRef.current = true;
     setDraft(speToDraft(spe));
     setEditandoSpe(false);
   }, [spe]);
+
+  useEffect(() => {
+    if (!editandoSpe) return;
+    if (speIgnorarRef.current) {
+      speIgnorarRef.current = false;
+      return;
+    }
+    speDirtyRef.current = true;
+    if (speTimerRef.current) clearTimeout(speTimerRef.current);
+    speTimerRef.current = setTimeout(() => {
+      speDirtyRef.current = false;
+      void salvarSpeRef.current(true);
+    }, 700);
+  }, [draft, editandoSpe]);
+
+  useEffect(() => {
+    return () => {
+      if (speTimerRef.current) clearTimeout(speTimerRef.current);
+      if (!speDirtyRef.current) return;
+      speDirtyRef.current = false;
+      void salvarSpeRef.current(true);
+    };
+  }, [cardId]);
 
   if (!redeFranqueadoId) {
     return (
@@ -132,37 +164,46 @@ export function KanbanCardModalEmpresas({
     );
   }
 
-  async function salvarSpe() {
-    setSalvando(true);
-    setErro(null);
-    setMsg(null);
+  async function salvarSpe(silencioso = false) {
+    const atual = draftRef.current;
+    if (silencioso && !speIdRef.current && !atual.nome_projeto.trim() && !atual.razao_social.trim()) return;
+    if (!silencioso) {
+      setSalvando(true);
+      setErro(null);
+      setMsg(null);
+    }
     const res = await salvarSpeDoCard({
       cardId,
       redeFranqueadoId: redeFranqueadoId!,
-      speId: spe?.id,
+      speId: speIdRef.current || spe?.id,
       dados: {
-        nome_projeto: draft.nome_projeto.trim() || null,
-        razao_social: draft.razao_social.trim() || null,
-        cnpj: draft.cnpj.trim() || null,
-        inscricao_municipal: draft.inscricao_municipal.trim() || null,
-        inscricao_estadual: draft.inscricao_estadual.trim() || null,
-        status: draft.status,
-        conta_banco: draft.conta_banco.trim() || null,
-        conta_agencia: draft.conta_agencia.trim() || null,
-        conta_numero: draft.conta_numero.trim() || null,
-        conta_pix_tipo: draft.conta_pix_tipo.trim() || null,
-        conta_pix_chave: draft.conta_pix_chave.trim() || null,
+        nome_projeto: atual.nome_projeto.trim() || null,
+        razao_social: atual.razao_social.trim() || null,
+        cnpj: atual.cnpj.trim() || null,
+        inscricao_municipal: atual.inscricao_municipal.trim() || null,
+        inscricao_estadual: atual.inscricao_estadual.trim() || null,
+        status: atual.status,
+        conta_banco: atual.conta_banco.trim() || null,
+        conta_agencia: atual.conta_agencia.trim() || null,
+        conta_numero: atual.conta_numero.trim() || null,
+        conta_pix_tipo: atual.conta_pix_tipo.trim() || null,
+        conta_pix_chave: atual.conta_pix_chave.trim() || null,
       },
     });
-    setSalvando(false);
+    if (!silencioso) setSalvando(false);
     if (!res.ok) {
-      setErro(res.error);
+      if (!silencioso) setErro(res.error);
+      else speDirtyRef.current = true;
       return;
     }
+    if ('speId' in res && res.speId) speIdRef.current = res.speId;
+    if (silencioso) return;
     setMsg(res.mensagem);
     setEditandoSpe(false);
     onSalvo?.();
   }
+
+  salvarSpeRef.current = salvarSpe;
 
   const inputCls =
     'mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800';

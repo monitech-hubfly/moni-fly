@@ -431,6 +431,7 @@ export type ComentarioCardRow = {
 
 export type SecaoEsquerdaId =
   | 'calculadora'
+  | 'proximasAtividades'
   | 'cronologia'
   | 'franqueado'
   | 'loteador'
@@ -446,13 +447,16 @@ export type SecaoEsquerdaId =
   | 'dadosCandidato'
   | 'dadosMaterial'
   | 'preObra'
+  | 'credito'
   | 'obra'
   | 'documentacaoCreditoObra'
   | 'relacionamentos'
   | 'formularios'
   | 'atasReuniao'
   | 'chamados'
-  | 'historico';
+  | 'historico'
+  | 'dadosClienteVcl'
+  | 'simulacoesClienteVcl';
 
 export function isoDateOffsetDays(days: number): string {
   const d = new Date();

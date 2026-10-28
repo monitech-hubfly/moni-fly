@@ -1,25 +1,21 @@
-import { cache } from 'react';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createServerClient } from '@supabase/ssr';
+import { createClient as createJsClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-import type { User, UserResponse } from '@supabase/supabase-js';
-import { readFreshSessionUser } from '@/lib/supabase/session-from-cookies';
 
-type CookieToSet = { name: string; value: string; options?: CookieOptions };
+export async function createClient() {
+  const cookieStore = await cookies();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-function createRawServerClient(
-  cookieStore: Awaited<ReturnType<typeof cookies>>,
-  supabaseUrl: string,
-  supabaseAnonKey: string,
-) {
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet: CookieToSet[]) {
+      setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
         try {
           cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
+            cookieStore.set(name, value, options as Parameters<typeof cookieStore.set>[2]),
           );
         } catch {
           // Ignore in Server Components
@@ -29,41 +25,22 @@ function createRawServerClient(
   });
 }
 
-/** Uma ida ao Auth por request, só quando o cookie de sessão está perto de expirar. */
-const getUserFromAuth = cache(async (cookieKey: string) => {
-  void cookieKey;
-  const cookieStore = await cookies();
+/**
+ * Client PostgREST com o JWT da sessão no Authorization.
+ * `createServerClient` autentica getUser() via cookies, mas o REST pode sair com a anon key
+ * (RLS trata como anon → 0 rows em kanban_cards / profiles).
+ */
+export function createClientWithAccessToken(accessToken: string) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  const supabase = createRawServerClient(cookieStore, supabaseUrl, supabaseAnonKey);
-  return supabase.auth.getUser();
-});
-
-export async function createClient() {
-  const cookieStore = await cookies();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  const supabase = createRawServerClient(cookieStore, supabaseUrl, supabaseAnonKey);
-  const originalGetUser = supabase.auth.getUser.bind(supabase.auth);
-
-  supabase.auth.getUser = async (jwt?: string): Promise<UserResponse> => {
-    if (typeof jwt === 'string' && jwt.length > 0) return originalGetUser(jwt);
-
-    const all = cookieStore.getAll();
-    const fresh = readFreshSessionUser(all, supabaseUrl);
-    if (fresh) {
-      return { data: { user: fresh as User }, error: null };
-    }
-
-    const hasSession = all.some((cookie) => cookie.name.includes('-auth-token'));
-    if (!hasSession) return { data: { user: null }, error: null } as unknown as UserResponse;
-
-    const cookieKey = all
-      .filter((cookie) => cookie.name.includes('-auth-token'))
-      .map((cookie) => cookie.name)
-      .join('|');
-    return getUserFromAuth(cookieKey);
-  };
-
-  return supabase;
+  return createJsClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  });
 }

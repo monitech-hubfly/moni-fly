@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { listarRespostasDoFormulario } from '@/lib/actions/formulario-actions';
-import { RespostasFormularioLista } from '@/components/formularios/RespostasFormularioLista';
+import { RespostasFormularioTabela } from '@/components/formularios/RespostasFormularioTabela';
 import { GerarLinkFormularioButton } from '@/components/formularios/GerarLinkFormularioButton';
 
 interface Props {
@@ -24,30 +24,48 @@ export default async function FormularioRespostasPage({ params }: Props) {
     redirect('/portal-frank');
   }
 
-  const { data: formulario } = await supabase.from('formularios').select('id, nome').eq('id', formularioId).single();
+  const { data: formulario } = await supabase
+    .from('formularios')
+    .select('id, nome, categoria')
+    .eq('id', formularioId)
+    .single();
   if (!formulario) redirect('/formularios');
 
   const respostas = await listarRespostasDoFormulario(formularioId);
+  const categoria = String(formulario.categoria ?? '').trim();
+  const total = respostas.length === 1 ? '1 envio' : `${respostas.length} envios`;
 
   return (
     <div className="min-h-0 bg-[var(--moni-surface-50)]">
-      <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
         <Link href="/formularios" className="text-sm" style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}>
           ← Formulários
         </Link>
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
           <div>
+            {categoria ? (
+              <p className="text-xs uppercase tracking-wide" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+                {categoria}
+              </p>
+            ) : null}
             <h1 className="text-3xl" style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}>
               {formulario.nome}
             </h1>
             <p className="text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
-              {respostas.length} resposta(s)
+              {total}. Uma linha por card ou franquia, com o envio mais recente. Clique para ver as respostas.
             </p>
           </div>
           <GerarLinkFormularioButton formularioId={formulario.id} formularioNome={formulario.nome} />
         </div>
-        <div className="mt-8">
-          <RespostasFormularioLista respostas={respostas} />
+        <div
+          className="mt-8 overflow-hidden"
+          style={{
+            background: 'var(--moni-surface-0)',
+            border: 'var(--moni-border-width) solid var(--moni-border-default)',
+            borderRadius: 'var(--moni-radius-lg)',
+          }}
+        >
+          <RespostasFormularioTabela respostas={respostas} />
         </div>
       </main>
     </div>

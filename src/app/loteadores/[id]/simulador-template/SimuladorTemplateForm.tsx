@@ -2,18 +2,21 @@
 
 import { startTransition, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  regenerarLinkSimuladorTemplate,
-  salvarSimuladorTemplateDoCard,
-} from '@/lib/actions/loteamento-simulador-template';
+import { salvarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
+import { gerarSlugCard } from '@/lib/utils/slug';
 import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import {
   PCT_FIELDS,
+  PCT_TAXA_GESTAO_PADRAO_UI,
   PRAZO_OBRA_MESES_MINIMO,
   PRAZO_OBRA_MESES_PADRAO,
   TOAST_TEMPLATE_SALVO,
+  VALOR_TAXA_GESTAO_FIXO_PADRAO_UI,
+  rowToSimuladorTemplateDraft,
   type LoteamentoSimuladorTemplateDraft,
   type PremissaEntradaTipo,
+  type TipoJurosCp,
+  type TipoTaxaGestao,
 } from '@/lib/loteamento-simulador-template';
 import { marcarSimuladorTemplateSalvo } from '@/lib/simulador/simulador-card-ui-state';
 import {
@@ -24,9 +27,17 @@ import {
 type Props = {
   cardId: string;
   cardTitulo: string;
+  nomeCondominio: string | null;
   draftInicial: LoteamentoSimuladorTemplateDraft;
-  linkInicial: string | null;
+  jaSalvoInicial: boolean;
+  pageSlugInicial: string | null;
+  linkMoniInicial: string | null;
+  pageAtivaInicial: boolean;
 };
+
+function slugInicialDoCard(cardId: string, nomeCondominio: string | null): string {
+  return gerarSlugCard(nomeCondominio, cardId);
+}
 
 const fieldCls =
   'mt-1 min-h-[44px] w-full rounded-[var(--moni-radius-md)] px-3 py-2 text-sm outline-none';
@@ -40,25 +51,41 @@ const labelCls = 'text-xs font-medium';
 const labelStyle = { color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' } as const;
 const hintStyle = { color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' } as const;
 
-function qrUrl(link: string): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(link)}`;
-}
-
 export function SimuladorTemplateForm({
   cardId,
   cardTitulo,
+  nomeCondominio,
   draftInicial,
-  linkInicial,
+  jaSalvoInicial,
+  pageSlugInicial,
+  linkMoniInicial,
+  pageAtivaInicial,
 }: Props) {
   const router = useRouter();
   const [draft, setDraft] = useState(draftInicial);
-  const [link, setLink] = useState(linkInicial);
   const [rascunhoBase, setRascunhoBase] = useState(() => JSON.stringify(draftInicial));
-  const [jaSalvo, setJaSalvo] = useState(() => Boolean(linkInicial));
+  const [pageSlug, setPageSlug] = useState(() =>
+    slugInicialDoCard(cardId, nomeCondominio),
+  );
+  const [pageSlugSalvo, setPageSlugSalvo] = useState(() => String(pageSlugInicial ?? '').trim());
+  const [linkMoni, setLinkMoni] = useState<string | null>(linkMoniInicial);
+  const [pageAtiva, setPageAtiva] = useState(pageAtivaInicial);
+  const [slugError, setSlugError] = useState<string | null>(null);
+  const [jaSalvo, setJaSalvo] = useState(jaSalvoInicial);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [copiado, setCopiado] = useState(false);
+  const [copiadoMoni, setCopiadoMoni] = useState(false);
+
+  useEffect(() => {
+    setDraft(draftInicial);
+    setRascunhoBase(JSON.stringify(draftInicial));
+    setPageSlug(slugInicialDoCard(cardId, nomeCondominio));
+    setPageSlugSalvo(String(pageSlugInicial ?? '').trim());
+    setLinkMoni(linkMoniInicial);
+    setPageAtiva(pageAtivaInicial);
+    setJaSalvo(jaSalvoInicial);
+  }, [cardId, nomeCondominio, draftInicial, pageSlugInicial, linkMoniInicial, pageAtivaInicial, jaSalvoInicial]);
 
   useEffect(() => {
     if (!mensagem) return;
@@ -80,26 +107,37 @@ export function SimuladorTemplateForm({
     [draft.prazo_obra_meses],
   );
 
-  const temAlteracoes = JSON.stringify(draft) !== rascunhoBase;
+  const temAlteracoes =
+    JSON.stringify(draft) !== rascunhoBase || pageSlug.trim().toLowerCase() !== pageSlugSalvo.trim().toLowerCase();
   const podeSalvar = !salvando && (!jaSalvo || temAlteracoes);
 
   async function onSalvar() {
     if (!podeSalvar) return;
+    const snapshot: LoteamentoSimuladorTemplateDraft = { ...draft };
+    const slugSnapshot = pageSlug;
     setSalvando(true);
     setErro(null);
     setMensagem(null);
     startTransition(() => {
       void (async () => {
-        const res = await salvarSimuladorTemplateDoCard(cardId, draft);
+        const res = await salvarSimuladorTemplateDoCard(cardId, snapshot, slugSnapshot);
         if (!res.ok) {
-          setErro(res.error);
+          if (/slug/i.test(res.error)) setSlugError(res.error);
+          else setErro(res.error);
           setSalvando(false);
           return;
         }
         marcarSimuladorTemplateSalvo(cardId);
-        setLink(res.link);
         setJaSalvo(true);
-        setRascunhoBase(JSON.stringify(draft));
+        const nextDraft = res.template ? rowToSimuladorTemplateDraft(res.template) : snapshot;
+        setDraft(nextDraft);
+        setRascunhoBase(JSON.stringify(nextDraft));
+        const slugSalvo = String(res.pageSlug ?? '').trim();
+        setPageSlug(slugSalvo);
+        setPageSlugSalvo(slugSalvo);
+        setSlugError(null);
+        setPageAtiva(res.pageAtiva === true);
+        setLinkMoni(res.linkMoni);
         setMensagem(TOAST_TEMPLATE_SALVO);
         setSalvando(false);
         router.refresh();
@@ -107,31 +145,12 @@ export function SimuladorTemplateForm({
     });
   }
 
-  async function onNovoLink() {
-    const ok = window.confirm(
-      'Gerar um novo link invalida o QR e o endereço já compartilhado. Continuar?',
-    );
-    if (!ok) return;
-    setSalvando(true);
-    setErro(null);
-    const res = await regenerarLinkSimuladorTemplate(cardId);
-    if (!res.ok) {
-      setErro(res.error);
-      setSalvando(false);
-      return;
-    }
-    setLink(res.link);
-    setMensagem(res.mensagem);
-    setSalvando(false);
-    router.refresh();
-  }
-
-  async function copiarLink() {
-    if (!link) return;
+  async function copiarLinkMoni() {
+    if (!linkMoni) return;
     try {
-      await navigator.clipboard.writeText(link);
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2000);
+      await navigator.clipboard.writeText(linkMoni);
+      setCopiadoMoni(true);
+      window.setTimeout(() => setCopiadoMoni(false), 2000);
     } catch {
       setErro('Não foi possível copiar. Selecione o link e copie manualmente.');
     }
@@ -200,7 +219,183 @@ export function SimuladorTemplateForm({
           Informe em % (ex.: 3 para 3%). Use vírgula decimal (3,5).
         </p>
         <div className="moni-form-novo-card mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {PCT_FIELDS.map((f) => (
+          {PCT_FIELDS.filter(
+            (f) =>
+              f.key !== 'pct_taxa_plataforma' &&
+              f.key !== 'taxa_juros_credito_ponte' &&
+              f.key !== 'taxa_juros_financiamento_anual' &&
+              f.key !== 'pct_lucro_loteadora' &&
+              f.key !== 'pct_lucro_moni' &&
+              f.key !== 'pct_lucro_franqueado' &&
+              f.key !== 'pct_comissao_corretor',
+          ).map((f) => (
+            <label key={f.key} className="block">
+              <span className={labelCls} style={labelStyle}>
+                {f.label}
+                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
+              </span>
+              <CampoDraftNumero
+                value={draft[f.key]}
+                onChange={(v) => setCampo(f.key, v)}
+                placeholder={'placeholder' in f && f.placeholder ? f.placeholder : '0'}
+              />
+              <span className="mt-1 block text-[11px]" style={hintStyle}>
+                {f.hint}
+              </span>
+            </label>
+          ))}
+        </div>
+        <div className="moni-form-novo-card mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {PCT_FIELDS.filter((f) => f.key === 'taxa_juros_credito_ponte').map((f) => (
+            <label key={f.key} className="block">
+              <span className={labelCls} style={labelStyle}>
+                {f.label}
+                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
+              </span>
+              <CampoDraftNumero
+                value={draft[f.key]}
+                onChange={(v) => setCampo(f.key, v)}
+                placeholder={'placeholder' in f && f.placeholder ? f.placeholder : '0'}
+              />
+              <span className="mt-1 block text-[11px]" style={hintStyle}>
+                {f.hint}
+              </span>
+            </label>
+          ))}
+          <label className="block">
+            <span className={labelCls} style={labelStyle}>
+              Método de cálculo dos juros CP
+            </span>
+            <select
+              className={fieldCls}
+              style={fieldStyle}
+              value={draft.tipo_juros_cp ?? 'mes_a_mes'}
+              onChange={(e) => setCampo('tipo_juros_cp', e.target.value as TipoJurosCp)}
+            >
+              <option value="mes_a_mes">Mês a mês (sobre saldo)</option>
+              <option value="total">Total (sobre valor da obra)</option>
+            </select>
+            <span className="mt-1 block text-[11px]" style={hintStyle}>
+              Ambos incluem 3 meses de buffer de segurança. O fluxo não ganha linhas extras.
+            </span>
+          </label>
+        </div>
+        <div className="moni-form-novo-card mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {PCT_FIELDS.filter((f) => f.key === 'taxa_juros_financiamento_anual').map((f) => (
+            <label key={f.key} className="block">
+              <span className={labelCls} style={labelStyle}>
+                {f.label}
+                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
+              </span>
+              <CampoDraftNumero
+                value={draft[f.key]}
+                onChange={(v) => setCampo(f.key, v)}
+                placeholder={'placeholder' in f && f.placeholder ? f.placeholder : '0'}
+              />
+              <span className="mt-1 block text-[11px]" style={hintStyle}>
+                {f.hint}
+              </span>
+            </label>
+          ))}
+        </div>
+        <div className="moni-form-novo-card mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {PCT_FIELDS.filter((f) => f.key === 'pct_taxa_plataforma').map((f) => (
+            <label key={f.key} className="block">
+              <span className={labelCls} style={labelStyle}>
+                {f.label}
+                {'suffix' in f && f.suffix ? f.suffix : ' (%)'}
+              </span>
+              <CampoDraftNumero
+                value={draft[f.key]}
+                onChange={(v) => setCampo(f.key, v)}
+                placeholder={'placeholder' in f && f.placeholder ? f.placeholder : '0'}
+              />
+              <span className="mt-1 block text-[11px]" style={hintStyle}>
+                {f.hint}
+              </span>
+            </label>
+          ))}
+          <label className="block">
+            <span className={labelCls} style={labelStyle}>
+              Percentual da taxa de plataforma pago na entrada (%)
+            </span>
+            <CampoDraftNumero
+              name="percentual_plataforma_entrada"
+              value={draft.percentual_plataforma_entrada}
+              onChange={(v) => setCampo('percentual_plataforma_entrada', v)}
+              placeholder="0"
+            />
+            <span className="mt-1 block text-[11px]" style={hintStyle}>
+              Quando maior que zero, esse percentual da taxa total é cobrado na entrada. O restante
+              é pago nos 3 primeiros meses de obra.
+            </span>
+          </label>
+        </div>
+        <div className="moni-form-novo-card mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className={labelCls} style={labelStyle}>
+              Tipo da taxa de gestão
+            </span>
+            <select
+              className={fieldCls}
+              style={fieldStyle}
+              value={draft.tipo_taxa_gestao}
+              onChange={(e) => {
+                const tipo = e.target.value as TipoTaxaGestao;
+                setDraft((prev) => ({
+                  ...prev,
+                  tipo_taxa_gestao: tipo,
+                  pct_taxa_gestao:
+                    tipo === 'percentual' && prev.pct_taxa_gestao.trim() === ''
+                      ? PCT_TAXA_GESTAO_PADRAO_UI
+                      : prev.pct_taxa_gestao,
+                  taxa_gestao_valor:
+                    tipo === 'fixo' && prev.taxa_gestao_valor.trim() === ''
+                      ? VALOR_TAXA_GESTAO_FIXO_PADRAO_UI
+                      : prev.taxa_gestao_valor,
+                }));
+                setMensagem(null);
+                setErro(null);
+              }}
+            >
+              <option value="percentual">Percentual (%)</option>
+              <option value="fixo">Valor fixo (R$)</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className={labelCls} style={labelStyle}>
+              {draft.tipo_taxa_gestao === 'fixo' ? 'Taxa de gestão (R$)' : 'Taxa de gestão (%)'}
+            </span>
+            {draft.tipo_taxa_gestao === 'fixo' ? (
+              <CampoDraftNumero
+                name="taxa_gestao_valor"
+                value={draft.taxa_gestao_valor}
+                onChange={(v) => setCampo('taxa_gestao_valor', v)}
+                placeholder={VALOR_TAXA_GESTAO_FIXO_PADRAO_UI}
+              />
+            ) : (
+              <CampoDraftNumero
+                name="pct_taxa_gestao"
+                value={draft.pct_taxa_gestao}
+                onChange={(v) => setCampo('pct_taxa_gestao', v)}
+                placeholder={PCT_TAXA_GESTAO_PADRAO_UI}
+              />
+            )}
+            <span className="mt-1 block text-[11px]" style={hintStyle}>
+              {draft.tipo_taxa_gestao === 'fixo'
+                ? 'Valor absoluto em R$, rateado igualmente na obra.'
+                : 'Sobre custo da casa + customização; parcelas iguais na obra.'}
+            </span>
+          </label>
+        </div>
+        <div className="moni-form-novo-card mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {PCT_FIELDS.filter(
+            (f) =>
+              f.key === 'pct_lucro_loteadora' ||
+              f.key === 'pct_lucro_moni' ||
+              f.key === 'pct_lucro_franqueado' ||
+              f.key === 'pct_comissao_corretor',
+          ).map((f) => (
             <label key={f.key} className="block">
               <span className={labelCls} style={labelStyle}>
                 {f.label}
@@ -284,6 +479,31 @@ export function SimuladorTemplateForm({
         </div>
       </section>
 
+      <section>
+        <label className="block">
+          <span className={labelCls} style={labelStyle}>
+            Slug da jornada pública
+          </span>
+          <input
+            className={fieldCls}
+            style={{ ...fieldStyle, cursor: 'default' }}
+            value={pageSlug}
+            readOnly
+            aria-readonly="true"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {slugError ? (
+            <p className="mt-1 text-xs text-destructive" style={{ color: 'var(--moni-status-overdue-border)' }}>
+              {slugError}
+            </p>
+          ) : null}
+          <span className="mt-1 block text-[11px]" style={hintStyle}>
+            Gerado automaticamente pelo nome do condomínio e pelo id. Não pode ser alterado.
+          </span>
+        </label>
+      </section>
+
       <section
         className="rounded-[var(--moni-radius-lg)] p-4 sm:p-5"
         style={{
@@ -296,72 +516,45 @@ export function SimuladorTemplateForm({
           className="text-lg"
           style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
         >
-          Link do template para corretores
+          Link Moní
         </h2>
-        {link ? (
-          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start">
-            <img
-              src={qrUrl(link)}
-              alt="QR code do simulador"
-              width={180}
-              height={180}
-              className="h-[180px] w-[180px] shrink-0 rounded-[var(--moni-radius-md)]"
-              style={{ border: 'var(--moni-border-width) solid var(--moni-border-default)' }}
-            />
-            <div className="min-w-0 flex-1">
-              <p
-                className="break-all rounded-[var(--moni-radius-md)] px-3 py-2 text-sm"
-                style={{
-                  ...fieldStyle,
-                  minHeight: 44,
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                {link}
-              </p>
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                <button
-                  type="button"
-                  disabled={salvando}
-                  onClick={() => void copiarLink()}
-                  className="min-h-[44px] rounded-[var(--moni-radius-md)] px-4 text-sm font-medium text-white disabled:opacity-50"
-                  style={{ background: 'var(--moni-navy-800)' }}
-                >
-                  {copiado ? 'Copiado' : 'Copiar link'}
-                </button>
-                <a
-                  href={qrUrl(link)}
-                  download="qr-simulador-pagamentos.png"
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-[var(--moni-radius-md)] px-4 text-sm font-medium"
-                  style={{
-                    border: 'var(--moni-border-width) solid var(--moni-border-default)',
-                    background: 'var(--moni-surface-0)',
-                    color: 'var(--moni-text-primary)',
-                  }}
-                >
-                  Baixar QR
-                </a>
-                <button
-                  type="button"
-                  disabled={salvando}
-                  onClick={() => void onNovoLink()}
-                  className="min-h-[44px] rounded-[var(--moni-radius-md)] px-4 text-sm font-medium"
-                  style={{
-                    border: 'var(--moni-border-width) solid var(--moni-border-default)',
-                    background: 'var(--moni-surface-0)',
-                    color: 'var(--moni-text-primary)',
-                  }}
-                >
-                  Gerar novo link
-                </button>
-              </div>
-            </div>
+        <p className="mt-1 text-sm" style={hintStyle}>
+          Jornada pública do empreendimento, sem corretor.
+        </p>
+        {pageAtiva && linkMoni ? (
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <p
+              className="min-w-0 flex-1 break-all rounded-[var(--moni-radius-md)] px-3 py-2 text-sm"
+              style={{
+                ...fieldStyle,
+                minHeight: 44,
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {linkMoni}
+            </p>
+            <button
+              type="button"
+              onClick={() => void copiarLinkMoni()}
+              className="min-h-[44px] shrink-0 rounded-[var(--moni-radius-md)] px-4 text-sm font-medium text-white"
+              style={{ background: 'var(--moni-navy-800)' }}
+            >
+              {copiadoMoni ? 'Copiado' : 'Copiar'}
+            </button>
           </div>
         ) : (
-          <p className="mt-3 text-sm" style={hintStyle}>
-            Salve o template para gerar o link e o QR.
-          </p>
+          <div
+            className="mt-3 cursor-not-allowed rounded-[var(--moni-radius-md)] px-3 py-3 opacity-50"
+            style={{
+              background: 'var(--moni-surface-100)',
+              border: 'var(--moni-border-width) solid var(--moni-border-default)',
+            }}
+          >
+            <p className="text-sm text-muted-foreground" style={hintStyle}>
+              Envie a planilha de lotes para ativar o Link Moní
+            </p>
+          </div>
         )}
       </section>
 
@@ -382,7 +575,7 @@ export function SimuladorTemplateForm({
             fontFamily: 'var(--moni-font-sans)',
           }}
         >
-          {salvando ? 'Salvando…' : jaSalvo ? 'Salvar template' : 'Salvar e gerar link'}
+          {salvando ? 'Salvando…' : 'Salvar template'}
         </button>
       </div>
     </form>
@@ -394,15 +587,18 @@ function CampoDraftNumero({
   onChange,
   inteiro,
   placeholder,
+  name,
 }: {
   value: string;
   onChange: (v: string) => void;
   inteiro?: boolean;
   placeholder?: string;
+  name?: string;
 }) {
   const numero = value.trim() === '' ? null : parsearNumeroInput(value);
   return (
     <CampoNumeroBr
+      name={name}
       className={fieldCls}
       style={fieldStyle}
       valor={numero}

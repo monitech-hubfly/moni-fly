@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import {
+  dispararLembreteLinksCorretores,
+  ehQuintaFeiraSaoPaulo,
+} from '@/lib/corretor-lembrete-semanal';
 import { notificarCardsComSlaVencido } from '@/lib/kanban/sla-alertas';
 import { notificarAtividadesComSlaCritico } from '@/lib/kanban/sla-atividade-alertas';
 
@@ -19,5 +23,12 @@ export async function GET(request: Request) {
   }
 
   await Promise.all([notificarCardsComSlaVencido(), notificarAtividadesComSlaCritico()]);
-  return NextResponse.json({ ok: true });
+
+  let corretores: Awaited<ReturnType<typeof dispararLembreteLinksCorretores>> | null = null;
+  if (ehQuintaFeiraSaoPaulo()) {
+    corretores = await dispararLembreteLinksCorretores();
+    if (!corretores.ok) console.error('[sla-alertas] lembrete corretores:', corretores.error);
+  }
+
+  return NextResponse.json({ ok: true, corretores });
 }

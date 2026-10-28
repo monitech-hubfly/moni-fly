@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeAccessRole, type AccessRole } from '@/lib/authz';
+import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import { seedEntryForEmail, seededRoleNeedsRepair } from '@/lib/team-seed-signup';
 
 /** Papel efetivo: seed de e-mail da equipe prevalece sobre pending/frank/vazio no DEV. */
@@ -40,9 +41,25 @@ export async function persistSeededStaffRoleIfNeeded(
   if (seeded.departamento) payload.departamento = seeded.departamento;
   if (seeded.role === 'team') payload.cargo = seeded.cargo ?? 'analista';
 
-  const { error } = await supabase.from('profiles').update(payload).eq('id', user.id).select('id');
+  const { data: updated, error } = await supabase
+    .from('profiles')
+    .update(payload)
+    .eq('id', user.id)
+    .select('id');
   if (error) {
     console.error('[seeded-staff-role] falha ao gravar papel da equipe:', error.message);
+  }
+  if (error || !updated?.length) {
+    const admin = tryCreateAdminClient();
+    if (admin) {
+      const { error: upsertErr } = await admin.from('profiles').upsert(
+        { id: user.id, ...payload },
+        { onConflict: 'id' },
+      );
+      if (upsertErr) {
+        console.error('[seeded-staff-role] fallback admin falhou:', upsertErr.message);
+      }
+    }
   }
   const { error: rpcErr } = await supabase.rpc('seed_users');
   if (rpcErr) {

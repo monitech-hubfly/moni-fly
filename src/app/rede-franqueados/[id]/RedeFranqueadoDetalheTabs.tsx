@@ -1,18 +1,28 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { PipelineCardsView } from '@/components/pipeline/PipelineCardsView';
 import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoading';
 import { usePipelineDatasetLazy } from '@/components/pipeline/usePipelineDatasetLazy';
 import { DiagnosticoPainelReadOnly } from '@/components/diagnostico-rede/DiagnosticoPainelReadOnly';
 import type { RedeFranqueadoDetalheRow } from '@/lib/rede-franqueados';
 import { FranqueadoFormulariosPainel } from '@/components/formularios/FranqueadoFormulariosPainel';
+import type { FormularioQualificacaoRow } from '@/lib/actions/formulario-qualificacao';
+import { FranqueadoQualificacaoPainel } from './FranqueadoQualificacaoPainel';
 
-type TabId = 'cadastro' | 'painel' | 'formularios';
+type TabId = 'cadastro' | 'painel' | 'formularios' | 'qualificacao';
 
 const TAB_CADASTRO = { id: 'cadastro' as const, label: 'Cadastro' };
 const TAB_PAINEL = { id: 'painel' as const, label: 'Painel da Unidade' };
 const TAB_FORMULARIOS = { id: 'formularios' as const, label: 'Formulários' };
+const TAB_QUALIFICACAO = { id: 'qualificacao' as const, label: 'Qualificação' };
+
+const ABAS: TabId[] = ['cadastro', 'painel', 'formularios', 'qualificacao'];
+
+function abaInicialValida(valor: string | undefined): TabId {
+  return valor && (ABAS as string[]).includes(valor) ? (valor as TabId) : 'cadastro';
+}
 
 type Props = {
   redeId: string;
@@ -21,6 +31,11 @@ type Props = {
   row?: RedeFranqueadoDetalheRow | null;
   internalView?: boolean;
   podeGerarFormulario?: boolean;
+  /** Query `aba` da URL, para abrir direto em Qualificação. */
+  abaInicial?: string;
+  qualificacaoHistorico?: FormularioQualificacaoRow[];
+  qualificacaoLoadError?: boolean;
+  podeAbrirFormulario?: boolean;
 };
 
 export function RedeFranqueadoDetalheTabs({
@@ -29,9 +44,20 @@ export function RedeFranqueadoDetalheTabs({
   row,
   internalView = true,
   podeGerarFormulario = false,
+  abaInicial,
+  qualificacaoHistorico = [],
+  qualificacaoLoadError = false,
+  podeAbrirFormulario = false,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<TabId>('cadastro');
-  const tabs = [TAB_CADASTRO, TAB_PAINEL, TAB_FORMULARIOS];
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<TabId>(() => abaInicialValida(abaInicial));
+  const tabs = [TAB_CADASTRO, TAB_PAINEL, TAB_FORMULARIOS, TAB_QUALIFICACAO];
+
+  function selecionarAba(tabId: TabId) {
+    setActiveTab(tabId);
+    const path = `/rede-franqueados/${redeId}`;
+    router.replace(tabId === 'cadastro' ? path : `${path}?aba=${tabId}`, { scroll: false });
+  }
 
   const { dataset: pipelineDataset, loading: pipelineLoading, error: pipelineError } = usePipelineDatasetLazy({
     mode: 'unidade',
@@ -51,7 +77,7 @@ export function RedeFranqueadoDetalheTabs({
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => selecionarAba(tab.id)}
                 className="relative min-h-[44px] px-4 py-3 text-sm font-medium transition-colors hover:bg-stone-50/80"
                 style={{
                   color: isActive ? 'var(--moni-navy-800, #0c2633)' : 'var(--moni-text-tertiary, #78716c)',
@@ -130,6 +156,14 @@ export function RedeFranqueadoDetalheTabs({
         ) : null}
         {activeTab === 'formularios' ? (
           <FranqueadoFormulariosPainel redeFranqueadoId={redeId} podeGerar={podeGerarFormulario} />
+        ) : null}
+        {activeTab === 'qualificacao' ? (
+          <FranqueadoQualificacaoPainel
+            redeId={redeId}
+            historico={qualificacaoHistorico}
+            loadError={qualificacaoLoadError}
+            podeAbrirFormulario={podeAbrirFormulario}
+          />
         ) : null}
       </div>
     </>

@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Archive, Eye, EyeOff, Pencil, Plus, RotateCcw, Star, Trash2, X } from 'lucide-react';
+import { FaqAcessoQr } from '@/components/faq/FaqAcessoQr';
+import { textoQuemSou } from '@/lib/faq/remetente-perfil';
 import type { FaqArticleView, FaqCategory, FaqStatus } from '@/lib/faq/types';
 import {
   criarArtigoFaq,
@@ -15,6 +17,34 @@ import {
   editarCategoriaFaq,
   type FaqArtigoInput,
 } from '@/lib/faq/actions';
+
+function LinkPublicoAjuda() {
+  const [copiado, setCopiado] = useState(false);
+
+  async function copiar() {
+    const url = `${window.location.origin}/ajuda`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiado(true);
+      window.setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      setCopiado(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={() => void copiar()}
+        className="inline-flex min-h-11 items-center rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50"
+      >
+        {copiado ? 'Link copiado' : 'Copiar link público /ajuda'}
+      </button>
+      <FaqAcessoQr aparencia="link" />
+    </div>
+  );
+}
 
 type Aba = 'perguntas' | 'categorias';
 const ROLES = ['frank', 'team', 'admin'] as const;
@@ -40,7 +70,14 @@ export function AdminFaqClient({
     return artigos.filter((a) => {
       if (filtroStatus !== 'todos' && a.status !== filtroStatus) return false;
       if (filtroCat !== 'todas' && a.category_id !== filtroCat) return false;
-      if (q.trim() && !a.question.toLowerCase().includes(q.trim().toLowerCase())) return false;
+      if (q.trim()) {
+        const termo = q.trim().toLowerCase();
+        const remetente = [a.remetente_nome, a.remetente_sobrenome, a.remetente_email, textoQuemSou(a.remetente_perfil, a.remetente_perfil_outro)]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        if (!a.question.toLowerCase().includes(termo) && !remetente.includes(termo)) return false;
+      }
       return true;
     });
   }, [artigos, filtroStatus, filtroCat, q]);
@@ -65,9 +102,12 @@ export function AdminFaqClient({
             Administração independente das perguntas da FAQ da Universidade — sem relação com cursos, aulas ou progresso.
           </p>
         </div>
-        <Link href="/universidade/faq" className="text-sm font-medium text-moni-primary hover:underline">
-          Ver FAQ pública →
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <LinkPublicoAjuda />
+          <Link href="/universidade/faq" className="text-sm font-medium text-moni-primary hover:underline">
+            Ver FAQ interna →
+          </Link>
+        </div>
       </header>
 
       <div className="flex gap-1 border-b border-stone-200">
@@ -130,6 +170,7 @@ export function AdminFaqClient({
               <thead className="border-b border-stone-200 bg-stone-50 text-xs uppercase text-stone-500">
                 <tr>
                   <th className="px-4 py-3">Pergunta</th>
+                  <th className="px-4 py-3">Enviado por</th>
                   <th className="px-4 py-3">Categoria</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Ordem</th>
@@ -146,6 +187,23 @@ export function AdminFaqClient({
                         {a.question}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-stone-600">
+                      {a.remetente_nome || a.remetente_email ? (
+                        <span className="block">
+                          <span className="block text-stone-800">
+                            {[a.remetente_nome, a.remetente_sobrenome].filter(Boolean).join(' ') || '—'}
+                          </span>
+                          <span className="block text-xs text-stone-500">{a.remetente_email ?? '—'}</span>
+                          {textoQuemSou(a.remetente_perfil, a.remetente_perfil_outro) ? (
+                            <span className="block text-xs text-stone-500">
+                              {textoQuemSou(a.remetente_perfil, a.remetente_perfil_outro)}
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-stone-600">{a.category_name ?? '—'}</td>
                     <td className="px-4 py-3">
                       <span
@@ -157,7 +215,7 @@ export function AdminFaqClient({
                               : 'bg-stone-200 text-stone-600'
                         }`}
                       >
-                        {STATUS_LABEL[a.status]}
+                        {a.status === 'draft' && !a.answer.trim() ? 'Aguardando resposta' : STATUS_LABEL[a.status]}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-stone-600">{a.display_order}</td>
@@ -233,7 +291,7 @@ export function AdminFaqClient({
                 ))}
                 {filtrados.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-stone-500">
+                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-stone-500">
                       Nenhuma pergunta com esses filtros.
                     </td>
                   </tr>
@@ -301,6 +359,10 @@ function EditorArtigo({
       setErro('Pergunta e resposta são obrigatórias.');
       return;
     }
+    if (status === 'published' && !categoryId) {
+      setErro('Escolha a categoria antes de publicar.');
+      return;
+    }
     setSalvando(true);
     const payload: FaqArtigoInput = {
       question,
@@ -341,6 +403,26 @@ function EditorArtigo({
           </button>
         </div>
         <div className="max-h-[70vh] space-y-4 overflow-y-auto px-5 py-4">
+          {artigo?.remetente_nome || artigo?.remetente_email ? (
+            <p className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700">
+              Enviado por{' '}
+              <span className="font-medium text-stone-900">
+                {[artigo.remetente_nome, artigo.remetente_sobrenome].filter(Boolean).join(' ') || '—'}
+              </span>
+              {artigo.remetente_email ? (
+                <>
+                  {' '}
+                  · <span className="text-stone-800">{artigo.remetente_email}</span>
+                </>
+              ) : null}
+              {textoQuemSou(artigo.remetente_perfil, artigo.remetente_perfil_outro) ? (
+                <>
+                  {' '}
+                  · <span className="text-stone-800">{textoQuemSou(artigo.remetente_perfil, artigo.remetente_perfil_outro)}</span>
+                </>
+              ) : null}
+            </p>
+          ) : null}
           <Campo label="Pergunta *">
             <input value={question} onChange={(e) => setQuestion(e.target.value)} className={inputCls} />
           </Campo>

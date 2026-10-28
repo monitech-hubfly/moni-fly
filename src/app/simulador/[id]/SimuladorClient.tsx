@@ -7,7 +7,10 @@ import { CampoNumeroBr } from '@/components/simulador/CampoNumeroBr';
 import { TabelaFluxo } from '@/components/simulador/oferta-resultado-ui';
 import {
   calcularOferta,
+  calcularParcelaUnicaMinimaConfirmada,
   formatarMoeda,
+  formatarMoedaCentavos,
+  parcelaUnicaAbaixoDoMinimo,
   sugerirParcelaMensal,
   type OfertaConfig,
   type ResultadoCalculo,
@@ -86,6 +89,21 @@ function AvisoMinimo({ minimo, atual }: { minimo: number; atual: number }) {
       }}
     >
       ⚠ Mínimo sugerido: {formatarMoeda(minimo)}
+    </p>
+  );
+}
+
+function AvisoMinimoUnica({ minimo, atual }: { minimo: number; atual: number }) {
+  if (!parcelaUnicaAbaixoDoMinimo(atual, minimo)) {
+    return <AvisoMinimo minimo={minimo} atual={atual} />;
+  }
+  return (
+    <p
+      className="mt-1 text-[11px] font-medium"
+      role="alert"
+      style={{ color: 'var(--moni-status-overdue-text)', fontFamily: 'var(--moni-font-sans)' }}
+    >
+      A parcela única precisa ser de pelo menos {formatarMoedaCentavos(minimo)} para quitar o lote.
     </p>
   );
 }
@@ -183,13 +201,8 @@ export default function SimuladorClient({ view }: Props) {
     aplicarValorLoteESugestao(lote?.valor ?? null);
   }
 
-  function minimoUnica(entrada: number, mensal: number, base: ResultadoCalculo) {
-    const deltaEntrada = entrada - base.entrada_sugerida;
-    const deltaMensais = (mensal - base.parcela_mensal_usada) * base.mes_parcela_unica;
-    return Math.max(
-      base.parcela_unica_detalhe.min_quitar_lote,
-      base.parcela_unica_sugerida - deltaEntrada - deltaMensais,
-    );
+  function minimoUnica(entrada: number, mensal: number, base: OfertaConfig) {
+    return calcularParcelaUnicaMinimaConfirmada(config, base, entrada, mensal);
   }
 
   function onCalcular() {
@@ -252,19 +265,20 @@ export default function SimuladorClient({ view }: Props) {
   function onEntradaConfChange(n: number | null) {
     const v = n ?? 0;
     setEntradaConf(v);
-    if (resultado) setUnicaConf(minimoUnica(v, mensalConf, resultado));
+    if (ultimaOferta) setUnicaConf(minimoUnica(v, mensalConf, ultimaOferta));
     setFluxoPersonalizado(null);
   }
 
   function onMensalConfChange(n: number | null) {
     const v = n ?? 0;
     setMensalConf(v);
-    if (resultado) setUnicaConf(minimoUnica(entradaConf, v, resultado));
+    if (ultimaOferta) setUnicaConf(minimoUnica(entradaConf, v, ultimaOferta));
     setFluxoPersonalizado(null);
   }
 
   async function onSalvar(personalizada: boolean) {
     if (!resultado || !ultimaOferta) return;
+    if (personalizada && unicaAbaixo) return;
     setSalvando(true);
     setErro(null);
     const res = await salvarOfertaCorretor(view.token, {
@@ -304,7 +318,7 @@ export default function SimuladorClient({ view }: Props) {
   }
 
   function abrirFluxoPersonalizado() {
-    if (!resultado || !ultimaOferta) return;
+    if (!resultado || !ultimaOferta || unicaAbaixo) return;
     setFluxoPersonalizado(
       calcularOferta(config, {
         ...ultimaOferta,
@@ -317,7 +331,8 @@ export default function SimuladorClient({ view }: Props) {
     setFluxoModalAberto(true);
   }
 
-  const unicaMinima = resultado ? minimoUnica(entradaConf, mensalConf, resultado) : 0;
+  const unicaMinima = ultimaOferta ? minimoUnica(entradaConf, mensalConf, ultimaOferta) : 0;
+  const unicaAbaixo = parcelaUnicaAbaixoDoMinimo(unicaConf, unicaMinima);
   const rendaMinima = resultado ? resultado.parcela_sac_primeira * 3 : 0;
   const taxaPctLabel = taxaJurosPct != null ? String(taxaJurosPct).replace('.', ',') : '10';
   const fluxoDoModal = fluxoModalPersonalizado ? (fluxoPersonalizado ?? resultado) : resultado;
@@ -845,7 +860,7 @@ export default function SimuladorClient({ view }: Props) {
                       style={watermarkStyle('unica')}
                     />
                   </div>
-                  <AvisoMinimo minimo={unicaMinima} atual={unicaConf} />
+                  <AvisoMinimoUnica minimo={unicaMinima} atual={unicaConf} />
                 </label>
               </div>
 
@@ -856,6 +871,7 @@ export default function SimuladorClient({ view }: Props) {
                   onGerar={abrirFluxoPersonalizado}
                   onSalvar={() => void onSalvar(true)}
                   salvando={salvando}
+                  bloqueado={unicaAbaixo}
                   salvarDourado={false}
                   mostrarPdf={pdfPersonalizada}
                   baixandoPdf={baixandoPdf}
@@ -936,6 +952,7 @@ function BotoesAcoesOferta({
   mostrarPdf,
   baixandoPdf,
   onBaixarPdf,
+  bloqueado = false,
 }: {
   gerarLabel: string;
   salvarLabel: string;
@@ -946,13 +963,14 @@ function BotoesAcoesOferta({
   mostrarPdf: boolean;
   baixandoPdf: boolean;
   onBaixarPdf: () => void;
+  bloqueado?: boolean;
 }) {
-  const btnBase =
-    'flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-[var(--moni-radius-md)] px-3 text-center text-sm font-medium';
+  const btnBase = `flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-[var(--moni-radius-md)] px-3 text-center text-sm font-medium${bloqueado ? ' cursor-not-allowed opacity-50' : ''}`;
   return (
     <div className="flex flex-col gap-2 sm:flex-row">
       <button
         type="button"
+        disabled={bloqueado}
         onClick={onGerar}
         className={btnBase}
         style={{
@@ -966,7 +984,7 @@ function BotoesAcoesOferta({
       </button>
       <button
         type="button"
-        disabled={salvando}
+        disabled={salvando || bloqueado}
         onClick={onSalvar}
         className={btnBase}
         style={{

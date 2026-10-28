@@ -28,6 +28,7 @@ export const KANBAN_CARD_SELECT_BASE = `
       juridico_ok,
       juridico_bolinha_count,
       credito_obra_ok,
+      credito_finalizado,
       projetos_legais_ok,
       projetos_locais_ok,
       projeto_id,
@@ -97,8 +98,12 @@ export const KANBAN_CARD_SELECT_BOARD_FAST = `
 
 export const KANBAN_CARD_SELECT_BOARD_FAST_WITH_SLA = `${KANBAN_CARD_SELECT_BOARD_FAST.trim()}`;
 
-/** Colunas opcionais do Funil Corretores — se faltarem no banco, o SELECT do board inteiro quebra. */
-const KANBAN_CARD_SELECT_LEAD_OPTIONAL = [
+/**
+ * Colunas que podem não existir ainda (Perda/Ganho, Corretores, etc.).
+ * Se o SELECT as incluir e o banco não tiver, o PostgREST zera o board inteiro.
+ */
+const KANBAN_CARD_SELECT_OPTIONAL = [
+  'resultado',
   'telefone_lead',
   'email_lead',
   'mensagem_lead',
@@ -115,15 +120,44 @@ const KANBAN_CARD_SELECT_LEAD_OPTIONAL = [
   'juridico_observacoes',
 ] as const;
 
-function stripOptionalLeadColumns(select: string): string {
-  const skip = new Set(
-    KANBAN_CARD_SELECT_LEAD_OPTIONAL.map((c) => c.toLowerCase()),
-  );
+function splitSelectCols(select: string): string[] {
   return select
     .split(',')
     .map((part) => part.trim())
-    .filter((part) => part.length > 0 && !skip.has(part.toLowerCase()))
-    .join(',\n      ');
+    .filter((part) => part.length > 0);
+}
+
+function joinSelectCols(cols: string[]): string {
+  return cols.join(',\n      ');
+}
+
+function stripNamedColumn(select: string, col: string): string | null {
+  const needle = col.trim().toLowerCase();
+  if (!needle) return null;
+  const cols = splitSelectCols(select);
+  const next = cols.filter((c) => c.toLowerCase() !== needle);
+  if (next.length === 0 || next.length === cols.length) return null;
+  return joinSelectCols(next);
+}
+
+function stripOptionalBoardColumns(select: string): string {
+  const skip = new Set(KANBAN_CARD_SELECT_OPTIONAL.map((c) => c.toLowerCase()));
+  return joinSelectCols(splitSelectCols(select).filter((part) => !skip.has(part.toLowerCase())));
+}
+
+/** PostgREST: `column X does not exist` / PGRST204 schema cache. */
+export function colunaAusenteDoErroSelect(message: string | undefined): string | null {
+  if (!message) return null;
+  const patterns = [
+    /column\s+(?:[\w]+\.)?(\w+)\s+does not exist/i,
+    /could not find the ['"](\w+)['"] column/i,
+    /could not find ['"](\w+)['"] column of/i,
+  ];
+  for (const re of patterns) {
+    const m = message.match(re);
+    if (m?.[1]) return m[1];
+  }
+  return null;
 }
 
 export function isSupabaseMissingColumnError(message: string | undefined): boolean {
@@ -137,41 +171,52 @@ export function isSupabaseMissingColumnError(message: string | undefined): boole
   );
 }
 
-export async function runKanbanCardSelectWithSlaFallback<T>(run: (select: string) => Promise<{
+type SelectRun<T> = (select: string) => Promise<{
   data: T | null;
   error: { message: string } | null;
-}>): Promise<{ data: T | null; error: { message: string } | null; slaColsAvailable: boolean }> {
-  const withSla = await run(KANBAN_CARD_SELECT_WITH_SLA);
-  if (!withSla.error) return { ...withSla, slaColsAvailable: true };
-  if (!isSupabaseMissingColumnError(withSla.error?.message)) {
-    return { ...withSla, slaColsAvailable: false };
-  }
+}>;
 
-  const base = await run(KANBAN_CARD_SELECT_BASE);
-  if (!base.error) return { ...base, slaColsAvailable: false };
-  if (!isSupabaseMissingColumnError(base.error?.message)) {
-    return { ...base, slaColsAvailable: false };
+async function runSelectRetryingMissingColumns<T>(
+  initialSelect: string,
+  run: SelectRun<T>,
+): Promise<{ data: T | null; error: { message: string } | null; slaColsAvailable: boolean }> {
+  let select = initialSelect;
+  let slaColsAvailable = /sla_iniciado_em/i.test(select);
+  for (let i = 0; i < 8; i++) {
+    const res = await run(select);
+    if (!res.error) return { ...res, slaColsAvailable };
+    if (!isSupabaseMissingColumnError(res.error.message)) {
+      console.error('[kanban-card-select]', res.error.message);
+      return { ...res, slaColsAvailable: false };
+    }
+    const named = colunaAusenteDoErroSelect(res.error.message);
+    const next = named
+      ? stripNamedColumn(select, named)
+      : stripOptionalBoardColumns(select);
+    if (!next || next === select) {
+      console.error('[kanban-card-select] coluna ausente sem fallback:', res.error.message);
+      return { ...res, slaColsAvailable: false };
+    }
+    slaColsAvailable = slaColsAvailable && /sla_iniciado_em/i.test(next);
+    select = next;
   }
-
-  const stripped = await run(stripOptionalLeadColumns(KANBAN_CARD_SELECT_BASE));
-  return { ...stripped, slaColsAvailable: false };
+  const last = await run(select);
+  if (last.error) console.error('[kanban-card-select]', last.error.message);
+  return { ...last, slaColsAvailable: slaColsAvailable && !last.error };
 }
 
-export async function runKanbanCardSelectBoardFast<T>(run: (select: string) => Promise<{
+export async function runKanbanCardSelectWithSlaFallback<T>(run: SelectRun<T>): Promise<{
   data: T | null;
   error: { message: string } | null;
-}>): Promise<{ data: T | null; error: { message: string } | null; slaColsAvailable: boolean }> {
-  const withSla = await run(KANBAN_CARD_SELECT_BOARD_FAST_WITH_SLA);
-  if (!withSla.error) return { ...withSla, slaColsAvailable: true };
-  if (!isSupabaseMissingColumnError(withSla.error?.message)) {
-    return { ...withSla, slaColsAvailable: false };
-  }
-  const trimmed = KANBAN_CARD_SELECT_BOARD_FAST.replace(/\s+sla_iniciado_em,\s+entered_fase_at\s*/i, '');
-  const base = await run(trimmed);
-  if (!base.error) return { ...base, slaColsAvailable: false };
-  if (!isSupabaseMissingColumnError(base.error?.message)) {
-    return { ...base, slaColsAvailable: false };
-  }
-  const stripped = await run(stripOptionalLeadColumns(trimmed));
-  return { ...stripped, slaColsAvailable: false };
+  slaColsAvailable: boolean;
+}> {
+  return runSelectRetryingMissingColumns(KANBAN_CARD_SELECT_WITH_SLA, run);
+}
+
+export async function runKanbanCardSelectBoardFast<T>(run: SelectRun<T>): Promise<{
+  data: T | null;
+  error: { message: string } | null;
+  slaColsAvailable: boolean;
+}> {
+  return runSelectRetryingMissingColumns(KANBAN_CARD_SELECT_BOARD_FAST_WITH_SLA, run);
 }

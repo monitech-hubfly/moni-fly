@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { isRedeStaffRole } from '@/lib/authz'
+import { listarEmpreendimentosParaVinculoCorretor } from '@/lib/corretor-empreendimentos-vinculo'
 import { CorretorNovoInternoClient } from './CorretorNovoInternoClient'
 
 export const dynamic = 'force-dynamic'
@@ -15,6 +16,8 @@ export default async function CorretoresNovoPage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   const role = (profile as { role?: string } | null)?.role
   if (!isRedeStaffRole(role)) redirect('/rede-franqueados')
+
+  const empreendimentos = await listarEmpreendimentosParaVinculoCorretor(supabase)
 
   return (
     <div className="min-h-0 bg-[var(--moni-surface-50)]">
@@ -31,7 +34,7 @@ export default async function CorretoresNovoPage() {
         </header>
 
         <div className="mt-6">
-          <CorretorNovoInternoClient />
+          <CorretorNovoInternoClient empreendimentos={empreendimentos} />
         </div>
       </main>
     </div>

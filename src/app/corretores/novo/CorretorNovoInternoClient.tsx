@@ -4,7 +4,13 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Check, Copy, ExternalLink, Loader2, Share2 } from 'lucide-react'
-import { criarRedeCorretor } from '@/app/rede-franqueados/rede-corretores-actions'
+import {
+  criarRedeCorretor,
+  enviarLinksDoCadastroNaRede,
+  vincularEmpreendimentosDoNovoCorretor,
+} from '@/app/rede-franqueados/rede-corretores-actions'
+import { CorretorEmpreendimentosVinculo } from '@/components/CorretorEmpreendimentosVinculo'
+import type { EmpreendimentoVinculoOpcao } from '@/lib/corretor-empreendimentos-vinculo'
 import { redeAlertError, redeAlertSuccess, redeBtnGhost, redeBtnPrimary } from '@/app/rede-franqueados/rede-ui'
 import { RedeCorretorFichaForm } from '@/components/RedeCorretorFichaForm'
 import {
@@ -14,15 +20,20 @@ import {
 } from '@/lib/rede-corretor-ficha-draft'
 import { buildCadastroCorretorPublicUrl } from '@/lib/rede-corretor-persist'
 
-export function CorretorNovoInternoClient() {
+export function CorretorNovoInternoClient({
+  empreendimentos = [],
+}: {
+  empreendimentos?: EmpreendimentoVinculoOpcao[]
+}) {
   const router = useRouter()
   const [draft, setDraft] = useState<RedeCorretorFichaDraft>(() =>
-    emptyRedeCorretorFichaDraft('ativo'),
+    emptyRedeCorretorFichaDraft('aprovado'),
   )
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [publicUrl, setPublicUrl] = useState('/cadastro/corretor')
+  const [empreendimentoIds, setEmpreendimentoIds] = useState<string[]>([])
 
   useEffect(() => {
     setPublicUrl(buildCadastroCorretorPublicUrl(window.location.origin))
@@ -43,12 +54,26 @@ export function CorretorNovoInternoClient() {
     setMsg(null)
     const patch = redeCorretorFichaDraftToPatch(draft)
     const r = await criarRedeCorretor(patch)
-    setSaving(false)
     if (!r.ok) {
+      setSaving(false)
       setMsg({ tipo: 'erro', texto: r.error })
       return
     }
-    setMsg({ tipo: 'ok', texto: r.mensagem })
+    if (r.id && empreendimentoIds.length > 0) {
+      const vinculo = await vincularEmpreendimentosDoNovoCorretor(r.id, empreendimentoIds)
+      if (!vinculo.ok) {
+        setSaving(false)
+        setMsg({ tipo: 'erro', texto: `Corretor cadastrado, mas o vínculo falhou: ${vinculo.error}` })
+        return
+      }
+    }
+    let texto = r.mensagem
+    if (r.id) {
+      const email = await enviarLinksDoCadastroNaRede(r.id)
+      if (email.ok) texto = email.mensagem
+    }
+    setSaving(false)
+    setMsg({ tipo: 'ok', texto })
     router.refresh()
     setTimeout(() => router.push('/rede-franqueados?tab=corretores'), 700)
   }
@@ -94,6 +119,15 @@ export function CorretorNovoInternoClient() {
           onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
           showStatus
         />
+
+        <div className="mt-6">
+          <CorretorEmpreendimentosVinculo
+            modo="interno"
+            empreendimentos={empreendimentos}
+            selecionados={empreendimentoIds}
+            onChange={setEmpreendimentoIds}
+          />
+        </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-stone-200 pt-4">
           <Link href="/rede-franqueados?tab=corretores" className={redeBtnGhost}>

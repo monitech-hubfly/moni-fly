@@ -1,9 +1,7 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { createClient } from '@/lib/supabase/server';
-import { isRedeStaffRole } from '@/lib/authz';
-import { persistSeededStaffRoleIfNeeded } from '@/lib/seeded-staff-role';
 import { carregarSimuladorTemplateDoCard } from '@/lib/actions/loteamento-simulador-template';
 import { rowToSimuladorTemplateDraft } from '@/lib/loteamento-simulador-template';
 import { SimuladorTemplateForm } from './SimuladorTemplateForm';
@@ -24,16 +22,6 @@ export default async function SimuladorTemplatePage({ params }: Props) {
     data: { user },
   } = await supabase.auth.getUser();
   guardLoginRequired(user);
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  const access = await persistSeededStaffRoleIfNeeded(
-    supabase,
-    { id: user.id, email: user.email },
-    (profile as { role?: string } | null)?.role,
-  );
-  if (!isRedeStaffRole(access)) {
-    redirect('/loteadores');
-  }
 
   const loaded = await carregarSimuladorTemplateDoCard(id);
   if (!loaded.ok) {
@@ -86,14 +74,19 @@ export default async function SimuladorTemplatePage({ params }: Props) {
         {loaded.loteadorNome ? ` · ${loaded.loteadorNome}` : ''}
       </p>
       <p className="mt-1 text-sm" style={{ color: 'var(--moni-text-tertiary)' }}>
-        Percentuais e premissas deste loteamento. Ao salvar, o link e o QR para o corretor aparecem nesta tela.
+        Percentuais e premissas deste loteamento.
       </p>
       <div className="mt-8">
         <SimuladorTemplateForm
+          key={id}
           cardId={id}
           cardTitulo={loaded.cardTitulo}
+          nomeCondominio={loaded.nomeCondominio}
           draftInicial={rowToSimuladorTemplateDraft(loaded.template)}
-          linkInicial={loaded.link}
+          jaSalvoInicial={Boolean(loaded.template)}
+          pageSlugInicial={loaded.empreendimentoSlug}
+          linkMoniInicial={loaded.linkMoni}
+          pageAtivaInicial={loaded.pageAtiva}
         />
       </div>
     </main>

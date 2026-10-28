@@ -45,6 +45,7 @@ export type ImobCardModeloRow = {
   imagem_principal_path: string | null;
   imagem_principal_nome: string | null;
   preco_a_partir_de: number | null;
+  page_slug: string | null;
 };
 
 export type ImobCardModeloDraft = {
@@ -52,6 +53,7 @@ export type ImobCardModeloDraft = {
   imagem_principal_path: string;
   imagem_principal_nome: string;
   preco_a_partir_de: string;
+  page_slug: string;
 };
 
 export type ImobCardEmpreendimentoRow = {
@@ -73,6 +75,8 @@ export type ImobCardEmpreendimentoRow = {
   imagem_oferta_path: string | null;
   imagem_oferta_nome: string | null;
   valor_avista: number | null;
+  valor_base_casa: number | null;
+  valor_acoplamento: number | null;
   entrada: number | null;
   parcelas_mensais: number | null;
   prazo_total_meses: number | null;
@@ -119,6 +123,8 @@ export type ImobCardEmpreendimentoDraft = {
   imagem_oferta_path: string;
   imagem_oferta_nome: string;
   valor_avista: string;
+  valor_base_casa: string;
+  valor_acoplamento: string;
   entrada: string;
   parcelas_mensais: string;
   prazo_total_meses: string;
@@ -149,6 +155,8 @@ export type ImobCardEmpreendimentoDraft = {
 
 const MONEY_KEYS = [
   'valor_avista',
+  'valor_base_casa',
+  'valor_acoplamento',
   'entrada',
   'parcelas_mensais',
   'parcela_unica',
@@ -185,8 +193,16 @@ function numToCampo(n: number | null | undefined): string {
 }
 
 function campoToNum(raw: string): number | null {
-  const n = parseMoneyText(raw);
-  if (n == null || !Number.isFinite(n)) return null;
+  const t = String(raw ?? '').trim();
+  if (!t) return null;
+  // Máscara pt-BR do campo: "1.000.000,00" → 1000000 (remove milhar, vírgula decimal).
+  const normalized = t
+    .replace(/r\$\s*/gi, '')
+    .replace(/\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return null;
   return Math.round(n * 100) / 100;
 }
 
@@ -223,6 +239,7 @@ export function emptyImobCardModeloDraft(): ImobCardModeloDraft {
     imagem_principal_path: '',
     imagem_principal_nome: '',
     preco_a_partir_de: '',
+    page_slug: '',
   };
 }
 
@@ -233,6 +250,7 @@ export function rowToImobModeloDraft(row: ImobCardModeloRow | null | undefined):
     imagem_principal_path: String(row.imagem_principal_path ?? '').trim(),
     imagem_principal_nome: String(row.imagem_principal_nome ?? '').trim(),
     preco_a_partir_de: numToCampo(row.preco_a_partir_de),
+    page_slug: String(row.page_slug ?? '').trim(),
   };
 }
 
@@ -259,6 +277,7 @@ export function mapImobCardModeloRow(raw: Record<string, unknown>): ImobCardMode
     imagem_principal_path: raw.imagem_principal_path != null ? String(raw.imagem_principal_path) : null,
     imagem_principal_nome: raw.imagem_principal_nome != null ? String(raw.imagem_principal_nome) : null,
     preco_a_partir_de: n('preco_a_partir_de'),
+    page_slug: raw.page_slug != null ? String(raw.page_slug).trim() || null : null,
   };
 }
 
@@ -285,6 +304,8 @@ export function rowToImobDraft(row: ImobCardEmpreendimentoRow): ImobCardEmpreend
     imagem_oferta_path: String(row.imagem_oferta_path ?? '').trim(),
     imagem_oferta_nome: String(row.imagem_oferta_nome ?? '').trim(),
     valor_avista: numToCampo(row.valor_avista),
+    valor_base_casa: numToCampo(row.valor_base_casa),
+    valor_acoplamento: numToCampo(row.valor_acoplamento),
     entrada: numToCampo(row.entrada),
     parcelas_mensais: numToCampo(row.parcelas_mensais),
     prazo_total_meses: numToPlain(row.prazo_total_meses),
@@ -333,9 +354,18 @@ export function draftToImobPatch(draft: ImobCardEmpreendimentoDraft): Record<str
     patch[k] = plainToNum(draft[k]);
   }
   // Só persiste os campos de simulação ativos na UI (legado balão/fin permanece no banco).
-  for (const k of ['valor_avista', 'entrada', 'parcelas_mensais', 'parcela_unica'] as const) {
+  for (const k of [
+    'valor_avista',
+    'valor_base_casa',
+    'valor_acoplamento',
+    'entrada',
+    'parcelas_mensais',
+    'parcela_unica',
+  ] as const) {
     patch[k] = campoToNum(draft[k]);
   }
+  if (patch.valor_base_casa == null) patch.valor_base_casa = 0;
+  console.error('[DEBUG-PATCH] valor_base_casa no patch:', patch.valor_base_casa);
   return patch;
 }
 
@@ -376,7 +406,7 @@ export function opcoesProdutoModeloComValorAtual(valorAtual: string): string[] {
   return base;
 }
 
-/** Rótulo curto para a origem da oferta: produto + título, ou "Empreendimento N". */
+/** Rótulo curto para a origem da oferta: produto + título, ou "Oferta N". */
 export function rotuloEmpreendimentoOrigem(
   item: Pick<ImobCardEmpreendimentoDraft, 'produto_modelo' | 'titulo_oferta'>,
   posicaoNaLista: number,
@@ -387,7 +417,7 @@ export function rotuloEmpreendimentoOrigem(
   if (produto) return produto;
   if (titulo) return titulo;
   const n = Number.isFinite(posicaoNaLista) && posicaoNaLista > 0 ? posicaoNaLista : 1;
-  return `Empreendimento ${n}`;
+  return `Oferta ${n}`;
 }
 
 export function mapImobCardEmpreendimentoRow(raw: Record<string, unknown>): ImobCardEmpreendimentoRow {
@@ -417,6 +447,8 @@ export function mapImobCardEmpreendimentoRow(raw: Record<string, unknown>): Imob
     imagem_oferta_path: t('imagem_oferta_path'),
     imagem_oferta_nome: t('imagem_oferta_nome'),
     valor_avista: n('valor_avista'),
+    valor_base_casa: n('valor_base_casa'),
+    valor_acoplamento: n('valor_acoplamento'),
     entrada: n('entrada'),
     parcelas_mensais: n('parcelas_mensais'),
     prazo_total_meses: n('prazo_total_meses') != null ? Math.round(n('prazo_total_meses')!) : null,

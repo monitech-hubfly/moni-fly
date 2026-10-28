@@ -46,6 +46,7 @@ export function GerarLinkFormularioButton({
   redeFranqueadoId,
   rotulo = 'Gerar link público',
   compacto = false,
+  denso = false,
 }: {
   formularioId: string;
   formularioNome?: string;
@@ -53,6 +54,8 @@ export function GerarLinkFormularioButton({
   redeFranqueadoId?: string | null;
   rotulo?: string;
   compacto?: boolean;
+  /** Catálogo: botão baixo, na largura da coluna do card. */
+  denso?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const [card, setCard] = useState(cardId ?? '');
@@ -154,9 +157,11 @@ export function GerarLinkFormularioButton({
           setErro(null);
         }}
         style={
-          compacto
-            ? { ...botao, width: '100%', fontSize: 10, minHeight: 36, padding: '6px 8px' }
-            : botao
+          denso
+            ? { ...botao, width: '100%', minHeight: 32, height: 32, fontSize: 12, fontWeight: 500, padding: '0 10px' }
+            : compacto
+              ? { ...botao, width: '100%', fontSize: 10, minHeight: 36, padding: '6px 8px' }
+              : botao
         }
       >
         {rotulo}
@@ -259,16 +264,12 @@ export function GerarLinkFormularioButton({
                   ) : null}
                 </div>
               )}
-
-              <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
-                Sem card e sem franqueado, quem preencher informa o número e o nome da franquia.
-              </p>
             </div>
 
             {linkGerado ? (
               <div className="space-y-1 rounded-lg p-3" style={{ background: 'var(--moni-green-50)', border: 'var(--moni-border-width) solid var(--moni-green-400)' }}>
                 <p className="text-xs font-medium" style={{ color: 'var(--moni-green-800)' }}>
-                  Link gerado
+                  Link público — sempre o mesmo
                 </p>
                 <p className="break-all font-mono text-xs" style={{ color: 'var(--moni-text-primary)' }}>
                   {linkGerado}
@@ -292,7 +293,7 @@ export function GerarLinkFormularioButton({
 
             <div className="flex flex-wrap gap-2 pt-1">
               <button type="button" onClick={() => void handleGerar()} disabled={gerandoLink} style={botao}>
-                {gerandoLink ? 'Gerando…' : 'Gerar'}
+                {gerandoLink ? 'Abrindo…' : 'Mostrar link'}
               </button>
               <button type="button" onClick={handleFechar} style={botaoSecundario}>
                 Fechar

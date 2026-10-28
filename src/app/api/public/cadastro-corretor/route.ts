@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { clientIpFromRequest, checkIpRateLimit } from '@/lib/public-rate-limit'
+import {
+  idsEmpreendimentoInformados,
+  vincularCorretorAosEmpreendimentosAtivos,
+} from '@/lib/corretor-empreendimentos-vinculo'
+import { enviarEmailCadastroCorretorRecebido } from '@/lib/corretor-emails'
 import { insertRedeCorretorRow } from '@/lib/rede-corretor-persist'
 import type { RedeCorretorPatch } from '@/lib/rede-corretores'
 
@@ -20,7 +25,9 @@ export async function POST(req: Request) {
     )
   }
 
-  const body = (await req.json().catch(() => null)) as RedeCorretorPatch | null
+  const body = (await req.json().catch(() => null)) as
+    | (RedeCorretorPatch & { empreendimento_ids?: unknown })
+    | null
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ ok: false, error: 'Dados inválidos.' }, { status: 400 })
   }
@@ -62,6 +69,23 @@ export async function POST(req: Request) {
 
   if (!inserted.ok) {
     return NextResponse.json({ ok: false, error: inserted.error }, { status: 400 })
+  }
+
+  await enviarEmailCadastroCorretorRecebido({
+    nome: String(patch.nome ?? ''),
+    email: patch.email,
+  })
+
+  const vinculo = await vincularCorretorAosEmpreendimentosAtivos(
+    admin,
+    inserted.id,
+    idsEmpreendimentoInformados(body.empreendimento_ids),
+  )
+  if (!vinculo.ok) {
+    return NextResponse.json(
+      { ok: false, error: `Cadastro recebido, mas o vínculo falhou: ${vinculo.error}` },
+      { status: 400 },
+    )
   }
 
   return NextResponse.json({

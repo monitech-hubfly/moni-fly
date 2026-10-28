@@ -12,7 +12,9 @@ import {
   isSafePostLoginNextPath,
   isBcaPublicLeituraAccessPath,
   isCalculadoraPublicLeituraPath,
+  isEmpreendimentoPublicoPath,
   isSimuladorPublicoPath,
+  isAjudaPublicaPath,
   isExternalTokenAccessPath,
   isFrankAllowedPath,
   isTeamAllowedPath,
@@ -31,7 +33,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (isCalculadoraPublicLeituraPath(pathname) || isSimuladorPublicoPath(pathname)) {
+  if (
+    isCalculadoraPublicLeituraPath(pathname) ||
+    isSimuladorPublicoPath(pathname) ||
+    isEmpreendimentoPublicoPath(pathname)
+  ) {
     return NextResponse.next({ request });
   }
 
@@ -114,6 +120,8 @@ export async function updateSession(request: NextRequest) {
     '/operacoes',
     '/funil-stepone',
     '/funil-motor01',
+    '/funil-showroom',
+    '/funil-imob',
     '/loteadores',
     '/funil-moni-inc',
     '/marketing',
@@ -217,7 +225,12 @@ export async function updateSession(request: NextRequest) {
 
   // Só cadastro explicitamente pending — perfil ausente/timeout NÃO vai para /leitura.
   if (isExplicitPending) {
-    if (isExternalTokenAccessPath(pathname) || isBcaPublicLeituraAccessPath(pathname) || isAuthFlowAccessPath(pathname)) {
+    if (
+      isExternalTokenAccessPath(pathname) ||
+      isBcaPublicLeituraAccessPath(pathname) ||
+      isAuthFlowAccessPath(pathname) ||
+      isAjudaPublicaPath(pathname)
+    ) {
       return response;
     }
     const url = new URL('/login', request.url);

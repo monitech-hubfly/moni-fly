@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isoWeek } from '@/utils/periodos';
-import { calcularSlaKanbanCard } from '@/lib/kanban/kanban-card-sla';
+import { calcularSlaKanbanCard, faseExcluidaDoAtrasoSla } from '@/lib/kanban/kanban-card-sla';
 
 // ── Semáforo — cores hex (sincronizado com useMeuCarometro) ──────────────────
 const COR_PARA_SCORE: Record<string, number> = {
@@ -209,6 +209,7 @@ export async function gerarSnapshotCarometro(
   const kanbanArr = (kanbanAbertosRes.data ?? []) as KanbanCardSla[];
   const cardsComSLA = kanbanArr.filter(c => {
     const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
+    if (faseExcluidaDoAtrasoSla(fase?.slug)) return false;
     return (fase?.sla_dias ?? null) !== null;
   });
   // Cards com trava ativa → bloqueados: excluídos do score (nem bônus, nem penalidade)

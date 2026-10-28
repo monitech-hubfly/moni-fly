@@ -21,6 +21,8 @@ export type KanbanNomeDisplay =
   | 'Funil Contabilidade'
   | 'Funil Crédito Obra'
   | 'Funil Motor 01'
+  | 'Funil Showroom'
+  | 'Funil IMOB'
   | 'Funil Gravação de Vídeos Externos'
   | 'Funil Programação de Conteúdo Semanal'
   | 'Funil Série Inc. to Fly'
@@ -96,6 +98,8 @@ export type KanbanCardBrief = {
   /** Funil Jurídico: retrocessos Assinatura → Tratativas. */
   juridico_bolinha_count?: number | null;
   credito_obra_ok?: boolean;
+  /** Pré Obra e Obra: Crédito Finalizado (filho Crédito Obra em Concluídos). */
+  credito_finalizado?: boolean;
   projetos_legais_ok?: boolean | null;
   projetos_locais_ok?: boolean | null;
   /** Operações: existe card filho no Funil Projeto Legal (`origem_card_id`). */
@@ -192,6 +196,19 @@ export type KanbanProximaAtividadeAberta = {
   id: string;
   descricao: string;
   prazo: string | null;
+};
+
+/** Linha completa de kanban_proximas_atividades: aberta ou já concluída. */
+export type KanbanProximaAtividadeRegistro = {
+  id: string;
+  descricao: string;
+  prazo: string | null;
+  responsavelId: string | null;
+  responsavelNome: string | null;
+  criadoEm: string | null;
+  criadoPorNome: string | null;
+  concluidoEm: string | null;
+  concluidoPorNome: string | null;
 };
 
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */

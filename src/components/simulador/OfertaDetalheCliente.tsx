@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { excluirOfertaSimulacao } from '@/lib/actions/loteamento-simulador-template';
-import { rowToTemplateConfig } from '@/lib/loteamento-simulador-template';
+import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
 import type {
   LoteamentoSimuladorTemplateRow,
   SimulacaoPagamentoResumo,
@@ -16,6 +16,7 @@ type Props = {
   oferta: SimulacaoPagamentoResumo;
   template: LoteamentoSimuladorTemplateRow | null;
   cardId: string;
+  valorBaseCasaInicial?: number | null;
 };
 
 const btnBaseStyle = {
@@ -32,7 +33,12 @@ const btnPerigStyle = {
   color: 'var(--moni-status-overdue-text)',
 } as const;
 
-export function OfertaDetalheCliente({ oferta, template, cardId }: Props) {
+export function OfertaDetalheCliente({
+  oferta,
+  template,
+  cardId,
+  valorBaseCasaInicial = null,
+}: Props) {
   const router = useRouter();
   const [editando, setEditando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
@@ -53,7 +59,7 @@ export function OfertaDetalheCliente({ oferta, template, cardId }: Props) {
     router.push(`/loteadores/${cardId}/simulador-template/ofertas`);
   }
 
-  const templateConfig = template ? rowToTemplateConfig(template) : null;
+  const templateConfig = template ? montarTemplateParaEngine(template) : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -109,6 +115,7 @@ export function OfertaDetalheCliente({ oferta, template, cardId }: Props) {
           empreendimentoId={oferta.empreendimento_id ?? null}
           ofertaId={oferta.id}
           ofertaInicial={oferta}
+          valorBaseCasaInicial={valorBaseCasaInicial}
         />
       ) : (
         <OfertaDetalheLeitura oferta={oferta} template={template} />

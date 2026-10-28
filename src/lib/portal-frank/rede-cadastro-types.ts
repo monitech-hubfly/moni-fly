@@ -1,6 +1,4 @@
 /** Campos que o Frank pode enviar no UPDATE de `rede_franqueados` (contato + endereço + documentos pessoais). */
-// INTENCIONAL: 'socios' não está no payload Frank.
-// Frank não visualiza nem edita sócios — bloqueio por omissão (Matriz Frank).
 export type RedeFrankCadastroPayload = {
   email_frank: string;
   telefone_frank: string;
@@ -11,6 +9,7 @@ export type RedeFrankCadastroPayload = {
   endereco_casa_frank_complemento: string;
   cep_casa_frank: string;
   tamanho_camisa_frank: string;
+  socios: string;
 };
 
 /** Dados da franquia exibidos como somente leitura — nunca entram no PATCH do Frank. */
@@ -47,6 +46,7 @@ export const EMPTY_REDE_FRANK_CADASTRO: RedeFrankCadastroPayload = {
   endereco_casa_frank_complemento: '',
   cep_casa_frank: '',
   tamanho_camisa_frank: '',
+  socios: '',
 };
 
 /** Só campos editáveis, a partir do pré-preenchimento. */
@@ -72,6 +72,7 @@ export function redePrefillParaPayload(pref: RedeFrankPrefill | null | undefined
     b.tamanho_camisa_frank = String(pref.tamanho_camisa_frank);
   }
   if (pref.cpf_frank != null && pref.cpf_frank !== '') b.cpf_frank = String(pref.cpf_frank);
+  if (pref.socios != null && pref.socios !== '') b.socios = String(pref.socios);
   return b;
 }
 
@@ -112,5 +113,6 @@ export function redeSqlRowParaPrefill(rr: Record<string, unknown> | null | undef
     cep_casa_frank: rr.cep_casa_frank != null ? String(rr.cep_casa_frank) : '',
     tamanho_camisa_frank: rr.tamanho_camisa_frank != null ? String(rr.tamanho_camisa_frank) : '',
     cpf_frank: rr.cpf_frank != null ? String(rr.cpf_frank) : '',
+    socios: rr.socios != null ? String(rr.socios) : '',
   } satisfies RedeFrankPrefill;
 }

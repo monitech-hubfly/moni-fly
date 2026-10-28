@@ -3,7 +3,7 @@
 import { Suspense } from 'react';
 import { usePathname } from 'next/navigation';
 import { AdminProvider } from '@/context/AdminContext';
-import { isCalculadoraPublicLeituraPath, isExternalTokenAccessPath, isPublicGuiaLeituraPagePath, isSimuladorPublicoPath } from '@/lib/access-matrix';
+import { isAjudaPublicaPath, isCalculadoraPublicLeituraPath, isExternalTokenAccessPath, isPublicGuiaLeituraPagePath, isSimuladorPublicoPath } from '@/lib/access-matrix';
 import { PortalSidebar } from './PortalSidebar';
 import { AppStickyHeader } from './AppStickyHeader';
 
@@ -28,10 +28,10 @@ const SHELL_STYLE: React.CSSProperties = {
 
 const SIDEBAR_STYLE: React.CSSProperties = {
   boxSizing: 'border-box',
-  flex: '0 0 14rem',
-  width: '14rem',
-  maxWidth: '14rem',
-  minWidth: '14rem',
+  flex: '0 0 var(--moni-sidebar-width)',
+  width: 'var(--moni-sidebar-width)',
+  maxWidth: 'var(--moni-sidebar-width)',
+  minWidth: 'var(--moni-sidebar-width)',
   minHeight: 0,
   overflow: 'hidden',
   position: 'relative',
@@ -56,7 +56,10 @@ export function AppShell({ user, userRole, userCargo = null, children }: AppShel
     isPublicGuiaLeituraPagePath(pathname) ||
     isCalculadoraPublicLeituraPath(pathname) ||
     isSimuladorPublicoPath(pathname) ||
-    isExternalTokenAccessPath(pathname);
+    isExternalTokenAccessPath(pathname) ||
+    isAjudaPublicaPath(pathname) ||
+    pathname === '/empreendimento' ||
+    pathname.startsWith('/empreendimento/');
 
   if (!user || publicStandalone) {
     return (

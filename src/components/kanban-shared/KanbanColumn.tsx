@@ -15,10 +15,12 @@ import {
 } from 'react';
 import {
   desvincularTagCard,
+  registrarConfirmacaoFaseLoteadores,
 } from '@/lib/actions/card-actions';
 import {
   calcularSlaKanbanCard,
   creditoObraAguardandoDocumentacao,
+  faseExcluidaDoAtrasoSla,
   CLASSE_TAG_AGUARDANDO_DOCUMENTACAO,
   TAG_AGUARDANDO_DOCUMENTACAO,
   tagSlaKanbanParaExibicao,
@@ -50,7 +52,11 @@ import {
 } from '@/lib/kanban/kanban-sla-justificativa';
 import { obterJustificativaSlaFase } from '@/lib/actions/kanban-sla-justificativa';
 import { KanbanSlaJustificativaModal } from './KanbanSlaJustificativaModal';
-import { registrarConfirmacaoFaseLoteadores } from '@/lib/actions/card-actions';
+import { LoteadoresIntencaoShowroomModal } from './LoteadoresIntencaoShowroomModal';
+import {
+  devePerguntarIntencaoShowroomPassagem,
+  ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB,
+} from '@/lib/kanban/loteadores-passagem-waysers';
 import {
   deveConfirmarSaidaFaseLoteadores,
   loteadoresAssinouTituloPorSlug,
@@ -250,6 +256,11 @@ const KanbanColumnInner = function KanbanColumn({
   const [slaJustificativaDraft, setSlaJustificativaDraft] = useState('');
   const [assinouModalPendente, setAssinouModalPendente] = useState<AssinouModalPendente | null>(null);
   const [salvandoAssinou, setSalvandoAssinou] = useState(false);
+  const [intencaoShowroomPendente, setIntencaoShowroomPendente] = useState<{
+    payload: DragPayload;
+    beforeCardId: string | null;
+    justificativaSla?: string;
+  } | null>(null);
 
   useEffect(() => {
     setTagsRemovidas(new Set());
@@ -350,7 +361,22 @@ const KanbanColumnInner = function KanbanColumn({
     payload: DragPayload,
     beforeCardId: string | null,
     justificativaSla?: string,
+    intencaoShowroom?: boolean,
   ) => {
+    const destSlug = (faseSlug || '').trim();
+    if (
+      intencaoShowroom === undefined &&
+      payload.origem === 'nativo' &&
+      devePerguntarIntencaoShowroomPassagem({
+        kanbanId: payload.kanbanId || kanbanId,
+        faseOrigemSlug: payload.fromFaseSlug,
+        faseDestinoSlug: destSlug,
+      })
+    ) {
+      setIntencaoShowroomPendente({ payload, beforeCardId, justificativaSla });
+      return;
+    }
+
     void (async () => {
       const origem = payload.origem;
       let motivoParalisado: string | undefined;
@@ -402,12 +428,17 @@ const KanbanColumnInner = function KanbanColumn({
           kanbanNome: typeof kanbanNome === 'string' ? kanbanNome : undefined,
           motivoReprovacaoAcoplamento: motivoParalisado,
           justificativaSlaQuebra: justificativaSla,
+          intencaoShowroom,
         });
         if (!resMove.ok) {
           onRollbackDnD?.(snapshot);
           // Fallback: gate no server pediu justificativa — abre o modal (não só alert).
           if (isErroGateJustificativaSla(resMove.error)) {
             abrirModalJustificativaSla(payload, beforeCardId);
+            return;
+          }
+          if (resMove.error === ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB) {
+            setIntencaoShowroomPendente({ payload, beforeCardId, justificativaSla });
             return;
           }
           alert(resMove.error ?? 'Não foi possível mover o card.');
@@ -628,7 +659,7 @@ const KanbanColumnInner = function KanbanColumn({
             </h2>
           </div>
           <div className="moni-kanban-column-hd-actions">
-            {fase.sla_dias && !isFaseConclusaoKanban(fase) ? (
+            {fase.sla_dias && !isFaseConclusaoKanban(fase) && !faseExcluidaDoAtrasoSla(fase.slug) ? (
               <span className="moni-kanban-col-sla">
                 {fase.sla_dias}d {rotuloUnidadeSla(fase.sla_tipo)}
               </span>
@@ -901,10 +932,13 @@ const KanbanColumnInner = function KanbanColumn({
                     >
                       {tituloLimpo}
                     </span>
-                    {kanbanId === KANBAN_IDS.JURIDICO && Number(card.juridico_bolinha_count ?? 0) >= 1 ? (
+                    {(kanbanId === KANBAN_IDS.JURIDICO ||
+                      kanbanId === KANBAN_IDS.PORTFOLIO ||
+                      kanbanId === KANBAN_IDS.OPERACOES) &&
+                    Number(card.juridico_bolinha_count ?? 0) >= 1 ? (
                       <span
                         className="moni-juridico-bolinha-badge"
-                        title={`Rodada ${Number(card.juridico_bolinha_count)} do atendimento jurídico`}
+                        title={`Rodada ${Number(card.juridico_bolinha_count)}`}
                       >
                         Rodada {Number(card.juridico_bolinha_count)}
                       </span>
@@ -1079,6 +1113,21 @@ const KanbanColumnInner = function KanbanColumn({
         setSlaJustificativaDraft('');
       }}
       onConfirm={confirmarJustificativaSlaDrop}
+    />
+    <LoteadoresIntencaoShowroomModal
+      open={intencaoShowroomPendente != null}
+      onCancelar={() => setIntencaoShowroomPendente(null)}
+      onResponder={(intencaoShowroom) => {
+        const pendente = intencaoShowroomPendente;
+        if (!pendente) return;
+        setIntencaoShowroomPendente(null);
+        executarMovimentoEntreFases(
+          pendente.payload,
+          pendente.beforeCardId,
+          pendente.justificativaSla,
+          intencaoShowroom,
+        );
+      }}
     />
     {assinouModalPendente ? (
       <div className="fixed inset-0 z-[225] flex items-center justify-center bg-black/50 p-4">

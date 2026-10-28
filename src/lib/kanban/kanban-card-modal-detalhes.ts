@@ -47,6 +47,7 @@ export type ProcessoModalNegocioPreObra = {
   link_pasta_drive: string | null;
   link_bca: string | null;
   link_gbox: string | null;
+  link_gbox_ozempic: string | null;
   link_mapa_competidores: string | null;
   link_acoplamento: string | null;
   link_apresentacao_comite: string | null;
@@ -89,6 +90,21 @@ export type ProcessoModalNegocioPreObra = {
   calculadora_ancora_fase_slug: string | null;
   calculadora_ancora_data_fim: string | null;
   negociacao_linhas: NegociacaoLinha[];
+  // Novos campos
+  pct_compra_parcial_terreno: number | null;
+  pct_vgv_terrenista: number | null;
+  m2_terreno: number | null;
+  m2_casa: number | null;
+  extrato_modelo_configurado: string | null;
+  data_aprovacao_comite: string | null;
+  obs_opcao: string | null;
+  data_ass_opcao_terreno: string | null;
+  obs_instrumento_garantidor: string | null;
+  data_ass_contrato_terreno: string | null;
+  valor_recompra: string | null;
+  book_empreendimento: string | null;
+  /** Link do Check Análise de Crédito. */
+  check_analise_credito: string | null;
 };
 
 const REDE_SELECT = [
@@ -168,6 +184,24 @@ const PROCESSO_SELECT_EXTENDED = [
   'comentario_moni_capital_gastos_aporte_inicial',
 ].join(',');
 
+/** Campos adicionados na migration de novos campos de negócio. */
+const PROCESSO_SELECT_NEW = [
+  'pct_compra_parcial_terreno',
+  'pct_vgv_terrenista',
+  'm2_terreno',
+  'm2_casa',
+  'extrato_modelo_configurado',
+  'data_aprovacao_comite',
+  'obs_opcao',
+  'data_ass_opcao_terreno',
+  'obs_instrumento_garantidor',
+  'data_ass_contrato_terreno',
+  'valor_recompra',
+].join(',');
+
+/** 621 — opcional até a migration existir no banco. */
+const PROCESSO_SELECT_BOOK_CREDITO = ['book_empreendimento', 'check_analise_credito'].join(',');
+
 const PROCESSO_SELECT_PRAZO = [
   'prazo_opcao_dias',
   'prazo_opcao_sla_tipo',
@@ -188,7 +222,7 @@ const PROCESSO_SELECT_CALCULADORA_ANCORA = [
 
 const PROCESSO_SELECT_NEGOCIACAO = ['negociacao_linhas'].join(',');
 
-const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED},${PROCESSO_SELECT_PRAZO},${PROCESSO_SELECT_CALCULADORA_ANCORA},${PROCESSO_SELECT_NEGOCIACAO}`;
+const PROCESSO_SELECT = `${PROCESSO_SELECT_LEGACY},${PROCESSO_SELECT_EXTENDED},${PROCESSO_SELECT_NEW},${PROCESSO_SELECT_PRAZO},${PROCESSO_SELECT_CALCULADORA_ANCORA},${PROCESSO_SELECT_NEGOCIACAO}`;
 
 function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
   if (!error) return false;
@@ -211,6 +245,7 @@ export type ProcessoNegocioUpdatePayload = {
   link_pasta_drive?: string | null;
   link_bca?: string | null;
   link_gbox?: string | null;
+  link_gbox_ozempic?: string | null;
   link_mapa_competidores?: string | null;
   link_acoplamento?: string | null;
   link_apresentacao_comite?: string | null;
@@ -232,6 +267,20 @@ export type ProcessoNegocioUpdatePayload = {
   prazo_instrumento_garantidor_fase_id?: string | null;
   prazo_instrumento_garantidor_data?: string | null;
   negociacao_linhas?: NegociacaoLinhaDb[] | null;
+  // Novos campos
+  pct_compra_parcial_terreno?: number | null;
+  pct_vgv_terrenista?: number | null;
+  m2_terreno?: number | null;
+  m2_casa?: number | null;
+  extrato_modelo_configurado?: string | null;
+  data_aprovacao_comite?: string | null;
+  obs_opcao?: string | null;
+  data_ass_opcao_terreno?: string | null;
+  obs_instrumento_garantidor?: string | null;
+  data_ass_contrato_terreno?: string | null;
+  valor_recompra?: string | null;
+  book_empreendimento?: string | null;
+  check_analise_credito?: string | null;
   /** Gerenciados pela seção Dados do Condomínio — omitir ao salvar negócio. */
   nome_condominio?: string | null;
   quadra?: string | null;
@@ -263,6 +312,25 @@ const PROCESSO_UPDATE_EXTENDED_KEYS = [
   'link_moni_capital_gastos_aporte_inicial',
   'comentario_moni_capital_gastos_aporte_inicial',
 ] as const;
+
+const PROCESSO_UPDATE_NEW_KEYS = [
+  'pct_compra_parcial_terreno',
+  'pct_vgv_terrenista',
+  'm2_terreno',
+  'm2_casa',
+  'extrato_modelo_configurado',
+  'data_aprovacao_comite',
+  'obs_opcao',
+  'data_ass_opcao_terreno',
+  'obs_instrumento_garantidor',
+  'data_ass_contrato_terreno',
+  'valor_recompra',
+] as const;
+
+const PROCESSO_UPDATE_BOOK_CREDITO_KEYS = ['book_empreendimento', 'check_analise_credito'] as const;
+
+const PROCESSO_SELECT_GBOX_OZEMPIC = 'link_gbox_ozempic';
+const PROCESSO_UPDATE_GBOX_OZEMPIC_KEYS = ['link_gbox_ozempic'] as const;
 
 const PROCESSO_UPDATE_PRAZO_KEYS = [
   'prazo_opcao_dias',
@@ -296,35 +364,116 @@ function pickNegociacaoLinhas(
   return { negociacao_linhas: payload.negociacao_linhas };
 }
 
+async function aplicarColunasOpcionais(
+  supabase: SupabaseClient,
+  processoId: string,
+  payload: ProcessoNegocioUpdatePayload,
+  keys: readonly string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const extra = pickPayload(payload, keys);
+  if (Object.keys(extra).length === 0) return { ok: true };
+  const { error } = await supabase.from('processo_step_one').update(extra as never).eq('id', processoId);
+  if (!error || isMissingColumnError(error)) return { ok: true };
+  return { ok: false, error: error.message };
+}
+
+async function aplicarBookCredito(
+  supabase: SupabaseClient,
+  processoId: string,
+  payload: ProcessoNegocioUpdatePayload,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const book = await aplicarColunasOpcionais(supabase, processoId, payload, PROCESSO_UPDATE_BOOK_CREDITO_KEYS);
+  if (!book.ok) return book;
+  return aplicarColunasOpcionais(supabase, processoId, payload, PROCESSO_UPDATE_GBOX_OZEMPIC_KEYS);
+}
+
 /** Atualiza dados do negócio; faz fallback se colunas novas ainda não existirem no banco. */
+function semApagarCampoPreenchido(
+  update: Record<string, unknown>,
+  atual: Record<string, unknown> | null,
+  leituraOk: boolean,
+): Record<string, unknown> {
+  const out = { ...update };
+  for (const [chave, valor] of Object.entries(out)) {
+    const vazio =
+      valor == null ||
+      (typeof valor === 'string' && valor.trim() === '') ||
+      (Array.isArray(valor) && valor.length === 0);
+    if (!vazio) continue;
+    if (!leituraOk) {
+      delete out[chave];
+      continue;
+    }
+    const existente = atual?.[chave];
+    const existentePreenchido =
+      existente != null &&
+      !(typeof existente === 'string' && existente.trim() === '') &&
+      !(Array.isArray(existente) && existente.length === 0);
+    if (existentePreenchido) delete out[chave];
+  }
+  return out;
+}
+
 export async function updateProcessoNegocioCampos(
   supabase: SupabaseClient,
   processoId: string,
   payload: ProcessoNegocioUpdatePayload,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const full = {
-    ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
-    ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
-    ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
-    ...pickNegociacaoLinhas(payload),
-  };
+  const leitura = await supabase.from('processo_step_one').select('*').eq('id', processoId).maybeSingle();
+  const leituraOk = !leitura.error;
+  const atual = (leitura.data ?? null) as Record<string, unknown> | null;
+  const full = semApagarCampoPreenchido(
+    {
+      ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_NEW_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
+      ...pickNegociacaoLinhas(payload),
+    },
+    atual,
+    leituraOk,
+  );
+  if (Object.keys(full).length === 0) return aplicarBookCredito(supabase, processoId, payload);
   const { error } = await supabase.from('processo_step_one').update(full as never).eq('id', processoId);
-  if (!error) return { ok: true };
+  if (!error) return aplicarBookCredito(supabase, processoId, payload);
   if (!isMissingColumnError(error)) return { ok: false, error: error.message };
 
-  const semPrazo = {
-    ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
-    ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
-    ...pickNegociacaoLinhas(payload),
-  };
+  // Fallback: sem colunas novas
+  const semNovos = semApagarCampoPreenchido(
+    {
+      ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
+      ...pickNegociacaoLinhas(payload),
+    },
+    atual,
+    leituraOk,
+  );
+  const { error: errSemNovos } = await supabase.from('processo_step_one').update(semNovos as never).eq('id', processoId);
+  if (!errSemNovos) return aplicarBookCredito(supabase, processoId, payload);
+  if (!isMissingColumnError(errSemNovos)) return { ok: false, error: errSemNovos.message };
+
+  const semPrazo = semApagarCampoPreenchido(
+    {
+      ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+      ...pickNegociacaoLinhas(payload),
+    },
+    atual,
+    leituraOk,
+  );
   const { error: errSemPrazo } = await supabase.from('processo_step_one').update(semPrazo as never).eq('id', processoId);
-  if (!errSemPrazo) return { ok: true };
+  if (!errSemPrazo) return aplicarBookCredito(supabase, processoId, payload);
   if (!isMissingColumnError(errSemPrazo)) return { ok: false, error: errSemPrazo.message };
 
-  const legacyOnly = pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS);
+  const legacyOnly = semApagarCampoPreenchido(
+    pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+    atual,
+    leituraOk,
+  );
   const { error: errLegacy } = await supabase.from('processo_step_one').update(legacyOnly as never).eq('id', processoId);
   if (errLegacy) return { ok: false, error: errLegacy.message };
-  return { ok: true };
+  return aplicarBookCredito(supabase, processoId, payload);
 }
 
 function tituloParaNumeroFranquia(titulo: string): string {
@@ -367,6 +516,90 @@ function mapRede(r: Record<string, unknown> | null): RedeFranqueadoModalRow | nu
   };
 }
 
+/** Prefixo do título no padrão `FK0005 - ...`. Só aceita FK, para não casar título livre. */
+function numeroFranquiaDoTituloCard(titulo: string | null | undefined): string {
+  const t = String(titulo ?? '').trim();
+  if (!t) return '';
+  const i = t.indexOf(' - ');
+  const head = (i >= 0 ? t.slice(0, i) : t).trim().toUpperCase();
+  if (/^FK\d+$/.test(head)) return head;
+  return '';
+}
+
+function normalizarNumeroFranquiaLookup(raw: string | null | undefined): string {
+  const t = String(raw ?? '').trim().toUpperCase();
+  if (/^FK\d+$/.test(t)) return t;
+  if (/^\d{1,6}$/.test(t)) return `FK${t.padStart(4, '0')}`;
+  return '';
+}
+
+async function fetchRedePorId(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<RedeFranqueadoModalRow | null> {
+  const rid = id.trim();
+  if (!rid) return null;
+  const { data } = await supabase.from('rede_franqueados').select(REDE_SELECT).eq('id', rid).maybeSingle();
+  return mapRede((data as Record<string, unknown> | null) ?? null);
+}
+
+async function fetchRedePorNumero(
+  supabase: SupabaseClient,
+  numero: string,
+): Promise<RedeFranqueadoModalRow | null> {
+  const n = normalizarNumeroFranquiaLookup(numero);
+  if (!n) return null;
+  const { data } = await supabase
+    .from('rede_franqueados')
+    .select(REDE_SELECT)
+    .eq('n_franquia', n)
+    .order('ordem', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return mapRede((data as Record<string, unknown> | null) ?? null);
+}
+
+/** Rede do card para o cabeçalho e o painel Dados do Franqueado. */
+export async function buscarRedeFranqueadoModal(
+  supabase: SupabaseClient,
+  redeId: string,
+): Promise<RedeFranqueadoModalRow | null> {
+  return fetchRedePorId(supabase, redeId);
+}
+
+async function resolverRedeModal(
+  supabase: SupabaseClient,
+  opts: {
+    redeId?: string | null;
+    origemRedeId?: string | null;
+    numeroFranquia?: string | null;
+    cardTitulo?: string | null;
+  },
+): Promise<RedeFranqueadoModalRow | null> {
+  const ids = [opts.redeId, opts.origemRedeId]
+    .map((v) => String(v ?? '').trim())
+    .filter(Boolean);
+  const vistosId = new Set<string>();
+  for (const id of ids) {
+    if (vistosId.has(id)) continue;
+    vistosId.add(id);
+    const porId = await fetchRedePorId(supabase, id);
+    if (porId) return porId;
+  }
+
+  const numeros = [opts.numeroFranquia, numeroFranquiaDoTituloCard(opts.cardTitulo)]
+    .map((v) => normalizarNumeroFranquiaLookup(v))
+    .filter(Boolean);
+  const vistosNum = new Set<string>();
+  for (const numero of numeros) {
+    if (vistosNum.has(numero)) continue;
+    vistosNum.add(numero);
+    const porNumero = await fetchRedePorNumero(supabase, numero);
+    if (porNumero) return porNumero;
+  }
+  return null;
+}
+
 function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPreObra | null {
   if (!r) return null;
   const g = (k: string) => (r[k] != null ? String(r[k]) : null);
@@ -396,6 +629,7 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     link_pasta_drive: g('link_pasta_drive'),
     link_bca: g('link_bca'),
     link_gbox: g('link_gbox'),
+    link_gbox_ozempic: g('link_gbox_ozempic'),
     link_mapa_competidores: g('link_mapa_competidores'),
     link_acoplamento: g('link_acoplamento'),
     link_apresentacao_comite: g('link_apresentacao_comite'),
@@ -438,12 +672,44 @@ function mapProcesso(r: Record<string, unknown> | null): ProcessoModalNegocioPre
     calculadora_ancora_fase_slug: g('calculadora_ancora_fase_slug'),
     calculadora_ancora_data_fim: g('calculadora_ancora_data_fim')?.slice(0, 10) ?? null,
     negociacao_linhas: parseNegociacaoLinhasFromDb(r.negociacao_linhas),
+    // Novos campos
+    pct_compra_parcial_terreno: gi('pct_compra_parcial_terreno'),
+    pct_vgv_terrenista: gi('pct_vgv_terrenista'),
+    m2_terreno: gi('m2_terreno'),
+    m2_casa: gi('m2_casa'),
+    extrato_modelo_configurado: g('extrato_modelo_configurado'),
+    data_aprovacao_comite: g('data_aprovacao_comite')?.slice(0, 10) ?? null,
+    obs_opcao: g('obs_opcao'),
+    data_ass_opcao_terreno: g('data_ass_opcao_terreno')?.slice(0, 10) ?? null,
+    obs_instrumento_garantidor: g('obs_instrumento_garantidor'),
+    data_ass_contrato_terreno: g('data_ass_contrato_terreno')?.slice(0, 10) ?? null,
+    valor_recompra: g('valor_recompra'),
+    book_empreendimento: g('book_empreendimento'),
+    check_analise_credito: g('check_analise_credito'),
   };
 }
 
 async function fetchProcessoById(supabase: SupabaseClient, id: string) {
   const { data, error } = await supabase.from('processo_step_one').select(PROCESSO_SELECT).eq('id', id).maybeSingle();
-  if (!error) return mapProcesso((data as Record<string, unknown> | null) ?? null);
+  if (!error) {
+    const base = (data as Record<string, unknown> | null) ?? null;
+    if (!base) return null;
+    const extra = await supabase
+      .from('processo_step_one')
+      .select(PROCESSO_SELECT_BOOK_CREDITO)
+      .eq('id', id)
+      .maybeSingle();
+    const ozempic = await supabase
+      .from('processo_step_one')
+      .select(PROCESSO_SELECT_GBOX_OZEMPIC)
+      .eq('id', id)
+      .maybeSingle();
+    return mapProcesso({
+      ...base,
+      ...(extra.error || !extra.data ? {} : (extra.data as unknown as Record<string, unknown>)),
+      ...(ozempic.error || !ozempic.data ? {} : (ozempic.data as unknown as Record<string, unknown>)),
+    });
+  }
 
   if (isMissingColumnError(error)) {
     const { data: legacy, error: errLegacy } = await supabase
@@ -720,24 +986,11 @@ export async function fetchKanbanCardModalDetalhes(
 
   if (origem === 'legado') {
     const processo = await fetchProcessoById(supabase, cardId);
-    let rede: RedeFranqueadoModalRow | null = null;
-    if (processo?.origem_rede_franqueados_id) {
-      const { data } = await supabase
-        .from('rede_franqueados')
-        .select(REDE_SELECT)
-        .eq('id', processo.origem_rede_franqueados_id)
-        .maybeSingle();
-      rede = mapRede((data as Record<string, unknown> | null) ?? null);
-    } else if (processo?.numero_franquia?.trim()) {
-      const { data } = await supabase
-        .from('rede_franqueados')
-        .select(REDE_SELECT)
-        .eq('n_franquia', processo.numero_franquia.trim())
-        .order('ordem', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      rede = mapRede((data as Record<string, unknown> | null) ?? null);
-    }
+    const rede = await resolverRedeModal(supabase, {
+      origemRedeId: processo?.origem_rede_franqueados_id,
+      numeroFranquia: processo?.numero_franquia,
+      cardTitulo,
+    });
     const redeIdContrato = rede?.id ?? null;
     const empresas = await fetchEmpresasForCard(supabase, redeIdContrato, cardId);
     return { rede, processo, redeIdContrato, empresas };
@@ -758,7 +1011,14 @@ export async function fetchKanbanCardModalDetalhes(
       ? fetchEmpresasForCard(supabase, redeFranqueadoId, cardId)
       : Promise.resolve(null as CardEmpresasModalDetalhe | null),
   ]);
-  const rede = redeRow;
+  let rede = redeRow;
+  if (!rede) {
+    rede = await resolverRedeModal(supabase, {
+      origemRedeId: processoRaw?.origem_rede_franqueados_id,
+      numeroFranquia: processoRaw?.numero_franquia,
+      cardTitulo,
+    });
+  }
   const processo = ocultarTipoNegociacaoHerdadoDoProcesso(processoRaw, {
     cardProcessoStepOneId,
     redeProcessoId: rede?.processo_id,

@@ -334,19 +334,32 @@ export async function criarCardFilho(
   const ehJuridico = kanbanDestinoId === KANBAN_IDS.JURIDICO;
   let tipoJuridicoResolvido: import('@/lib/kanban/juridico-tipo-documento').JuridicoTipoDocumento | null =
     null;
+  let tagJuridico: import('@/lib/kanban/juridico-portfolio-tag').JuridicoPortfolioTagNome | null = null;
   if (ehJuridico) {
-    const { isJuridicoTipoDocumento, tipoDocumentoPorTagJuridico } = await import(
-      '@/lib/kanban/juridico-tipo-documento'
-    );
+    const { isJuridicoTipoDocumento, tagPortfolioPorTipoDocumento, tipoDocumentoPorTagJuridico } =
+      await import('@/lib/kanban/juridico-tipo-documento');
+    const { isJuridicoPortfolioTagNome } = await import('@/lib/kanban/juridico-portfolio-tag');
     tipoJuridicoResolvido = isJuridicoTipoDocumento(params.juridicoTipoContrato)
       ? params.juridicoTipoContrato
       : tipoDocumentoPorTagJuridico(params.juridicoTagNome);
+    tagJuridico =
+      (params.juridicoTagNome && isJuridicoPortfolioTagNome(params.juridicoTagNome)
+        ? params.juridicoTagNome
+        : null) ?? tagPortfolioPorTipoDocumento(tipoJuridicoResolvido);
     if (tipoJuridicoResolvido) {
       const { buscarAtendimentoJuridicoAberto } = await import(
         '@/lib/kanban/juridico-atendimento-ciclo'
       );
       const aberto = await buscarAtendimentoJuridicoAberto(db, cardPaiId, tipoJuridicoResolvido);
       if (aberto?.id) {
+        if (tagJuridico) {
+          try {
+            const { aplicarTagJuridicoPortfolio } = await import('@/lib/kanban/juridico-portfolio-tag');
+            await aplicarTagJuridicoPortfolio(db, aberto.id, tagJuridico, kanbanDestinoId);
+          } catch (e) {
+            console.error('[bastao] tag juridico atendimento aberto:', e);
+          }
+        }
         const { data: row } = await db
           .from('kanban_cards')
           .select(CARD_FILHO_SELECT)
@@ -648,10 +661,10 @@ export async function criarCardFilho(
     }
   }
 
-  if (kanbanDestinoId === KANBAN_IDS.JURIDICO && params.juridicoTagNome) {
+  if (kanbanDestinoId === KANBAN_IDS.JURIDICO && tagJuridico) {
     try {
       const { aplicarTagJuridicoPortfolio } = await import('@/lib/kanban/juridico-portfolio-tag');
-      await aplicarTagJuridicoPortfolio(db, cardFilhoId, params.juridicoTagNome, kanbanDestinoId);
+      await aplicarTagJuridicoPortfolio(db, cardFilhoId, tagJuridico, kanbanDestinoId);
     } catch (e) {
       console.error('[bastao] tag juridico portfolio:', e);
     }
@@ -782,6 +795,8 @@ const KANBAN_ID_TO_ORIGEM_SLUG: Record<string, string> = {
   [KANBAN_IDS.PROJETO_LEGAL]: 'projeto-legal',
   [KANBAN_IDS.PROJETOS_LOCAIS]: 'projetos-locais',
   [KANBAN_IDS.PROJETOS_LEGAIS]: 'projetos-legais',
+  [KANBAN_IDS.SHOWROOM]: 'showroom',
+  [KANBAN_IDS.IMOB]: 'imob',
 };
 
 type BastaoDestino = {
@@ -995,7 +1010,7 @@ async function dispararBastao(
  * Fallback antigo: ao abrir o card ou salvar checklist em Assinaturas/Assinado,
  * criava o atendimento jurídico como se a entrada tivesse sido na fase Jurídico.
  * A criação passou a ocorrer só em `executarBastoes`, na entrada de
- * juridico_opcao, juridico_cto_precedentes ou juridico_contrato.
+ * juridico_opcao, juridico_cto_precedentes, juridico_contrato ou juridico_termo_recompra.
  */
 export async function garantirBastaoJuridicoPortfolio(_cardId: string): Promise<boolean> {
   return false;
@@ -1144,6 +1159,55 @@ export async function garantirBastaoPassagemWaysersLoteadores(cardId: string): P
 }
 
 /**
+ * Passagem IMOB: sempre abre card no Funil IMOB.
+ * Se o loteador tem intenção de Showroom, abre também no Funil Showroom (fase Hipótese).
+ * Idempotente: filho ativo no destino não é duplicado.
+ */
+export async function vincularLoteadorPassagemImob(params: {
+  cardPaiId: string;
+  intencaoShowroom: boolean;
+  titulo: string;
+  projetoId: string | null;
+  redeFranqueadoId: string | null;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const cardPaiId = String(params.cardPaiId ?? '').trim();
+  const titulo = String(params.titulo ?? '').trim() || 'Loteador';
+  if (!cardPaiId) return { ok: false, error: 'Card do loteador não encontrado.' };
+
+  const base = {
+    cardPaiId,
+    titulo,
+    projetoId: params.projetoId,
+    redeFranqueadoId: params.redeFranqueadoId,
+    kanbanOrigemSlug: 'loteadores',
+    faseOrigemSlug: FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC,
+    origemKanbanId: KANBAN_IDS.LOTEADORES,
+  };
+
+  try {
+    await criarCardFilho({
+      ...base,
+      kanbanDestinoId: KANBAN_IDS.IMOB,
+      faseDestinoSlug: FASE_SLUGS.IMOB_NOVO_LOTEADOR,
+    });
+    if (params.intencaoShowroom) {
+      await criarCardFilho({
+        ...base,
+        kanbanDestinoId: KANBAN_IDS.SHOWROOM,
+        faseDestinoSlug: FASE_SLUGS.SR_HIPOTESE,
+      });
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Não foi possível vincular o loteador.';
+    return { ok: false, error: msg };
+  }
+
+  revalidatePath('/funil-imob');
+  if (params.intencaoShowroom) revalidatePath('/funil-showroom');
+  return { ok: true };
+}
+
+/**
  * Após mover card para `novaFaseSlug`, cria cards filhos nas esteiras de destino (idempotente).
  */
 export async function executarBastoes(cardId: string, novaFaseSlug: string): Promise<void> {
@@ -1152,6 +1216,32 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
 
   const cardPaiId = String(cardId ?? '').trim();
   if (!cardPaiId) return;
+
+  if (
+    slug !== FASE_SLUGS.OPERACOES_ENTREGUE &&
+    slug !== FASE_SLUGS.HOMOLOG_CRIAR_PRODUTO_DATABASE &&
+    slug !== FASE_SLUGS.ACOPLAMENTO &&
+    slug !== FASE_SLUGS.LOTEADORES_ACOPLAMENTO &&
+    slug !== FASE_SLUGS.LOTEADORES_ACOPLAMENTO_GBOX &&
+    slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO &&
+    slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES &&
+    slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO &&
+    slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_TERMO_RECOMPRA &&
+    slug !== FASE_SLUGS.LOTEADORES_NDA &&
+    slug !== FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA &&
+    slug !== FASE_SLUGS.PASSAGEM_WAYSER &&
+    slug !== FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC &&
+    slug !== FASE_SLUGS.PROD_PUBLICADO &&
+    slug !== FASE_SLUGS.APROVACAO_PREFEITURA &&
+    slug !== FASE_SLUGS.PROJETO_LEGAL &&
+    slug !== FASE_SLUGS.M1_PAGAMENTO_ENTRADA &&
+    slug !== FASE_SLUGS.SR_ACOPLAMENTO &&
+    slug !== FASE_SLUGS.SR_JURIDICO_CTO_SHOWROOM &&
+    slug !== FASE_SLUGS.SR_JURIDICO_TERMO_RECOMPRA &&
+    slug !== FASE_SLUGS.SR_PASSAGEM_WAYSER
+  ) {
+    return;
+  }
 
   let db: ReturnType<typeof createAdminClient>;
   try {
@@ -1212,6 +1302,34 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         juridicoTagNome: 'Cto s/ Precedentes',
       },
     ],
+    [FASE_SLUGS.PORTFOLIO_JURIDICO_TERMO_RECOMPRA]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Termo Recompra',
+      },
+    ],
+    /** Showroom → Jurídico. Não abre card a partir do Portfólio. */
+    [FASE_SLUGS.SR_JURIDICO_CTO_SHOWROOM]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Cto Showroom',
+      },
+    ],
+    [FASE_SLUGS.SR_JURIDICO_TERMO_RECOMPRA]: [
+      {
+        kanbanDestinoId: KANBAN_IDS.JURIDICO,
+        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
+        juridicoTagNome: 'Termo Recompra Showroom',
+      },
+    ],
+    [FASE_SLUGS.SR_ACOPLAMENTO]: [
+      { kanbanDestinoId: KANBAN_IDS.ACOPLAMENTO, faseDestinoSlug: 'modelagem_terreno' },
+    ],
+    [FASE_SLUGS.SR_PASSAGEM_WAYSER]: [
+      { kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' },
+    ],
     /** Loteadores → Jurídico só na entrada de Jurídico NDA e Jurídico Cto de Parceria. */
     [FASE_SLUGS.LOTEADORES_NDA]: [
       {
@@ -1240,7 +1358,8 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
         faseDestinoSlug: FASE_SLUGS.MV_MODELAGEM_CASA,
       },
     ],
-    [FASE_SLUGS.APROVACAO_CONDOMINIO]: [
+    /** Pré Obra e Obra → Projetos Locais só na entrada de Aprovação na Prefeitura. */
+    [FASE_SLUGS.APROVACAO_PREFEITURA]: [
       {
         kanbanDestinoId: KANBAN_IDS.PROJETOS_LOCAIS,
         faseDestinoSlug: 'pl_000_novo_projeto',
@@ -1288,21 +1407,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     await registrarAvisoHomologacaoConcluida({ cardId: cardPaiId });
   }
 
-  // Funil Modelo Virtual — avisos manuais futuros (notificações Moní)
-  if (String(pai.kanban_id ?? '') === KANBAN_IDS.HDM_MODELO_VIRTUAL) {
-    if (slug === FASE_SLUGS.MV_MODELAGEM_CASA) {
-      // TODO: notificar Liz (Acoplamento) que o modelo está apto para acoplamento
-      // TODO: notificar Lari/Letícia (Projetos) que podem iniciar estudos do terreno
-    }
-    if (slug === FASE_SLUGS.MV_COMPAT_ESTRUTURA) {
-      // TODO: notificar Alef (exec local) que pode iniciar estudos de fundação
-    }
-    if (slug === FASE_SLUGS.MV_COMPAT_INFRA) {
-      // TODO: notificar Alef que pode validar compatibilidade com fundação projetada
-      // TODO: notificar Lari/Letícia que podem compatibilizar casa com ambientes do terreno
-    }
-  }
-
   const destinos = BASTOES_DE_IDA[slug];
   if (!destinos?.length) return;
 
@@ -1322,7 +1426,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
 type BastaoRetornoFlagCol =
   | 'acoplamento_concluido'
   | 'credito_terreno_ok'
-  | 'credito_obra_ok'
   | 'contabilidade_ok'
   | 'juridico_ok'
   | 'capital_ok'
@@ -1332,12 +1435,6 @@ type BastaoRetornoFlagCol =
 const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'acoplamento_concluido',
   [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'acoplamento_concluido',
-  [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'credito_obra_ok',
-  [FASE_SLUGS.CO_SHAREPOINT_3A]: 'credito_obra_ok',
-  /** @deprecated legado — cards em fase inativa (migration 494) */
-  [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'credito_obra_ok',
-  /** @deprecated legado — cards em fase inativa (migration 494) */
-  [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'credito_obra_ok',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'contabilidade_ok',
   /** Funil Jurídico — bastão de volta na Fase 7 (Pós-Assinatura / Retroalimentação). */
   [FASE_SLUGS.JURIDICO_POS_ASSINATURA]: 'juridico_ok',
@@ -1354,12 +1451,6 @@ const DESFECHO_FLAG_POR_FASE: Partial<Record<string, BastaoRetornoFlagCol>> = {
 const DESFECHO_ESTEIRA_LABEL: Record<string, string> = {
   [FASE_SLUGS.ACOPLAMENTO_APROVADO]: 'Acoplamento (aprovado)',
   [FASE_SLUGS.ACOPLAMENTO_REPROVADO]: 'Acoplamento (paralisado)',
-  [FASE_SLUGS.CO_OUTRO_PARCEIRO]: 'Crédito Obra (outro parceiro)',
-  [FASE_SLUGS.CO_SHAREPOINT_3A]: 'Crédito Obra (concluído)',
-  /** @deprecated legado */
-  [FASE_SLUGS.CREDITO_OBRA_APROVADO]: 'Crédito Obra (aprovado)',
-  /** @deprecated legado */
-  [FASE_SLUGS.CREDITO_OBRA_REPROVADO]: 'Crédito Obra (reprovado)',
   [FASE_SLUGS.CONTABILIDADE_CONCLUIDO]: 'Contabilidade',
   [FASE_SLUGS.JURIDICO_POS_ASSINATURA]: 'Jurídico',
   /** @deprecated legado */
@@ -1378,10 +1469,6 @@ const DESFECHO_APENAS_FLAG_SEM_MOVER_PAI = new Set<string>([
   FASE_SLUGS.PROJETOS_LEGAIS_CONCLUIDO,
   FASE_SLUGS.ACOPLAMENTO_APROVADO,
   FASE_SLUGS.ACOPLAMENTO_REPROVADO,
-  FASE_SLUGS.CO_OUTRO_PARCEIRO,
-  FASE_SLUGS.CO_SHAREPOINT_3A,
-  FASE_SLUGS.CREDITO_OBRA_APROVADO,
-  FASE_SLUGS.CREDITO_OBRA_REPROVADO,
   FASE_SLUGS.CONTABILIDADE_CONCLUIDO,
   FASE_SLUGS.JURIDICO_POS_ASSINATURA,
   FASE_SLUGS.JURIDICO_DEMANDA_CONCLUIDA,
@@ -1393,6 +1480,7 @@ const DESFECHO_APENAS_FLAG_SEM_MOVER_PAI = new Set<string>([
 /**
  * Bastão de volta com movimento de fase: filho Projeto Legal → pai Operações.
  * Quando o filho entra em `pl_c_protocolo_andamento`, move o pai para `aprovacao_condominio`.
+ * Não abre Projetos Locais — esse filho nasce só na entrada de `aprovacao_prefeitura`.
  */
 async function executarBastaoDeVoltaMoverPaiPorFaseFilho(
   cardFilhoId: string,
@@ -1536,10 +1624,473 @@ async function executarBastaoDeVoltaMoverPaiPorFaseFilho(
     console.error('[executarBastaoDeVoltaMoverPai] historico:', errHist.message);
   }
 
-  await executarBastoes(paiId, FASE_SLUGS.APROVACAO_CONDOMINIO);
-
   revalidatePath('/operacoes');
   revalidatePath('/funil-projeto-legal');
+}
+
+type FilhoCreditoObraIdentidade = {
+  origem_card_id?: string | null;
+  projeto_id?: string | null;
+  nome_condominio?: string | null;
+  quadra?: string | null;
+  lote?: string | null;
+  franqueado_id?: string | null;
+};
+
+function textoId(valor: unknown): string {
+  return String(valor ?? '').trim();
+}
+
+/** Card arquivado não é o Pré Obra visível no funil. */
+async function idsOperacoesAtivos(
+  db: ReturnType<typeof createAdminClient>,
+  ids: Iterable<string>,
+): Promise<string[]> {
+  const lista = [...new Set([...ids].map(textoId).filter(Boolean))];
+  if (lista.length === 0) return [];
+  const { data } = await db
+    .from('kanban_cards')
+    .select('id')
+    .in('id', lista)
+    .eq('kanban_id', KANBAN_IDS.OPERACOES)
+    .or('arquivado.eq.false,arquivado.is.null');
+  return (data ?? [])
+    .map((row) => textoId((row as { id?: string }).id))
+    .filter(Boolean);
+}
+
+/**
+ * Card ativo de Pré Obra e Obra do mesmo lote, quando o `origem_card_id`
+ * aponta para um card arquivado (duplicata antiga).
+ */
+async function buscarOperacoesAtivoPorLote(
+  db: ReturnType<typeof createAdminClient>,
+  filho: FilhoCreditoObraIdentidade,
+): Promise<string[]> {
+  const nome = textoId(filho.nome_condominio);
+  const quadra = textoId(filho.quadra);
+  const lote = textoId(filho.lote);
+  if (!nome || !quadra || !lote) return [];
+
+  const { data, error } = await db
+    .from('kanban_cards')
+    .select('id, franqueado_id')
+    .eq('kanban_id', KANBAN_IDS.OPERACOES)
+    .eq('nome_condominio', nome)
+    .eq('quadra', quadra)
+    .eq('lote', lote)
+    .or('arquivado.eq.false,arquivado.is.null');
+  if (error) {
+    console.error('[buscarOperacoesAtivoPorLote]', error.message);
+    return [];
+  }
+
+  const rows = (data ?? []) as { id?: string; franqueado_id?: string | null }[];
+  const franqueado = textoId(filho.franqueado_id);
+  const preferidos = franqueado
+    ? rows.filter((row) => {
+        const franq = textoId(row.franqueado_id);
+        return !franq || franq === franqueado;
+      })
+    : rows;
+  const escolhidos = preferidos.length > 0 ? preferidos : rows;
+  return escolhidos.map((row) => textoId(row.id)).filter(Boolean);
+}
+
+/**
+ * Card de Pré Obra e Obra ligado ao filho de Crédito Obra.
+ * Ignora card arquivado: se a origem estiver arquivada, cai no lote ativo
+ * (condomínio + quadra + lote).
+ */
+async function resolverPaisOperacoesDoCredito(
+  db: ReturnType<typeof createAdminClient>,
+  filhoId: string,
+  filho: FilhoCreditoObraIdentidade,
+): Promise<string[]> {
+  const ids = new Set<string>();
+  const origem = textoId(filho.origem_card_id);
+  const projeto = textoId(filho.projeto_id);
+
+  if (origem) {
+    const { data: origemRow } = await db
+      .from('kanban_cards')
+      .select('id, kanban_id')
+      .eq('id', origem)
+      .maybeSingle();
+    if (textoId((origemRow as { kanban_id?: string } | null)?.kanban_id) === KANBAN_IDS.OPERACOES) {
+      ids.add(origem);
+    } else {
+      const { data: irmaos } = await db
+        .from('kanban_cards')
+        .select('id')
+        .eq('kanban_id', KANBAN_IDS.OPERACOES)
+        .eq('origem_card_id', origem)
+        .or('arquivado.eq.false,arquivado.is.null');
+      for (const row of irmaos ?? []) {
+        const id = textoId((row as { id?: string }).id);
+        if (id) ids.add(id);
+      }
+    }
+  }
+
+  const { data: vinculos } = await db
+    .from('kanban_card_vinculos')
+    .select('card_origem_id, card_destino_id')
+    .or(`card_origem_id.eq.${filhoId},card_destino_id.eq.${filhoId}`);
+  const peers = new Set<string>();
+  for (const row of vinculos ?? []) {
+    const a = textoId((row as { card_origem_id?: string }).card_origem_id);
+    const b = textoId((row as { card_destino_id?: string }).card_destino_id);
+    if (a === filhoId && b) peers.add(b);
+    if (b === filhoId && a) peers.add(a);
+  }
+  if (peers.size > 0) {
+    const { data: opsVinculo } = await db
+      .from('kanban_cards')
+      .select('id')
+      .in('id', [...peers])
+      .eq('kanban_id', KANBAN_IDS.OPERACOES);
+    for (const row of opsVinculo ?? []) {
+      const id = textoId((row as { id?: string }).id);
+      if (id) ids.add(id);
+    }
+  }
+
+  if (projeto) {
+    const { data: porProjeto } = await db
+      .from('kanban_cards')
+      .select('id')
+      .eq('kanban_id', KANBAN_IDS.OPERACOES)
+      .eq('projeto_id', projeto)
+      .or('arquivado.eq.false,arquivado.is.null');
+    for (const row of porProjeto ?? []) {
+      const id = textoId((row as { id?: string }).id);
+      if (id) ids.add(id);
+    }
+  }
+
+  let ativos = await idsOperacoesAtivos(db, ids);
+  if (ativos.length === 0) {
+    try {
+      const { listarKanbanCardIdsSyncGroup } = await import('@/lib/kanban/card-sync-group');
+      const grupo = await listarKanbanCardIdsSyncGroup(db, filhoId);
+      ativos = await idsOperacoesAtivos(db, grupo);
+    } catch (e) {
+      console.error('[resolverPaisOperacoesDoCredito] sync group:', e);
+    }
+  }
+  if (ativos.length === 0) {
+    ativos = await buscarOperacoesAtivoPorLote(db, filho);
+  }
+  return ativos;
+}
+
+async function registrarHistoricoBastaoCreditoObra(
+  db: ReturnType<typeof createAdminClient>,
+  paiId: string,
+  filhoId: string,
+  faseSlug: string,
+  descricao: string,
+  extra: Record<string, unknown>,
+): Promise<void> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const usuarioNome = await resolveUsuarioNomeHistorico(db, user?.id ?? null);
+
+  const { error } = await db.from('kanban_historico').insert({
+    card_id: paiId,
+    usuario_id: user?.id ?? null,
+    usuario_nome: usuarioNome,
+    acao: 'bastao_retorno',
+    tipo: tipoKanbanHistoricoFromAcao('bastao_retorno'),
+    detalhe: {
+      tipo: 'bastao_retorno',
+      descricao,
+      fase_slug: faseSlug,
+      card_filho_id: filhoId,
+      esteira: 'Crédito Obra',
+      ...extra,
+    },
+  } as never);
+
+  if (error) {
+    console.error('[registrarHistoricoBastaoCreditoObra]', error.message);
+  }
+}
+
+async function posicaoFaseCreditoObra(
+  db: ReturnType<typeof createAdminClient>,
+  slug: string,
+): Promise<{ atingiuFup: boolean; atingiuConcluidos: boolean }> {
+  if (slug === FASE_SLUGS.CO_FOLLOWUP_CARTORIO) {
+    return { atingiuFup: true, atingiuConcluidos: false };
+  }
+  if (slug === FASE_SLUGS.CO_SHAREPOINT_3A) {
+    return { atingiuFup: true, atingiuConcluidos: true };
+  }
+  const { data, error } = await db
+    .from('kanban_fases')
+    .select('slug, ordem')
+    .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
+    .eq('ativo', true)
+    .in('slug', [slug, FASE_SLUGS.CO_FOLLOWUP_CARTORIO, FASE_SLUGS.CO_SHAREPOINT_3A]);
+  if (error) {
+    console.error('[posicaoFaseCreditoObra]', error.message);
+    return { atingiuFup: false, atingiuConcluidos: false };
+  }
+  const ordemDe = (alvo: string) =>
+    Number(
+      (data ?? []).find((row) => String((row as { slug?: string }).slug ?? '') === alvo)?.ordem ?? 0,
+    );
+  const atual = ordemDe(slug);
+  const fup = ordemDe(FASE_SLUGS.CO_FOLLOWUP_CARTORIO);
+  const concluidos = ordemDe(FASE_SLUGS.CO_SHAREPOINT_3A);
+  return {
+    atingiuFup: atual > 0 && fup > 0 && atual >= fup,
+    atingiuConcluidos: atual > 0 && concluidos > 0 && atual >= concluidos,
+  };
+}
+
+/**
+ * Crédito Obra → Pré Obra e Obra. Substitui o bastão `credito_obra_ok`.
+ * Entrada em FUP Cartório (ou fase posterior) avança o pai ativo para Crédito Aprovado.
+ * Entrada em Concluídos marca `credito_finalizado` no pai.
+ */
+async function executarBastaoCreditoObraParaOperacoes(
+  cardFilhoId: string,
+  novaFaseSlug: string,
+): Promise<void> {
+  const slug = String(novaFaseSlug ?? '').trim();
+  const filhoId = String(cardFilhoId ?? '').trim();
+  if (!filhoId || !slug) return;
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] admin client:', e);
+    return;
+  }
+
+  const posicao = await posicaoFaseCreditoObra(db, slug);
+  if (!posicao.atingiuFup && !posicao.atingiuConcluidos) return;
+
+  const { data: filhoRow, error: errFilho } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, origem_card_id, projeto_id, nome_condominio, quadra, lote, franqueado_id')
+    .eq('id', filhoId)
+    .maybeSingle();
+
+  if (errFilho) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] card filho:', errFilho.message);
+    return;
+  }
+  if (!filhoRow?.id) return;
+  if (String((filhoRow as { kanban_id?: string }).kanban_id ?? '') !== KANBAN_IDS.CREDITO_OBRA) {
+    return;
+  }
+
+  const filho = filhoRow as FilhoCreditoObraIdentidade;
+  const pais = await resolverPaisOperacoesDoCredito(db, filhoId, filho);
+  if (pais.length === 0) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] card de Pré Obra e Obra não encontrado:', filhoId);
+    return;
+  }
+
+  const origemAtual = textoId(filho.origem_card_id);
+  if (pais.length === 1 && pais[0] !== origemAtual) {
+    const { data: origemRow } = origemAtual
+      ? await db
+          .from('kanban_cards')
+          .select('kanban_id, arquivado')
+          .eq('id', origemAtual)
+          .maybeSingle()
+      : { data: null };
+    const origemEhOpsArquivado =
+      !origemAtual ||
+      (textoId((origemRow as { kanban_id?: string } | null)?.kanban_id) === KANBAN_IDS.OPERACOES &&
+        Boolean((origemRow as { arquivado?: boolean | null } | null)?.arquivado));
+    if (origemEhOpsArquivado) {
+      const { error: errOrigem } = await db
+        .from('kanban_cards')
+        .update({ origem_card_id: pais[0] } as never)
+        .eq('id', filhoId);
+      if (errOrigem) {
+        console.error('[executarBastaoCreditoObraParaOperacoes] origem:', errOrigem.message);
+      }
+    }
+  }
+
+  if (posicao.atingiuConcluidos) {
+    let marcou = false;
+    for (const paiId of pais) {
+      const { data: paiFlag } = await db
+        .from('kanban_cards')
+        .select('credito_finalizado')
+        .eq('id', paiId)
+        .maybeSingle();
+      if ((paiFlag as { credito_finalizado?: boolean | null } | null)?.credito_finalizado === true) {
+        continue;
+      }
+      const { error: errFlag } = await db
+        .from('kanban_cards')
+        .update({ credito_finalizado: true } as never)
+        .eq('id', paiId);
+      if (errFlag) {
+        console.error('[executarBastaoCreditoObraParaOperacoes] flag:', errFlag.message);
+        continue;
+      }
+      marcou = true;
+      await registrarHistoricoBastaoCreditoObra(
+        db,
+        paiId,
+        filhoId,
+        slug,
+        'Crédito Obra entrou em Concluídos → Pré Obra e Obra marcado como Crédito Finalizado.',
+        { flag: 'credito_finalizado' },
+      );
+    }
+    if (marcou) {
+      revalidatePath('/operacoes');
+      revalidatePath('/funil-credito-obra');
+    }
+  }
+
+  if (!posicao.atingiuFup) return;
+
+  const { data: faseDestino, error: errFaseDest } = await db
+    .from('kanban_fases')
+    .select('id, ordem')
+    .eq('kanban_id', KANBAN_IDS.OPERACOES)
+    .eq('slug', FASE_SLUGS.CREDITO_APROVADO)
+    .eq('ativo', true)
+    .maybeSingle();
+
+  if (errFaseDest) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] fase destino:', errFaseDest.message);
+    return;
+  }
+  if (!faseDestino?.id) {
+    console.error('[executarBastaoCreditoObraParaOperacoes] fase credito_aprovado não encontrada.');
+    return;
+  }
+
+  const faseDestinoId = String(faseDestino.id);
+  const ordemDestino = Number((faseDestino as { ordem?: number }).ordem ?? 0);
+  let moveu = false;
+
+  for (const paiId of pais) {
+    const { data: paiRow, error: errPai } = await db
+      .from('kanban_cards')
+      .select('id, fase_id')
+      .eq('id', paiId)
+      .maybeSingle();
+    if (errPai || !paiRow?.id) {
+      if (errPai) console.error('[executarBastaoCreditoObraParaOperacoes] card pai:', errPai.message);
+      continue;
+    }
+
+    const fasePaiIdAtual = String((paiRow as { fase_id?: string }).fase_id ?? '').trim();
+    if (fasePaiIdAtual === faseDestinoId) continue;
+
+    if (fasePaiIdAtual) {
+      const { data: faseAtualPai } = await db
+        .from('kanban_fases')
+        .select('slug, ordem')
+        .eq('id', fasePaiIdAtual)
+        .maybeSingle();
+      const ordemAtual = Number((faseAtualPai as { ordem?: number } | null)?.ordem ?? 0);
+      const slugAtual = String((faseAtualPai as { slug?: string | null } | null)?.slug ?? '').trim();
+      if (slugAtual === FASE_SLUGS.CREDITO_APROVADO) continue;
+      if (ordemAtual > 0 && ordemDestino > 0 && ordemAtual >= ordemDestino) continue;
+    }
+
+    const { error: errUpd } = await db
+      .from('kanban_cards')
+      .update({ fase_id: faseDestinoId })
+      .eq('id', paiId);
+
+    if (errUpd) {
+      console.error('[executarBastaoCreditoObraParaOperacoes] update pai:', errUpd.message);
+      continue;
+    }
+
+    moveu = true;
+    await registrarHistoricoBastaoCreditoObra(
+      db,
+      paiId,
+      filhoId,
+      slug,
+      'Crédito Obra entrou em FUP Cartório → Pré Obra e Obra em Crédito Aprovado.',
+      { fase_pai_slug: FASE_SLUGS.CREDITO_APROVADO },
+    );
+  }
+
+  if (moveu) {
+    revalidatePath('/operacoes');
+    revalidatePath('/funil-credito-obra');
+  }
+}
+
+/** Cards de Crédito Obra que já estão em FUP Cartório (ou depois) puxam o Pré Obra ativo. */
+export async function garantirPreObraCreditoAprovadoPendentes(): Promise<void> {
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    console.error('[garantirPreObraCreditoAprovadoPendentes] admin client:', e);
+    return;
+  }
+
+  const { data: fases, error: errFases } = await db
+    .from('kanban_fases')
+    .select('id, slug, ordem')
+    .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
+    .eq('ativo', true);
+  if (errFases) {
+    console.error('[garantirPreObraCreditoAprovadoPendentes] fases:', errFases.message);
+    return;
+  }
+
+  const fup = (fases ?? []).find(
+    (fase) => String((fase as { slug?: string }).slug ?? '') === FASE_SLUGS.CO_FOLLOWUP_CARTORIO,
+  );
+  const fupOrdem = Number((fup as { ordem?: number } | undefined)?.ordem ?? 0);
+  if (!fup || fupOrdem <= 0) return;
+
+  const faseIds = (fases ?? [])
+    .filter((fase) => Number((fase as { ordem?: number }).ordem ?? 0) >= fupOrdem)
+    .map((fase) => textoId((fase as { id?: string }).id))
+    .filter(Boolean);
+  if (faseIds.length === 0) return;
+
+  const slugPorFase = new Map(
+    (fases ?? []).map((fase) => [
+      textoId((fase as { id?: string }).id),
+      textoId((fase as { slug?: string }).slug),
+    ]),
+  );
+
+  const { data: filhos, error: errFilhos } = await db
+    .from('kanban_cards')
+    .select('id, fase_id')
+    .eq('kanban_id', KANBAN_IDS.CREDITO_OBRA)
+    .in('fase_id', faseIds)
+    .or('arquivado.eq.false,arquivado.is.null');
+  if (errFilhos) {
+    console.error('[garantirPreObraCreditoAprovadoPendentes] cards:', errFilhos.message);
+    return;
+  }
+
+  for (const filho of filhos ?? []) {
+    const id = textoId((filho as { id?: string }).id);
+    const faseId = textoId((filho as { fase_id?: string }).fase_id);
+    const slugFilho = slugPorFase.get(faseId) || FASE_SLUGS.CO_FOLLOWUP_CARTORIO;
+    if (!id) continue;
+    await executarBastaoCreditoObraParaOperacoes(id, slugFilho);
+  }
 }
 
 export type ResultadoBastaoDeVolta = { ok: true } | { ok: false; error: string };
@@ -1559,9 +2110,30 @@ export async function executarBastaoDeVolta(
   const cardFilhoId = String(cardId ?? '').trim();
   if (!cardFilhoId || !slug) return { ok: true };
 
+  try {
+    const { executarBastaoPortfolioOperacoes } = await import('@/lib/kanban/portfolio-operacoes-bastao');
+    await executarBastaoPortfolioOperacoes({
+      cardId: cardFilhoId,
+      novaFaseSlug: slug,
+      userId: opts?.userId ?? null,
+    });
+  } catch (e) {
+    console.error('[executarBastaoDeVolta] portfolio/operacoes:', e);
+  }
+
   // Projeto Legal → Operações (aprovacao_condominio). Não mexe no Portfólio.
   if (slug === FASE_SLUGS.PL_C_PROTOCOLO_ANDAMENTO) {
     await executarBastaoDeVoltaMoverPaiPorFaseFilho(cardFilhoId, slug);
+  }
+
+  // Crédito Obra → Pré Obra e Obra. Fases a partir de FUP Cartório (o slug exato
+  // de FUP/Concluídos e qualquer `co_*` posterior, para não perder o salto).
+  if (
+    slug === FASE_SLUGS.CO_FOLLOWUP_CARTORIO ||
+    slug === FASE_SLUGS.CO_SHAREPOINT_3A ||
+    slug.startsWith('co_')
+  ) {
+    await executarBastaoCreditoObraParaOperacoes(cardFilhoId, slug);
   }
 
   if (slug === FASE_SLUGS.JURIDICO_ATENDIMENTOS_CONCLUIDOS) {
@@ -1590,24 +2162,45 @@ export async function executarBastaoDeVolta(
 
   let pularHistoricoFlag = false;
   const momentoPortfolio = slug === FASE_SLUGS.JURIDICO_SUBIR_ASSINATURA || slug === FASE_SLUGS.JURIDICO_POS_ASSINATURA;
-  if (momentoPortfolio) {
+  const momentoShowroom =
+    slug === FASE_SLUGS.JURIDICO_AGUARDANDO_ASSINATURAS || slug === FASE_SLUGS.JURIDICO_POS_ASSINATURA;
+  if (momentoPortfolio || momentoShowroom) {
     const supabaseUser = await createClient();
-    const portfolio = await executarBastaoJuridicoParaPortfolio({
-      cardFilhoId,
-      novaFaseSlug: slug,
-      userId: opts?.userId ?? null,
-      faseAnteriorFilhoId: opts?.faseAnteriorId ?? null,
-      inserirHistorico: async (row) => {
-        const { error } = await supabaseUser.from('kanban_historico').insert(row as never);
-        return error?.message ?? null;
-      },
-      inserirNotificacao: async (row) => {
-        const { error } = await supabaseUser.from('sirene_notificacoes').insert(row as never);
-        return error?.message ?? null;
-      },
-    });
-    if (!portfolio.ok) return portfolio;
-    pularHistoricoFlag = portfolio.pularHistoricoFlag;
+    const gravarHistorico = async (row: Record<string, unknown>) => {
+      const { error } = await supabaseUser.from('kanban_historico').insert(row as never);
+      return error?.message ?? null;
+    };
+    const gravarNotificacao = async (row: Record<string, unknown>) => {
+      const { error } = await supabaseUser.from('sirene_notificacoes').insert(row as never);
+      return error?.message ?? null;
+    };
+
+    if (momentoPortfolio) {
+      const portfolio = await executarBastaoJuridicoParaPortfolio({
+        cardFilhoId,
+        novaFaseSlug: slug,
+        userId: opts?.userId ?? null,
+        faseAnteriorFilhoId: opts?.faseAnteriorId ?? null,
+        inserirHistorico: gravarHistorico,
+        inserirNotificacao: gravarNotificacao,
+      });
+      if (!portfolio.ok) return portfolio;
+      pularHistoricoFlag = portfolio.pularHistoricoFlag;
+    }
+
+    if (momentoShowroom) {
+      const { executarBastaoJuridicoParaShowroom } = await import('@/lib/kanban/showroom-juridico-bastao-exec');
+      const showroom = await executarBastaoJuridicoParaShowroom({
+        cardFilhoId,
+        novaFaseSlug: slug,
+        userId: opts?.userId ?? null,
+        faseAnteriorFilhoId: opts?.faseAnteriorId ?? null,
+        inserirHistorico: gravarHistorico,
+        inserirNotificacao: gravarNotificacao,
+      });
+      if (!showroom.ok) return showroom;
+      pularHistoricoFlag = pularHistoricoFlag || showroom.pularHistoricoFlag;
+    }
   }
 
   const flagCol = DESFECHO_FLAG_POR_FASE[slug];

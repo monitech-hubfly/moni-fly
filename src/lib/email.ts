@@ -1,10 +1,12 @@
 /**
- * Envio de e-mail para o franqueado quando o status do ticket jurídico muda.
- * Usa Resend (https://resend.com). Configure RESEND_API_KEY e RESEND_FROM no .env.local.
+ * Envio de e-mail do Hub Fly.
+ * Preferência: Gmail API com a conta de serviço do Google (GOOGLE_CALENDAR_SA_KEY).
+ * Reserva: Resend (RESEND_API_KEY). Sem as duas, o envio é ignorado.
  */
 
 import type { AccessRole } from '@/lib/authz';
 import { getPublicAppUrl } from '@/lib/app-url';
+import { enviarEmailGmail } from '@/lib/google-gmail';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 // Você pode sobrescrever no .env.local com RESEND_FROM=Casa Moní <onboarding@moni.casa>
@@ -78,8 +80,8 @@ function normalizeEmailRecipients(v?: string | string[]): string[] {
 }
 
 /**
- * Envia e-mail via Resend. Em dev sem RESEND_API_KEY devolve ok + skipped (não quebra fluxos locais).
- * Em produção sem chave também skipped — o chamador pode avisar o admin.
+ * Envia pelo Gmail quando a conta de serviço existe. Sem ela, usa o Resend.
+ * Sem os dois, devolve ok + skipped para não quebrar o cadastro.
  */
 export async function sendEmailViaResend(input: {
   to: string | string[];
@@ -95,12 +97,24 @@ export async function sendEmailViaResend(input: {
     .map((e) => e.trim())
     .filter(Boolean);
   if (!recipients.length) return { ok: false, error: 'E-mail do destinatário não informado.' };
-  if (!RESEND_API_KEY) {
-    return { ok: true, skipped: true };
-  }
 
   const ccList = normalizeEmailRecipients(input.cc);
   const bccList = normalizeEmailRecipients(input.bcc);
+  const gmail = await enviarEmailGmail({
+    to: recipients,
+    cc: ccList,
+    bcc: bccList,
+    subject: input.subject,
+    text: input.text,
+    html: input.html,
+    from: input.from,
+    attachments: input.attachments,
+  });
+  if (gmail?.ok) return { ok: true, resendEmailId: gmail.id };
+
+  if (!RESEND_API_KEY) {
+    return gmail && !gmail.ok ? { ok: false, error: gmail.error } : { ok: true, skipped: true };
+  }
 
   try {
     const body: Record<string, unknown> = {
@@ -125,13 +139,14 @@ export async function sendEmailViaResend(input: {
 
     if (!res.ok) {
       const body = await res.text();
-      return { ok: false, error: `Resend: ${res.status} ${body}` };
+      const resendErro = `Resend: ${res.status} ${body}`;
+      return { ok: false, error: gmail && !gmail.ok ? `${gmail.error} ${resendErro}` : resendErro };
     }
     const payload = (await res.json().catch(() => ({}))) as { id?: string };
     return { ok: true, resendEmailId: typeof payload.id === 'string' ? payload.id : undefined };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: message };
+    return { ok: false, error: gmail && !gmail.ok ? `${gmail.error} ${message}` : message };
   }
 }
 

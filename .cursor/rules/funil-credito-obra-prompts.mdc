@@ -43,7 +43,7 @@ Fluxo ativo (migration 494, ordem 1–13):
 
 **Inativas (legado):** `co_outro_parceiro`, tranches 4ª–6ª, `co_acompanhamento_3a`, `credito_obra_aprovado`, `credito_obra_reprovado`.
 
-**Bastões de volta / desfecho:** `CO_OUTRO_PARCEIRO`, `CO_SHAREPOINT_3A` → flag `credito_obra_ok` no card pai.
+**Pré Obra e Obra (substitui o bastão `credito_obra_ok`):** primeira entrada em `co_followup_cartorio` move o pai para `credito_aprovado`; primeira entrada em `co_sharepoint_3a` marca `credito_finalizado` no pai. Não retrocede o pai.
 
 ---
 

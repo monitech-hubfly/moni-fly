@@ -401,6 +401,9 @@
   --moni-bp-tablet:  1024px;
   --moni-bp-desktop: 1440px;
 
+  /* Largura da navegação lateral (AppShell). Overlays fixed usam este valor. */
+  --moni-sidebar-width: 14rem;
+
   /* --------------------------------------------------
      KANBAN CARD — tamanhos
   -------------------------------------------------- */
@@ -3731,6 +3734,24 @@
   color: var(--moni-kanban-drawer-header-text);
 }
 
+.moni-kanban-drawer-franqueado {
+  margin: 2px 0 0;
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-family: var(--moni-font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--moni-kanban-drawer-header-text);
+}
+
+.moni-kanban-drawer--com-franqueado .moni-kanban-drawer-body {
+  padding-top: 94px;
+}
+
 .moni-kanban-drawer-badge {
   flex-shrink: 0;
   border-radius: var(--moni-radius-pill);
@@ -3745,7 +3766,7 @@
   background: var(--moni-surface-0);
 }
 
-/* Funil Jurídico — contador de revisões (Fase 5/6 → Fase 3) */
+/* Rodada do card: Jurídico, Portfólio e Pré Obra e Obra (juridico_bolinha_count) */
 .moni-juridico-bolinha-badge {
   flex-shrink: 0;
   display: inline-flex;
@@ -3985,6 +4006,22 @@
   background-color: var(--moni-surface-50);
 }
 
+/* Cadastro de Corretores — fundo branco único, inclusive na área vazia do scroll. */
+.moni-tabela-corretores,
+.moni-tabela-scroll-wrap:has(.moni-tabela-corretores) {
+  background-color: var(--moni-surface-0);
+  scrollbar-color: var(--moni-navy-200) var(--moni-surface-0);
+}
+
+.moni-tabela-scroll-wrap:has(.moni-tabela-corretores)::-webkit-scrollbar-track {
+  background: var(--moni-surface-0);
+}
+
+.moni-tabela-scroll-main table.moni-tabela-corretores thead th,
+.moni-tabela-scroll-main table.moni-tabela-corretores tbody td {
+  background-color: var(--moni-surface-0);
+}
+
 /* Rede de Franqueados — fundo homogêneo por linha (colunas fixas + roláveis) */
 .moni-rede-row-tone-default td {
   background-color: var(--moni-surface-0);
@@ -4041,6 +4078,42 @@
   .moni-tabela-scroll-main table thead tr:last-child:not(:only-child) th {
     top: var(--moni-tabela-thead-row1-height, 2.25rem);
   }
+}
+
+/* Cabeçalho fixo quando o scroll da página tira o thead da área visível. */
+.moni-tabela-head-pin {
+  display: none;
+  position: fixed;
+  z-index: 35;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--moni-surface-50);
+  box-shadow: 0 2px 8px rgba(12, 38, 51, 0.1);
+}
+
+.moni-tabela-head-pin.is-on {
+  display: block;
+  pointer-events: auto;
+}
+
+.moni-tabela-scroll-wrap.moni-tabela-head-covered table thead {
+  visibility: hidden;
+}
+
+.moni-tabela-head-pin-scroll {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.moni-tabela-head-pin table {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.moni-tabela-head-pin table.border-collapse {
+  border-collapse: separate;
 }
 
 .moni-tabela-scroll-wrap::-webkit-scrollbar {

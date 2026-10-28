@@ -5,7 +5,15 @@ import { PipelineDatasetLoading } from '@/components/pipeline/PipelineDatasetLoa
 import { usePipelineDatasetLazy } from '@/components/pipeline/usePipelineDatasetLazy';
 
 export function DashboardsGeraisPipelineTab() {
-  const { dataset, loading, error } = usePipelineDatasetLazy({
+  const {
+    dataset,
+    loading,
+    error,
+    ensureCalculadora,
+    ensureHistorico,
+    esteiraCalculadoraCarregando,
+    historicoCarregando,
+  } = usePipelineDatasetLazy({
     mode: 'franqueadora',
     enabled: true,
   });
@@ -35,7 +43,15 @@ export function DashboardsGeraisPipelineTab() {
           Cards ativos em todos os funis, consolidados por unidade de franquia.
         </p>
       </div>
-      <PipelineCardsView mode="rede" dataset={dataset} defaultGroupBy="franquia" />
+      <PipelineCardsView
+        mode="rede"
+        dataset={dataset}
+        defaultGroupBy="franquia"
+        onRequestEsteiraCalculadora={ensureCalculadora}
+        onRequestHistorico={ensureHistorico}
+        esteiraCalculadoraCarregando={esteiraCalculadoraCarregando}
+        historicoCarregando={historicoCarregando}
+      />
     </section>
   );
 }

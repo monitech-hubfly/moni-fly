@@ -184,6 +184,19 @@ export async function uploadPlanilhaLotesDoCard(
     await auth.supabase.storage.from(BUCKET).remove([pathAnterior]);
   }
 
+  const { data: cardNome } = await auth.supabase
+    .from('kanban_cards')
+    .select('titulo, nome_condominio')
+    .eq('id', card.cardId)
+    .maybeSingle();
+  const nomeRow = cardNome as { titulo?: string | null; nome_condominio?: string | null } | null;
+  const { garantirSlugJornadaDoCard } = await import('@/lib/kanban/jornada-slug-card');
+  await garantirSlugJornadaDoCard(auth.supabase, {
+    cardId: card.cardId,
+    nomeCondominio: nomeRow?.nome_condominio,
+    titulo: nomeRow?.titulo,
+  });
+
   const { data: tpl } = await auth.supabase
     .from('loteamento_simulador_templates')
     .select('link_token')

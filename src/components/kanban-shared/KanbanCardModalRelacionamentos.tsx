@@ -131,6 +131,7 @@ export function KanbanCardModalRelacionamentos({
   const [pedirTipoJuridico, setPedirTipoJuridico] = useState(false);
   const [tipoJuridicoSelecionado, setTipoJuridicoSelecionado] = useState<JuridicoTipoDocumento | ''>('');
   const [buscaVinculo, setBuscaVinculo] = useState('');
+  const [buscaDebounced, setBuscaDebounced] = useState('');
   const [resultadosBusca, setResultadosBusca] = useState<BuscaCardVinculoRow[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [toast, setToast] = useState<{ tipo: 'ok' | 'erro'; msg: string; href?: string } | null>(
@@ -180,19 +181,19 @@ export function KanbanCardModalRelacionamentos({
   }, [mostrarAbrirFunilAcoplamento, exibirBotaoPreObraObra, podeGerenciar, kanbanId, kanbanNome, destinosDisponiveis]);
   const mostrarSecaoDispararEsteira = exibirBotaoPreObraObra || (botoesAbrirFunil.length > 0 && !disabled);
 
-  const recarregar = useCallback(async () => {
+  const recarregar = useCallback(async (silencioso = false) => {
     if (!cardId || disabled) {
       setVinculos([]);
       return;
     }
-    setLoading(true);
+    if (!silencioso) setLoading(true);
     try {
       const res = await listarVinculosCard(cardId);
       setVinculos(res.ok ? res.items : []);
     } catch {
       setVinculos([]);
     } finally {
-      setLoading(false);
+      if (!silencioso) setLoading(false);
     }
   }, [cardId, disabled]);
 
@@ -234,11 +235,17 @@ export function KanbanCardModalRelacionamentos({
   }, [pid, cardId, disabled]);
 
   useEffect(() => {
+    const t = buscaVinculo.trim();
+    const handle = window.setTimeout(() => setBuscaDebounced(t), 280);
+    return () => window.clearTimeout(handle);
+  }, [buscaVinculo]);
+
+  useEffect(() => {
     if (!modoVincular || !podeGerenciar) {
       setResultadosBusca([]);
       return;
     }
-    const t = buscaVinculo.trim();
+    const t = buscaDebounced.trim();
     const uuidOk = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(t);
     if (!uuidOk && t.length < 2) {
       setResultadosBusca([]);
@@ -257,7 +264,7 @@ export function KanbanCardModalRelacionamentos({
     return () => {
       cancelled = true;
     };
-  }, [buscaVinculo, modoVincular, podeGerenciar, cardId]);
+  }, [buscaDebounced, modoVincular, podeGerenciar, cardId]);
 
   function fecharFormularioVincular() {
     setModoVincular(false);
@@ -331,7 +338,7 @@ export function KanbanCardModalRelacionamentos({
       fecharFormularioVincular();
       setCamada3Open(true);
       gravarVinculosManuaisOpen(true);
-      await recarregar();
+      await recarregar(true);
     } catch {
       setToast({ tipo: 'erro', msg: 'Erro ao vincular card.' });
     } finally {
@@ -371,7 +378,7 @@ export function KanbanCardModalRelacionamentos({
       setToast({ tipo: 'erro', msg: res.error });
       return;
     }
-    await recarregar();
+    await recarregar(true);
   }
 
   const gruposManuais = useMemo(() => {
@@ -676,7 +683,8 @@ export function KanbanCardModalRelacionamentos({
                             className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-[11px] text-stone-800"
                           />
                         </label>
-                        {buscando ? (
+                        {buscando ||
+                        (buscaVinculo.trim().length >= 2 && buscaVinculo.trim() !== buscaDebounced.trim()) ? (
                           <p className="text-[10px] text-stone-500">Buscando…</p>
                         ) : resultadosBusca.length > 0 ? (
                           <ul className="max-h-40 list-none space-y-1 overflow-y-auto rounded border border-stone-100 bg-white p-1">

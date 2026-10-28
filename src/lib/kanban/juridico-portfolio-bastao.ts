@@ -5,6 +5,7 @@ export const TIPOS_BASTAO_JURIDICO_PORTFOLIO = [
   'opcao',
   'cto_com_precedentes',
   'cto_sem_precedentes',
+  'termo_recompra',
 ] as const;
 
 export type TipoBastaoJuridicoPortfolio = (typeof TIPOS_BASTAO_JURIDICO_PORTFOLIO)[number];
@@ -58,6 +59,17 @@ const TRILHAS: Record<
     assinado: FASE_SLUGS.PORTFOLIO_CONTRATO_ASSINADO,
     rotuloAssinado: 'Cto s/ Precedentes assinado',
   },
+  termo_recompra: {
+    fases: [
+      FASE_SLUGS.PORTFOLIO_ENVIAR_TERMO_RECOMPRA,
+      FASE_SLUGS.PORTFOLIO_JURIDICO_TERMO_RECOMPRA,
+      FASE_SLUGS.PORTFOLIO_ASSINATURAS_TERMO_RECOMPRA,
+      FASE_SLUGS.PORTFOLIO_TERMO_RECOMPRA_ASSINADO,
+    ],
+    assinaturas: FASE_SLUGS.PORTFOLIO_ASSINATURAS_TERMO_RECOMPRA,
+    assinado: FASE_SLUGS.PORTFOLIO_TERMO_RECOMPRA_ASSINADO,
+    rotuloAssinado: 'Termo Recompra assinada',
+  },
 };
 
 /** Fases do Portfólio que abrem atendimento. Assinaturas e Assinado não entram. */
@@ -65,6 +77,7 @@ export const FASES_PORTFOLIO_CRIAM_ATENDIMENTO_JURIDICO = [
   FASE_SLUGS.PORTFOLIO_JURIDICO_OPCAO,
   FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES,
   FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO,
+  FASE_SLUGS.PORTFOLIO_JURIDICO_TERMO_RECOMPRA,
 ] as const;
 
 export function fasePortfolioCriaAtendimentoJuridico(slug: string | null | undefined): boolean {
@@ -280,5 +293,87 @@ export function decidirBastaoJuridicoLoteadores(input: {
     outrasTrilhas: outras,
     funil: 'Loteadores',
     slugsIgnorados: [FASE_SLUGS.LOTEADOR_JURIDICO],
+  });
+}
+
+/** Tipos do bastão Jurídico → Showroom. Não entram nas trilhas do Portfólio. */
+export const TIPOS_BASTAO_JURIDICO_SHOWROOM = ['cto_showroom', 'termo_recompra_showroom'] as const;
+
+export type TipoBastaoJuridicoShowroom = (typeof TIPOS_BASTAO_JURIDICO_SHOWROOM)[number];
+
+const TRILHAS_SHOWROOM: Record<TipoBastaoJuridicoShowroom, TrilhaDocumento> = {
+  cto_showroom: {
+    fases: [
+      FASE_SLUGS.SR_ENVIAR_CTO_SHOWROOM,
+      FASE_SLUGS.SR_JURIDICO_CTO_SHOWROOM,
+      FASE_SLUGS.SR_ASSINATURAS_CTO_SHOWROOM,
+      FASE_SLUGS.SR_CTO_SHOWROOM_ASSINADO,
+    ],
+    assinaturas: FASE_SLUGS.SR_ASSINATURAS_CTO_SHOWROOM,
+    assinado: FASE_SLUGS.SR_CTO_SHOWROOM_ASSINADO,
+    rotuloAssinado: 'Cto Showroom assinado',
+  },
+  termo_recompra_showroom: {
+    fases: [
+      FASE_SLUGS.SR_ENVIAR_TERMO_RECOMPRA,
+      FASE_SLUGS.SR_JURIDICO_TERMO_RECOMPRA,
+      FASE_SLUGS.SR_ASSINATURAS_TERMO_RECOMPRA,
+      FASE_SLUGS.SR_TERMO_RECOMPRA_ASSINADO,
+    ],
+    assinaturas: FASE_SLUGS.SR_ASSINATURAS_TERMO_RECOMPRA,
+    assinado: FASE_SLUGS.SR_TERMO_RECOMPRA_ASSINADO,
+    rotuloAssinado: 'Termo Recompra Showroom assinado',
+  },
+};
+
+export function isTipoBastaoJuridicoShowroom(
+  valor: string | null | undefined,
+): valor is TipoBastaoJuridicoShowroom {
+  return (TIPOS_BASTAO_JURIDICO_SHOWROOM as readonly string[]).includes(String(valor ?? '').trim());
+}
+
+/** Aguardando Assinaturas empurra para Assinaturas. Pós-Assinatura empurra para Assinado. */
+export function momentoBastaoPorFaseJuridicoShowroom(
+  slug: string | null | undefined,
+): MomentoBastaoJuridicoPortfolio | null {
+  const s = String(slug ?? '').trim();
+  if (s === FASE_SLUGS.JURIDICO_AGUARDANDO_ASSINATURAS) return 'assinaturas';
+  if (s === FASE_SLUGS.JURIDICO_POS_ASSINATURA) return 'assinado';
+  return null;
+}
+
+export function faseDestinoBastaoShowroom(
+  tipo: TipoBastaoJuridicoShowroom,
+  momento: MomentoBastaoJuridicoPortfolio,
+): string {
+  return TRILHAS_SHOWROOM[tipo][momento];
+}
+
+export function rotuloDocumentoAssinadoShowroom(tipo: TipoBastaoJuridicoShowroom): string {
+  return TRILHAS_SHOWROOM[tipo].rotuloAssinado;
+}
+
+export function mensagemNotificacaoDocumentoAssinadoShowroom(tipo: TipoBastaoJuridicoShowroom): string {
+  return `Jurídico concluído: ${rotuloDocumentoAssinadoShowroom(tipo)}.`;
+}
+
+export function decidirBastaoJuridicoShowroom(input: {
+  tipo: TipoBastaoJuridicoShowroom;
+  momento: MomentoBastaoJuridicoPortfolio;
+  fasePaiSlug: string;
+  fasePaiNome: string;
+  ordemPai: number | null;
+  ordemDestino: number | null;
+  faseDestinoNome: string;
+}): DecisaoBastaoPortfolio {
+  const trilha = TRILHAS_SHOWROOM[input.tipo];
+  const outras = (Object.entries(TRILHAS_SHOWROOM) as [TipoBastaoJuridicoShowroom, TrilhaDocumento][])
+    .filter(([tipo]) => tipo !== input.tipo)
+    .map(([, item]) => item);
+  return decidirBastaoPorTrilha({
+    ...input,
+    trilha,
+    outrasTrilhas: outras,
+    funil: 'Showroom',
   });
 }

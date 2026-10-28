@@ -11,8 +11,11 @@ const ORIGEM_NAO_REGISTRADA = 'Origem não registrada';
 
 const FASES_TECNICAS_SLUGS = [
   'novo_acoplamento',
+  FASE_SLUGS.ACOPLAMENTO_VERIFICAR_ITENS_FORA_PADRAO,
   'modelagem_terreno',
   FASE_SLUGS.MODELAGEM_CASA_GBOX,
+  FASE_SLUGS.GBOX_ACOPLAMENTO,
+  FASE_SLUGS.ACOPLAMENTO_AGUARDANDO_ALTERACAO_GBOX,
   'validacao_acoplamento',
   'aguardando_comite_acoplamento',
   'alteracoes_acoplamento',
