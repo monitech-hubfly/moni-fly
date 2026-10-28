@@ -1227,7 +1227,6 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_CTO_PRECEDENTES &&
     slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_CONTRATO &&
     slug !== FASE_SLUGS.PORTFOLIO_JURIDICO_TERMO_RECOMPRA &&
-    slug !== FASE_SLUGS.LOTEADORES_NDA &&
     slug !== FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA &&
     slug !== FASE_SLUGS.PASSAGEM_WAYSER &&
     slug !== FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC &&
@@ -1330,14 +1329,7 @@ export async function executarBastoes(cardId: string, novaFaseSlug: string): Pro
     [FASE_SLUGS.SR_PASSAGEM_WAYSER]: [
       { kanbanDestinoId: KANBAN_IDS.OPERACOES, faseDestinoSlug: 'planialtimetrico' },
     ],
-    /** Loteadores → Jurídico só na entrada de Jurídico NDA e Jurídico Cto de Parceria. */
-    [FASE_SLUGS.LOTEADORES_NDA]: [
-      {
-        kanbanDestinoId: KANBAN_IDS.JURIDICO,
-        faseDestinoSlug: FASE_SLUGS.JURIDICO_RECEBIMENTO,
-        juridicoTagNome: 'NDA',
-      },
-    ],
+    /** Loteadores → Jurídico só na entrada de Jurídico Cto de Parceria. */
     [FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA]: [
       {
         kanbanDestinoId: KANBAN_IDS.JURIDICO,
