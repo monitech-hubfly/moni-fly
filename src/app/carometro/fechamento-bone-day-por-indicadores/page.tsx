@@ -89,7 +89,7 @@ function CartoesResumo({ grupos }: { grupos: { id: string; areas: AreaRelatorio[
   );
 }
 
-// ── Coluna Resultado: 3 carinhas em ordem fixa IND → ENG → SIR ───────────────
+// ── Coluna Resultado: 3 carinhas em ordem fixa IND → ENG → SIR (vertical) ────
 function ColunaResultado({ scores }: { scores: AreaRelatorio['scores'] }) {
   const itens = [
     { label: 'IND', score: scores.indicadores },
@@ -97,18 +97,18 @@ function ColunaResultado({ scores }: { scores: AreaRelatorio['scores'] }) {
     { label: 'SIR', score: scores.sirene },
   ];
   return (
-    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {itens.map(({ label, score }) => (
-        <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <img
             src={getCarinhaImg(score)}
             alt={label}
-            style={{ width: '36px', height: '36px', flexShrink: 0 }}
+            style={{ width: '43px', height: '43px', flexShrink: 0 }}
           />
-          <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontWeight: 500 }}>
+          <span style={{ fontSize: '16px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontWeight: 500, minWidth: '32px' }}>
             {label}
           </span>
-          <span style={{ fontSize: '16px', fontFamily: 'var(--moni-font-sans)', fontWeight: 700, color: getScoreColor(score) }}>
+          <span style={{ fontSize: '19px', fontFamily: 'var(--moni-font-sans)', fontWeight: 700, color: getScoreColor(score) }}>
             {score !== null ? `${score}%` : '—'}
           </span>
         </div>
