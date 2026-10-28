@@ -75,6 +75,7 @@ import {
   contarOutrosCardsSyncGroup,
   escolherTituloExibicaoCard,
   fetchCamposKanbanCanonicos,
+  listarKanbanCardIdsSyncGroup,
   montarTituloCardSync,
   propagarCamposKanbanCards,
   propagarCamposProcesso,
@@ -4319,7 +4320,36 @@ function dataPreObraOuNull(valor: string | null | undefined): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(head) ? head : null;
 }
 
-/** Salva Dados Pré Obra no card e espelha nas fases (`preobra:<campo>`). Vale para todos os funis. */
+const COLUNAS_PREOBRA_SALVAR = [
+  'docs_condominio',
+  'docs_lote',
+  'link_projeto_legal',
+  'condominio_aprovada_em',
+  'prefeitura_aprovada_em',
+  'alvara_emitido_em',
+  'data_envio_credito_obra',
+  'data_aprovacao_credito_obra',
+  'data_inicio_obra',
+  'datas_comunique_se_condominio',
+  'datas_comunique_se_prefeitura',
+] as const;
+
+const COLUNAS_PREOBRA_TIMESTAMP = new Set([
+  'condominio_aprovada_em',
+  'prefeitura_aprovada_em',
+  'alvara_emitido_em',
+]);
+
+function valorLateralPreenchido(valor: unknown): boolean {
+  if (valor == null) return false;
+  if (Array.isArray(valor)) return valor.length > 0;
+  if (typeof valor === 'string') return valor.trim().length > 0;
+  if (typeof valor === 'boolean') return valor;
+  return true;
+}
+
+/** Salva Dados Pré Obra no card e espelha nas fases (`preobra:<campo>`). Vale para todos os funis.
+ *  Só grava colunas enviadas. Valor vazio não apaga o que já está no banco nem nos cards vinculados. */
 export async function salvarDadosPreObraOperacoes(
   input: SalvarDadosPreObraOperacoesInput,
 ): Promise<ActionResult> {
@@ -4340,51 +4370,73 @@ export async function salvarDadosPreObraOperacoes(
   if (cardErr) return { ok: false, error: cardErr.message };
   if (!cardRow) return { ok: false, error: 'Card não encontrado.' };
 
-  const espelhoRaw: Record<string, unknown> = {
-    docs_condominio: textoPreObraOuNull(input.docs_condominio),
-    docs_lote: textoPreObraOuNull(input.docs_lote),
-    link_projeto_legal: textoPreObraOuNull(input.link_projeto_legal),
-    condominio_aprovada_em: dataPreObraOuNull(input.condominio_aprovada_em),
-    prefeitura_aprovada_em: dataPreObraOuNull(input.prefeitura_aprovada_em),
-    alvara_emitido_em: dataPreObraOuNull(input.alvara_emitido_em),
-    data_envio_credito_obra: dataPreObraOuNull(input.data_envio_credito_obra),
-    data_aprovacao_credito_obra: dataPreObraOuNull(input.data_aprovacao_credito_obra),
-    data_inicio_obra: dataPreObraOuNull(input.data_inicio_obra),
-    datas_comunique_se_condominio: input.datas_comunique_se_condominio ?? [],
-    datas_comunique_se_prefeitura: input.datas_comunique_se_prefeitura ?? [],
-  };
+  const proposto: Record<string, unknown> = {};
+  if (input.docs_condominio !== undefined) proposto.docs_condominio = textoPreObraOuNull(input.docs_condominio);
+  if (input.docs_lote !== undefined) proposto.docs_lote = textoPreObraOuNull(input.docs_lote);
+  if (input.link_projeto_legal !== undefined) {
+    proposto.link_projeto_legal = textoPreObraOuNull(input.link_projeto_legal);
+  }
+  if (input.condominio_aprovada_em !== undefined) {
+    proposto.condominio_aprovada_em = dataPreObraOuNull(input.condominio_aprovada_em);
+  }
+  if (input.prefeitura_aprovada_em !== undefined) {
+    proposto.prefeitura_aprovada_em = dataPreObraOuNull(input.prefeitura_aprovada_em);
+  }
+  if (input.alvara_emitido_em !== undefined) {
+    proposto.alvara_emitido_em = dataPreObraOuNull(input.alvara_emitido_em);
+  }
+  if (input.data_envio_credito_obra !== undefined) {
+    proposto.data_envio_credito_obra = dataPreObraOuNull(input.data_envio_credito_obra);
+  }
+  if (input.data_aprovacao_credito_obra !== undefined) {
+    proposto.data_aprovacao_credito_obra = dataPreObraOuNull(input.data_aprovacao_credito_obra);
+  }
+  if (input.data_inicio_obra !== undefined) {
+    proposto.data_inicio_obra = dataPreObraOuNull(input.data_inicio_obra);
+  }
+  if (input.datas_comunique_se_condominio !== undefined) {
+    const datas = (input.datas_comunique_se_condominio ?? []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    proposto.datas_comunique_se_condominio = datas.length > 0 ? datas : null;
+  }
+  if (input.datas_comunique_se_prefeitura !== undefined) {
+    const datas = (input.datas_comunique_se_prefeitura ?? []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    proposto.datas_comunique_se_prefeitura = datas.length > 0 ? datas : null;
+  }
+  if (Object.keys(proposto).length === 0) return { ok: true };
 
-  const update: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-    docs_condominio: espelhoRaw.docs_condominio,
-    docs_lote: espelhoRaw.docs_lote,
-    link_projeto_legal: espelhoRaw.link_projeto_legal,
-    condominio_aprovada_em: timestampCampoCalendarioIso(input.condominio_aprovada_em),
-    prefeitura_aprovada_em: timestampCampoCalendarioIso(input.prefeitura_aprovada_em),
-    prefeitura_aprovada: timestampCampoCalendarioIso(input.prefeitura_aprovada_em) != null,
-    alvara_emitido_em: timestampCampoCalendarioIso(input.alvara_emitido_em),
-    data_envio_credito_obra: espelhoRaw.data_envio_credito_obra,
-    data_aprovacao_credito_obra: espelhoRaw.data_aprovacao_credito_obra,
-    data_inicio_obra: espelhoRaw.data_inicio_obra,
-    datas_comunique_se_condominio:
-      Array.isArray(espelhoRaw.datas_comunique_se_condominio) &&
-      (espelhoRaw.datas_comunique_se_condominio as string[]).length > 0
-        ? espelhoRaw.datas_comunique_se_condominio
-        : null,
-    datas_comunique_se_prefeitura:
-      Array.isArray(espelhoRaw.datas_comunique_se_prefeitura) &&
-      (espelhoRaw.datas_comunique_se_prefeitura as string[]).length > 0
-        ? espelhoRaw.datas_comunique_se_prefeitura
-        : null,
-  };
+  const leitura = await supabase
+    .from('kanban_cards')
+    .select(COLUNAS_PREOBRA_SALVAR.join(','))
+    .eq('id', cardId)
+    .maybeSingle();
+  const leituraOk = !leitura.error && leitura.data != null;
+  const atual = (leituraOk ? leitura.data : {}) as unknown as Record<string, unknown>;
 
+  const update: Record<string, unknown> = {};
+  const patchEfetivo: Record<string, unknown> = {};
+  for (const [coluna, valor] of Object.entries(proposto)) {
+    const vazio = !valorLateralPreenchido(valor);
+    if (vazio && (!leituraOk || valorLateralPreenchido(atual[coluna]))) continue;
+    if (COLUNAS_PREOBRA_TIMESTAMP.has(coluna)) {
+      update[coluna] = vazio ? null : timestampCampoCalendarioIso(String(valor));
+    } else {
+      update[coluna] = vazio ? null : valor;
+    }
+    patchEfetivo[coluna] = vazio ? null : valor;
+    if (coluna === 'prefeitura_aprovada_em') {
+      update.prefeitura_aprovada = !vazio;
+    }
+  }
+  if (Object.keys(update).length === 0) return { ok: true };
+
+  update.updated_at = new Date().toISOString();
   const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);
   if (updErr) return { ok: false, error: updErr.message };
 
-  const { checklistLinhasFromPreObraCard } = await import('@/lib/kanban/preobra-checklist-sync');
-  const linhas = checklistLinhasFromPreObraCard(espelhoRaw);
+  const { checklistLinhasFromPreObraPatch } = await import('@/lib/kanban/preobra-checklist-sync');
+  const linhas = checklistLinhasFromPreObraPatch(patchEfetivo).filter((linha) => linha.valor);
+  const agora = new Date().toISOString();
   if (linhas.length > 0) {
-    const agora = new Date().toISOString();
     const { error: espelhoErr } = await supabase.from('kanban_card_checklist_compartilhado').upsert(
       linhas.map((linha) => ({
         card_id: cardId,
@@ -4398,10 +4450,104 @@ export async function salvarDadosPreObraOperacoes(
     if (espelhoErr) return { ok: false, error: espelhoErr.message };
   }
 
+  try {
+    const admin = createAdminClient();
+    const ids = await listarKanbanCardIdsSyncGroup(admin, cardId);
+    const outros = ids.filter((id) => id !== cardId);
+    if (outros.length > 0) {
+      const { error: copyErr } = await admin.from('kanban_cards').update(update as never).in('id', outros);
+      if (copyErr) return { ok: false, error: copyErr.message };
+      if (linhas.length > 0) {
+        const { error: espelhoGrupoErr } = await admin.from('kanban_card_checklist_compartilhado').upsert(
+          outros.flatMap((id) =>
+            linhas.map((linha) => ({
+              card_id: id,
+              chave: linha.chave,
+              valor: linha.valor,
+              atualizado_por: user.id,
+              atualizado_em: agora,
+            })),
+          ),
+          { onConflict: 'card_id,chave' },
+        );
+        if (espelhoGrupoErr) return { ok: false, error: espelhoGrupoErr.message };
+      }
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg };
+  }
+
   const base = String(input.basePath ?? '/').trim() || '/';
   revalidatePath(base);
   revalidatePath('/');
   return { ok: true };
+}
+
+/** Copia para o card os campos laterais vazios que já existem em um card vinculado. Não apaga valor preenchido. */
+export async function mesclarLateraisPreenchidosDoGrupo(cardId: string): Promise<{
+  preObra: Record<string, unknown>;
+  creditoLateral: unknown | null;
+} | null> {
+  const id = String(cardId ?? '').trim();
+  if (!id) return null;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const admin = createAdminClient();
+    const { creditoLateralTemConteudo } = await import('@/lib/kanban/credito-lateral');
+    const ids = await listarKanbanCardIdsSyncGroup(admin, id);
+    const alvos = ids.length > 0 ? ids : [id];
+    const { data, error } = await admin
+      .from('kanban_cards')
+      .select(['id', ...COLUNAS_PREOBRA_SALVAR, 'credito_lateral'].join(','))
+      .in('id', alvos);
+    if (error || !data?.length) return null;
+    const rows = data as unknown as Record<string, unknown>[];
+    const atual = rows.find((row) => String(row.id ?? '') === id);
+    if (!atual) return null;
+
+    const fill: Record<string, unknown> = {};
+    for (const coluna of COLUNAS_PREOBRA_SALVAR) {
+      if (valorLateralPreenchido(atual[coluna])) continue;
+      for (const row of rows) {
+        if (!valorLateralPreenchido(row[coluna])) continue;
+        fill[coluna] = row[coluna];
+        break;
+      }
+    }
+    let creditoLateral: unknown | null = creditoLateralTemConteudo(atual.credito_lateral)
+      ? atual.credito_lateral
+      : null;
+    if (!creditoLateral) {
+      for (const row of rows) {
+        if (!creditoLateralTemConteudo(row.credito_lateral)) continue;
+        creditoLateral = row.credito_lateral;
+        fill.credito_lateral = row.credito_lateral;
+        break;
+      }
+    }
+
+    if (Object.keys(fill).length > 0) {
+      const { error: updErr } = await admin
+        .from('kanban_cards')
+        .update({ ...fill, updated_at: new Date().toISOString() } as never)
+        .eq('id', id);
+      if (updErr) return null;
+    }
+
+    const preObra: Record<string, unknown> = {};
+    for (const coluna of COLUNAS_PREOBRA_SALVAR) {
+      preObra[coluna] = fill[coluna] !== undefined ? fill[coluna] : atual[coluna];
+    }
+    return { preObra, creditoLateral };
+  } catch {
+    return null;
+  }
 }
 
 export type SalvarCreditoLateralInput = {
@@ -4422,10 +4568,20 @@ export async function salvarCreditoLateral(input: SalvarCreditoLateralInput): Pr
   const cardId = String(input.cardId ?? '').trim();
   if (!cardId) return { ok: false, error: 'Card inválido.' };
 
-  const { creditoLateralFromRaw, formatCreditoMoeda, restanteCredito } = await import(
+  const { creditoLateralFromRaw, creditoLateralTemConteudo, formatCreditoMoeda, restanteCredito } = await import(
     '@/lib/kanban/credito-lateral'
   );
   const credito = creditoLateralFromRaw(input.creditoLateral);
+  if (!creditoLateralTemConteudo(credito)) {
+    const { data: creditoAtual } = await supabase
+      .from('kanban_cards')
+      .select('credito_lateral')
+      .eq('id', cardId)
+      .maybeSingle();
+    if (creditoLateralTemConteudo((creditoAtual as { credito_lateral?: unknown } | null)?.credito_lateral)) {
+      return { ok: true };
+    }
+  }
   const { error: updErr } = await supabase
     .from('kanban_cards')
     .update({ credito_lateral: credito, updated_at: new Date().toISOString() } as never)
@@ -4709,27 +4865,50 @@ export async function salvarDadosFunding(input: SalvarDadosFundingInput): Promis
     return { ok: false, error: 'Campos Funding aplicáveis apenas ao funil Funding.' };
   }
 
+  const { data: fundingAtual } = await supabase
+    .from('kanban_cards')
+    .select('titulo, funding_tipo, funding_localizacao, funding_descritivo')
+    .eq('id', cardId)
+    .maybeSingle();
+  const fundingRow = (fundingAtual ?? {}) as {
+    titulo?: string | null;
+    funding_tipo?: string | null;
+    funding_localizacao?: string | null;
+    funding_descritivo?: string | null;
+  };
+
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (input.funding_nome !== undefined) {
     const nome = String(input.funding_nome ?? '').trim();
-    if (!nome) return { ok: false, error: 'Informe o nome.' };
-    update.titulo = nome;
+    if (!nome) {
+      if (!String(fundingRow.titulo ?? '').trim()) return { ok: false, error: 'Informe o nome.' };
+    } else {
+      update.titulo = nome;
+    }
   }
   if (input.funding_tipo !== undefined) {
     const t = String(input.funding_tipo ?? '').trim();
     if (t !== '' && t !== 'Investidor' && t !== 'Broker') {
       return { ok: false, error: 'Tipo inválido.' };
     }
-    update.funding_tipo = t === '' ? null : t;
+    if (t === '' && String(fundingRow.funding_tipo ?? '').trim()) {
+      /* preserva tipo já preenchido */
+    } else {
+      update.funding_tipo = t === '' ? null : t;
+    }
   }
   if (input.funding_localizacao !== undefined) {
     const v = String(input.funding_localizacao ?? '').trim();
-    update.funding_localizacao = v === '' ? null : v;
+    if (!(v === '' && String(fundingRow.funding_localizacao ?? '').trim())) {
+      update.funding_localizacao = v === '' ? null : v;
+    }
   }
   if (input.funding_descritivo !== undefined) {
     const v = String(input.funding_descritivo ?? '').trim();
-    update.funding_descritivo = v === '' ? null : v;
+    if (!(v === '' && String(fundingRow.funding_descritivo ?? '').trim())) {
+      update.funding_descritivo = v === '' ? null : v;
+    }
   }
 
   const { error: updErr } = await supabase.from('kanban_cards').update(update as never).eq('id', cardId);

@@ -144,18 +144,14 @@ export function checklistLinhasFromNegocioPayload(
   for (const campo of CAMPOS_TEXTO) {
     if (rec[campo] === undefined) continue;
     const v = rec[campo];
-    linhas.push({
-      chave: chaveNegocioChecklist(campo),
-      valor: v == null || String(v).trim() === '' ? null : String(v),
-    });
+    if (v == null || String(v).trim() === '') continue;
+    linhas.push({ chave: chaveNegocioChecklist(campo), valor: String(v) });
   }
   for (const campo of CAMPOS_NUMERO) {
     if (rec[campo] === undefined) continue;
     const v = rec[campo];
-    linhas.push({
-      chave: chaveNegocioChecklist(campo),
-      valor: v == null || v === '' ? null : String(v),
-    });
+    if (v == null || v === '') continue;
+    linhas.push({ chave: chaveNegocioChecklist(campo), valor: String(v) });
   }
   for (const prefix of PRAZOS) {
     if (
@@ -166,17 +162,20 @@ export function checklistLinhasFromNegocioPayload(
       continue;
     }
     const draft = negocioPrazoDraftFromValores(negocioPrazoValoresFromProcessoRow(rec, prefix));
+    if (!draft.modo) continue;
     linhas.push({
       chave: chaveNegocioChecklist(prefix),
-      valor: draft.modo ? JSON.stringify(draft) : null,
+      valor: JSON.stringify(draft),
     });
   }
   if (rec.negociacao_linhas !== undefined) {
     const serial = serializarNegociacaoChecklist(rec.negociacao_linhas);
-    linhas.push({
-      chave: chaveNegocioChecklist('negociacao_linhas'),
-      valor: serial || null,
-    });
+    if (serial) {
+      linhas.push({
+        chave: chaveNegocioChecklist('negociacao_linhas'),
+        valor: serial,
+      });
+    }
   }
   return linhas;
 }

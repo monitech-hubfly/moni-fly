@@ -117,6 +117,45 @@ export function checklistLinhasFromPreObraCard(
   }));
 }
 
+const PATCH_COLUNA_CHECKLIST: Record<string, string> = {
+  docs_condominio: 'docs_condominio',
+  docs_lote: 'docs_lote',
+  link_projeto_legal: 'link_projeto_legal',
+  condominio_aprovada_em: 'data_aprovacao_condominio',
+  prefeitura_aprovada_em: 'data_aprovacao_prefeitura',
+  alvara_emitido_em: 'data_emissao_alvara',
+  data_envio_credito_obra: 'data_envio_credito_obra',
+  data_aprovacao_credito_obra: 'data_aprovacao_credito_obra',
+  data_inicio_obra: 'data_inicio_obra',
+  datas_comunique_se_condominio: 'datas_comunique_se_condominio',
+  datas_comunique_se_prefeitura: 'datas_comunique_se_prefeitura',
+};
+
+/** Espelha só as colunas presentes no patch. Não emite as demais como vazio. */
+export function checklistLinhasFromPreObraPatch(
+  patch: PreObraCardPatch,
+): { chave: string; valor: string | null }[] {
+  const rec = patch as Record<string, unknown>;
+  const linhas: { chave: string; valor: string | null }[] = [];
+  for (const [coluna, campo] of Object.entries(PATCH_COLUNA_CHECKLIST)) {
+    if (!Object.prototype.hasOwnProperty.call(rec, coluna) || rec[coluna] === undefined) continue;
+    const raw = rec[coluna];
+    if (coluna === 'datas_comunique_se_condominio' || coluna === 'datas_comunique_se_prefeitura') {
+      const v = valorChecklistDatasPreObra(datasPreObraFromValor(raw));
+      linhas.push({ chave: chavePreobraChecklist(campo), valor: v.trim() ? v : null });
+      continue;
+    }
+    if (coluna in CAMPOS_DATA || COLUNAS_DATA_TIMESTAMP.has(coluna)) {
+      const v = ymd(raw);
+      linhas.push({ chave: chavePreobraChecklist(campo), valor: v || null });
+      continue;
+    }
+    const v = raw == null ? '' : String(raw).trim();
+    linhas.push({ chave: chavePreobraChecklist(campo), valor: v || null });
+  }
+  return linhas;
+}
+
 export function colunaDataPreObraEhTimestamp(coluna: string): boolean {
   return COLUNAS_DATA_TIMESTAMP.has(coluna);
 }

@@ -59,6 +59,7 @@ import {
   listarTagsKanban,
   salvarDadosNegocioKanban,
   salvarDadosPreObraOperacoes,
+  mesclarLateraisPreenchidosDoGrupo,
   salvarCreditoLateral,
   salvarDadosFunding,
   salvarProximaAtividade,
@@ -183,7 +184,12 @@ import {
 } from '@/lib/kanban/tipo-negociacao-terreno';
 import { negocioEspelhoFromProcesso } from '@/lib/kanban/negocio-checklist-sync';
 import { preobraEspelhoFromCard } from '@/lib/kanban/preobra-checklist-sync';
-import { creditoLateralFromRaw, creditoLateralVazio, type CreditoLateral } from '@/lib/kanban/credito-lateral';
+import {
+  creditoLateralFromRaw,
+  creditoLateralTemConteudo,
+  creditoLateralVazio,
+  type CreditoLateral,
+} from '@/lib/kanban/credito-lateral';
 import {
   buildOpcoesVinculoCalculadora,
   resolverDataPagamentoNegociacao,
@@ -824,7 +830,43 @@ export function KanbanCardModal({
   );
   const [preobraEspelhoChecklist, setPreobraEspelhoChecklist] = useState<Record<string, string>>({});
   const [salvandoPreObra, setSalvandoPreObra] = useState(false);
+  const preObraHidratadoRef = useRef(false);
+  const preObraIgnorarRef = useRef(false);
+  const preObraDirtyRef = useRef(false);
+  const preObraTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const creditoHidratadoRef = useRef(false);
+  const creditoIgnorarRef = useRef(false);
+  const creditoDirtyRef = useRef(false);
+  const creditoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const negocioHidratadoRef = useRef(false);
+  const negocioIgnorarRef = useRef(false);
+  const negocioDirtyRef = useRef(false);
+  const negocioTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fundingHidratadoRef = useRef(false);
+  const fundingIgnorarRef = useRef(false);
+  const fundingDirtyRef = useRef(false);
+  const fundingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lateralCardIdRef = useRef<string | null>(null);
+  const processoIdLateralRef = useRef('');
+  const basePathRef = useRef(basePath);
+  basePathRef.current = basePath;
+  const operacoesPreObraDraftRef = useRef(operacoesPreObraDraft);
+  operacoesPreObraDraftRef.current = operacoesPreObraDraft;
+  const negocioDraftRef = useRef(negocioDraft);
+  negocioDraftRef.current = negocioDraft;
+  const fundingDraftRef = useRef(fundingDraft);
+  fundingDraftRef.current = fundingDraft;
+  if (card?.id) lateralCardIdRef.current = card.id;
+  if (modalDetalhes.processo?.id) processoIdLateralRef.current = modalDetalhes.processo.id;
+  const persistirLateraisRef = useRef({
+    preObra: async () => {},
+    credito: async () => {},
+    negocio: async () => {},
+    funding: async () => {},
+  });
   const [creditoDraft, setCreditoDraft] = useState<CreditoLateral>(() => creditoLateralVazio());
+  const creditoDraftRef = useRef(creditoDraft);
+  creditoDraftRef.current = creditoDraft;
   const [salvandoCredito, setSalvandoCredito] = useState(false);
   const [creditoObraAbertura, setCreditoObraAbertura] = useState<{
     tituloCard: string;
@@ -892,6 +934,10 @@ export function KanbanCardModal({
   );
 
   useEffect(() => {
+    preObraHidratadoRef.current = false;
+    creditoHidratadoRef.current = false;
+    negocioHidratadoRef.current = false;
+    fundingHidratadoRef.current = false;
     setArquivamentoAberto(false);
     setMotivoCategoriaArquivamento('');
     setMotivoObservacaoOutro('');
@@ -1461,6 +1507,12 @@ export function KanbanCardModal({
         };
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
+        const cardNativoId = String((cardData as { id?: string }).id ?? cardId);
+        lateralCardIdRef.current = cardNativoId;
+        preObraIgnorarRef.current = true;
+        preObraHidratadoRef.current = true;
+        fundingIgnorarRef.current = true;
+        fundingHidratadoRef.current = true;
         setOperacoesPreObraDraft(operacoesPreObraDraftFromCard(cardData as Record<string, unknown>));
         setPreobraEspelhoChecklist(preobraEspelhoFromCard(cardData as Record<string, unknown>));
         const creditoRes = await supabase
@@ -1469,6 +1521,8 @@ export function KanbanCardModal({
           .eq('id', cardId)
           .maybeSingle();
         if (!creditoRes.error) {
+          creditoIgnorarRef.current = true;
+          creditoHidratadoRef.current = true;
           setCreditoDraft(
             creditoLateralFromRaw(
               (creditoRes.data as { credito_lateral?: unknown } | null)?.credito_lateral,
@@ -1476,6 +1530,34 @@ export function KanbanCardModal({
           );
         }
         setFundingDraft(fundingDraftFromRow(cardData as Record<string, unknown>));
+        void mesclarLateraisPreenchidosDoGrupo(cardNativoId).then((mescla) => {
+          if (!mescla || lateralCardIdRef.current !== cardNativoId) return;
+          setOperacoesPreObraDraft((d) => {
+            const extra = operacoesPreObraDraftFromCard(mescla.preObra);
+            let changed = false;
+            const next = { ...d };
+            (Object.keys(extra) as (keyof OperacoesPreObraDraft)[]).forEach((key) => {
+              const atual = d[key];
+              const vindo = extra[key];
+              const atualVazio = Array.isArray(atual) ? atual.length === 0 : !String(atual ?? '').trim();
+              const vindoPreenchido = Array.isArray(vindo)
+                ? vindo.length > 0
+                : String(vindo ?? '').trim().length > 0;
+              if (atualVazio && vindoPreenchido) {
+                (next as Record<string, unknown>)[key] = vindo;
+                changed = true;
+              }
+            });
+            if (!changed) return d;
+            preObraIgnorarRef.current = true;
+            return next;
+          });
+          if (mescla.creditoLateral && !creditoLateralTemConteudo(creditoDraftRef.current)) {
+            creditoIgnorarRef.current = true;
+            creditoHidratadoRef.current = true;
+            setCreditoDraft(creditoLateralFromRaw(mescla.creditoLateral));
+          }
+        });
       }
 
       if (!loaded) {
@@ -1708,8 +1790,12 @@ export function KanbanCardModal({
         });
         const opcoesNegocioPrazo = await fetchFasesNegocioPrazoOpcoes(supabase);
         setFasesNegocioPrazo(opcoesNegocioPrazo);
+        negocioIgnorarRef.current = true;
+        negocioHidratadoRef.current = true;
+        processoIdLateralRef.current = String(det.processo?.id ?? '');
         setNegocioDraft(negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo));
       } catch {
+        negocioHidratadoRef.current = false;
         setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
         setNegocioDraft(negocioDraftVazio());
       }
@@ -3405,40 +3491,44 @@ export function KanbanCardModal({
     }
   }
 
-  async function handleSalvarNegocio() {
-    if (!card) return;
-    const pctParcial = parseNumeroPtBr(negocioDraft.pct_compra_parcial_terreno);
-    const pctVgv = parseNumeroPtBr(negocioDraft.pct_vgv_terrenista);
-    if (percentualNegocioForaDaFaixa(pctParcial) || percentualNegocioForaDaFaixa(pctVgv)) {
+  async function handleSalvarNegocio(silencioso = false) {
+    const draft = silencioso ? negocioDraftRef.current : negocioDraft;
+    const cardIdAtual = String((silencioso ? lateralCardIdRef.current : card?.id) ?? '');
+    if (!cardIdAtual) return;
+    const pctParcial = parseNumeroPtBr(draft.pct_compra_parcial_terreno);
+    const pctVgv = parseNumeroPtBr(draft.pct_vgv_terrenista);
+    const percentualInvalido =
+      percentualNegocioForaDaFaixa(pctParcial) || percentualNegocioForaDaFaixa(pctVgv);
+    if (!silencioso && percentualInvalido) {
       alert(MSG_PERCENTUAL_NEGOCIO);
       return;
     }
-    setSalvandoNegocio(true);
+    if (!silencioso) setSalvandoNegocio(true);
     try {
-      const prazoOpcao = negocioPrazoValoresFromDraft(negocioDraft.prazo_opcao);
-      const prazoInstrumento = negocioPrazoValoresFromDraft(negocioDraft.prazo_instrumento_garantidor);
+      const prazoOpcao = negocioPrazoValoresFromDraft(draft.prazo_opcao);
+      const prazoInstrumento = negocioPrazoValoresFromDraft(draft.prazo_instrumento_garantidor);
       const prazoOpcaoDb = negocioPrazoDbPatchFromValores(prazoOpcao, 'prazo_opcao');
       const prazoInstrumentoDb = negocioPrazoDbPatchFromValores(
         prazoInstrumento,
         'prazo_instrumento_garantidor',
       );
       const upd = await salvarDadosNegocioKanban({
-        cardId: card.id,
-        processoId: modalDetalhes.processo?.id ?? '',
+        cardId: cardIdAtual,
+        processoId: processoIdLateralRef.current || modalDetalhes.processo?.id || '',
         payload: {
-          tipo_aquisicao_terreno: negocioDraft.tipo_aquisicao_terreno || null,
-          valor_terreno: negocioDraft.valor_terreno || null,
-          vgv_pretendido: negocioDraft.vgv_pretendido || null,
-          produto_modelo_casa: negocioDraft.produto_modelo_casa || null,
-          link_pasta_drive: negocioDraft.link_pasta_drive || null,
-          link_bca: negocioDraft.link_bca?.trim() || null,
-          link_gbox: negocioDraft.link_gbox?.trim() || null,
-          link_gbox_ozempic: negocioDraft.link_gbox_ozempic?.trim() || null,
-          link_mapa_competidores: negocioDraft.link_mapa_competidores?.trim() || null,
-          link_acoplamento: negocioDraft.link_acoplamento?.trim() || null,
-          link_apresentacao_comite: negocioDraft.link_apresentacao_comite?.trim() || null,
-          link_opcao_permuta: negocioDraft.link_opcao_permuta?.trim() || null,
-          valor_recompra: negocioDraft.valor_recompra || null,
+          tipo_aquisicao_terreno: draft.tipo_aquisicao_terreno || null,
+          valor_terreno: draft.valor_terreno || null,
+          vgv_pretendido: draft.vgv_pretendido || null,
+          produto_modelo_casa: draft.produto_modelo_casa || null,
+          link_pasta_drive: draft.link_pasta_drive || null,
+          link_bca: draft.link_bca?.trim() || null,
+          link_gbox: draft.link_gbox?.trim() || null,
+          link_gbox_ozempic: draft.link_gbox_ozempic?.trim() || null,
+          link_mapa_competidores: draft.link_mapa_competidores?.trim() || null,
+          link_acoplamento: draft.link_acoplamento?.trim() || null,
+          link_apresentacao_comite: draft.link_apresentacao_comite?.trim() || null,
+          link_opcao_permuta: draft.link_opcao_permuta?.trim() || null,
+          valor_recompra: draft.valor_recompra || null,
           prazo_opcao_dias: prazoOpcaoDb.prazo_opcao_dias as number | null,
           prazo_opcao_sla_tipo: prazoOpcaoDb.prazo_opcao_sla_tipo as 'uteis' | 'corridos' | null,
           prazo_opcao_modo: prazoOpcaoDb.prazo_opcao_modo as 'fase' | 'data' | null,
@@ -3457,31 +3547,180 @@ export function KanbanCardModal({
             | string
             | null,
           prazo_instrumento_garantidor_data: prazoInstrumentoDb.prazo_instrumento_garantidor_data as string | null,
-          negociacao_linhas: negociacaoLinhasToDb(negocioDraft.negociacao_linhas),
-          pct_compra_parcial_terreno: pctParcial,
-          pct_vgv_terrenista: pctVgv,
-          m2_terreno: parseNumeroPtBr(negocioDraft.m2_terreno),
-          m2_casa: parseNumeroPtBr(negocioDraft.m2_casa),
-          extrato_modelo_configurado: negocioDraft.extrato_modelo_configurado?.trim() || null,
-          data_aprovacao_comite: negocioDraft.data_aprovacao_comite || null,
-          obs_opcao: negocioDraft.obs_opcao?.trim() || null,
-          data_ass_opcao_terreno: negocioDraft.data_ass_opcao_terreno || null,
-          obs_instrumento_garantidor: negocioDraft.obs_instrumento_garantidor?.trim() || null,
-          data_ass_contrato_terreno: negocioDraft.data_ass_contrato_terreno || null,
-          book_empreendimento: negocioDraft.book_empreendimento?.trim() || null,
-          check_analise_credito: negocioDraft.check_analise_credito?.trim() || null,
+          negociacao_linhas: negociacaoLinhasToDb(draft.negociacao_linhas),
+          pct_compra_parcial_terreno: percentualNegocioForaDaFaixa(pctParcial) ? null : pctParcial,
+          pct_vgv_terrenista: percentualNegocioForaDaFaixa(pctVgv) ? null : pctVgv,
+          m2_terreno: parseNumeroPtBr(draft.m2_terreno),
+          m2_casa: parseNumeroPtBr(draft.m2_casa),
+          extrato_modelo_configurado: draft.extrato_modelo_configurado?.trim() || null,
+          data_aprovacao_comite: draft.data_aprovacao_comite || null,
+          obs_opcao: draft.obs_opcao?.trim() || null,
+          data_ass_opcao_terreno: draft.data_ass_opcao_terreno || null,
+          obs_instrumento_garantidor: draft.obs_instrumento_garantidor?.trim() || null,
+          data_ass_contrato_terreno: draft.data_ass_contrato_terreno || null,
+          book_empreendimento: draft.book_empreendimento?.trim() || null,
+          check_analise_credito: draft.check_analise_credito?.trim() || null,
         },
-        basePath,
+        basePath: basePathRef.current,
       });
       if (!upd.ok) throw new Error(upd.error);
 
-      await loadCard();
+      if (!silencioso) await loadCard();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Erro ao salvar dados do negócio.');
+      if (!silencioso) alert(e instanceof Error ? e.message : 'Erro ao salvar dados do negócio.');
     } finally {
-      setSalvandoNegocio(false);
+      if (!silencioso) setSalvandoNegocio(false);
     }
   }
+
+  persistirLateraisRef.current = {
+    preObra: async () => {
+      const cardIdAtual = lateralCardIdRef.current;
+      const draftAtual = operacoesPreObraDraftRef.current;
+      if (!cardIdAtual) return;
+      const res = await salvarDadosPreObraOperacoes({
+        cardId: cardIdAtual,
+        basePath: basePathRef.current,
+        docs_condominio: draftAtual.docs_condominio,
+        docs_lote: draftAtual.docs_lote,
+        link_projeto_legal: draftAtual.link_projeto_legal,
+        condominio_aprovada_em: draftAtual.condominio_aprovada_em,
+        datas_comunique_se_condominio: draftAtual.datas_comunique_se_condominio,
+        prefeitura_aprovada_em: draftAtual.prefeitura_aprovada_em,
+        datas_comunique_se_prefeitura: draftAtual.datas_comunique_se_prefeitura,
+        alvara_emitido_em: draftAtual.alvara_emitido_em,
+        data_envio_credito_obra: draftAtual.data_envio_credito_obra,
+        data_aprovacao_credito_obra: draftAtual.data_aprovacao_credito_obra,
+        data_inicio_obra: draftAtual.data_inicio_obra,
+      });
+      if (!res.ok) {
+        preObraDirtyRef.current = true;
+        return;
+      }
+      setPreobraEspelhoChecklist(preobraEspelhoFromCard(draftAtual as unknown as Record<string, unknown>));
+    },
+    credito: async () => {
+      const cardIdAtual = lateralCardIdRef.current;
+      if (!cardIdAtual) return;
+      const res = await salvarCreditoLateral({
+        cardId: cardIdAtual,
+        creditoLateral: creditoDraftRef.current,
+        processoId: processoIdLateralRef.current || null,
+        basePath: basePathRef.current,
+      });
+      if (!res.ok) creditoDirtyRef.current = true;
+    },
+    negocio: async () => {
+      await handleSalvarNegocio(true);
+    },
+    funding: async () => {
+      const cardIdAtual = lateralCardIdRef.current;
+      const draftAtual = fundingDraftRef.current;
+      if (!cardIdAtual) return;
+      const resFunding = await salvarDadosFunding({
+        cardId: cardIdAtual,
+        funding_nome: draftAtual.funding_nome,
+        funding_tipo: draftAtual.funding_tipo,
+        funding_localizacao: draftAtual.funding_localizacao,
+        funding_descritivo: draftAtual.funding_descritivo,
+        basePath: basePathRef.current,
+      });
+      if (!resFunding.ok) {
+        fundingDirtyRef.current = true;
+        return;
+      }
+      if (draftAtual.proxima_atividade.trim() || draftAtual.prazo_atividade.trim()) {
+        const resProxima = await salvarProximaAtividade({
+          cardId: cardIdAtual,
+          proxima_atividade: draftAtual.proxima_atividade.trim() || null,
+          prazo_atividade: draftAtual.prazo_atividade.trim() || null,
+          basePath: basePathRef.current,
+        });
+        if (!resProxima.ok) fundingDirtyRef.current = true;
+      }
+    },
+  };
+
+  useEffect(() => {
+    if (!preObraHidratadoRef.current) return;
+    if (preObraIgnorarRef.current) {
+      preObraIgnorarRef.current = false;
+      return;
+    }
+    preObraDirtyRef.current = true;
+    if (preObraTimerRef.current) clearTimeout(preObraTimerRef.current);
+    preObraTimerRef.current = setTimeout(() => {
+      preObraDirtyRef.current = false;
+      void persistirLateraisRef.current.preObra();
+    }, 450);
+  }, [operacoesPreObraDraft]);
+
+  useEffect(() => {
+    if (!creditoHidratadoRef.current) return;
+    if (creditoIgnorarRef.current) {
+      creditoIgnorarRef.current = false;
+      return;
+    }
+    creditoDirtyRef.current = true;
+    if (creditoTimerRef.current) clearTimeout(creditoTimerRef.current);
+    creditoTimerRef.current = setTimeout(() => {
+      creditoDirtyRef.current = false;
+      void persistirLateraisRef.current.credito();
+    }, 450);
+  }, [creditoDraft]);
+
+  useEffect(() => {
+    if (!negocioHidratadoRef.current) return;
+    if (negocioIgnorarRef.current) {
+      negocioIgnorarRef.current = false;
+      return;
+    }
+    negocioDirtyRef.current = true;
+    if (negocioTimerRef.current) clearTimeout(negocioTimerRef.current);
+    negocioTimerRef.current = setTimeout(() => {
+      negocioDirtyRef.current = false;
+      void persistirLateraisRef.current.negocio();
+    }, 650);
+  }, [negocioDraft]);
+
+  useEffect(() => {
+    if (!fundingHidratadoRef.current) return;
+    if (fundingIgnorarRef.current) {
+      fundingIgnorarRef.current = false;
+      return;
+    }
+    fundingDirtyRef.current = true;
+    if (fundingTimerRef.current) clearTimeout(fundingTimerRef.current);
+    fundingTimerRef.current = setTimeout(() => {
+      fundingDirtyRef.current = false;
+      void persistirLateraisRef.current.funding();
+    }, 650);
+  }, [fundingDraft]);
+
+  useEffect(() => {
+    return () => {
+      if (preObraTimerRef.current) clearTimeout(preObraTimerRef.current);
+      if (creditoTimerRef.current) clearTimeout(creditoTimerRef.current);
+      if (negocioTimerRef.current) clearTimeout(negocioTimerRef.current);
+      if (fundingTimerRef.current) clearTimeout(fundingTimerRef.current);
+      if (preObraDirtyRef.current && preObraHidratadoRef.current) {
+        preObraDirtyRef.current = false;
+        void persistirLateraisRef.current.preObra();
+      }
+      if (creditoDirtyRef.current && creditoHidratadoRef.current) {
+        creditoDirtyRef.current = false;
+        void persistirLateraisRef.current.credito();
+      }
+      if (negocioDirtyRef.current && negocioHidratadoRef.current) {
+        negocioDirtyRef.current = false;
+        void persistirLateraisRef.current.negocio();
+      }
+      if (fundingDirtyRef.current && fundingHidratadoRef.current) {
+        fundingDirtyRef.current = false;
+        void persistirLateraisRef.current.funding();
+      }
+    };
+  }, [cardId]);
 
   async function abrirEdicaoFranqueado() {
     try {
@@ -7635,7 +7874,10 @@ export function KanbanCardModal({
                   editando={editandoFunding}
                   onEditar={() => setEditandoFunding(true)}
                   onCancelar={() => {
+                    fundingDirtyRef.current = false;
+                    if (fundingTimerRef.current) clearTimeout(fundingTimerRef.current);
                     setEditandoFunding(false);
+                    fundingIgnorarRef.current = true;
                     if (card) setFundingDraft(fundingDraftFromRow(card));
                   }}
                 />

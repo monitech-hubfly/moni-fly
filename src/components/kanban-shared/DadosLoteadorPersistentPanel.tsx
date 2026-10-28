@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Check, ChevronDown, ChevronRight, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { RedeLoteadorFichaForm } from '@/components/RedeLoteadorFichaForm';
@@ -50,6 +50,14 @@ export function DadosLoteadorPersistentPanel({
     [],
   );
   const [draft, setDraft] = useState<RedeLoteadorFichaDraft>(() => emptyRedeLoteadorFichaDraft('em_analise'));
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const loteadorIgnorarRef = useRef(true);
+  const loteadorDirtyRef = useRef(false);
+  const loteadorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const vinculadoIdRef = useRef<string | null>(null);
+  vinculadoIdRef.current = vinculadoId;
+  const salvarLoteadorRef = useRef<(silencioso?: boolean) => Promise<void>>(async () => {});
   const [busca, setBusca] = useState('');
   const [linkExterno, setLinkExterno] = useState<string | null>(null);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string | null>(null);
@@ -72,6 +80,7 @@ export function DadosLoteadorPersistentPanel({
     setVinculadoId(r.cardRedeLoteadorId);
     setSelecionadoId(r.cardRedeLoteadorId ?? '');
     setOpcoes(r.opcoes);
+    loteadorIgnorarRef.current = true;
     setDraft(r.draftInicial);
     onCondominioVinculado?.(r.draftInicial.condominio_id.trim() || null);
 
@@ -143,32 +152,73 @@ export function DadosLoteadorPersistentPanel({
       setErro(r.error);
       return;
     }
+    loteadorIgnorarRef.current = true;
     setDraft(redeLoteadorRowToFichaDraft(r.loteador));
   };
 
-  const salvar = async () => {
-    setSaving(true);
-    setErro(null);
-    setMsg(null);
+  const salvar = async (silencioso = false) => {
+    const draftAtual = silencioso ? draftRef.current : draft;
+    const modoAtual = modo;
+    const idSelecionado = modoAtual === 'existente' ? selecionadoId || vinculadoId : null;
+    if (silencioso && (!vinculadoId || modoAtual !== 'existente' || !idSelecionado)) return;
+    if (!silencioso) {
+      setSaving(true);
+      setErro(null);
+      setMsg(null);
+    }
     const r = await salvarRedeLoteadorPersistenteCard({
       cardId,
-      modo,
-      redeLoteadorIdSelecionado: modo === 'existente' ? selecionadoId : null,
-      draft,
+      modo: silencioso ? 'existente' : modoAtual,
+      redeLoteadorIdSelecionado: silencioso ? idSelecionado : modoAtual === 'existente' ? selecionadoId : null,
+      draft: draftAtual,
     });
-    setSaving(false);
+    if (!silencioso) setSaving(false);
     if (!r.ok) {
-      setErro(r.error);
+      if (!silencioso) setErro(r.error);
+      else loteadorDirtyRef.current = true;
       return;
     }
-    setMsg(r.mensagem);
     setVinculadoId(r.redeLoteadorId);
     setSelecionadoId(r.redeLoteadorId);
     setUltimaAtualizacao(r.updatedAt);
-    if (modo === 'novo') setModo('existente');
+    if (silencioso) return;
+    setMsg(r.mensagem);
+    if (modoAtual === 'novo') setModo('existente');
     onSalvo?.(r.redeLoteadorId);
     void recarregar();
   };
+  salvarLoteadorRef.current = salvar;
+
+  useEffect(() => {
+    if (loteadorIgnorarRef.current) {
+      loteadorIgnorarRef.current = false;
+      return;
+    }
+    if (!vinculadoId || modo !== 'existente') return;
+    loteadorDirtyRef.current = true;
+    if (loteadorTimerRef.current) clearTimeout(loteadorTimerRef.current);
+    loteadorTimerRef.current = setTimeout(() => {
+      loteadorDirtyRef.current = false;
+      void salvarLoteadorRef.current(true);
+    }, 800);
+  }, [draft, vinculadoId, modo]);
+
+  useEffect(() => {
+    const idDesteCard = cardId;
+    return () => {
+      if (loteadorTimerRef.current) clearTimeout(loteadorTimerRef.current);
+      if (!loteadorDirtyRef.current) return;
+      const loteadorId = vinculadoIdRef.current;
+      loteadorDirtyRef.current = false;
+      if (!loteadorId) return;
+      void salvarRedeLoteadorPersistenteCard({
+        cardId: idDesteCard,
+        modo: 'existente',
+        redeLoteadorIdSelecionado: loteadorId,
+        draft: draftRef.current,
+      });
+    };
+  }, [cardId]);
 
   const copiarLink = async () => {
     if (!linkExterno) return;

@@ -388,44 +388,89 @@ async function aplicarBookCredito(
 }
 
 /** Atualiza dados do negócio; faz fallback se colunas novas ainda não existirem no banco. */
+function semApagarCampoPreenchido(
+  update: Record<string, unknown>,
+  atual: Record<string, unknown> | null,
+  leituraOk: boolean,
+): Record<string, unknown> {
+  const out = { ...update };
+  for (const [chave, valor] of Object.entries(out)) {
+    const vazio =
+      valor == null ||
+      (typeof valor === 'string' && valor.trim() === '') ||
+      (Array.isArray(valor) && valor.length === 0);
+    if (!vazio) continue;
+    if (!leituraOk) {
+      delete out[chave];
+      continue;
+    }
+    const existente = atual?.[chave];
+    const existentePreenchido =
+      existente != null &&
+      !(typeof existente === 'string' && existente.trim() === '') &&
+      !(Array.isArray(existente) && existente.length === 0);
+    if (existentePreenchido) delete out[chave];
+  }
+  return out;
+}
+
 export async function updateProcessoNegocioCampos(
   supabase: SupabaseClient,
   processoId: string,
   payload: ProcessoNegocioUpdatePayload,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const full = {
-    ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
-    ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
-    ...pickPayload(payload, PROCESSO_UPDATE_NEW_KEYS),
-    ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
-    ...pickNegociacaoLinhas(payload),
-  };
+  const leitura = await supabase.from('processo_step_one').select('*').eq('id', processoId).maybeSingle();
+  const leituraOk = !leitura.error;
+  const atual = (leitura.data ?? null) as Record<string, unknown> | null;
+  const full = semApagarCampoPreenchido(
+    {
+      ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_NEW_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
+      ...pickNegociacaoLinhas(payload),
+    },
+    atual,
+    leituraOk,
+  );
   if (Object.keys(full).length === 0) return aplicarBookCredito(supabase, processoId, payload);
   const { error } = await supabase.from('processo_step_one').update(full as never).eq('id', processoId);
   if (!error) return aplicarBookCredito(supabase, processoId, payload);
   if (!isMissingColumnError(error)) return { ok: false, error: error.message };
 
   // Fallback: sem colunas novas
-  const semNovos = {
-    ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
-    ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
-    ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
-    ...pickNegociacaoLinhas(payload),
-  };
+  const semNovos = semApagarCampoPreenchido(
+    {
+      ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_PRAZO_KEYS),
+      ...pickNegociacaoLinhas(payload),
+    },
+    atual,
+    leituraOk,
+  );
   const { error: errSemNovos } = await supabase.from('processo_step_one').update(semNovos as never).eq('id', processoId);
   if (!errSemNovos) return aplicarBookCredito(supabase, processoId, payload);
   if (!isMissingColumnError(errSemNovos)) return { ok: false, error: errSemNovos.message };
 
-  const semPrazo = {
-    ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
-    ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
-    ...pickNegociacaoLinhas(payload),
-  };
+  const semPrazo = semApagarCampoPreenchido(
+    {
+      ...pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+      ...pickPayload(payload, PROCESSO_UPDATE_EXTENDED_KEYS),
+      ...pickNegociacaoLinhas(payload),
+    },
+    atual,
+    leituraOk,
+  );
   const { error: errSemPrazo } = await supabase.from('processo_step_one').update(semPrazo as never).eq('id', processoId);
   if (!errSemPrazo) return aplicarBookCredito(supabase, processoId, payload);
   if (!isMissingColumnError(errSemPrazo)) return { ok: false, error: errSemPrazo.message };
 
-  const legacyOnly = pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS);
+  const legacyOnly = semApagarCampoPreenchido(
+    pickPayload(payload, PROCESSO_UPDATE_LEGACY_KEYS),
+    atual,
+    leituraOk,
+  );
   const { error: errLegacy } = await supabase.from('processo_step_one').update(legacyOnly as never).eq('id', processoId);
   if (errLegacy) return { ok: false, error: errLegacy.message };
   return aplicarBookCredito(supabase, processoId, payload);

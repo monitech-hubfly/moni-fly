@@ -89,6 +89,17 @@ export function creditoLateralFromRaw(raw: unknown): CreditoLateral {
   };
 }
 
+export function creditoLateralTemConteudo(raw: unknown): boolean {
+  const credito = creditoLateralFromRaw(raw);
+  if (credito.alavancagem_valor.trim()) return true;
+  const tranches = [
+    ...credito.terreno_tranches,
+    ...credito.obra_tranches,
+    ...credito.alavancagem_tranches,
+  ];
+  return tranches.some((tranche) => tranche.valor.trim() || tranche.data.trim());
+}
+
 export function somaTranches(tranches: readonly CreditoTranche[]): number {
   return tranches.reduce((acc, tranche) => acc + (parseMoneyText(tranche.valor) ?? 0), 0);
 }

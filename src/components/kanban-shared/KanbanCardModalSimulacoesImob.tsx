@@ -715,6 +715,12 @@ export function KanbanCardModalSimulacoesImob({
   const [excluindoOfertaId, setExcluindoOfertaId] = useState<string | null>(null);
   const itensRef = useRef(itens);
   itensRef.current = itens;
+  const modeloRef = useRef(modelo);
+  modeloRef.current = modelo;
+  const imobIgnorarModeloRef = useRef(true);
+  const imobIgnorarItensRef = useRef(true);
+  const imobModeloDirtyRef = useRef(false);
+  const imobItensDirtyRef = useRef(false);
   const imobHydratedCardId = useRef<string | null>(prefetchOk ? cardId : null);
 
   const carregarOfertas = useCallback(async () => {
@@ -775,6 +781,8 @@ export function KanbanCardModalSimulacoesImob({
       return;
     }
     imobHydratedCardId.current = cardId;
+    imobIgnorarModeloRef.current = true;
+    imobIgnorarItensRef.current = true;
     setItens(
       aplicarOfertasMarcadasNoCliente(
         cardId,
@@ -835,6 +843,8 @@ export function KanbanCardModalSimulacoesImob({
     if (prefetch?.cardId === cardId) {
       if (imobHydratedCardId.current === cardId) return;
       imobHydratedCardId.current = cardId;
+      imobIgnorarModeloRef.current = true;
+      imobIgnorarItensRef.current = true;
       setItens(
         aplicarOfertasMarcadasNoCliente(
           cardId,
@@ -928,6 +938,49 @@ export function KanbanCardModalSimulacoesImob({
     setMsg(item.tipo === 'showroom' ? 'Showroom salvo.' : 'Oferta salva.');
     return true;
   }
+
+  useEffect(() => {
+    if (imobHydratedCardId.current !== cardId) return;
+    if (imobIgnorarModeloRef.current) {
+      imobIgnorarModeloRef.current = false;
+      return;
+    }
+    imobModeloDirtyRef.current = true;
+    const timer = setTimeout(() => {
+      imobModeloDirtyRef.current = false;
+      void salvarImobCardModelo(cardId, modeloRef.current);
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [modelo, cardId]);
+
+  useEffect(() => {
+    if (imobHydratedCardId.current !== cardId) return;
+    if (imobIgnorarItensRef.current) {
+      imobIgnorarItensRef.current = false;
+      return;
+    }
+    imobItensDirtyRef.current = true;
+    const lista = itens;
+    const timer = setTimeout(() => {
+      imobItensDirtyRef.current = false;
+      void Promise.all(lista.map((item) => salvarImobSimulacaoEmpreendimento(cardId, item)));
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [itens, cardId]);
+
+  useEffect(() => {
+    return () => {
+      if (imobModeloDirtyRef.current) {
+        imobModeloDirtyRef.current = false;
+        void salvarImobCardModelo(cardId, modeloRef.current);
+      }
+      if (imobItensDirtyRef.current) {
+        imobItensDirtyRef.current = false;
+        const lista = itensRef.current;
+        void Promise.all(lista.map((item) => salvarImobSimulacaoEmpreendimento(cardId, item)));
+      }
+    };
+  }, [cardId]);
 
   async function handleCriar(tipo: 'empreendimento' | 'showroom') {
     setCriandoTipo(tipo);
