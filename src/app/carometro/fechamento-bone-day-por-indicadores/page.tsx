@@ -105,10 +105,10 @@ function ColunaResultado({ scores }: { scores: AreaRelatorio['scores'] }) {
             alt={label}
             style={{ width: '36px', height: '36px', flexShrink: 0 }}
           />
-          <span style={{ fontSize: '11px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontWeight: 500 }}>
+          <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontWeight: 500 }}>
             {label}
           </span>
-          <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', fontWeight: 700, color: getScoreColor(score) }}>
+          <span style={{ fontSize: '16px', fontFamily: 'var(--moni-font-sans)', fontWeight: 700, color: getScoreColor(score) }}>
             {score !== null ? `${score}%` : '—'}
           </span>
         </div>
@@ -117,60 +117,99 @@ function ColunaResultado({ scores }: { scores: AreaRelatorio['scores'] }) {
   );
 }
 
-// ── Lista de metas ────────────────────────────────────────────────────────────
+// ── Item individual de meta ────────────────────────────────────────────────────
+function MetaItem({ m, concluida }: { m: MetaSimples; concluida: boolean }) {
+  return (
+    <li style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+      <span style={{
+        flexShrink: 0,
+        marginTop: '2px',
+        fontSize: '14px',
+        color: concluida ? 'var(--moni-green-600)' : 'var(--moni-text-tertiary)',
+        fontWeight: 700,
+      }}>
+        {concluida ? '✓' : '–'}
+      </span>
+      <span style={{ flex: 1, fontSize: '16px', fontFamily: 'var(--moni-font-sans)', lineHeight: 1.45 }}>
+        {m.is_chave && (
+          <span style={{
+            display: 'inline-block',
+            fontSize: '12px',
+            fontFamily: 'var(--moni-font-sans)',
+            fontWeight: 700,
+            color: 'var(--moni-gold-800)',
+            background: 'var(--moni-gold-50)',
+            border: '0.5px solid var(--moni-gold-400)',
+            borderRadius: '4px',
+            padding: '1px 5px',
+            marginRight: '5px',
+            verticalAlign: 'middle',
+            letterSpacing: '0.04em',
+          }}>
+            CHAVE
+          </span>
+        )}
+        <span style={{
+          color: concluida ? 'var(--moni-text-tertiary)' : 'var(--moni-text-secondary)',
+          textDecoration: concluida ? 'line-through' : 'none',
+        }}>
+          {m.descricao}
+        </span>
+        {m.meta_unidade && (
+          <span style={{ color: 'var(--moni-text-tertiary)', textDecoration: 'none', marginLeft: '4px', fontSize: '14px' }}>
+            · {m.meta_unidade}
+          </span>
+        )}
+      </span>
+    </li>
+  );
+}
+
+// ── Lista de metas com separação Atingível / Recorrente ───────────────────────
 function ListaMetas({ metas, concluidas }: { metas: MetaSimples[]; concluidas: boolean }) {
   if (metas.length === 0) {
     return (
-      <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontStyle: 'italic' }}>—</span>
+      <span style={{ fontSize: '16px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontStyle: 'italic' }}>—</span>
     );
   }
+
+  const atingiveis = metas.filter(m => m.tipo?.toLowerCase() !== 'recorrente');
+  const recorrentes = metas.filter(m => m.tipo?.toLowerCase() === 'recorrente');
+  const temAmbos = atingiveis.length > 0 && recorrentes.length > 0;
+
+  const subLabel = (texto: string) => (
+    <p style={{
+      margin: temAmbos ? '8px 0 4px' : '0 0 4px',
+      fontSize: '11px',
+      fontFamily: 'var(--moni-font-sans)',
+      fontWeight: 600,
+      color: 'var(--moni-text-tertiary)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+    }}>
+      {texto}
+    </p>
+  );
+
   return (
-    <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      {metas.map(m => (
-        <li key={m.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-          <span style={{
-            flexShrink: 0,
-            marginTop: '2px',
-            fontSize: '12px',
-            color: concluidas ? 'var(--moni-green-600)' : 'var(--moni-text-tertiary)',
-            fontWeight: 700,
-          }}>
-            {concluidas ? '✓' : '–'}
-          </span>
-          <span style={{ flex: 1, fontSize: '13px', fontFamily: 'var(--moni-font-sans)', lineHeight: 1.45 }}>
-            {m.is_chave && (
-              <span style={{
-                display: 'inline-block',
-                fontSize: '10px',
-                fontFamily: 'var(--moni-font-sans)',
-                fontWeight: 700,
-                color: 'var(--moni-gold-800)',
-                background: 'var(--moni-gold-50)',
-                border: '0.5px solid var(--moni-gold-400)',
-                borderRadius: '4px',
-                padding: '1px 5px',
-                marginRight: '5px',
-                verticalAlign: 'middle',
-                letterSpacing: '0.04em',
-              }}>
-                CHAVE
-              </span>
-            )}
-            <span style={{
-              color: concluidas ? 'var(--moni-text-tertiary)' : 'var(--moni-text-secondary)',
-              textDecoration: concluidas ? 'line-through' : 'none',
-            }}>
-              {m.descricao}
-            </span>
-            {m.meta_unidade && (
-              <span style={{ color: 'var(--moni-text-tertiary)', textDecoration: 'none', marginLeft: '4px', fontSize: '12px' }}>
-                · {m.meta_unidade}
-              </span>
-            )}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {atingiveis.length > 0 && (
+        <div>
+          {temAmbos && subLabel('Atingível')}
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {atingiveis.map(m => <MetaItem key={m.id} m={m} concluida={concluidas} />)}
+          </ul>
+        </div>
+      )}
+      {recorrentes.length > 0 && (
+        <div>
+          {temAmbos && subLabel('Recorrente')}
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {recorrentes.map(m => <MetaItem key={m.id} m={m} concluida={concluidas} />)}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -178,15 +217,15 @@ function ListaMetas({ metas, concluidas }: { metas: MetaSimples[]; concluidas: b
 function ListaBlockers({ blockers }: { blockers: BlockerSimples[] }) {
   if (blockers.length === 0) {
     return (
-      <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontStyle: 'italic' }}>—</span>
+      <span style={{ fontSize: '16px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontStyle: 'italic' }}>—</span>
     );
   }
   return (
     <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
       {blockers.map(b => (
         <li key={b.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-          <span style={{ flexShrink: 0, marginTop: '2px', fontSize: '12px', color: 'var(--moni-status-overdue-text)', fontWeight: 700 }}>•</span>
-          <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-status-overdue-text)', lineHeight: 1.45 }}>
+          <span style={{ flexShrink: 0, marginTop: '2px', fontSize: '14px', color: 'var(--moni-status-overdue-text)', fontWeight: 700 }}>•</span>
+          <span style={{ fontSize: '16px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-status-overdue-text)', lineHeight: 1.45 }}>
             {b.descricao}
           </span>
         </li>
@@ -214,11 +253,11 @@ function ComentarioCell({
 
   if (!isAdmin) {
     return valor ? (
-      <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+      <span style={{ fontSize: '16px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
         {valor}
       </span>
     ) : (
-      <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontStyle: 'italic' }}>—</span>
+      <span style={{ fontSize: '16px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontStyle: 'italic' }}>—</span>
     );
   }
 
@@ -232,7 +271,7 @@ function ComentarioCell({
           onChange={e => setTexto(e.target.value)}
           style={{
             width: '100%',
-            fontSize: '13px',
+            fontSize: '16px',
             fontFamily: 'var(--moni-font-sans)',
             color: 'var(--moni-text-secondary)',
             border: '0.5px solid var(--moni-border-default)',
@@ -249,7 +288,7 @@ function ComentarioCell({
             type="button"
             onClick={() => { onSalvar(texto); setEditando(false); }}
             style={{
-              fontSize: '12px',
+              fontSize: '14px',
               fontFamily: 'var(--moni-font-sans)',
               background: 'var(--moni-navy-800)',
               color: 'var(--moni-text-inverse)',
@@ -257,7 +296,7 @@ function ComentarioCell({
               borderRadius: 'var(--moni-radius-md)',
               padding: '4px 12px',
               cursor: 'pointer',
-              minHeight: '28px',
+              minHeight: '32px',
             }}
           >
             Salvar
@@ -266,7 +305,7 @@ function ComentarioCell({
             type="button"
             onClick={() => { setTexto(valor); setEditando(false); }}
             style={{
-              fontSize: '12px',
+              fontSize: '14px',
               fontFamily: 'var(--moni-font-sans)',
               background: 'transparent',
               color: 'var(--moni-text-tertiary)',
@@ -274,7 +313,7 @@ function ComentarioCell({
               borderRadius: 'var(--moni-radius-md)',
               padding: '4px 12px',
               cursor: 'pointer',
-              minHeight: '28px',
+              minHeight: '32px',
             }}
           >
             Cancelar
@@ -296,7 +335,7 @@ function ComentarioCell({
         border: 'none',
         padding: '4px 2px',
         cursor: 'pointer',
-        fontSize: '13px',
+        fontSize: '16px',
         fontFamily: 'var(--moni-font-sans)',
         color: valor ? 'var(--moni-text-secondary)' : 'var(--moni-text-tertiary)',
         fontStyle: valor ? 'normal' : 'italic',
@@ -329,7 +368,7 @@ function TabelaGrupo({
 
   const thStyle: React.CSSProperties = {
     padding: '10px 16px',
-    fontSize: '11px',
+    fontSize: '13px',
     fontFamily: 'var(--moni-font-sans)',
     fontWeight: 600,
     color: 'var(--moni-text-tertiary)',
@@ -343,7 +382,7 @@ function TabelaGrupo({
 
   const tdStyle: React.CSSProperties = {
     padding: '14px 16px',
-    fontSize: '14px',
+    fontSize: '17px',
     fontFamily: 'var(--moni-font-sans)',
     color: 'var(--moni-text-secondary)',
     borderBottom: '0.5px solid var(--moni-border-subtle)',
@@ -366,7 +405,7 @@ function TabelaGrupo({
         <tbody>
           {areas.map(area => (
             <tr key={area.id}>
-              <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--moni-text-primary)', fontSize: '15px', verticalAlign: 'middle' }}>
+              <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--moni-text-primary)', fontSize: '18px', verticalAlign: 'middle' }}>
                 {area.nome}
               </td>
               <td style={{ ...tdStyle, verticalAlign: 'middle' }}>
