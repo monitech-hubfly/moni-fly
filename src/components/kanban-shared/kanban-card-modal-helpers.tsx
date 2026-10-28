@@ -431,6 +431,7 @@ export type ComentarioCardRow = {
 
 export type SecaoEsquerdaId =
   | 'calculadora'
+  | 'proximasAtividades'
   | 'cronologia'
   | 'franqueado'
   | 'loteador'

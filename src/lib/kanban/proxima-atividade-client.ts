@@ -1,3 +1,5 @@
+import type { KanbanProximaAtividadeRegistro } from '@/components/kanban-shared/types';
+
 export type ProximaAtividadeItemResult = {
   id: string;
   descricao: string;
@@ -9,6 +11,7 @@ export type ProximaAtividadeApiResult =
       ok: true;
       item?: ProximaAtividadeItemResult;
       items?: ProximaAtividadeItemResult[];
+      registros?: KanbanProximaAtividadeRegistro[];
       proxima_atividade?: string | null;
       prazo_atividade?: string | null;
     }
@@ -56,10 +59,39 @@ export async function listarProximaAtividadeAbertasClient(
   return data.items;
 }
 
+export async function listarProximasAtividadesRegistroClient(
+  cardId: string,
+): Promise<{ ok: true; items: KanbanProximaAtividadeRegistro[] } | { ok: false; error: string }> {
+  const res = await fetch('/api/kanban/proxima-atividade', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ action: 'listar-todas', cardId }),
+  });
+  const data = asResult(await parseJsonSafe(res));
+  if (!data.ok) return { ok: false, error: data.error };
+  return { ok: true, items: data.registros ?? [] };
+}
+
+export async function definirResponsavelProximaAtividadeClient(input: {
+  cardId: string;
+  itemId: string;
+  responsavelId: string | null;
+}): Promise<ProximaAtividadeApiResult> {
+  const res = await fetch('/api/kanban/proxima-atividade', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ action: 'definir-responsavel', ...input }),
+  });
+  return asResult(await parseJsonSafe(res));
+}
+
 export async function adicionarProximaAtividadeClient(input: {
   cardId: string;
   descricao: string;
   prazo: string | null;
+  responsavelId?: string | null;
   basePath: string;
 }): Promise<ProximaAtividadeApiResult> {
   const res = await fetch('/api/kanban/proxima-atividade', {

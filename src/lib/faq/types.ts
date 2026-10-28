@@ -31,6 +31,11 @@ export type FaqArticle = {
   reviewed_at: string | null;
   review_due_at: string | null;
   created_by: string | null;
+  remetente_nome: string | null;
+  remetente_sobrenome: string | null;
+  remetente_email: string | null;
+  remetente_perfil: string | null;
+  remetente_perfil_outro: string | null;
   updated_by: string | null;
   created_at: string | null;
   updated_at: string | null;

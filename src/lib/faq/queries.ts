@@ -6,6 +6,8 @@ const ARTICLE_SELECT =
 
 const ARTICLE_SELECT_WITH_CAT = `${ARTICLE_SELECT}, faq_categories ( name, slug )`;
 
+const ARTICLE_SELECT_ADMIN_WITH_CAT = `${ARTICLE_SELECT}, remetente_nome, remetente_sobrenome, remetente_email, remetente_perfil, remetente_perfil_outro, faq_categories ( name, slug )`;
+
 type CategoriaEmbutida = { name?: string | null; slug?: string | null } | { name?: string | null; slug?: string | null }[] | null;
 
 function nomeCat(row: { faq_categories?: CategoriaEmbutida }): { name: string | null; slug: string | null } {
@@ -48,6 +50,11 @@ export function mapArticle(r: Record<string, unknown>): FaqArticleView {
     reviewed_at: r.reviewed_at != null ? String(r.reviewed_at) : null,
     review_due_at: r.review_due_at != null ? String(r.review_due_at) : null,
     created_by: r.created_by != null ? String(r.created_by) : null,
+    remetente_nome: r.remetente_nome != null ? String(r.remetente_nome) : null,
+    remetente_sobrenome: r.remetente_sobrenome != null ? String(r.remetente_sobrenome) : null,
+    remetente_email: r.remetente_email != null ? String(r.remetente_email) : null,
+    remetente_perfil: r.remetente_perfil != null ? String(r.remetente_perfil) : null,
+    remetente_perfil_outro: r.remetente_perfil_outro != null ? String(r.remetente_perfil_outro) : null,
     updated_by: r.updated_by != null ? String(r.updated_by) : null,
     created_at: r.created_at != null ? String(r.created_at) : null,
     updated_at: r.updated_at != null ? String(r.updated_at) : null,
@@ -141,7 +148,7 @@ export async function getFaqMesmaCategoria(
 export async function getFaqArtigosAdmin(supabase: SupabaseClient): Promise<FaqArticleView[]> {
   const { data, error } = await supabase
     .from('faq_articles')
-    .select(ARTICLE_SELECT_WITH_CAT)
+    .select(ARTICLE_SELECT_ADMIN_WITH_CAT)
     .order('display_order', { ascending: true });
   if (error) throw error;
   return (data ?? []).map((r) => mapArticle(r as Record<string, unknown>));

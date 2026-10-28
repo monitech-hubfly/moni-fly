@@ -4,6 +4,8 @@ import {
   adicionarProximaAtividadeItem,
   buscarAtividadesAbertasCard,
   concluirProximaAtividadeItem,
+  definirResponsavelProximaAtividadeItem,
+  listarProximasAtividadesCard,
 } from '@/lib/actions/kanban-proximas-atividades';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +23,7 @@ export async function POST(req: Request) {
       itemId?: string;
       descricao?: string;
       prazo?: string | null;
+      responsavelId?: string | null;
       basePath?: string;
     } | null;
 
@@ -40,11 +43,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, items }, { status: 200 });
     }
 
+    if (action === 'listar-todas') {
+      const registros = await listarProximasAtividadesCard(cardId);
+      return NextResponse.json({ ok: true, registros }, { status: 200 });
+    }
+
     if (action === 'adicionar') {
       const result = await adicionarProximaAtividadeItem({
         cardId,
         descricao: String(body.descricao ?? ''),
         prazo: body.prazo ?? null,
+        responsavelId: body.responsavelId ?? null,
         basePath,
         skipRevalidate: true,
       });
@@ -61,6 +70,19 @@ export async function POST(req: Request) {
         cardId,
         basePath,
         skipRevalidate: true,
+      });
+      return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+    }
+
+    if (action === 'definir-responsavel') {
+      const itemId = String(body.itemId ?? '').trim();
+      if (!itemId) {
+        return NextResponse.json({ ok: false, error: 'Atividade inválida.' }, { status: 400 });
+      }
+      const result = await definirResponsavelProximaAtividadeItem({
+        itemId,
+        cardId,
+        responsavelId: body.responsavelId ?? null,
       });
       return NextResponse.json(result, { status: result.ok ? 200 : 400 });
     }

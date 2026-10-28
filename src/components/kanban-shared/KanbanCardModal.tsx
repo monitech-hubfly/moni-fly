@@ -81,6 +81,7 @@ import {
   type SubInteracaoStatusDb,
 } from '@/lib/actions/card-actions';
 import { enviarHipoteseAoPortfolio } from '@/lib/actions/card-actions';
+import { listarProximasAtividadesRegistroClient } from '@/lib/kanban/proxima-atividade-client';
 import { deletarChamado, listAnexosPorChamados, uploadAnexoChamado, getAnexoChamadoDownloadUrl } from '@/app/sirene/actions';
 import { KANBANS_COM_CHAMADO_JURIDICO } from '@/lib/constants/kanban-ids';
 import { isFrankOrFranqueadoRole, isRedeStaffRole, normalizeAccessRole } from '@/lib/authz';
@@ -141,6 +142,10 @@ import { KanbanParalelasChips } from './KanbanParalelasChips';
 import { KanbanCardModalCreditoObraDocumentacao } from './KanbanCardModalCreditoObraDocumentacao';
 import { KanbanCardModalDadosPreObraOperacoes } from './KanbanCardModalDadosPreObraOperacoes';
 import { KanbanCardModalCreditoSessao } from './KanbanCardModalCreditoSessao';
+import {
+  KanbanCardModalProximasAtividades,
+  resumoProximasAtividades,
+} from './KanbanCardModalProximasAtividades';
 import { KanbanCardModalDadosFunding } from './KanbanCardModalDadosFunding';
 import {
   fundingDraftFromRow,
@@ -671,6 +676,7 @@ export function KanbanCardModal({
     formularios: true,
     atasReuniao: false,
     chamados: false,
+    proximasAtividades: false,
     historico: false,
     dadosClienteVcl: true,
     simulacoesClienteVcl: true,
@@ -718,8 +724,9 @@ export function KanbanCardModal({
   const [totalCardsSyncGrupo, setTotalCardsSyncGrupo] = useState(0);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
   const [abaCentro, setAbaCentro] = useState<
-    'detalhes' | 'chamados' | 'trancheVinculo' | 'calculadora' | 'corretores'
+    'detalhes' | 'chamados' | 'proximasAtividades' | 'trancheVinculo' | 'calculadora' | 'corretores'
   >('detalhes');
+  const [proximasAtividadesResumo, setProximasAtividadesResumo] = useState({ abertas: 0, total: 0 });
   const [corretoresPainelTick, setCorretoresPainelTick] = useState(0);
 
   type AnexoSireneRow = { id: number; chamado_id: number; topico_id: number | null; uploader_nome: string | null; nome_original: string | null; origem: string | null; created_at: string };
@@ -1159,6 +1166,24 @@ export function KanbanCardModal({
     setNovoChamadoFormAberto(false);
     setNovaAtividadeAberta(false);
   }, [cardId, origem]);
+
+  useEffect(() => {
+    const id = String(cardId ?? '').trim();
+    if (!id) {
+      setProximasAtividadesResumo({ abertas: 0, total: 0 });
+      return;
+    }
+    let cancel = false;
+    void listarProximasAtividadesRegistroClient(id).then((res) => {
+      if (cancel || !res.ok) return;
+      setProximasAtividadesResumo(
+        resumoProximasAtividades(res.items, card?.proxima_atividade),
+      );
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [cardId, card?.proxima_atividade]);
 
   useEffect(() => {
     let cancel = false;
@@ -3248,6 +3273,12 @@ export function KanbanCardModal({
     setSecaoAberta((prev) => ({ ...prev, chamados: true }));
   }
 
+  function abrirPainelProximasAtividades() {
+    setAbaCentro('proximasAtividades');
+    setTrancheVinculoIndex(null);
+    setSecaoAberta((prev) => ({ ...prev, proximasAtividades: true }));
+  }
+
   function abrirPainelCorretores() {
     setAbaCentro('corretores');
     setTrancheVinculoIndex(null);
@@ -3344,6 +3375,65 @@ export function KanbanCardModal({
             style={{ borderColor: 'var(--moni-border-subtle)' }}
           >
             {chamadosAbertosCount} em aberto no banco — clique para ver todos.
+          </p>
+        ) : null}
+      </div>
+    );
+  };
+
+  const secaoHeadPainelProximas = (label: string) => {
+    const ativo = abaCentro === 'proximasAtividades';
+    const abertas = proximasAtividadesResumo.abertas;
+    return (
+      <div
+        className="mb-2 overflow-hidden rounded-lg bg-white text-xs"
+        style={{
+          border: '0.5px solid var(--moni-border-default)',
+          boxShadow: 'var(--moni-shadow-sm)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={abrirPainelProximasAtividades}
+          aria-pressed={ativo}
+          className="flex min-h-11 w-full items-center gap-2 p-2 text-left text-xs transition"
+          style={
+            ativo
+              ? { background: 'var(--moni-navy-50)', boxShadow: 'inset 0 0 0 0.5px var(--moni-navy-800)' }
+              : undefined
+          }
+        >
+          <ChevronRight className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--moni-text-tertiary)' }} aria-hidden />
+          <span className="text-xs font-semibold" style={{ color: 'var(--moni-text-primary)' }}>
+            {label}
+          </span>
+          {abertas > 0 ? (
+            <span
+              className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums"
+              style={{ background: 'var(--moni-navy-800)', color: 'var(--moni-text-inverse)' }}
+              title={`${abertas} atividade(s) a fazer`}
+            >
+              {abertas}
+            </span>
+          ) : null}
+        </button>
+        {ativo ? (
+          <p
+            className="border-t px-2 pb-2 pt-1.5 text-[10px]"
+            style={{ borderColor: 'var(--moni-border-subtle)', color: 'var(--moni-text-tertiary)' }}
+          >
+            Painel de próximas atividades aberto — use{' '}
+            <strong className="font-medium" style={{ color: 'var(--moni-text-primary)' }}>
+              Voltar
+            </strong>{' '}
+            no centro do card.
+          </p>
+        ) : abertas > 0 ? (
+          <p
+            className="border-t px-2 pb-2 pt-1.5 text-[10px]"
+            style={{ borderColor: 'var(--moni-border-subtle)', color: 'var(--moni-text-tertiary)' }}
+          >
+            {abertas} a fazer — clique para ver todas, com datas e responsáveis.
           </p>
         ) : null}
       </div>
@@ -4719,9 +4809,15 @@ export function KanbanCardModal({
     !ocultarGestaoCard && modalSessao.ehAdminOuTeam;
   const painelCentroAlternativo =
     abaCentro === 'chamados' ||
+    abaCentro === 'proximasAtividades' ||
     abaCentro === 'trancheVinculo' ||
     abaCentro === 'calculadora' ||
     abaCentro === 'corretores';
+  const jornadaVclOcultaCentro =
+    exibirJornadaVcl &&
+    abaCentro !== 'chamados' &&
+    abaCentro !== 'corretores' &&
+    abaCentro !== 'proximasAtividades';
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
@@ -5117,7 +5213,7 @@ export function KanbanCardModal({
           <div
             className={`moni-card-modal-center order-1 flex h-full min-h-0 flex-1 flex-col p-6 sm:order-2 sm:min-w-0 ${
               abaCentro === 'calculadora' ? 'overflow-hidden' : 'overflow-y-auto'
-            } ${exibirJornadaVcl && abaCentro !== 'chamados' && abaCentro !== 'corretores' ? 'hidden' : ''}`}
+            } ${jornadaVclOcultaCentro ? 'hidden' : ''}`}
             style={{ background: 'var(--moni-surface-0)' }}
           >
             {!painelCentroAlternativo ? (
@@ -5171,6 +5267,31 @@ export function KanbanCardModal({
                   setTrancheVinculosTick((t) => t + 1);
                   void loadCard();
                   router.refresh();
+                }}
+              />
+            ) : abaCentro === 'proximasAtividades' && card?.id ? (
+              <KanbanCardModalProximasAtividades
+                cardId={card.id}
+                basePath={basePath}
+                responsaveis={responsaveisOpcoes}
+                podeEditar={!ocultarGestaoCard}
+                proximaAtividadeCard={card.proxima_atividade ?? null}
+                prazoAtividadeCard={card.prazo_atividade ?? null}
+                onVoltar={voltarPainelDetalhes}
+                onResumo={(resumo) => {
+                  setProximasAtividadesResumo({ abertas: resumo.abertas, total: resumo.total });
+                  if (resumo.proxima_atividade !== undefined) {
+                    setCard((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            proxima_atividade: resumo.proxima_atividade ?? null,
+                            prazo_atividade: resumo.prazo_atividade ?? null,
+                          }
+                        : prev,
+                    );
+                  }
+                  if (resumo.atualizarBoard) router.refresh();
                 }}
               />
             ) : abaCentro === 'chamados' ? (
@@ -7426,7 +7547,7 @@ export function KanbanCardModal({
           {/* Esquerda — dados colapsáveis (mobile: por último) */}
           <div
             className={`moni-card-modal-left order-3 h-full w-full overflow-y-auto border-t p-4 text-xs sm:order-1 sm:min-w-0 sm:shrink-0 sm:border-r sm:border-t-0 sm:p-5 ${
-              exibirJornadaVcl && abaCentro !== 'chamados' && abaCentro !== 'corretores'
+              jornadaVclOcultaCentro
                 ? 'sm:w-auto sm:max-w-none sm:flex-1'
                 : 'sm:w-[min(45%,20rem)]'
             }`}
@@ -7459,6 +7580,7 @@ export function KanbanCardModal({
                       />,
                     )
                   : null}
+                {secaoHeadPainelProximas('Próximas atividades')}
                 {secaoHeadPainelCentro('Chamados')}
                 {secaoHead(
                   'relacionamentos',
@@ -8342,6 +8464,7 @@ export function KanbanCardModal({
                 />,
               )
             ) : null}
+            {secaoHeadPainelProximas('Próximas atividades')}
             {secaoHeadPainelCentro('Chamados')}
             {secaoHead(
               'relacionamentos',

@@ -198,5 +198,18 @@ export type KanbanProximaAtividadeAberta = {
   prazo: string | null;
 };
 
+/** Linha completa de kanban_proximas_atividades: aberta ou já concluída. */
+export type KanbanProximaAtividadeRegistro = {
+  id: string;
+  descricao: string;
+  prazo: string | null;
+  responsavelId: string | null;
+  responsavelNome: string | null;
+  criadoEm: string | null;
+  criadoPorNome: string | null;
+  concluidoEm: string | null;
+  concluidoPorNome: string | null;
+};
+
 /** Conteúdo extra do checklist por `fase_id` (sobrescreve placeholder). */
 export type CamposPorFaseMap = Record<string, ReactNode>;

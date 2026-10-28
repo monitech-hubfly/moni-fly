@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { recordFaqSearch, searchFaqArticles } from '@/lib/actions/faq-actions';
 import type { FaqArticle, FaqCategory } from '@/types/faq';
+import { FaqAcessoQr } from '@/components/faq/FaqAcessoQr';
 import { FaqArticlePanel } from './FaqArticlePanel';
 import { FaqCategoryCard } from './FaqCategoryCard';
 
@@ -183,15 +184,23 @@ export function FaqClient({
 
   return (
     <div className="min-h-full bg-[var(--moni-surface-50)]">
-      <section className="px-4 pb-8 pt-10 sm:pt-14">
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="font-[family-name:var(--moni-font-display)] text-[length:var(--moni-text-3xl)] font-semibold leading-tight text-[var(--moni-text-primary)]">
+      <section className="px-4 pb-2 pt-14 sm:pt-20">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-xs)] uppercase tracking-[0.16em] text-[var(--moni-text-tertiary)]">
+            Central de Ajuda
+          </p>
+          <h1 className="mt-3 font-[family-name:var(--moni-font-display)] text-[length:var(--moni-text-3xl)] font-semibold leading-[var(--moni-leading-tight)] text-[var(--moni-text-primary)]">
             Como podemos ajudar?
           </h1>
-          <p className="mt-2 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-tertiary)]">
+          <span
+            className="mx-auto mt-4 block h-px w-10"
+            style={{ background: 'var(--moni-gold-400)' }}
+            aria-hidden
+          />
+          <p className="mt-4 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] leading-[var(--moni-leading-body)] text-[var(--moni-text-secondary)]">
             Base de conhecimento Moní para franqueados
           </p>
-          <label className="relative mx-auto mt-6 block max-w-xl">
+          <label className="relative mx-auto mt-8 block">
             <span className="sr-only">Buscar na Central de Ajuda</span>
             <Search
               className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--moni-text-tertiary)]"
@@ -202,7 +211,7 @@ export function FaqClient({
               value={consulta}
               onChange={(evento) => setConsulta(evento.target.value)}
               placeholder="Busque por tema, dúvida ou palavra"
-              className="h-12 w-full rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] pl-11 pr-16 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-base)] text-[var(--moni-text-primary)] shadow-[var(--moni-shadow-sm)] outline-none placeholder:text-[var(--moni-text-tertiary)] focus:shadow-[var(--moni-shadow-md)]"
+              className="h-12 w-full rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] pl-11 pr-16 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-base)] text-[var(--moni-text-primary)] shadow-[var(--moni-shadow-sm)] outline-none placeholder:text-[var(--moni-text-tertiary)] focus:border-[var(--moni-navy-800)] focus:shadow-[var(--moni-shadow-md)]"
             />
             {consulta ? (
               <button
@@ -219,31 +228,33 @@ export function FaqClient({
               </kbd>
             )}
           </label>
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {categories.map((categoria) => {
-              const ativa = semAcento(consulta.trim()) === semAcento(categoria.nome);
-              return (
-                <button
-                  key={categoria.id}
-                  type="button"
-                  aria-pressed={ativa}
-                  onClick={() => setConsulta(categoria.nome)}
-                  className="inline-flex min-h-11 items-center rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid px-3 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] transition-colors duration-200"
-                  style={{
-                    borderColor: ativa ? 'var(--moni-navy-800)' : 'var(--moni-border-default)',
-                    background: ativa ? 'var(--moni-navy-800)' : 'var(--moni-surface-0)',
-                    color: ativa ? 'var(--moni-text-inverse)' : 'var(--moni-text-secondary)',
-                  }}
-                >
-                  {categoria.nome}
-                </button>
-              );
-            })}
+          <div className="mt-4 flex justify-center">
+            <FaqAcessoQr />
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 pb-16">
+      {!modoBusca && categories.length > 0 ? (
+        <section className="mx-auto max-w-5xl px-4 pb-2 pt-8">
+          <p className="mb-3 text-center font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-xs)] uppercase tracking-[0.14em] text-[var(--moni-text-tertiary)]">
+            Temas
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {categories.map((categoria) => (
+              <button
+                key={categoria.id}
+                type="button"
+                onClick={() => setConsulta(categoria.nome)}
+                className="inline-flex min-h-11 items-center rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] px-4 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-secondary)] transition-colors duration-200 hover:border-[var(--moni-navy-800)] hover:text-[var(--moni-text-primary)]"
+              >
+                {categoria.nome}
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="mx-auto max-w-6xl px-4 pb-16 pt-10">
         {erro ? (
           <p className="text-center font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-base)] text-[var(--moni-text-secondary)]">
             Não foi possível carregar a base de conhecimento agora.
@@ -297,7 +308,7 @@ export function FaqClient({
             ) : null}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
             {categories.map((categoria) => (
               <FaqCategoryCard
                 key={categoria.id}

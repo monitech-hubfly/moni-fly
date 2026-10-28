@@ -2,7 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import type { KanbanProximaAtividadeAberta } from '@/components/kanban-shared/types';
+import type {
+  KanbanProximaAtividadeAberta,
+  KanbanProximaAtividadeRegistro,
+} from '@/components/kanban-shared/types';
 
 type ProximaAtividadeItemResult = { id: string; descricao: string; prazo: string | null };
 
@@ -93,9 +96,100 @@ export type AdicionarProximaAtividadeItemInput = {
   cardId: string;
   descricao: string;
   prazo?: string | null;
+  responsavelId?: string | null;
   basePath?: string;
   skipRevalidate?: boolean;
 };
+
+type ProximaAtividadeRowCompleta = {
+  id?: string;
+  descricao?: string;
+  prazo?: string | null;
+  responsavel_id?: string | null;
+  criado_em?: string | null;
+  criado_por?: string | null;
+  concluido_em?: string | null;
+  concluido_por?: string | null;
+};
+
+function colunaResponsavelAusente(message: string): boolean {
+  return /responsavel_id/i.test(message);
+}
+
+async function nomesPorProfileIds(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ids: string[],
+): Promise<Map<string, string>> {
+  const nomes = new Map<string, string>();
+  const unicos = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+  if (unicos.length === 0) return nomes;
+  const { data } = await (supabase as any)
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', unicos);
+  for (const p of (data ?? []) as { id?: string; full_name?: string | null; email?: string | null }[]) {
+    const id = String(p.id ?? '');
+    const nome = String(p.full_name ?? '').trim() || String(p.email ?? '').trim();
+    if (id && nome) nomes.set(id, nome);
+  }
+  return nomes;
+}
+
+/** Histórico completo do card: abertas e concluídas, com prazo e responsável. */
+export async function listarProximasAtividadesCard(
+  cardId: string,
+): Promise<KanbanProximaAtividadeRegistro[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const id = String(cardId ?? '').trim();
+  if (!id) return [];
+
+  const comResp = await (supabase as any)
+    .from('kanban_proximas_atividades')
+    .select('id, descricao, prazo, responsavel_id, criado_em, criado_por, concluido_em, concluido_por')
+    .eq('card_id', id)
+    .order('criado_em', { ascending: false });
+
+  let rows: ProximaAtividadeRowCompleta[] = [];
+  if (comResp.error) {
+    if (!colunaResponsavelAusente(String(comResp.error.message ?? ''))) return [];
+    const semResp = await (supabase as any)
+      .from('kanban_proximas_atividades')
+      .select('id, descricao, prazo, criado_em, criado_por, concluido_em, concluido_por')
+      .eq('card_id', id)
+      .order('criado_em', { ascending: false });
+    if (semResp.error) return [];
+    rows = (semResp.data ?? []) as ProximaAtividadeRowCompleta[];
+  } else {
+    rows = (comResp.data ?? []) as ProximaAtividadeRowCompleta[];
+  }
+
+  const nomes = await nomesPorProfileIds(
+    supabase,
+    rows.flatMap((row) => [row.responsavel_id, row.criado_por, row.concluido_por].filter(Boolean) as string[]),
+  );
+
+  return rows.map((row) => {
+    const responsavelId = row.responsavel_id ? String(row.responsavel_id) : null;
+    const criadoPor = row.criado_por ? String(row.criado_por) : null;
+    const concluidoPor = row.concluido_por ? String(row.concluido_por) : null;
+    return {
+      id: String(row.id ?? ''),
+      descricao: String(row.descricao ?? ''),
+      prazo: (row.prazo as string | null) ?? null,
+      responsavelId,
+      responsavelNome: responsavelId ? nomes.get(responsavelId) ?? null : null,
+      criadoEm: row.criado_em ?? null,
+      criadoPorNome: criadoPor ? nomes.get(criadoPor) ?? null : null,
+      concluidoEm: row.concluido_em ?? null,
+      concluidoPorNome: concluidoPor ? nomes.get(concluidoPor) ?? null : null,
+    };
+  });
+}
 
 /** Sincroniza kanban_cards.proxima_atividade com a atividade mais urgente em aberto. */
 async function sincronizarProximaAtividadeCard(
@@ -147,14 +241,35 @@ export async function adicionarProximaAtividadeItem(
   if (!descricao) return { ok: false, error: 'Descrição obrigatória.' };
 
   const prazo = input.prazo ?? null;
+  const responsavelId = String(input.responsavelId ?? '').trim() || null;
+  const baseRow = { card_id: cardId, descricao, prazo, criado_por: user.id };
 
-  const { data: inserted, error } = await (supabase as any)
-    .from('kanban_proximas_atividades')
-    .insert({ card_id: cardId, descricao, prazo, criado_por: user.id })
-    .select('id, descricao, prazo')
-    .single();
-
-  if (error) return { ok: false, error: error.message };
+  let inserted: ProximaAtividadeItemResult | null = null;
+  if (responsavelId) {
+    const comResp = await (supabase as any)
+      .from('kanban_proximas_atividades')
+      .insert({ ...baseRow, responsavel_id: responsavelId })
+      .select('id, descricao, prazo')
+      .single();
+    if (comResp.error) {
+      if (colunaResponsavelAusente(String(comResp.error.message ?? ''))) {
+        return {
+          ok: false,
+          error: 'Não foi possível gravar o responsável. Aplique a migration 675 no banco de desenvolvimento.',
+        };
+      }
+      return { ok: false, error: comResp.error.message };
+    }
+    inserted = comResp.data ?? null;
+  } else {
+    const semResp = await (supabase as any)
+      .from('kanban_proximas_atividades')
+      .insert(baseRow)
+      .select('id, descricao, prazo')
+      .single();
+    if (semResp.error) return { ok: false, error: semResp.error.message };
+    inserted = semResp.data ?? null;
+  }
 
   const sync = await sincronizarProximaAtividadeCard(supabase, cardId);
 
@@ -197,11 +312,48 @@ export async function concluirProximaAtividadeItem(
 
   if (error) return { ok: false, error: error.message };
 
+  const sync = await sincronizarProximaAtividadeCard(supabase, cardId);
+
   if (!input.skipRevalidate) {
     const base = String(input.basePath ?? '/').trim() || '/';
     revalidatePath(base);
     revalidatePath('/');
   }
 
+  return { ok: true, ...sync };
+}
+
+/** Atualiza só o responsável. Não altera descrição, prazo nem conclusão. */
+export async function definirResponsavelProximaAtividadeItem(input: {
+  itemId: string;
+  cardId: string;
+  responsavelId?: string | null;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Faça login.' };
+
+  const itemId = String(input.itemId ?? '').trim();
+  const cardId = String(input.cardId ?? '').trim();
+  if (!itemId || !cardId) return { ok: false, error: 'Atividade inválida.' };
+
+  const responsavelId = String(input.responsavelId ?? '').trim() || null;
+  const { error } = await (supabase as any)
+    .from('kanban_proximas_atividades')
+    .update({ responsavel_id: responsavelId })
+    .eq('id', itemId)
+    .eq('card_id', cardId);
+
+  if (error) {
+    if (colunaResponsavelAusente(String(error.message ?? ''))) {
+      return {
+        ok: false,
+        error: 'Não foi possível gravar o responsável. Aplique a migration 675 no banco de desenvolvimento.',
+      };
+    }
+    return { ok: false, error: error.message };
+  }
   return { ok: true };
 }
