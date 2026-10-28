@@ -11,7 +11,7 @@ import {
   getMonthOptions,
   GRUPOS_CONFIG,
 } from '@/hooks/useFechamentoBoneDayPorIndicadores';
-import type { AreaRelatorio } from '@/hooks/useFechamentoBoneDayPorIndicadores';
+import type { AreaRelatorio, MetaSimples, BlockerSimples } from '@/hooks/useFechamentoBoneDayPorIndicadores';
 
 // ── Imagem da carinha por score — thresholds idênticos ao sistema ─────────────
 function getCarinhaImg(score: number | null): string {
@@ -28,6 +28,65 @@ function getScoreColor(score: number | null): string {
   if (score >= 60) return 'var(--moni-green-400)';
   if (score >= 30) return 'var(--moni-gold-600)';
   return 'var(--moni-status-overdue-text)';
+}
+
+// ── Cartões de resumo no topo ─────────────────────────────────────────────────
+const GRUPOS_RESUMO = [
+  { id: 'verde-escuro', label: 'Verde Escuro',  sublabel: 'Indicadores ≥ 75%', corFundo: 'var(--moni-green-800)', corTexto: 'var(--moni-text-inverse)' },
+  { id: 'verde-claro',  label: 'Verde Claro',   sublabel: '60% – 74%',         corFundo: 'var(--moni-green-400)', corTexto: 'var(--moni-text-inverse)' },
+  { id: 'amarelo',      label: 'Amarelo',        sublabel: '30% – 59%',         corFundo: 'var(--moni-gold-400)',  corTexto: 'var(--moni-earth-800)' },
+  { id: 'vermelho',     label: 'Vermelho',       sublabel: 'Indicadores < 30%', corFundo: 'var(--moni-status-overdue-text)', corTexto: 'var(--moni-text-inverse)' },
+] as const;
+
+function CartoesResumo({ grupos }: { grupos: { id: string; areas: AreaRelatorio[] }[] }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+      {GRUPOS_RESUMO.map(g => {
+        const count = grupos.find(gr => gr.id === g.id)?.areas.length ?? 0;
+        return (
+          <div
+            key={g.id}
+            style={{
+              background: 'var(--moni-surface-0)',
+              border: '0.5px solid var(--moni-border-default)',
+              borderRadius: 'var(--moni-radius-lg)',
+              padding: '16px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+          >
+            <span style={{
+              fontSize: '32px',
+              fontFamily: 'var(--moni-font-display)',
+              fontWeight: 700,
+              color: g.corFundo,
+              lineHeight: 1,
+            }}>
+              {count}
+            </span>
+            <span style={{
+              fontSize: '13px',
+              fontFamily: 'var(--moni-font-sans)',
+              fontWeight: 600,
+              color: 'var(--moni-text-primary)',
+            }}>
+              {g.label}
+            </span>
+            <span style={{
+              fontSize: '11px',
+              fontFamily: 'var(--moni-font-sans)',
+              color: 'var(--moni-text-tertiary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}>
+              {g.sublabel}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // ── Coluna Resultado: 3 carinhas em ordem fixa IND → ENG → SIR ───────────────
@@ -55,6 +114,84 @@ function ColunaResultado({ scores }: { scores: AreaRelatorio['scores'] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ── Lista de metas ────────────────────────────────────────────────────────────
+function ListaMetas({ metas, concluidas }: { metas: MetaSimples[]; concluidas: boolean }) {
+  if (metas.length === 0) {
+    return (
+      <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontStyle: 'italic' }}>—</span>
+    );
+  }
+  return (
+    <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {metas.map(m => (
+        <li key={m.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+          <span style={{
+            flexShrink: 0,
+            marginTop: '2px',
+            fontSize: '12px',
+            color: concluidas ? 'var(--moni-green-600)' : 'var(--moni-text-tertiary)',
+            fontWeight: 700,
+          }}>
+            {concluidas ? '✓' : '–'}
+          </span>
+          <span style={{ flex: 1, fontSize: '13px', fontFamily: 'var(--moni-font-sans)', lineHeight: 1.45 }}>
+            {m.is_chave && (
+              <span style={{
+                display: 'inline-block',
+                fontSize: '10px',
+                fontFamily: 'var(--moni-font-sans)',
+                fontWeight: 700,
+                color: 'var(--moni-gold-800)',
+                background: 'var(--moni-gold-50)',
+                border: '0.5px solid var(--moni-gold-400)',
+                borderRadius: '4px',
+                padding: '1px 5px',
+                marginRight: '5px',
+                verticalAlign: 'middle',
+                letterSpacing: '0.04em',
+              }}>
+                CHAVE
+              </span>
+            )}
+            <span style={{
+              color: concluidas ? 'var(--moni-text-tertiary)' : 'var(--moni-text-secondary)',
+              textDecoration: concluidas ? 'line-through' : 'none',
+            }}>
+              {m.descricao}
+            </span>
+            {m.meta_unidade && (
+              <span style={{ color: 'var(--moni-text-tertiary)', textDecoration: 'none', marginLeft: '4px', fontSize: '12px' }}>
+                · {m.meta_unidade}
+              </span>
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ── Lista de blockers ─────────────────────────────────────────────────────────
+function ListaBlockers({ blockers }: { blockers: BlockerSimples[] }) {
+  if (blockers.length === 0) {
+    return (
+      <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)', fontStyle: 'italic' }}>—</span>
+    );
+  }
+  return (
+    <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {blockers.map(b => (
+        <li key={b.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+          <span style={{ flexShrink: 0, marginTop: '2px', fontSize: '12px', color: 'var(--moni-status-overdue-text)', fontWeight: 700 }}>•</span>
+          <span style={{ fontSize: '13px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-status-overdue-text)', lineHeight: 1.45 }}>
+            {b.descricao}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -172,7 +309,7 @@ function ComentarioCell({
   );
 }
 
-// ── Tabela de uma área ────────────────────────────────────────────────────────
+// ── Tabela de um grupo ────────────────────────────────────────────────────────
 function TabelaGrupo({
   areas,
   isAdmin,
@@ -210,7 +347,7 @@ function TabelaGrupo({
     fontFamily: 'var(--moni-font-sans)',
     color: 'var(--moni-text-secondary)',
     borderBottom: '0.5px solid var(--moni-border-subtle)',
-    verticalAlign: 'middle',
+    verticalAlign: 'top',
   };
 
   return (
@@ -218,55 +355,31 @@ function TabelaGrupo({
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
-            <th style={{ ...thStyle, minWidth: '160px' }}>Área</th>
+            <th style={{ ...thStyle, minWidth: '140px' }}>Área</th>
             <th style={{ ...thStyle, minWidth: '180px' }}>Resultado</th>
-            <th style={{ ...thStyle, textAlign: 'center', minWidth: '100px' }}>Metas Concluídas</th>
-            <th style={{ ...thStyle, textAlign: 'center', minWidth: '100px' }}>Metas em Aberto</th>
-            <th style={{ ...thStyle, textAlign: 'center', minWidth: '80px' }}>Blockers</th>
+            <th style={{ ...thStyle, minWidth: '180px' }}>Metas Concluídas</th>
+            <th style={{ ...thStyle, minWidth: '180px' }}>Metas em Aberto</th>
+            <th style={{ ...thStyle, minWidth: '160px' }}>Blockers</th>
             <th style={{ ...thStyle, minWidth: '200px' }}>Comentários</th>
           </tr>
         </thead>
         <tbody>
           {areas.map(area => (
-            <tr key={area.id} style={{ transition: 'background 0.15s' }}>
-              <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--moni-text-primary)', fontSize: '15px' }}>
+            <tr key={area.id}>
+              <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--moni-text-primary)', fontSize: '15px', verticalAlign: 'middle' }}>
                 {area.nome}
               </td>
-              <td style={tdStyle}>
+              <td style={{ ...tdStyle, verticalAlign: 'middle' }}>
                 <ColunaResultado scores={area.scores} />
               </td>
-              <td style={{ ...tdStyle, textAlign: 'center' }}>
-                <span style={{
-                  display: 'inline-block',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: area.metasConcluidas > 0 ? 'var(--moni-green-600)' : 'var(--moni-text-tertiary)',
-                  fontFamily: 'var(--moni-font-sans)',
-                }}>
-                  {area.metasConcluidas}
-                </span>
+              <td style={tdStyle}>
+                <ListaMetas metas={area.metasConcluidas} concluidas={true} />
               </td>
-              <td style={{ ...tdStyle, textAlign: 'center' }}>
-                <span style={{
-                  display: 'inline-block',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: area.metasEmAberto > 0 ? 'var(--moni-status-overdue-text)' : 'var(--moni-text-tertiary)',
-                  fontFamily: 'var(--moni-font-sans)',
-                }}>
-                  {area.metasEmAberto}
-                </span>
+              <td style={tdStyle}>
+                <ListaMetas metas={area.metasEmAberto} concluidas={false} />
               </td>
-              <td style={{ ...tdStyle, textAlign: 'center' }}>
-                <span style={{
-                  display: 'inline-block',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: area.blockersCount > 0 ? 'var(--moni-gold-600)' : 'var(--moni-text-tertiary)',
-                  fontFamily: 'var(--moni-font-sans)',
-                }}>
-                  {area.blockersCount}
-                </span>
+              <td style={tdStyle}>
+                <ListaBlockers blockers={area.blockers} />
               </td>
               <td style={tdStyle}>
                 <ComentarioCell
@@ -367,78 +480,89 @@ export default function FechamentoBoneDayPorIndicadoresPage() {
           </p>
         )}
 
-        {/* Legenda mês */}
+        {/* Rótulo do mês */}
         <p style={{ fontSize: '14px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-secondary)', marginTop: '-12px' }}>
           {getMonthLabel(mes)}
         </p>
 
         {isLoading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} style={{ height: '80px', borderRadius: 'var(--moni-radius-lg)', background: 'var(--moni-surface-200)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+              ))}
+            </div>
             {[0, 1, 2, 3].map(i => (
               <div key={i} style={{ height: '120px', borderRadius: 'var(--moni-radius-lg)', background: 'var(--moni-surface-200)', animation: 'pulse 1.5s ease-in-out infinite' }} />
             ))}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {GRUPOS_CONFIG.map(grupo => {
-              const grupoData = grupos.find(g => g.id === grupo.id);
-              const areasGrupo = grupoData?.areas ?? [];
+          <>
+            {/* Cartões de resumo */}
+            <CartoesResumo grupos={grupos} />
 
-              return (
-                <div
-                  key={grupo.id}
-                  style={{
-                    background: 'var(--moni-surface-0)',
-                    border: '0.5px solid var(--moni-border-default)',
-                    borderRadius: 'var(--moni-radius-lg)',
-                    overflow: 'hidden',
-                    boxShadow: 'var(--moni-shadow-card, 0 1px 4px rgba(12,38,51,0.07))',
-                  }}
-                >
-                  {/* Cabeçalho do grupo */}
+            {/* Grupos com tabelas */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {GRUPOS_CONFIG.map(grupo => {
+                const grupoData = grupos.find(g => g.id === grupo.id);
+                const areasGrupo = grupoData?.areas ?? [];
+
+                return (
                   <div
+                    key={grupo.id}
                     style={{
-                      background: grupo.corFundo,
-                      padding: '12px 20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '12px',
+                      background: 'var(--moni-surface-0)',
+                      border: '0.5px solid var(--moni-border-default)',
+                      borderRadius: 'var(--moni-radius-lg)',
+                      overflow: 'hidden',
+                      boxShadow: 'var(--moni-shadow-card, 0 1px 4px rgba(12,38,51,0.07))',
                     }}
                   >
-                    <h2 style={{
-                      fontFamily: 'var(--moni-font-sans)',
-                      fontSize: '15px',
-                      fontWeight: 700,
-                      color: grupo.corTexto,
-                      margin: 0,
-                    }}>
-                      {grupo.label}
-                    </h2>
-                    <span style={{
-                      fontSize: '12px',
-                      fontFamily: 'var(--moni-font-sans)',
-                      fontWeight: 600,
-                      color: grupo.corTexto,
-                      background: 'rgba(255,255,255,0.18)',
-                      borderRadius: 'var(--moni-radius-md)',
-                      padding: '2px 10px',
-                      flexShrink: 0,
-                    }}>
-                      {areasGrupo.length} {areasGrupo.length === 1 ? 'área' : 'áreas'}
-                    </span>
-                  </div>
+                    {/* Cabeçalho do grupo */}
+                    <div
+                      style={{
+                        background: grupo.corFundo,
+                        padding: '12px 20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                      }}
+                    >
+                      <h2 style={{
+                        fontFamily: 'var(--moni-font-sans)',
+                        fontSize: '15px',
+                        fontWeight: 700,
+                        color: grupo.corTexto,
+                        margin: 0,
+                      }}>
+                        {grupo.label}
+                      </h2>
+                      <span style={{
+                        fontSize: '12px',
+                        fontFamily: 'var(--moni-font-sans)',
+                        fontWeight: 600,
+                        color: grupo.corTexto,
+                        background: 'rgba(255,255,255,0.18)',
+                        borderRadius: 'var(--moni-radius-md)',
+                        padding: '2px 10px',
+                        flexShrink: 0,
+                      }}>
+                        {areasGrupo.length} {areasGrupo.length === 1 ? 'área' : 'áreas'}
+                      </span>
+                    </div>
 
-                  {/* Tabela */}
-                  <TabelaGrupo
-                    areas={areasGrupo}
-                    isAdmin={admin}
-                    onSalvarComentario={salvarComentario}
-                  />
-                </div>
-              );
-            })}
-          </div>
+                    {/* Tabela */}
+                    <TabelaGrupo
+                      areas={areasGrupo}
+                      isAdmin={admin}
+                      onSalvarComentario={salvarComentario}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
     </div>
