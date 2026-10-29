@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Hub Fly — IMOB · Venda Casas (Mockup)</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0C2633;--navy2:#163b50;--green:#2F4A3A;--earth:#4A3929;
+  --gold:#D4AD68;--gold-l:#faf3e0;--gold-b:#e8d4a0;
+  --red:#c0392b;--red-l:#fdf2f2;--red-b:#e8c0c0;
+  --amber:#b7791f;--amber-l:#fffbeb;--amber-b:#fde68a;
+  --ok:#1e7a3a;--ok-l:#f0faf5;--ok-b:#b8dfc9;
+  --border:.5px solid #e2e8f0;--bmd:.5px solid #cbd5e0;
+  --rlg:12px;--rmd:8px;--rsm:6px;
+  --sh:0 2px 12px rgba(12,38,51,.08);--shlg:0 6px 28px rgba(12,38,51,.14);
+  --tp:#0C2633;--ts:#4a5568;--tt:#94a3b8;--bg:#f8fafc;--wh:#fff;
+  --imob:#1a4558;--imob2:#2a6080;--imob-l:#e0eff6;--imob-b:#b8d8ea;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--tp);line-height:1.5;min-height:100vh;font-size:14px}
+
+/* ── HEADER ── */
+.hdr{background:var(--navy);color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:300}
+.hdr-left{display:flex;align-items:center;gap:10px;min-width:0}
+.hdr-logo{font-size:10px;font-weight:800;letter-spacing:2.5px;opacity:.5;text-transform:uppercase;white-space:nowrap}
+.hdr-sep{opacity:.3}
+.hdr-breadcrumb{font-size:11px;opacity:.45;white-space:nowrap}
+.hdr-title{font-size:14px;font-weight:700;white-space:nowrap}
+.hdr-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.hbadge{padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;background:var(--gold);color:var(--navy);white-space:nowrap}
+.btn-back{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.1);border:.5px solid rgba(255,255,255,.2);border-radius:var(--rmd);padding:5px 11px;color:#fff;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;white-space:nowrap}
+.btn-back:hover{background:rgba(255,255,255,.2)}
+.btn-back svg{opacity:.7}
+
+/* ── SCREENS ── */
+.screen{display:none}.screen.active{display:block}
+
+/* ══ SCREEN 1: HUB IMOB ══ */
+.hub-wrap{padding:32px 36px;max-width:860px;margin:0 auto}
+.hub-titulo{font-size:24px;font-weight:800;color:var(--navy);letter-spacing:-.5px;margin-bottom:4px}
+.hub-sub{font-size:13px;color:var(--ts);margin-bottom:32px;line-height:1.6}
+.grupo-label{font-size:10px;font-weight:700;color:var(--tt);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
+.fcard-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:36px}
+.fcard{background:var(--wh);border:var(--border);border-radius:var(--rlg);padding:16px 16px 14px;cursor:pointer;transition:all .18s;position:relative;overflow:hidden;display:block;text-decoration:none}
+.fcard:hover{transform:translateY(-2px);box-shadow:var(--sh)}
+.fcard-bar{position:absolute;left:0;top:0;bottom:0;width:3px}
+.fcard-nome{font-size:13px;font-weight:700;color:var(--tp);margin-bottom:4px;line-height:1.3}
+.fcard-desc{font-size:11px;color:var(--tt);line-height:1.5;margin-bottom:10px}
+.fcard-pills{display:flex;gap:5px;flex-wrap:wrap}
+.pill{font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.pill-novo{background:var(--ok-l);color:var(--ok)}
+.pill-imob{background:var(--imob-l);color:var(--imob2)}
+.pill-construcao{background:#f1f5f9;color:var(--tt)}
+.pill-funis{background:var(--imob-l);color:var(--imob2)}
+
+/* ══ SCREEN 2: EM CONSTRUÇÃO ══ */
+.construcao-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:55vh;padding:48px 24px;text-align:center}
+.construcao-icone{width:72px;height:72px;border-radius:50%;background:var(--imob-l);border:.5px solid var(--imob-b);display:flex;align-items:center;justify-content:center;margin:0 auto 24px;color:var(--imob2)}
+.construcao-titulo{font-size:26px;font-weight:800;color:var(--navy);letter-spacing:-.5px;margin-bottom:8px}
+.construcao-desc{font-size:14px;color:var(--ts);max-width:400px;line-height:1.7;margin-bottom:28px}
+.construcao-tag{background:var(--gold-l);border:.5px solid var(--gold-b);color:var(--earth);font-size:11px;font-weight:600;padding:6px 16px;border-radius:20px}
+
+/* ══ SCREEN 3: KANBAN ══ */
+.kb-hdr{background:var(--wh);border-bottom:var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.kb-hdr-left{display:flex;align-items:center;gap:10px}
+.kb-titulo{font-size:15px;font-weight:800;color:var(--navy);letter-spacing:-.3px}
+.kb-sub{font-size:11px;color:var(--tt);margin-top:1px}
+.btn-add{background:var(--navy);color:#fff;border:none;border-radius:var(--rmd);padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.btn-add:hover{background:var(--navy2)}
+.btn-add svg{flex-shrink:0}
+
+/* Sub-funil tabs */
+.sf-tabs{background:var(--wh);border-bottom:var(--border);padding:0 24px;display:flex;gap:2px;overflow-x:auto}
+.sf-tab{padding:10px 14px;border:none;background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:var(--ts);border-bottom:2.5px solid transparent;white-space:nowrap;transition:all .15s;font-family:inherit}
+.sf-tab:hover{color:var(--navy)}
+.sf-tab.act{color:var(--imob);border-bottom-color:var(--imob);font-weight:700}
+.sf-pill{display:inline-block;font-size:9px;padding:1px 5px;border-radius:10px;margin-left:4px;font-weight:700;background:#f1f5f9;color:var(--tt);vertical-align:middle;transition:all .15s}
+.sf-tab.act .sf-pill{background:var(--imob);color:#fff}
+
+/* Barra de filtros */
+.filter-bar{background:var(--wh);border-bottom:var(--border);padding:8px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filter-label{font-size:10px;font-weight:700;color:var(--tt);text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.filter-select{border:var(--bmd);border-radius:var(--rmd);padding:5px 10px;font-size:12px;color:var(--tp);background:var(--wh);cursor:pointer;font-family:inherit;min-width:200px}
+.filter-tag{display:flex;align-items:center;gap:5px;background:var(--imob-l);border:.5px solid var(--imob-b);color:var(--imob2);font-size:10px;font-weight:600;padding:4px 10px;border-radius:20px;cursor:pointer}
+.filter-tag:hover{border-color:var(--imob)}
+.filter-tag-x{font-size:13px;opacity:.6;line-height:1}
+.ml-auto{margin-left:auto}
+.cards-total{font-size:11px;color:var(--tt)}
+
+/* Board */
+.kb-board-wrap{overflow-x:auto;padding:20px 24px 40px;background:var(--bg)}
+.kb-board{display:flex;gap:14px;align-items:flex-start;min-width:max-content}
+.kb-col{width:238px;flex-shrink:0}
+.kb-col-hdr{display:flex;align-items:center;justify-content:space-between;padding:0 2px;margin-bottom:10px}
+.kb-col-nome{font-size:10px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.5px}
+.kb-col-cnt{background:#f1f5f9;color:var(--tt);font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px}
+.kb-cards{display:flex;flex-direction:column;gap:8px;min-height:60px}
+.kb-add-inline{border:.5px dashed #cbd5e0;border-radius:var(--rlg);padding:9px;text-align:center;font-size:11px;color:var(--tt);cursor:pointer;transition:all .15s;margin-top:4px}
+.kb-add-inline:hover{border-color:var(--imob);color:var(--imob);background:var(--imob-l)}
+
+/* Kanban Card */
+.kcard{background:var(--wh);border:var(--border);border-radius:var(--rlg);padding:12px;cursor:pointer;transition:all .18s;position:relative;user-select:none}
+.kcard:hover{transform:translateY(-1px);box-shadow:var(--sh)}
+.kcard-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:5px}
+.kcard-cond{font-size:12px;font-weight:700;color:var(--tp);line-height:1.3;flex:1}
+.kcard-menu{background:transparent;border:none;cursor:pointer;color:var(--tt);font-size:17px;padding:0 3px;line-height:1;flex-shrink:0;border-radius:4px;transition:all .15s;height:20px;display:flex;align-items:center}
+.kcard-menu:hover{background:#f1f5f9;color:var(--ts)}
+.kcard-dono{font-size:11px;color:var(--ts);margin-bottom:8px}
+.kcard-footer{display:flex;align-items:center;justify-content:space-between;gap:4px}
+
+/* Badges de terreno */
+.tbadge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:.2px}
+.tb-quitado{background:var(--ok-l);color:var(--ok)}
+.tb-pendente{background:var(--amber-l);color:var(--amber)}
+
+/* Bolinhas */
+.bolinhas{display:flex;gap:3px;align-items:center}
+.bol{width:9px;height:9px;border-radius:50%;flex-shrink:0;cursor:pointer;position:relative;transition:transform .1s}
+.bol:hover{transform:scale(1.4)}
+.bol.verde{background:#22c55e}
+.bol.ambar{background:#f59e0b}
+.bol.vermelho{background:#ef4444}
+.bol.cinza{background:#e2e8f0}
+
+/* Dropdown do card */
+.card-dd{position:absolute;top:32px;right:8px;background:var(--wh);border:var(--bmd);border-radius:var(--rlg);box-shadow:var(--shlg);min-width:168px;z-index:200;overflow:hidden;display:none}
+.card-dd.open{display:block}
+.dd-item{padding:9px 14px;font-size:12px;color:var(--tp);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .1s}
+.dd-item:hover{background:#f8fafc}
+.dd-item.c-ganho{color:var(--ok)}
+.dd-item.c-perda{color:var(--red)}
+.dd-sep{height:.5px;background:#e2e8f0}
+
+/* ══ MODAIS ══ */
+.overlay{position:fixed;inset:0;background:rgba(12,38,51,.42);z-index:400;display:none;align-items:flex-start;justify-content:center;padding:32px 16px;overflow-y:auto}
+.overlay.open{display:flex}
+
+/* Modal Add Card */
+.m-add{background:var(--wh);border-radius:var(--rlg);width:100%;max-width:520px;box-shadow:var(--shlg);margin:auto}
+.m-hdr{padding:16px 20px;border-bottom:var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--wh);z-index:10;border-radius:var(--rlg) var(--rlg) 0 0}
+.m-titulo{font-size:13px;font-weight:800;color:var(--navy)}
+.m-close{background:transparent;border:none;cursor:pointer;color:var(--tt);font-size:22px;line-height:1;padding:0 4px;border-radius:4px;font-family:inherit}
+.m-close:hover{color:var(--tp);background:#f1f5f9}
+.m-body{padding:20px;max-height:calc(90vh - 120px);overflow-y:auto}
+.fs{margin-bottom:20px}
+.fs-titulo{font-size:9px;font-weight:800;color:var(--tt);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-bottom:6px;border-bottom:var(--border)}
+.frow{display:grid;gap:10px;margin-bottom:10px}
+.frow.c2{grid-template-columns:1fr 1fr}
+.frow.c3{grid-template-columns:1fr 1fr 1fr}
+.ff{display:flex;flex-direction:column;gap:4px}
+.fl{font-size:11px;font-weight:600;color:var(--ts)}
+.fi,.fsel,.fta{border:var(--bmd);border-radius:var(--rmd);padding:7px 10px;font-size:13px;color:var(--tp);background:var(--wh);font-family:inherit;transition:border-color .15s;outline:none;width:100%}
+.fi:focus,.fsel:focus,.fta:focus{border-color:var(--imob)}
+.fta{resize:vertical;min-height:60px}
+.toggle-row{display:flex;align-items:center;gap:10px;margin-top:4px}
+.tgl{width:38px;height:22px;background:#cbd5e0;border-radius:11px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0}
+.tgl.on{background:var(--ok)}
+.tgl::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.tgl.on::after{transform:translateX(16px)}
+.tgl-txt{font-size:12px;color:var(--ts);transition:color .2s}
+.tgl-txt.on{color:var(--ok);font-weight:600}
+.m-ftr{padding:12px 20px;border-top:var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--wh);border-radius:0 0 var(--rlg) var(--rlg);position:sticky;bottom:0}
+
+/* Botões */
+.btn-sec{background:transparent;border:var(--bmd);border-radius:var(--rmd);padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;color:var(--ts);font-family:inherit;transition:all .15s}
+.btn-sec:hover{background:#f1f5f9}
+.btn-pri{background:var(--navy);color:#fff;border:none;border-radius:var(--rmd);padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s}
+.btn-pri:hover{background:var(--navy2)}
+.btn-ganho{background:var(--ok);color:#fff;border:none;border-radius:var(--rmd);padding:6px 13px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .15s}
+.btn-ganho:hover{opacity:.85}
+.btn-perda{background:var(--red);color:#fff;border:none;border-radius:var(--rmd);padding:6px 13px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .15s}
+.btn-perda:hover{opacity:.85}
+.btn-arq{background:transparent;border:var(--bmd);border-radius:var(--rmd);padding:6px 13px;font-size:11px;font-weight:600;cursor:pointer;color:var(--ts);font-family:inherit;transition:all .15s}
+.btn-arq:hover{background:#f1f5f9}
+.btn-fase{background:transparent;border:var(--bmd);border-radius:var(--rmd);padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;color:var(--ts);font-family:inherit;transition:all .15s;position:relative}
+.btn-fase:hover{background:#f1f5f9}
+
+/* Modal Detalhe */
+.m-det{background:var(--wh);border-radius:var(--rlg);width:100%;max-width:860px;display:flex;flex-direction:column;max-height:calc(100vh - 64px);box-shadow:var(--shlg);margin:auto}
+.det-hdr{padding:14px 20px;border-bottom:var(--border);display:flex;align-items:flex-start;gap:12px;flex-shrink:0;border-radius:var(--rlg) var(--rlg) 0 0}
+.det-hdr-info{flex:1;min-width:0}
+.det-cond{font-size:17px;font-weight:800;color:var(--navy);letter-spacing:-.4px;margin-bottom:4px;line-height:1.2}
+.det-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.det-fase-pill{background:var(--imob-l);color:var(--imob2);font-size:9px;font-weight:700;padding:2px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.3px}
+.det-fase-txt{font-size:11px;color:var(--tt)}
+.det-acoes{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:center}
+.det-body{display:grid;grid-template-columns:280px 1fr;flex:1;overflow:hidden;min-height:0}
+.det-esq{border-right:var(--border);overflow-y:auto;padding:18px 20px}
+.det-dir{overflow-y:auto;padding:18px 20px;background:#fafcfe}
+
+/* Seções do detalhe */
+.d-sec{margin-bottom:20px}
+.d-sec-tit{font-size:9px;font-weight:800;color:var(--tt);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;padding-bottom:6px;border-bottom:var(--border)}
+.d-row{display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:var(--border);gap:10px}
+.d-row:last-child{border-bottom:none}
+.d-key{font-size:11px;color:var(--tt);flex-shrink:0;min-width:100px}
+.d-val{font-size:12px;font-weight:600;color:var(--tp);text-align:right}
+.d-val.big{font-size:14px;font-weight:800;color:var(--navy)}
+
+/* Atividades */
+.ativ-item{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:var(--border)}
+.ativ-item:last-child{border-bottom:none}
+.ativ-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.ativ-body{flex:1;min-width:0}
+.ativ-desc{font-size:12px;color:var(--tp);font-weight:500;margin-bottom:2px}
+.ativ-prazo{font-size:10px;font-weight:600}
+.ativ-prazo.ok{color:var(--ok)}.ativ-prazo.atencao{color:var(--amber)}.ativ-prazo.atrasado{color:var(--red)}.ativ-prazo.cinza{color:var(--tt)}
+
+/* Bolinhas legend */
+.bol-legend{display:flex;gap:12px;flex-wrap:wrap;padding:8px 0;margin-bottom:10px}
+.bl-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--ts)}
+.bl-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+/* Histórico */
+.hist-item{display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:var(--border)}
+.hist-item:last-child{border-bottom:none}
+.hist-av{width:26px;height:26px;border-radius:50%;background:var(--imob-l);color:var(--imob2);font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.hist-body{flex:1}
+.hist-txt{font-size:11px;color:var(--ts);line-height:1.4}
+.hist-time{font-size:10px;color:var(--tt);margin-top:2px}
+
+/* Mover fase dropdown */
+.fase-dd{position:absolute;top:calc(100% + 4px);right:0;background:var(--wh);border:var(--bmd);border-radius:var(--rlg);box-shadow:var(--shlg);min-width:210px;z-index:500;overflow:hidden;display:none}
+.fase-dd.open{display:block}
+.fase-dd-item{padding:9px 14px;font-size:12px;color:var(--tp);cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:background .1s}
+.fase-dd-item:hover{background:#f8fafc}
+.fase-dd-item.atual{font-weight:700;color:var(--imob);background:var(--imob-l)}
+.fase-num{font-size:9px;color:var(--tt);background:#f1f5f9;padding:1px 5px;border-radius:10px}
+
+/* Modal Confirmação */
+.m-confirm{background:var(--wh);border-radius:var(--rlg);width:100%;max-width:380px;padding:28px 24px;box-shadow:var(--shlg);text-align:center;margin:auto}
+.conf-icone{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:22px}
+.conf-titulo{font-size:16px;font-weight:800;color:var(--navy);margin-bottom:8px}
+.conf-desc{font-size:13px;color:var(--ts);line-height:1.6;margin-bottom:24px}
+.conf-acoes{display:flex;justify-content:center;gap:8px}
+
+/* Toast */
+.toast{position:fixed;bottom:28px;right:28px;background:var(--navy);color:#fff;padding:10px 18px;border-radius:var(--rmd);font-size:12px;font-weight:600;z-index:1000;opacity:0;transform:translateY(6px);transition:opacity .2s,transform .2s;pointer-events:none;white-space:nowrap;max-width:300px}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* Divider */
+.divider{height:.5px;background:#e2e8f0;margin:14px 0}
+
+/* Textarea comentário */
+.comentario-area{width:100%;border:var(--bmd);border-radius:var(--rmd);padding:9px 12px;font-size:12px;color:var(--tp);background:var(--wh);font-family:inherit;resize:vertical;min-height:64px;outline:none;transition:border-color .15s}
+.comentario-area:focus{border-color:var(--imob)}
+
+/* Tag de novo */
+.tag-novo{background:var(--ok-l);color:var(--ok);font-size:8px;font-weight:700;padding:1px 5px;border-radius:10px;text-transform:uppercase;letter-spacing:.3px;vertical-align:middle;margin-left:4px}
+
+/* Botão Importar */
+.btn-import{background:transparent;border:var(--bmd);border-radius:var(--rmd);padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer;color:var(--ts);font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:5px;white-space:nowrap}
+.btn-import:hover{background:var(--imob-l);border-color:var(--imob-b);color:var(--imob)}
+.kb-acoes{display:flex;gap:8px;align-items:center}
+
+/* Modal Importar */
+.m-import{background:var(--wh);border-radius:var(--rlg);width:100%;max-width:660px;box-shadow:var(--shlg);margin:auto}
+
+/* Stepper */
+.stepper{display:flex;align-items:center;padding:16px 24px;border-bottom:var(--border);gap:0}
+.step{display:flex;align-items:center;gap:8px;flex:1}
+.step-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;border:.5px solid #e2e8f0;background:#f8fafc;color:var(--tt);transition:all .2s}
+.step-num.act{background:var(--imob);color:#fff;border-color:var(--imob)}
+.step-num.done{background:var(--ok-l);color:var(--ok);border-color:var(--ok-b)}
+.step-lbl{font-size:11px;font-weight:600;color:var(--tt);transition:color .2s}
+.step-lbl.act{color:var(--imob)}
+.step-lbl.done{color:var(--ok)}
+.step-line{flex:1;height:.5px;background:#e2e8f0;margin:0 8px;flex-shrink:0}
+
+/* Passo 1: template */
+.template-cols{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0}
+.tcol-item{background:#f8fafc;border:.5px solid #e2e8f0;border-radius:var(--rsm);padding:6px 10px;font-size:11px;color:var(--ts);display:flex;align-items:center;gap:6px}
+.tcol-item::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--imob-b);flex-shrink:0}
+.btn-dl{background:var(--imob-l);border:.5px solid var(--imob-b);color:var(--imob);border-radius:var(--rmd);padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;display:inline-flex;align-items:center;gap:6px;margin-top:4px}
+.btn-dl:hover{background:var(--imob);color:#fff}
+.import-nota{font-size:11px;color:var(--tt);background:var(--gold-l);border:.5px solid var(--gold-b);border-radius:var(--rmd);padding:10px 12px;margin-top:12px;line-height:1.5}
+.import-nota strong{color:var(--earth)}
+
+/* Passo 2: upload */
+.upload-zone{border:.5px dashed var(--imob-b);border-radius:var(--rlg);padding:36px 24px;text-align:center;cursor:pointer;transition:all .2s;background:var(--imob-l)}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--imob);background:#d6eaf4}
+.upload-icon{width:44px;height:44px;border-radius:50%;background:var(--wh);border:.5px solid var(--imob-b);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;color:var(--imob2)}
+.upload-titulo{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:4px}
+.upload-sub{font-size:11px;color:var(--tt)}
+.upload-formatos{font-size:10px;color:var(--tt);margin-top:8px;font-weight:600;letter-spacing:.3px}
+
+/* Passo 3: prévia */
+.preview-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.preview-badge{background:var(--ok-l);border:.5px solid var(--ok-b);color:var(--ok);font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px}
+.preview-sel{border:var(--bmd);border-radius:var(--rmd);padding:5px 10px;font-size:11px;color:var(--tp);background:var(--wh);font-family:inherit}
+.preview-table{width:100%;border-collapse:collapse;font-size:11px}
+.preview-table th{background:#f8fafc;padding:7px 10px;text-align:left;font-weight:700;color:var(--tt);border-bottom:var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.preview-table td{padding:7px 10px;border-bottom:var(--border);color:var(--tp)}
+.preview-table tr:last-child td{border-bottom:none}
+.preview-table tr:hover td{background:#f8fafc}
+.preview-wrap{overflow-x:auto;border:var(--border);border-radius:var(--rmd)}
+.import-sf-sel{border:var(--bmd);border-radius:var(--rmd);padding:5px 10px;font-size:12px;color:var(--tp);background:var(--wh);font-family:inherit}
+
+@media(max-width:640px){
+  .hub-wrap{padding:20px 16px}
+  .det-body{grid-template-columns:1fr}
+  .det-esq{border-right:none;border-bottom:var(--border)}
+  .frow.c2,.frow.c3{grid-template-columns:1fr}
+  .det-acoes{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- HEADER -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<header class="hdr">
+  <div class="hdr-left">
+    <span class="hdr-logo">Hub Fly</span>
+    <span class="hdr-sep">›</span>
+    <div>
+      <div id="hdr-bc" class="hdr-breadcrumb"></div>
+      <span id="hdr-title" class="hdr-title">HUB-FUNIS · IMOB</span>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <span class="hbadge">Mockup</span>
+    <button class="btn-back" id="btn-back" onclick="voltar()" style="display:none">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Voltar
+    </button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 1: HUB IMOB -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="sc-hub" class="screen active">
+  <div class="hub-wrap">
+    <h1 class="hub-titulo">IMOB</h1>
+    <p class="hub-sub">Gestão de funis imobiliários — corretores, loteadores e venda de casas</p>
+
+    <div class="grupo-label">Funis Ativos</div>
+    <div class="fcard-grid">
+      <div class="fcard" onclick="showToast('Funil Corretores — Kanban já existente')">
+        <div class="fcard-bar" style="background:var(--imob)"></div>
+        <div class="fcard-nome">Funil Corretores</div>
+        <div class="fcard-desc">Captação e qualificação de corretores franqueados</div>
+        <div class="fcard-pills"><span class="pill pill-imob">8 fases</span></div>
+      </div>
+      <div class="fcard" onclick="showToast('Motor 01 — Kanban já existente')">
+        <div class="fcard-bar" style="background:var(--imob)"></div>
+        <div class="fcard-nome">Motor 01</div>
+        <div class="fcard-desc">Loteadores Motor 01 — processamento de lotes</div>
+        <div class="fcard-pills"></div>
+      </div>
+
+      <!-- NOVO: Frank's -->
+      <div class="fcard" onclick="showScreen('sc-construcao','Venda Casas Frank\'s','IMOB')" style="opacity:.85">
+        <div class="fcard-bar" style="background:#cbd5e0"></div>
+        <div class="fcard-nome" style="color:var(--ts)">Venda Casas Frank's</div>
+        <div class="fcard-desc">Funil de venda de casas pelos franqueados</div>
+        <div class="fcard-pills">
+          <span class="pill pill-construcao">Em construção</span>
+          <span class="tag-novo">Novo</span>
+        </div>
+      </div>
+
+      <!-- NOVO: Loteadores -->
+      <div class="fcard" onclick="showScreen('sc-kanban','Venda Casas Loteadores','IMOB')">
+        <div class="fcard-bar" style="background:var(--imob)"></div>
+        <div class="fcard-nome">Venda Casas Loteadores</div>
+        <div class="fcard-desc">Lotes Vendidos · Lotes Não Vendidos · Showroom</div>
+        <div class="fcard-pills">
+          <span class="pill pill-novo">Novo</span>
+          <span class="pill pill-funis">3 sub-funis</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 2: EM CONSTRUÇÃO (Frank's) -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="sc-construcao" class="screen">
+  <div class="construcao-wrap">
+    <div class="construcao-icone">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"/>
+      </svg>
+    </div>
+    <h1 class="construcao-titulo">Em Construção</h1>
+    <p class="construcao-desc">O funil <strong>Venda Casas Frank's</strong> está sendo desenvolvido e em breve estará disponível aqui no Hub Fly.</p>
+    <span class="construcao-tag">Previsão de lançamento em breve</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SCREEN 3: KANBAN LOTEADORES -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div id="sc-kanban" class="screen">
+  <!-- Header do Kanban -->
+  <div class="kb-hdr">
+    <div class="kb-hdr-left">
+      <div>
+        <div class="kb-titulo">Venda Casas Loteadores</div>
+        <div class="kb-sub">6 fases · filtro por condomínio · próximas atividades</div>
+      </div>
+    </div>
+    <div class="kb-acoes">
+      <button class="btn-import" onclick="abrirImport()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Importar
+      </button>
+      <button class="btn-add" onclick="abrirAdd()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        Adicionar Card
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabs sub-funis -->
+  <div class="sf-tabs">
+    <button class="sf-tab act" id="tab-nv" onclick="switchSf('nao-vendidos',this)">
+      Lotes Não Vendidos <span class="sf-pill" id="cnt-nv">11</span>
+    </button>
+    <button class="sf-tab" id="tab-v" onclick="switchSf('vendidos',this)">
+      Lotes Vendidos <span class="sf-pill" id="cnt-v">6</span>
+    </button>
+    <button class="sf-tab" id="tab-sr" onclick="switchSf('showroom',this)">
+      Showroom <span class="sf-pill" id="cnt-sr">4</span>
+    </button>
+  </div>
+
+  <!-- Barra de filtros -->
+  <div class="filter-bar">
+    <span class="filter-label">Filtrar por condomínio</span>
+    <select class="filter-select" id="sel-cond" onchange="filtrarCond(this.value)">
+      <option value="">Todos os condomínios</option>
+      <option>Reserva das Araras</option>
+      <option>Vila Verde Park</option>
+      <option>Quintas do Sol</option>
+      <option>Recanto Primavera</option>
+      <option>Parque dos Ipês</option>
+      <option>Jardins do Vale</option>
+      <option>Residencial Cerrado</option>
+      <option>Recanto das Flores</option>
+      <option>Bosque Imperial</option>
+      <option>Parque das Acácias</option>
+      <option>Alto da Boa Vista</option>
+      <option>Colinas do Cerrado</option>
+      <option>Vale das Palmeiras</option>
+      <option>Casa Modelo Ipanema</option>
+      <option>Vitrine Alphaville</option>
+      <option>Espaço Vila Nova</option>
+      <option>Casa Moní Flagship</option>
+    </select>
+    <div id="tag-filtro" style="display:none" class="filter-tag" onclick="limparFiltro()">
+      <span id="tag-filtro-txt"></span>
+      <span class="filter-tag-x">×</span>
+    </div>
+    <span class="ml-auto cards-total" id="total-label">11 cards</span>
+  </div>
+
+  <!-- Board -->
+  <div class="kb-board-wrap">
+    <div class="kb-board" id="kb-board"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- MODAL: ADICIONAR CARD -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="overlay" id="ov-add">
+  <div class="m-add">
+    <div class="m-hdr">
+      <span class="m-titulo">Adicionar Card — Venda Casas Loteadores</span>
+      <button class="m-close" onclick="fecharModal('ov-add')">×</button>
+    </div>
+    <div class="m-body">
+
+      <div class="fs">
+        <div class="fs-titulo">Fase de entrada</div>
+        <div class="frow">
+          <div class="ff">
+            <label class="fl">Fase inicial</label>
+            <select class="fsel" id="add-fase">
+              <option selected>Leads</option>
+              <option>1º Contato</option>
+              <option>Qualificados</option>
+              <option>R1 Realizada</option>
+              <option>Proposta</option>
+              <option>Assinatura Contrato</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="fs">
+        <div class="fs-titulo">Identificação do Condomínio</div>
+        <div class="frow">
+          <div class="ff">
+            <label class="fl">Nome do condomínio *</label>
+            <input class="fi" type="text" placeholder="Ex: Botanic Residence"/>
+          </div>
+        </div>
+        <div class="frow c2">
+          <div class="ff">
+            <label class="fl">Loteador *</label>
+            <input class="fi" type="text" placeholder="Nome do loteador"/>
+          </div>
+          <div class="ff">
+            <label class="fl">Dono do terreno *</label>
+            <input class="fi" type="text" placeholder="Nome completo"/>
+          </div>
+        </div>
+        <div class="frow c3">
+          <div class="ff">
+            <label class="fl">CPF</label>
+            <input class="fi" type="text" placeholder="000.000.000-00"/>
+          </div>
+          <div class="ff">
+            <label class="fl">RG</label>
+            <input class="fi" type="text" placeholder="00.000.000-0"/>
+          </div>
+          <div class="ff">
+            <label class="fl">Terreno quitado?</label>
+            <div class="toggle-row" style="margin-top:6px">
+              <div class="tgl" id="tgl-q" onclick="toggleQ()"></div>
+              <span class="tgl-txt" id="tgl-q-txt">Não</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fs">
+        <div class="fs-titulo">Identificação do Lote</div>
+        <div class="frow c3">
+          <div class="ff">
+            <label class="fl">Número do Lote</label>
+            <input class="fi" type="text" placeholder="Ex: 1"/>
+          </div>
+          <div class="ff">
+            <label class="fl">Número da Quadra</label>
+            <input class="fi" type="text" placeholder="Ex: 15"/>
+          </div>
+          <div class="ff">
+            <label class="fl">Metragem total (m²)</label>
+            <input class="fi" type="text" placeholder="Ex: 401,92"/>
+          </div>
+        </div>
+        <div class="frow c2">
+          <div class="ff">
+            <label class="fl">Frente (m)</label>
+            <input class="fi" type="text" placeholder="Ex: 15,00"/>
+          </div>
+          <div class="ff">
+            <label class="fl">Fundo (m)</label>
+            <input class="fi" type="text" placeholder="Ex: 26,80"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="fs" id="bloco-financeiro">
+        <div class="fs-titulo">Dados Financeiros do Terreno</div>
+        <div class="frow c2">
+          <div class="ff">
+            <label class="fl">Valor do terreno (R$)</label>
+            <input class="fi" type="text" placeholder="Ex: 3.500.000,00"/>
+          </div>
+          <div class="ff">
+            <label class="fl">Saldo devedor (R$)</label>
+            <input class="fi" type="text" placeholder="Ex: 850.000,00"/>
+          </div>
+        </div>
+        <div class="frow c2">
+          <div class="ff">
+            <label class="fl">Valor das parcelas (R$)</label>
+            <input class="fi" type="text" placeholder="Ex: 12.500,00"/>
+          </div>
+          <div class="ff">
+            <label class="fl">Quantidade de parcelas</label>
+            <input class="fi" type="text" placeholder="Ex: 48"/>
+          </div>
+        </div>
+        <div class="frow c2">
+          <div class="ff">
+            <label class="fl">Juros (% a.m.)</label>
+            <input class="fi" type="text" placeholder="Ex: 0,80"/>
+          </div>
+          <div class="ff"></div>
+        </div>
+      </div>
+
+      <div class="fs">
+        <div class="fs-titulo">Contato</div>
+        <div class="frow c2">
+          <div class="ff">
+            <label class="fl">E-mail para contato</label>
+            <input class="fi" type="email" placeholder="email@exemplo.com"/>
+          </div>
+          <div class="ff">
+            <label class="fl">Telefone para contato</label>
+            <input class="fi" type="tel" placeholder="(11) 9 0000-0000"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="fs">
+        <div class="fs-titulo">Observações</div>
+        <div class="frow">
+          <div class="ff">
+            <label class="fl">Observação</label>
+            <textarea class="fta" placeholder="Informações adicionais sobre o lote ou proprietário..."></textarea>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="m-ftr">
+      <button class="btn-sec" onclick="fecharModal('ov-add')">Cancelar</button>
+      <button class="btn-pri" onclick="salvarCard()">Salvar Card</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- MODAL: DETALHE DO CARD -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="overlay" id="ov-det">
+  <div class="m-det">
+
+    <div class="det-hdr">
+      <div class="det-hdr-info">
+        <div class="det-cond" id="det-cond">—</div>
+        <div class="det-meta">
+          <span class="det-fase-pill" id="det-sf-pill">—</span>
+          <span class="det-fase-txt" id="det-fase-txt">—</span>
+        </div>
+      </div>
+      <div class="det-acoes">
+        <button class="btn-ganho" onclick="abrirConfirm('ganho')">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="margin-right:4px"><path d="M20 6L9 17l-5-5"/></svg>
+          Ganho
+        </button>
+        <button class="btn-perda" onclick="abrirConfirm('perda')">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="margin-right:4px"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          Perda
+        </button>
+        <button class="btn-arq" onclick="abrirConfirm('arquivar')">Arquivar</button>
+        <div style="position:relative">
+          <button class="btn-fase" onclick="toggleFaseDd()">Mover Fase
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-left:3px"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="fase-dd" id="fase-dd"></div>
+        </div>
+        <button class="m-close" onclick="fecharModal('ov-det')" style="font-size:24px;margin-left:2px">×</button>
+      </div>
+    </div>
+
+    <div class="det-body">
+      <!-- ESQUERDA: dados -->
+      <div class="det-esq">
+
+        <div class="d-sec">
+          <div class="d-sec-tit">Identificação</div>
+          <div class="d-row"><span class="d-key">Condomínio</span><span class="d-val big" id="d-cond2">—</span></div>
+          <div class="d-row"><span class="d-key">Loteador</span><span class="d-val" id="d-lot">—</span></div>
+          <div class="d-row"><span class="d-key">Dono do terreno</span><span class="d-val" id="d-dono">—</span></div>
+          <div class="d-row"><span class="d-key">CPF</span><span class="d-val" id="d-cpf">—</span></div>
+          <div class="d-row"><span class="d-key">RG</span><span class="d-val" id="d-rg">—</span></div>
+          <div class="d-row"><span class="d-key">Status do terreno</span><span class="d-val" id="d-ter">—</span></div>
+        </div>
+
+        <div class="d-sec">
+          <div class="d-sec-tit">Identificação do Lote</div>
+          <div class="d-row"><span class="d-key">Lote / Quadra</span><span class="d-val" id="d-lq">—</span></div>
+          <div class="d-row"><span class="d-key">Metragem total</span><span class="d-val" id="d-met">—</span></div>
+          <div class="d-row"><span class="d-key">Frente</span><span class="d-val" id="d-fr">—</span></div>
+          <div class="d-row"><span class="d-key">Fundo</span><span class="d-val" id="d-fu">—</span></div>
+        </div>
+
+        <div class="d-sec">
+          <div class="d-sec-tit">Dados Financeiros</div>
+          <div class="d-row"><span class="d-key">Valor do terreno</span><span class="d-val" id="d-vter">—</span></div>
+          <div class="d-row"><span class="d-key">Saldo devedor</span><span class="d-val" id="d-sal">—</span></div>
+          <div class="d-row"><span class="d-key">Parcelas</span><span class="d-val" id="d-par">—</span></div>
+          <div class="d-row"><span class="d-key">Juros</span><span class="d-val" id="d-jur">—</span></div>
+        </div>
+
+        <div class="d-sec">
+          <div class="d-sec-tit">Contato</div>
+          <div class="d-row"><span class="d-key">E-mail</span><span class="d-val" id="d-email">—</span></div>
+          <div class="d-row"><span class="d-key">Telefone</span><span class="d-val" id="d-tel">—</span></div>
+        </div>
+
+        <div class="d-sec" id="d-obs-sec" style="display:none">
+          <div class="d-sec-tit">Observações</div>
+          <div style="font-size:12px;color:var(--ts);line-height:1.6;padding:6px 0" id="d-obs"></div>
+        </div>
+
+      </div>
+
+      <!-- DIREITA: atividades + histórico -->
+      <div class="det-dir">
+
+        <div class="d-sec-tit" style="margin-bottom:8px">Próximas Atividades</div>
+
+        <!-- Legenda bolinhas -->
+        <div class="bol-legend">
+          <div class="bl-item"><div class="bl-dot" style="background:#22c55e"></div> Em dia</div>
+          <div class="bl-item"><div class="bl-dot" style="background:#f59e0b"></div> Vencendo</div>
+          <div class="bl-item"><div class="bl-dot" style="background:#ef4444"></div> Atrasada</div>
+          <div class="bl-item"><div class="bl-dot" style="background:#e2e8f0"></div> Sem atividade</div>
+        </div>
+
+        <div id="d-atividades"></div>
+
+        <div class="divider" style="margin:16px 0"></div>
+
+        <div class="d-sec-tit" style="margin-bottom:10px">Histórico de Movimentação</div>
+        <div id="d-historico"></div>
+
+        <div class="divider" style="margin:16px 0"></div>
+
+        <div class="d-sec-tit" style="margin-bottom:8px">Adicionar Comentário</div>
+        <textarea class="comentario-area" placeholder="Escreva um comentário sobre este card..."></textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:7px">
+          <button class="btn-pri" style="font-size:11px;padding:5px 14px" onclick="showToast('Comentário adicionado!')">Comentar</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- MODAL: CONFIRMAÇÃO -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="overlay" id="ov-conf">
+  <div class="m-confirm">
+    <div class="conf-icone" id="conf-icone"></div>
+    <div class="conf-titulo" id="conf-titulo">Confirmar</div>
+    <div class="conf-desc" id="conf-desc">Tem certeza?</div>
+    <div class="conf-acoes">
+      <button class="btn-sec" onclick="fecharModal('ov-conf')">Cancelar</button>
+      <button class="btn-pri" id="conf-btn" onclick="confirmarAcao()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- MODAL: IMPORTAR CARDS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<div class="overlay" id="ov-import">
+  <div class="m-import">
+    <div class="m-hdr">
+      <span class="m-titulo">Importar Cards em Massa</span>
+      <button class="m-close" onclick="fecharModal('ov-import')">×</button>
+    </div>
+
+    <!-- Stepper -->
+    <div class="stepper">
+      <div class="step">
+        <div class="step-num act" id="sn-1">1</div>
+        <span class="step-lbl act" id="sl-1">Template</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <div class="step-num" id="sn-2">2</div>
+        <span class="step-lbl" id="sl-2">Upload</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <div class="step-num" id="sn-3">3</div>
+        <span class="step-lbl" id="sl-3">Prévia</span>
+      </div>
+    </div>
+
+    <!-- PASSO 1: Template -->
+    <div class="m-body" id="imp-p1">
+      <p style="font-size:12px;color:var(--ts);margin-bottom:14px;line-height:1.6">
+        Baixe o nosso template, preencha os dados e importe. Cada linha do arquivo corresponde a um card criado no funil.
+      </p>
+      <div class="template-cols">
+        <div class="tcol-item">Nome do Condomínio</div>
+        <div class="tcol-item">Loteador</div>
+        <div class="tcol-item">Dono do Terreno</div>
+        <div class="tcol-item">CPF</div>
+        <div class="tcol-item">RG</div>
+        <div class="tcol-item">Lote</div>
+        <div class="tcol-item">Quadra</div>
+        <div class="tcol-item">Metragem Total (m²)</div>
+        <div class="tcol-item">Frente (m)</div>
+        <div class="tcol-item">Fundo (m)</div>
+        <div class="tcol-item">Terreno Quitado (S/N)</div>
+        <div class="tcol-item">Valor do Terreno</div>
+        <div class="tcol-item">Saldo Devedor</div>
+        <div class="tcol-item">Valor da Parcela</div>
+        <div class="tcol-item">Qtd. Parcelas</div>
+        <div class="tcol-item">Juros (% a.m.)</div>
+        <div class="tcol-item">E-mail</div>
+        <div class="tcol-item">Telefone</div>
+        <div class="tcol-item">Observação</div>
+        <div class="tcol-item">Fase Inicial</div>
+      </div>
+      <button class="btn-dl" onclick="showToast('Template baixado: template_importacao_loteadores.xlsx')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar template_importacao_loteadores.xlsx
+      </button>
+      <div class="import-nota">
+        <strong>Recebeu um arquivo do cliente em outro formato?</strong><br>
+        Encaminhe o arquivo aqui no chat do Hub Fly — o consultor Moní converte automaticamente para o nosso template e devolve pronto para importar.
+      </div>
+    </div>
+
+    <!-- PASSO 2: Upload -->
+    <div class="m-body" id="imp-p2" style="display:none">
+      <div class="upload-zone" id="upload-zone" onclick="simularUpload()">
+        <div class="upload-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <div class="upload-titulo">Clique para selecionar o arquivo</div>
+        <div class="upload-sub">ou arraste e solte aqui</div>
+        <div class="upload-formatos">Aceita: .xlsx · .csv</div>
+      </div>
+      <p style="font-size:11px;color:var(--tt);margin-top:10px;text-align:center">
+        Use o arquivo do nosso template preenchido ou gerado pelo consultor Moní.
+      </p>
+    </div>
+
+    <!-- PASSO 3: Prévia -->
+    <div class="m-body" id="imp-p3" style="display:none">
+      <div class="preview-hdr">
+        <div>
+          <span class="preview-badge">5 cards encontrados</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--tt)">Fase inicial:</span>
+          <select class="import-sf-sel" id="imp-fase">
+            <option selected>Leads</option>
+            <option>1º Contato</option>
+            <option>Qualificados</option>
+          </select>
+          <span style="font-size:11px;color:var(--tt)">Sub-funil:</span>
+          <select class="import-sf-sel">
+            <option selected>Lotes Não Vendidos</option>
+            <option>Lotes Vendidos</option>
+            <option>Showroom</option>
+          </select>
+        </div>
+      </div>
+      <div class="preview-wrap">
+        <table class="preview-table">
+          <thead>
+            <tr>
+              <th>Condomínio</th>
+              <th>Loteador</th>
+              <th>Dono do Terreno</th>
+              <th>Lote / Quadra</th>
+              <th>Metragem</th>
+              <th>Terreno</th>
+              <th>Saldo Devedor</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Botanic Residence</td><td>Concretiza Urb.</td><td>Roberto Mendes</td><td>LT 1 / QD 15</td><td>401,92 m²</td><td><span class="tbadge tb-pendente">Pendente</span></td><td>R$ 345.000,00</td></tr>
+            <tr><td>LeVert Residence</td><td>Concretiza Urb.</td><td>Patrícia Alves</td><td>LT 8 / QD 05</td><td>405,00 m²</td><td><span class="tbadge tb-quitado">Quitado</span></td><td>—</td></tr>
+            <tr><td>Quinta do Lago IV</td><td>Concretiza Urb.</td><td>Marcos Teixeira</td><td>LT 10 / QD 8</td><td>300,00 m²</td><td><span class="tbadge tb-pendente">Pendente</span></td><td>R$ 198.500,00</td></tr>
+            <tr><td>Quinta do Lago II</td><td>Concretiza Urb.</td><td>Fernanda Lima</td><td>LT 15 / QD 3</td><td>300,00 m²</td><td><span class="tbadge tb-quitado">Quitado</span></td><td>—</td></tr>
+            <tr><td>Botanic Residence</td><td>Concretiza Urb.</td><td>Carlos Rocha</td><td>LT 6 / QD 9</td><td>405,00 m²</td><td><span class="tbadge tb-pendente">Pendente</span></td><td>R$ 520.000,00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:11px;color:var(--tt);margin-top:8px">Todos os cards serão criados com status de próximas atividades em branco — você adiciona as atividades após a importação.</p>
+    </div>
+
+    <div class="m-ftr">
+      <button class="btn-sec" id="imp-btn-vol" onclick="impVoltar()" style="display:none">Voltar</button>
+      <button class="btn-sec" onclick="fecharModal('ov-import')" id="imp-btn-canc">Cancelar</button>
+      <button class="btn-pri" id="imp-btn-prox" onclick="impProximo()">Próximo →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<script>
+// ─────────────────────────────────────────────
+// DADOS MOCK
+// ─────────────────────────────────────────────
+const FASES = ['Leads','1º Contato','Qualificados','R1 Realizada','Proposta','Assinatura Contrato'];
+
+const DB = {
+  'nao-vendidos': [
+    {id:1,  c:'Reserva das Araras',   lot:'Almeida Empreend.',   dono:'José Almeida',     cpf:'032.881.774-09', rg:'12.345.678-9', lote:'1',  quad:'15', met:'401,92 m²', fr:'15,00 m', fu:'26,80 m', q:false, vter:'R$ 3.200.000,00', sal:'R$ 1.200.000,00', par:'48x de R$ 25.000,00', jur:'0,80% a.m.', em:'jose.almeida@email.com',       tel:'(62) 9 8810-3321', obs:'Proprietário prefere contato por WhatsApp. Terreno em inventário — verificar situação jurídica.', fase:'Leads',              bol:['ambar','cinza','cinza'],   ativ:[{d:'Ligar para José Almeida — apresentação inicial',p:'Hoje',s:'atencao'},{d:'Enviar material do condomínio por e-mail',p:'Em 3 dias',s:'ok'}],                                   hist:[{u:'DS',t:'Card criado no funil',h:'há 2 dias'},{u:'DS',t:'Movido para fase: Leads',h:'há 2 dias'}]},
+    {id:2,  c:'Vila Verde Park',      lot:'Verde Invest.',        dono:'Carlos Mendes',    cpf:'871.234.500-11', rg:'33.456.789-0', lote:'18', quad:'6',  met:'360,00 m²', fr:'12,00 m', fu:'30,00 m', q:true,  vter:'R$ 5.800.000,00', sal:'—',               par:'—',                   jur:'—',          em:'carlos.mendes@vilverde.com',   tel:'(11) 9 9823-4567', obs:'', fase:'Leads',              bol:['vermelho','ambar','cinza'], ativ:[{d:'Reunião de alinhamento pendente',p:'Ontem',s:'atrasado'},{d:'Solicitar documentação do terreno',p:'Amanhã',s:'atencao'}],                                              hist:[{u:'DS',t:'Card criado',h:'há 5 dias'},{u:'DS',t:'Tentativa de contato sem resposta',h:'há 3 dias'}]},
+    {id:3,  c:'Recanto Primavera',    lot:'Primavera Dev.',       dono:'Ana Souza',        cpf:'543.210.987-65', rg:'44.567.890-1', lote:'11', quad:'3',  met:'405,00 m²', fr:'15,00 m', fu:'27,00 m', q:false, vter:'R$ 1.900.000,00', sal:'R$ 430.000,00',   par:'24x de R$ 18.000,00', jur:'1,10% a.m.', em:'ana@primavera.dev.br',         tel:'(31) 9 7712-0099', obs:'', fase:'Leads',              bol:['cinza','cinza','cinza'],   ativ:[{d:'Nenhuma atividade agendada ainda',p:'',s:'cinza'}],                                                                                                                      hist:[{u:'DS',t:'Card criado',h:'há 1 dia'}]},
+    {id:4,  c:'Quintas do Sol',       lot:'Sol Empreend.',        dono:'Roberto Silva',    cpf:'123.456.789-00', rg:'55.678.901-2', lote:'24', quad:'9',  met:'300,00 m²', fr:'10,00 m', fu:'30,00 m', q:true,  vter:'R$ 4.100.000,00', sal:'—',               par:'—',                   jur:'—',          em:'roberto@quintassol.com.br',    tel:'(47) 9 8891-7788', obs:'', fase:'1º Contato',         bol:['verde','verde','cinza'],   ativ:[{d:'Apresentação do plano comercial',p:'Em 5 dias',s:'ok'},{d:'Call com equipe técnica',p:'Em 7 dias',s:'ok'}],                                                            hist:[{u:'DS',t:'Card criado',h:'há 8 dias'},{u:'DS',t:'Movido: Leads → 1º Contato',h:'há 5 dias'},{u:'DS',t:'Primeiro contato realizado com sucesso',h:'há 5 dias'}]},
+    {id:5,  c:'Parque das Acácias',   lot:'Acácias Part.',        dono:'Mariana Lima',     cpf:'987.654.321-00', rg:'66.789.012-3', lote:'5',  quad:'5',  met:'420,00 m²', fr:'14,00 m', fu:'30,00 m', q:false, vter:'R$ 6.500.000,00', sal:'R$ 980.000,00',   par:'60x de R$ 16.500,00', jur:'0,75% a.m.', em:'mariana.lima@acacias.com',     tel:'(85) 9 8824-1122', obs:'Lote de esquina. Verificar recuo lateral.', fase:'1º Contato',         bol:['ambar','cinza','cinza'],   ativ:[{d:'Enviar proposta preliminar de parceria',p:'Amanhã',s:'atencao'}],                                                                                                       hist:[{u:'DS',t:'Card criado',h:'há 6 dias'},{u:'DS',t:'Movido: Leads → 1º Contato',h:'há 3 dias'}]},
+    {id:6,  c:'Parque dos Ipês',      lot:'Ipês Develop.',        dono:'Fernando Costa',   cpf:'321.654.987-11', rg:'77.890.123-4', lote:'8',  quad:'11', met:'405,00 m²', fr:'15,00 m', fu:'27,00 m', q:true,  vter:'R$ 3.750.000,00', sal:'—',               par:'—',                   jur:'—',          em:'f.costa@ipesdev.com.br',       tel:'(41) 9 9912-3344', obs:'', fase:'Qualificados',       bol:['verde','ambar','cinza'],   ativ:[{d:'Análise do plano de massas com engenharia',p:'Em 4 dias',s:'ok'},{d:'Reunião de due diligence técnica',p:'Em 2 dias',s:'atencao'}],                                     hist:[{u:'DS',t:'Card criado',h:'há 15 dias'},{u:'DS',t:'Movido: Leads → 1º Contato',h:'há 12 dias'},{u:'DS',t:'Movido: 1º Contato → Qualificados',h:'há 8 dias'}]},
+    {id:7,  c:'Jardins do Vale',      lot:'Vale Construt.',       dono:'Patrícia Rocha',   cpf:'654.987.321-22', rg:'88.901.234-5', lote:'13', quad:'6',  met:'380,00 m²', fr:'13,00 m', fu:'29,20 m', q:true,  vter:'R$ 2.900.000,00', sal:'—',               par:'—',                   jur:'—',          em:'patricia@jardinsdo.vale.com',  tel:'(19) 9 9834-5566', obs:'', fase:'Qualificados',       bol:['verde','verde','verde'],   ativ:[{d:'Reunião de validação do plano de negócios',p:'Em 6 dias',s:'ok'},{d:'Revisão jurídica dos documentos',p:'Em 8 dias',s:'ok'},{d:'Análise financeira detalhada',p:'Em 10 dias',s:'ok'}], hist:[{u:'DS',t:'Card criado',h:'há 20 dias'},{u:'DS',t:'Movido para Qualificados',h:'há 10 dias'},{u:'DS',t:'Documentação recebida e conferida',h:'há 7 dias'}]},
+    {id:8,  c:'Residencial Cerrado',  lot:'Cerrado Part.',        dono:'Marcos Oliveira',  cpf:'111.222.333-44', rg:'99.012.345-6', lote:'10', quad:'8',  met:'500,00 m²', fr:'20,00 m', fu:'25,00 m', q:false, vter:'R$ 8.200.000,00', sal:'R$ 2.100.000,00', par:'72x de R$ 29.200,00', jur:'0,95% a.m.', em:'marcos@cerradopart.com.br',    tel:'(61) 9 8845-6677', obs:'Terreno em área de APP — verificar viabilidade com ambiental.', fase:'R1 Realizada',       bol:['vermelho','vermelho','cinza'], ativ:[{d:'Enviar relatório R1 para aprovação interna',p:'3 dias atrás',s:'atrasado'},{d:'Agendar R2 com Marcos Oliveira',p:'Ontem',s:'atrasado'}],                          hist:[{u:'DS',t:'Card criado',h:'há 35 dias'},{u:'DS',t:'Reunião R1 realizada',h:'há 10 dias'},{u:'DS',t:'Pendência: relatório R1 não enviado',h:'há 3 dias'}]},
+    {id:9,  c:'Quintas do Sol',       lot:'Sol Empreend.',        dono:'Roberto Silva',    cpf:'123.456.789-00', rg:'55.678.901-2', lote:'3',  quad:'7',  met:'300,00 m²', fr:'10,00 m', fu:'30,00 m', q:true,  vter:'R$ 4.100.000,00', sal:'—',               par:'—',                   jur:'—',          em:'roberto@quintassol.com.br',    tel:'(47) 9 8891-7788', obs:'', fase:'Proposta',           bol:['verde','verde','verde'],   ativ:[{d:'Apresentar proposta definitiva',p:'Em 3 dias',s:'ok'},{d:'Revisão jurídica da proposta',p:'Em 5 dias',s:'ok'},{d:'Alinhamento com time financeiro',p:'Em 7 dias',s:'ok'}], hist:[{u:'DS',t:'Card criado',h:'há 45 dias'},{u:'DS',t:'Movido para Proposta',h:'há 15 dias'},{u:'DS',t:'Proposta ajustada conforme feedback',h:'há 8 dias'}]},
+    {id:10, c:'Recanto das Flores',   lot:'Flores Invest.',       dono:'Lucas Ferreira',   cpf:'555.666.777-88', rg:'10.234.567-8', lote:'16', quad:'6',  met:'350,00 m²', fr:'12,50 m', fu:'28,00 m', q:true,  vter:'R$ 2.300.000,00', sal:'—',               par:'—',                   jur:'—',          em:'lucas.ferreira@flores.inv.br', tel:'(21) 9 9856-7788', obs:'', fase:'Proposta',           bol:['ambar','cinza','cinza'],   ativ:[{d:'Aguardando retorno sobre proposta enviada',p:'Amanhã',s:'atencao'}],                                                                                                    hist:[{u:'DS',t:'Card criado',h:'há 30 dias'},{u:'DS',t:'Movido para Proposta',h:'há 7 dias'}]},
+    {id:11, c:'Bosque Imperial',      lot:'Imperial Develop.',    dono:'Adriana Santos',   cpf:'999.888.777-66', rg:'20.345.678-9', lote:'19', quad:'5',  met:'405,00 m²', fr:'15,00 m', fu:'27,00 m', q:true,  vter:'R$ 5.100.000,00', sal:'—',               par:'—',                   jur:'—',          em:'adriana@bosqueimperial.com.br',tel:'(51) 9 9878-9900', obs:'Documentação completa. Pronto para assinatura.', fase:'Assinatura Contrato',bol:['verde','verde','cinza'],   ativ:[{d:'Revisão final do contrato pela equipe jurídica',p:'Em 2 dias',s:'ok'},{d:'Assinatura prevista para o dia 09/10',p:'Em 4 dias',s:'ok'}],                             hist:[{u:'DS',t:'Card criado',h:'há 60 dias'},{u:'DS',t:'Movido para Assinatura',h:'há 5 dias'},{u:'DS',t:'Contrato enviado para assinatura digital',h:'há 3 dias'}]},
+  ],
+  'vendidos': [
+    {id:12, c:'Recanto Primavera',    lot:'Primavera Dev.',       dono:'Ana Souza',        cpf:'543.210.987-65', rg:'44.567.890-1', lote:'11', quad:'3',  met:'405,00 m²', fr:'15,00 m', fu:'27,00 m', q:false, vter:'R$ 1.900.000,00', sal:'R$ 430.000,00',   par:'24x de R$ 18.000,00', jur:'1,10% a.m.', em:'ana@primavera.dev.br',         tel:'(31) 9 7712-0099', obs:'', fase:'Leads',              bol:['verde','cinza','cinza'],   ativ:[{d:'Apresentação inicial do produto',p:'Em 5 dias',s:'ok'}],                                                                                                               hist:[{u:'DS',t:'Card criado',h:'há 3 dias'}]},
+    {id:13, c:'Alto da Boa Vista',    lot:'Boa Vista Part.',      dono:'Eduardo Lima',     cpf:'246.810.121-41', rg:'21.456.789-0', lote:'23', quad:'3',  met:'320,00 m²', fr:'10,00 m', fu:'32,00 m', q:true,  vter:'R$ 7.200.000,00', sal:'—',               par:'—',                   jur:'—',          em:'eduardo@altobv.com',           tel:'(11) 9 9900-1122', obs:'', fase:'Qualificados',       bol:['verde','verde','cinza'],   ativ:[{d:'Reunião de análise de viabilidade',p:'Em 3 dias',s:'ok'},{d:'Revisão de documentação',p:'Em 6 dias',s:'ok'}],                                                          hist:[{u:'DS',t:'Card criado',h:'há 10 dias'},{u:'DS',t:'Movido para Qualificados',h:'há 5 dias'}]},
+    {id:14, c:'Colinas do Cerrado',   lot:'Cerrado Dev.',         dono:'Marina Castro',    cpf:'135.791.113-15', rg:'31.567.890-1', lote:'17', quad:'6',  met:'405,00 m²', fr:'15,00 m', fu:'27,00 m', q:false, vter:'R$ 3.400.000,00', sal:'R$ 760.000,00',   par:'36x de R$ 21.000,00', jur:'0,85% a.m.', em:'marina@colinasdo.cerrado.com', tel:'(61) 9 9834-5588', obs:'', fase:'Proposta',           bol:['ambar','ambar','cinza'],   ativ:[{d:'Follow-up da proposta enviada',p:'Amanhã',s:'atencao'},{d:'Reunião de ajustes',p:'Em 2 dias',s:'atencao'}],                                                          hist:[{u:'DS',t:'Card criado',h:'há 25 dias'},{u:'DS',t:'Proposta enviada',h:'há 7 dias'}]},
+    {id:15, c:'Reserva das Araras',   lot:'Almeida Empreend.',    dono:'José Almeida',     cpf:'032.881.774-09', rg:'12.345.678-9', lote:'1',  quad:'15', met:'401,92 m²', fr:'15,00 m', fu:'26,80 m', q:false, vter:'R$ 3.200.000,00', sal:'R$ 1.200.000,00', par:'48x de R$ 25.000,00', jur:'0,80% a.m.', em:'jose.almeida@email.com',       tel:'(62) 9 8810-3321', obs:'', fase:'Assinatura Contrato',bol:['verde','verde','verde'],   ativ:[{d:'Assinatura do contrato',p:'Em 3 dias',s:'ok'},{d:'Análise final jurídica',p:'Em 1 dia',s:'ok'},{d:'Onboarding do cliente',p:'Em 10 dias',s:'ok'}],               hist:[{u:'DS',t:'Card criado',h:'há 55 dias'},{u:'DS',t:'Movido para Assinatura',h:'há 3 dias'}]},
+    {id:16, c:'Vale das Palmeiras',   lot:'Palmeiras Invest.',    dono:'Rodrigo Dias',     cpf:'789.012.345-67', rg:'41.678.901-2', lote:'4',  quad:'8',  met:'380,00 m²', fr:'13,00 m', fu:'29,20 m', q:true,  vter:'R$ 2.600.000,00', sal:'—',               par:'—',                   jur:'—',          em:'rdias@valepalmeiras.com',       tel:'(81) 9 8867-4433', obs:'', fase:'1º Contato',         bol:['verde','cinza','cinza'],   ativ:[{d:'Primeiro contato agendado',p:'Em 4 dias',s:'ok'}],                                                                                                                     hist:[{u:'DS',t:'Card criado',h:'há 4 dias'}]},
+    {id:17, c:'Jardins do Vale',      lot:'Vale Construt.',       dono:'Patrícia Rocha',   cpf:'654.987.321-22', rg:'88.901.234-5', lote:'13', quad:'6',  met:'380,00 m²', fr:'13,00 m', fu:'29,20 m', q:true,  vter:'R$ 2.900.000,00', sal:'—',               par:'—',                   jur:'—',          em:'patricia@jardinsdo.vale.com',  tel:'(19) 9 9834-5566', obs:'', fase:'R1 Realizada',       bol:['verde','ambar','cinza'],   ativ:[{d:'Preparar relatório R1',p:'Em 2 dias',s:'ok'},{d:'Enviar para aprovação interna',p:'Amanhã',s:'atencao'}],                                                             hist:[{u:'DS',t:'Card criado',h:'há 28 dias'},{u:'DS',t:'R1 realizada com sucesso',h:'há 5 dias'}]},
+  ],
+  'showroom': [
+    {id:18, c:'Casa Modelo Ipanema',  lot:'Ipanema Develop.',     dono:'Fabiana Torres',   cpf:'222.333.444-55', rg:'51.789.012-3', lote:'1',  quad:'1',  met:'450,00 m²', fr:'15,00 m', fu:'30,00 m', q:true,  vter:'R$ 4.800.000,00', sal:'—',               par:'—',                   jur:'—',          em:'fabiana@casaipanema.com',      tel:'(21) 9 9901-2233', obs:'Lote modelo — uso para visitas e eventos. Não negociar sem autorização.', fase:'Leads',              bol:['verde','cinza','cinza'],   ativ:[{d:'Agendamento de visita ao showroom',p:'Em 3 dias',s:'ok'}],                                                                                                             hist:[{u:'DS',t:'Card criado',h:'há 2 dias'}]},
+    {id:19, c:'Vitrine Alphaville',   lot:'Alpha Construt.',      dono:'Sandro Nunes',     cpf:'444.555.666-77', rg:'61.890.123-4', lote:'6',  quad:'11', met:'405,00 m²', fr:'15,00 m', fu:'27,00 m', q:true,  vter:'R$ 9.200.000,00', sal:'—',               par:'—',                   jur:'—',          em:'sandro@alphaville.com',        tel:'(11) 9 9811-3344', obs:'', fase:'Qualificados',       bol:['verde','verde','ambar'],   ativ:[{d:'Visita técnica ao showroom',p:'Em 2 dias',s:'ok'},{d:'Apresentação de materiais',p:'Em 4 dias',s:'ok'},{d:'Definir cronograma de visitas',p:'Amanhã',s:'atencao'}], hist:[{u:'DS',t:'Card criado',h:'há 12 dias'},{u:'DS',t:'Movido para Qualificados',h:'há 6 dias'}]},
+    {id:20, c:'Espaço Vila Nova',     lot:'Vila Nova Dev.',       dono:'Cintia Barros',    cpf:'666.777.888-99', rg:'71.901.234-5', lote:'4',  quad:'7',  met:'360,00 m²', fr:'12,00 m', fu:'30,00 m', q:false, vter:'R$ 1.600.000,00', sal:'R$ 350.000,00',   par:'18x de R$ 19.500,00', jur:'1,00% a.m.', em:'cintia@vilanovaloteadora.com', tel:'(41) 9 9845-6611', obs:'Showroom provisório — contrato de comodato vigente até dez/2026.', fase:'Proposta',           bol:['ambar','ambar','cinza'],   ativ:[{d:'Enviar proposta showroom',p:'Hoje',s:'atencao'},{d:'Follow-up negociação',p:'Em 3 dias',s:'atencao'}],                                                               hist:[{u:'DS',t:'Card criado',h:'há 18 dias'},{u:'DS',t:'Proposta em elaboração',h:'há 5 dias'}]},
+    {id:21, c:'Casa Moní Flagship',   lot:'Monitech Part.',       dono:'Grupo Monitech',   cpf:'—',              rg:'—',            lote:'—',  quad:'—',  met:'600,00 m²', fr:'20,00 m', fu:'30,00 m', q:true,  vter:'R$ 12.000.000,00',sal:'—',               par:'—',                   jur:'—',          em:'operacoes@monitech.com.br',    tel:'(11) 3 3300-0000', obs:'Flagship Moní — referência nacional. Gerido diretamente pela diretoria.', fase:'Assinatura Contrato',bol:['verde','verde','verde'],   ativ:[{d:'Revisão do contrato de parceria',p:'Em 1 dia',s:'ok'},{d:'Assinatura bilateral prevista',p:'Em 4 dias',s:'ok'},{d:'Configuração do espaço',p:'Em 15 dias',s:'ok'}], hist:[{u:'DS',t:'Card criado',h:'há 40 dias'},{u:'DS',t:'Proposta aceita',h:'há 12 dias'},{u:'DS',t:'Encaminhando para assinatura',h:'há 3 dias'}]},
+  ]
+};
+
+// ─────────────────────────────────────────────
+// ESTADO
+// ─────────────────────────────────────────────
+let sf = 'nao-vendidos';
+let filtro = '';
+let cardAtual = null;
+let acaoPendente = null;
+let histScreen = ['sc-hub'];
+
+// ─────────────────────────────────────────────
+// NAVEGAÇÃO
+// ─────────────────────────────────────────────
+function showScreen(id, titulo, bc) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  histScreen.push(id);
+
+  const t = document.getElementById('hdr-title');
+  const b = document.getElementById('hdr-bc');
+  const bk = document.getElementById('btn-back');
+
+  t.textContent = titulo;
+  b.textContent = bc ? bc + ' ›' : '';
+  bk.style.display = id === 'sc-hub' ? 'none' : 'flex';
+
+  if(id === 'sc-kanban') renderBoard();
+}
+
+function voltar() {
+  histScreen.pop();
+  const prev = histScreen[histScreen.length-1] || 'sc-hub';
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(prev).classList.add('active');
+
+  const t = document.getElementById('hdr-title');
+  const b = document.getElementById('hdr-bc');
+  const bk = document.getElementById('btn-back');
+
+  if(prev === 'sc-hub') {
+    t.textContent = 'HUB-FUNIS · IMOB';
+    b.textContent = '';
+    bk.style.display = 'none';
+  }
+}
+
+// ─────────────────────────────────────────────
+// SUB-FUNIL TABS
+// ─────────────────────────────────────────────
+function switchSf(funil, el) {
+  sf = funil;
+  filtro = '';
+  document.getElementById('sel-cond').value = '';
+  document.getElementById('tag-filtro').style.display = 'none';
+  document.querySelectorAll('.sf-tab').forEach(t => t.classList.remove('act'));
+  el.classList.add('act');
+  renderBoard();
+}
+
+// ─────────────────────────────────────────────
+// FILTRO
+// ─────────────────────────────────────────────
+function filtrarCond(v) {
+  filtro = v;
+  const tag = document.getElementById('tag-filtro');
+  if(v) {
+    tag.style.display = 'flex';
+    document.getElementById('tag-filtro-txt').textContent = v;
+  } else {
+    tag.style.display = 'none';
+  }
+  renderBoard();
+}
+
+function limparFiltro() {
+  filtro = '';
+  document.getElementById('sel-cond').value = '';
+  document.getElementById('tag-filtro').style.display = 'none';
+  renderBoard();
+}
+
+// ─────────────────────────────────────────────
+// RENDER BOARD
+// ─────────────────────────────────────────────
+function renderBoard() {
+  const board = document.getElementById('kb-board');
+  const lista = DB[sf] || [];
+  const exibir = filtro ? lista.filter(c => c.c === filtro) : lista;
+  document.getElementById('total-label').textContent = exibir.length + ' card' + (exibir.length !== 1 ? 's' : '');
+
+  board.innerHTML = '';
+  FASES.forEach(fase => {
+    const cards = exibir.filter(c => c.fase === fase);
+    const col = document.createElement('div');
+    col.className = 'kb-col';
+    col.innerHTML = `
+      <div class="kb-col-hdr">
+        <span class="kb-col-nome">${fase}</span>
+        <span class="kb-col-cnt">${cards.length}</span>
+      </div>
+      <div class="kb-cards">${cards.map(renderCard).join('')}</div>
+      <div class="kb-add-inline" onclick="abrirAdd('${fase}')">+ adicionar card</div>
+    `;
+    board.appendChild(col);
+  });
+}
+
+function renderCard(card) {
+  const corDot = {verde:'#22c55e',ambar:'#f59e0b',vermelho:'#ef4444',cinza:'#e2e8f0'};
+  const titulosDot = {verde:'Em dia',ambar:'Vencendo em breve',vermelho:'Atrasada!',cinza:'Sem atividade'};
+  const bols = card.bol.map(b => `<div class="bol ${b}" title="${titulosDot[b] || ''}"></div>`).join('');
+  const tClasse = card.q ? 'tb-quitado' : 'tb-pendente';
+  const tLabel  = card.q ? 'Quitado'   : 'Pendente';
+  return `
+    <div class="kcard" onclick="abrirDetalhe(${card.id})">
+      <div class="kcard-top">
+        <span class="kcard-cond">${card.c}</span>
+        <button class="kcard-menu" onclick="toggleDd(event,${card.id})">⋮</button>
+        <div class="card-dd" id="dd-${card.id}">
+          <div class="dd-item c-ganho"  onclick="ddAcao(event,${card.id},'ganho')">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+            Marcar como Ganho
+          </div>
+          <div class="dd-item c-perda"  onclick="ddAcao(event,${card.id},'perda')">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            Marcar como Perda
+          </div>
+          <div class="dd-sep"></div>
+          <div class="dd-item" onclick="event.stopPropagation();fecharDds();abrirDetalhe(${card.id})">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
+            Ver Detalhes
+          </div>
+          <div class="dd-item" onclick="ddMoverFase(event,${card.id})">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+            Mover de Fase
+          </div>
+          <div class="dd-sep"></div>
+          <div class="dd-item" style="color:var(--ts)" onclick="ddAcao(event,${card.id},'arquivar')">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            Arquivar
+          </div>
+        </div>
+      </div>
+      <div class="kcard-dono">${card.dono}</div>
+      <div class="kcard-footer">
+        <span class="tbadge ${tClasse}">${tLabel}</span>
+        <div class="bolinhas">${bols}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────
+// DROPDOWNS DOS CARDS
+// ─────────────────────────────────────────────
+function toggleDd(e, id) {
+  e.stopPropagation();
+  const dd = document.getElementById('dd-'+id);
+  const aberto = dd.classList.contains('open');
+  fecharDds();
+  if(!aberto) dd.classList.add('open');
+}
+
+function fecharDds() {
+  document.querySelectorAll('.card-dd').forEach(d => d.classList.remove('open'));
+}
+
+function ddAcao(e, id, acao) {
+  e.stopPropagation();
+  fecharDds();
+  cardAtual = id;
+  abrirConfirm(acao);
+}
+
+function ddMoverFase(e, id) {
+  e.stopPropagation();
+  fecharDds();
+  abrirDetalhe(id);
+  setTimeout(() => document.getElementById('fase-dd').classList.add('open'), 250);
+}
+
+document.addEventListener('click', () => {
+  fecharDds();
+  const fdd = document.getElementById('fase-dd');
+  if(fdd) fdd.classList.remove('open');
+});
+
+// ─────────────────────────────────────────────
+// DETALHE DO CARD
+// ─────────────────────────────────────────────
+function abrirDetalhe(id) {
+  const todos = [...DB['nao-vendidos'],...DB['vendidos'],...DB['showroom']];
+  const card = todos.find(c => c.id === id);
+  if(!card) return;
+  cardAtual = id;
+
+  // Preenche cabeçalho
+  document.getElementById('det-cond').textContent = card.c;
+  document.getElementById('d-cond2').textContent = card.c;
+  document.getElementById('det-fase-txt').textContent = card.fase;
+  document.getElementById('d-lot').textContent = card.lot;
+  document.getElementById('d-dono').textContent = card.dono;
+  document.getElementById('d-cpf').textContent = card.cpf || '—';
+  document.getElementById('d-rg').textContent  = card.rg  || '—';
+  document.getElementById('d-lq').textContent  = (card.lote && card.lote !== '—') ? 'LT ' + card.lote + ' / QD ' + card.quad : '—';
+  document.getElementById('d-met').textContent = card.met || '—';
+  document.getElementById('d-fr').textContent  = card.fr  || '—';
+  document.getElementById('d-fu').textContent  = card.fu  || '—';
+  document.getElementById('d-vter').textContent = card.vter || '—';
+  document.getElementById('d-sal').textContent = card.sal;
+  document.getElementById('d-par').textContent = card.par;
+  document.getElementById('d-jur').textContent = card.jur;
+  document.getElementById('d-email').textContent = card.em;
+  document.getElementById('d-tel').textContent = card.tel;
+
+  // Observação
+  const obsSec = document.getElementById('d-obs-sec');
+  const obsEl  = document.getElementById('d-obs');
+  if(card.obs && card.obs.length > 0) {
+    obsEl.textContent = card.obs;
+    obsSec.style.display = 'block';
+  } else {
+    obsSec.style.display = 'none';
+  }
+
+  // Sub-funil badge
+  const sfNomes = {'nao-vendidos':'Lotes Não Vendidos','vendidos':'Lotes Vendidos','showroom':'Showroom'};
+  document.getElementById('det-sf-pill').textContent = sfNomes[sf];
+
+  // Terreno
+  const terEl = document.getElementById('d-ter');
+  terEl.innerHTML = card.q
+    ? '<span class="tbadge tb-quitado">Quitado</span>'
+    : '<span class="tbadge tb-pendente">Pendente — com saldo devedor</span>';
+
+  // Atividades
+  const corDot = {ok:'#22c55e',atencao:'#f59e0b',atrasado:'#ef4444',cinza:'#e2e8f0'};
+  const atEl = document.getElementById('d-atividades');
+  const atFiltradas = card.ativ.filter(a => a.d && a.d.length > 0);
+  atEl.innerHTML = atFiltradas.length
+    ? atFiltradas.map(a => `
+        <div class="ativ-item">
+          <div class="ativ-dot" style="background:${corDot[a.s]||'#e2e8f0'}"></div>
+          <div class="ativ-body">
+            <div class="ativ-desc">${a.d}</div>
+            ${a.p ? `<div class="ativ-prazo ${a.s}">Prazo: ${a.p}</div>` : ''}
+          </div>
+        </div>
+      `).join('')
+    : '<p style="font-size:12px;color:var(--tt);padding:8px 0">Nenhuma atividade agendada.</p>';
+
+  // Histórico
+  const hEl = document.getElementById('d-historico');
+  hEl.innerHTML = card.hist.map(h => `
+    <div class="hist-item">
+      <div class="hist-av">${h.u}</div>
+      <div class="hist-body">
+        <div class="hist-txt">${h.t}</div>
+        <div class="hist-time">${h.h}</div>
+      </div>
+    </div>
+  `).join('');
+
+  // Mover fase — preenche dropdown
+  const faseDd = document.getElementById('fase-dd');
+  faseDd.innerHTML = FASES.map((f, i) => `
+    <div class="fase-dd-item ${f === card.fase ? 'atual' : ''}" onclick="moverFase('${f}')">
+      ${f} <span class="fase-num">${i+1}${f === card.fase ? ' — atual' : ''}</span>
+    </div>
+  `).join('');
+
+  abrirModal('ov-det');
+}
+
+// ─────────────────────────────────────────────
+// MOVER FASE
+// ─────────────────────────────────────────────
+function toggleFaseDd() {
+  const dd = document.getElementById('fase-dd');
+  dd.classList.toggle('open');
+}
+
+function moverFase(fase) {
+  document.getElementById('fase-dd').classList.remove('open');
+  document.getElementById('det-fase-txt').textContent = fase;
+  // atualiza no mock
+  const todos = [...DB['nao-vendidos'],...DB['vendidos'],...DB['showroom']];
+  const card = todos.find(c => c.id === cardAtual);
+  if(card) card.fase = fase;
+  showToast('Card movido para: ' + fase);
+}
+
+// ─────────────────────────────────────────────
+// MODAL ADD CARD
+// ─────────────────────────────────────────────
+function abrirAdd(fase) {
+  abrirModal('ov-add');
+  if(fase) {
+    const sel = document.getElementById('add-fase');
+    if(sel) sel.value = fase;
+  }
+}
+
+function salvarCard() {
+  fecharModal('ov-add');
+  showToast('Card adicionado com sucesso!');
+}
+
+// ─────────────────────────────────────────────
+// TOGGLE QUITADO
+// ─────────────────────────────────────────────
+function toggleQ() {
+  const tgl = document.getElementById('tgl-q');
+  const txt = document.getElementById('tgl-q-txt');
+  tgl.classList.toggle('on');
+  if(tgl.classList.contains('on')) {
+    txt.textContent = 'Sim — quitado';
+    txt.classList.add('on');
+  } else {
+    txt.textContent = 'Não';
+    txt.classList.remove('on');
+  }
+}
+
+// ─────────────────────────────────────────────
+// IMPORTAÇÃO EM MASSA
+// ─────────────────────────────────────────────
+let impPasso = 1;
+
+function abrirImport() {
+  impPasso = 1;
+  atualizarImport();
+  abrirModal('ov-import');
+}
+
+function atualizarImport() {
+  // Passos visíveis
+  document.getElementById('imp-p1').style.display = impPasso === 1 ? 'block' : 'none';
+  document.getElementById('imp-p2').style.display = impPasso === 2 ? 'block' : 'none';
+  document.getElementById('imp-p3').style.display = impPasso === 3 ? 'block' : 'none';
+
+  // Botão voltar
+  document.getElementById('imp-btn-vol').style.display = impPasso > 1 ? 'inline-flex' : 'none';
+
+  // Botão próximo/confirmar
+  const btnProx = document.getElementById('imp-btn-prox');
+  if(impPasso === 3) {
+    btnProx.textContent = 'Confirmar Importação';
+    btnProx.style.background = 'var(--ok)';
+  } else {
+    btnProx.textContent = 'Próximo →';
+    btnProx.style.background = '';
+  }
+
+  // Stepper visual
+  [1,2,3].forEach(n => {
+    const num = document.getElementById('sn-'+n);
+    const lbl = document.getElementById('sl-'+n);
+    num.className = 'step-num' + (n === impPasso ? ' act' : n < impPasso ? ' done' : '');
+    lbl.className = 'step-lbl' + (n === impPasso ? ' act' : n < impPasso ? ' done' : '');
+    if(n < impPasso) num.textContent = '✓';
+    else num.textContent = n;
+  });
+}
+
+function impProximo() {
+  if(impPasso === 3) {
+    fecharModal('ov-import');
+    showToast('5 cards importados com sucesso!');
+    return;
+  }
+  impPasso++;
+  atualizarImport();
+}
+
+function impVoltar() {
+  if(impPasso > 1) { impPasso--; atualizarImport(); }
+}
+
+function simularUpload() {
+  showToast('Arquivo carregado: lista_concretiza_out2026.xlsx');
+  setTimeout(() => { impPasso = 3; atualizarImport(); }, 700);
+}
+
+// ─────────────────────────────────────────────
+// MODAL CONFIRMAÇÃO
+// ─────────────────────────────────────────────
+function abrirConfirm(acao) {
+  acaoPendente = acao;
+  const cfg = {
+    ganho:   {ic:'✓', bg:'var(--ok-l)',   cor:'var(--ok)',  tit:'Marcar como Ganho',   desc:'O card será registrado como negócio ganho. Esta ação pode ser desfeita no histórico.',  btn:'Confirmar Ganho',   btnBg:'var(--ok)'},
+    perda:   {ic:'✕', bg:'var(--red-l)',  cor:'var(--red)', tit:'Marcar como Perda',   desc:'O card será registrado como negócio perdido. Esta ação pode ser desfeita no histórico.', btn:'Confirmar Perda',   btnBg:'var(--red)'},
+    arquivar:{ic:'⊘', bg:'#f1f5f9',       cor:'var(--tt)',  tit:'Arquivar Card',       desc:'O card será arquivado e ficará disponível no histórico para consulta futura.',            btn:'Arquivar',          btnBg:'var(--navy)'},
+  };
+  const c = cfg[acao];
+  const icon = document.getElementById('conf-icone');
+  icon.textContent = c.ic;
+  icon.style.background = c.bg;
+  icon.style.color = c.cor;
+  document.getElementById('conf-titulo').textContent = c.tit;
+  document.getElementById('conf-desc').textContent = c.desc;
+  const btn = document.getElementById('conf-btn');
+  btn.textContent = c.btn;
+  btn.style.background = c.btnBg;
+  abrirModal('ov-conf');
+}
+
+function confirmarAcao() {
+  fecharModal('ov-conf');
+  fecharModal('ov-det');
+  const msgs = {ganho:'Negócio marcado como Ganho!', perda:'Negócio marcado como Perda.', arquivar:'Card arquivado com sucesso.'};
+  showToast(msgs[acaoPendente] || 'Ação realizada!');
+  renderBoard();
+}
+
+// ─────────────────────────────────────────────
+// MODAIS HELPERS
+// ─────────────────────────────────────────────
+function abrirModal(id) {
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function fecharModal(id) {
+  document.getElementById(id).classList.remove('open');
+  const algumAberto = document.querySelector('.overlay.open');
+  if(!algumAberto) document.body.style.overflow = '';
+}
+
+document.querySelectorAll('.overlay').forEach(el => {
+  el.addEventListener('click', function(e) {
+    if(e.target === this) fecharModal(this.id);
+  });
+});
+
+// ─────────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+document.getElementById('cnt-nv').textContent = DB['nao-vendidos'].length;
+document.getElementById('cnt-v').textContent  = DB['vendidos'].length;
+document.getElementById('cnt-sr').textContent = DB['showroom'].length;
+</script>
+</body>
+</html>

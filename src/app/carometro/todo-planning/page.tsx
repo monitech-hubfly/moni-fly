@@ -10,11 +10,13 @@ import { ModalAgendamento } from '@/components/carometro/todo/ModalAgendamento';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import { useModalAgendamento } from '@/hooks/useModalAgendamento';
 import { MetasIndicadoresBloco } from '@/components/carometro/todo/MetasIndicadoresBloco';
+import { IndicadoresAreaBloco } from '@/components/carometro/todo/IndicadoresAreaBloco';
 
-function SecaoColapsavel({ titulo, children, defaultOpen = true }: {
+function SecaoColapsavel({ titulo, children, defaultOpen = true, badge }: {
   titulo: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  badge?: ReactNode;
 }) {
   const [aberta, setAberta] = useState(defaultOpen);
   return (
@@ -24,8 +26,11 @@ function SecaoColapsavel({ titulo, children, defaultOpen = true }: {
         className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-100 transition-colors"
         onClick={() => setAberta(v => !v)}
       >
-        <span className="text-sm font-semibold text-gray-700">{titulo}</span>
-        <span className="text-gray-400 text-xs">{aberta ? '▲' : '▼'}</span>
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{titulo}</span>
+          {badge}
+        </span>
+        <span className="text-gray-400 text-xs flex-shrink-0 ml-2">{aberta ? '▲' : '▼'}</span>
       </button>
       {aberta && (
         <div className="border-t border-gray-200">
@@ -41,6 +46,8 @@ function TodoPlanningPageContent() {
 
   // Chave de refresh: incrementar força re-fetch da Agenda
   const [agendaRefreshKey, setAgendaRefreshKey] = useState(0);
+  // Resumo de Indicadores da Área para exibir no título da seção
+  const [indsResumo, setIndsResumo] = useState({ meus: 0, total: 0 });
   const [origemInfo, setOrigemInfo] = useState<OrigemInfo | undefined>(undefined);
 
   const modal = useModalAgendamento(
@@ -110,7 +117,30 @@ function TodoPlanningPageContent() {
           />
         </SecaoColapsavel>
 
-        <MetasIndicadoresBloco />
+        <SecaoColapsavel titulo="Minhas Metas">
+          <MetasIndicadoresBloco />
+        </SecaoColapsavel>
+
+        <SecaoColapsavel
+          titulo="Indicadores da Área"
+          defaultOpen={true}
+          badge={
+            indsResumo.total > 0 ? (
+              <span className="flex items-center gap-1.5">
+                {indsResumo.meus > 0 && (
+                  <span className="text-[10px] bg-blue-100 text-blue-700 border border-blue-200 rounded-full px-1.5 py-0.5 font-medium">
+                    {indsResumo.meus} meu{indsResumo.meus !== 1 ? 's' : ''}
+                  </span>
+                )}
+                <span className="text-[10px] text-gray-400">
+                  {indsResumo.total} indicador{indsResumo.total !== 1 ? 'es' : ''}
+                </span>
+              </span>
+            ) : undefined
+          }
+        >
+          <IndicadoresAreaBloco onSummaryChange={(m, t) => setIndsResumo({ meus: m, total: t })} />
+        </SecaoColapsavel>
       </div>
 
       {effectiveProfileId && (

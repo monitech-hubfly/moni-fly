@@ -8207,6 +8207,12 @@ button.responsaveis-multi-option:focus-visible {
   background: rgba(184, 134, 11, 0.25);
   font-weight: 700;
 }
+.calendario-dia-selecionado {
+  background: var(--moni-navy-800, #0C2633) !important;
+  color: #fff !important;
+  font-weight: 700;
+  border-radius: 4px;
+}
 
 /* Página Indicadores — topbar */
 .indicadores-page-shell {

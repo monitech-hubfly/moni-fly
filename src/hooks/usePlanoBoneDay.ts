@@ -37,6 +37,8 @@ export type IndicadorBone = {
   tipo: string | null;
   meta_valor: number | null;
   meta_unidade: string | null;
+  /** Grupo de exibição no bloco "Indicadores da Área" (ex: "COMERCIAL") */
+  grupo: string | null;
   /** Valor do lançamento mais recente (string, ex: "7") */
   lancamento_valor: string | null;
   /** true = lançamento é do mês corrente (simulação); false = mês anterior (definitivo) */
@@ -79,23 +81,29 @@ function mesAtualStr(): string {
 
 const LS_MES_KEY = 'bone_day_ultimo_mes';
 
-function mesInicial(): string {
-  if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem(LS_MES_KEY);
-    if (saved && /^\d{4}-\d{2}$/.test(saved)) return saved;
-  }
-  return mesAtualStr();
-}
+export type MetaFilhaItem = {
+  id: string;
+  descricao: string;
+  objetivo_pai_id: string;
+  profile_id: string | null;
+  status: string;
+  data_inicio: string | null; // YYYY-MM-DD
+  data_fim: string | null;    // YYYY-MM-DD
+};
 
 export type UsePlanoBoneDayResult = {
   metas: MetaItem[];
   metasConcluidas: MetaItem[];
   metasNaoConcluidas: MetaItem[];
+  metasRelancadas: MetaItem[];
   indicadores: IndicadorBone[];
+  /** Mapa indicador_id → lista de profile_ids que assumiram (indicadores_responsaveis) */
+  indicadoresResponsaveis: Record<string, string[]>;
   responsaveis: ResponsavelItem[];
   comportamentos: ComportamentoItem[];
   agendaMacro: AgendaMacroItem[];
   objetivoResponsaveis: ObjetivoResponsavel[];
+  filhas: MetaFilhaItem[];
   mes: string;
   setMes: (m: string) => void;
   isLoading: boolean;
@@ -112,15 +120,25 @@ export function usePlanoBoneDay(
   const [metas,              setMetas]              = useState<MetaItem[]>([]);
   const [metasConcluidas,    setMetasConcluidas]    = useState<MetaItem[]>([]);
   const [metasNaoConcluidas, setMetasNaoConcluidas] = useState<MetaItem[]>([]);
+  const [metasRelancadas,    setMetasRelancadas]    = useState<MetaItem[]>([]);
   const [indicadores,        setIndicadores]        = useState<IndicadorBone[]>([]);
+  const [indicadoresResponsaveis, setIndicadoresResponsaveis] = useState<Record<string, string[]>>({});
   const [responsaveis,       setResponsaveis]       = useState<ResponsavelItem[]>([]);
   const [comportamentos,     setComportamentos]     = useState<ComportamentoItem[]>([]);
   const [agendaMacro,        setAgendaMacro]        = useState<AgendaMacroItem[]>([]);
   const [objetivoResponsaveis, setObjetivoResponsaveis] = useState<ObjetivoResponsavel[]>([]);
-  const [mes, setMesState] = useState(mesInicial);
+  const [filhas,             setFilhas]             = useState<MetaFilhaItem[]>([]);
+  // Inicia com o mês atual (server-safe) e atualiza de localStorage após hidratação
+  const [mes, setMesState] = useState(mesAtualStr);
   const setMes = useCallback((m: string) => {
     localStorage.setItem(LS_MES_KEY, m);
     setMesState(m);
+  }, []);
+
+  // Lê o mês salvo em localStorage apenas no cliente (evita hydration mismatch)
+  useEffect(() => {
+    const saved = localStorage.getItem(LS_MES_KEY);
+    if (saved && /^\d{4}-\d{2}$/.test(saved)) setMesState(saved);
   }, []);
   const [isLoading,          setIsLoading]          = useState(true);
   const [error,              setError]              = useState<string | null>(null);
@@ -136,6 +154,8 @@ export function usePlanoBoneDay(
       setComportamentos([]);
       setIndicadores([]);
       setObjetivoResponsaveis([]);
+      setFilhas([]);
+      setMetasRelancadas([]);
       setIsLoading(false);
       return;
     }
@@ -143,10 +163,11 @@ export function usePlanoBoneDay(
     setError(null);
     try {
       // 1. Queries paralelas: objetivos, indicadores, responsáveis
+      const SELECT_OBJETIVO = 'id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id, data_inicio, data_fim';
       const [objAtivRes, objConclRes, objNaoConclRes, indRes, respRes] = await Promise.all([
         supabase
           .from('objetivos')
-          .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
+          .select(SELECT_OBJETIVO)
           .eq('area_id', areaId)
           .in('status', ['ativo', 'arquivado'])
           .eq('mes', mes)
@@ -156,7 +177,7 @@ export function usePlanoBoneDay(
 
         supabase
           .from('objetivos')
-          .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
+          .select(SELECT_OBJETIVO)
           .eq('area_id', areaId)
           .eq('status', 'concluido')
           .eq('mes', mes)
@@ -166,7 +187,7 @@ export function usePlanoBoneDay(
 
         supabase
           .from('objetivos')
-          .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
+          .select(SELECT_OBJETIVO)
           .eq('area_id', areaId)
           .neq('status', 'concluido')
           .neq('status', 'arquivado')
@@ -179,8 +200,9 @@ export function usePlanoBoneDay(
 
         supabase
           .from('indicadores')
-          .select('id, nome, indicador_chave, semaforo_faixas, objetivo_id, profile_id, tipo, meta_valor, meta_unidade')
+          .select('id, nome, indicador_chave, semaforo_faixas, objetivo_id, profile_id, tipo, meta_valor, meta_unidade, grupo')
           .eq('area_id', areaId)
+          .neq('ativo', false)   // excluir arquivados
           .order('indicador_chave', { ascending: false })
           .order('nome', { ascending: true }),
 
@@ -201,6 +223,7 @@ export function usePlanoBoneDay(
         id: string; descricao: string; tipo: string | null; is_chave: boolean | null;
         meta_valor: string | null; meta_unidade: string | null; criado_em: string | null;
         status: string; ordem: number | null; profile_id: string | null;
+        data_inicio: string | null; data_fim: string | null;
       };
 
       // Enriquecer com full_name do profiles e deduplicar por profile_id
@@ -242,6 +265,8 @@ export function usePlanoBoneDay(
         profile_id: o.profile_id,
         responsavel_nome: o.profile_id ? (respMap.get(o.profile_id) ?? null) : null,
         comentariosCount: 0,
+        data_inicio: o.data_inicio ?? null,
+        data_fim: o.data_fim ?? null,
       });
 
       // Bloco 2: todas as metas ativas (sem filtro de prazo)
@@ -257,6 +282,18 @@ export function usePlanoBoneDay(
       setMetas(metasArr);
       setMetasConcluidas(metasConclArr);
       setMetasNaoConcluidas(metasNaoConclArr);
+
+      // Metas relançadas do mês atual (status='relancada')
+      const { data: relancadasData } = await supabase
+        .from('objetivos')
+        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id')
+        .eq('area_id', areaId)
+        .eq('status', 'relancada')
+        .eq('mes', mes)
+        .is('objetivo_pai_id', null)
+        .order('is_chave', { ascending: false })
+        .order('ordem', { ascending: true });
+      setMetasRelancadas(((relancadasData ?? []) as ObjRow[]).map(toMeta));
 
       const objIds = metasArr.map(m => m.id);
       if (objIds.length > 0) {
@@ -325,7 +362,7 @@ export function usePlanoBoneDay(
         }
       }
 
-      setIndicadores(((indRes.data ?? []) as IndRow[]).map(i => {
+      const indsArr = ((indRes.data ?? []) as IndRow[]).map(i => {
         const lanc = lancMap.get(i.id);
         const isMensal = KANBAN_INDICADORES_MENSAIS_IDS.has(i.id);
         const isSimulacao = isMensal && lanc
@@ -335,10 +372,30 @@ export function usePlanoBoneDay(
           id: i.id, nome: i.nome, indicador_chave: Boolean(i.indicador_chave),
           semaforo_faixas: i.semaforo_faixas, objetivo_id: i.objetivo_id,
           profile_id: i.profile_id, tipo: i.tipo, meta_valor: i.meta_valor, meta_unidade: i.meta_unidade,
+          grupo: (i as { grupo?: string | null }).grupo ?? null,
           lancamento_valor: lanc?.valor ?? null,
           lancamento_is_simulacao: isSimulacao,
         };
-      }));
+      });
+      setIndicadores(indsArr);
+
+      // Busca responsáveis da pivot indicadores_responsaveis (para indicadores da área, sem meta)
+      const indAreaIds = indsArr.filter(i => !i.objetivo_id).map(i => i.id);
+      if (indAreaIds.length > 0) {
+        const { data: indRespData } = await supabase
+          .from('indicadores_responsaveis')
+          .select('indicador_id, profile_id')
+          .in('indicador_id', indAreaIds);
+        type IndRespRow = { indicador_id: string; profile_id: string };
+        const respMap: Record<string, string[]> = {};
+        for (const r of ((indRespData ?? []) as IndRespRow[])) {
+          if (!respMap[r.indicador_id]) respMap[r.indicador_id] = [];
+          respMap[r.indicador_id].push(r.profile_id);
+        }
+        setIndicadoresResponsaveis(respMap);
+      } else {
+        setIndicadoresResponsaveis({});
+      }
 
       // 2. Queries sequenciais usando dados já buscados
       const metaIds         = metasArr.map(m => m.id);
@@ -396,6 +453,20 @@ export function usePlanoBoneDay(
         ganttArr.forEach(g => { g.tarefa_id = g.acao_id ? (acoTarefaMap.get(g.acao_id) ?? null) : null; });
       }
       setAgendaMacro(ganttArr);
+
+      // ── Filhas (metas com objetivo_pai_id) da área no mês ──────────────────
+      const { data: filhasData } = await supabase
+        .from('objetivos')
+        .select('id, descricao, objetivo_pai_id, profile_id, status, data_inicio, data_fim')
+        .eq('area_id', areaId)
+        .eq('mes', mes)
+        .not('objetivo_pai_id', 'is', null);
+      type FilhaRow = { id: string; descricao: string; objetivo_pai_id: string; profile_id: string | null; status: string; data_inicio: string | null; data_fim: string | null };
+      setFilhas(((filhasData ?? []) as FilhaRow[]).map(f => ({
+        id: f.id, descricao: f.descricao, objetivo_pai_id: f.objetivo_pai_id,
+        profile_id: f.profile_id ?? null, status: f.status,
+        data_inicio: f.data_inicio ?? null, data_fim: f.data_fim ?? null,
+      })));
     } catch (e) {
       console.error('[usePlanoBoneDay]', e);
       setError(e instanceof Error ? e.message : JSON.stringify(e));
@@ -407,8 +478,8 @@ export function usePlanoBoneDay(
   useEffect(() => { carregar(); }, [carregar]);
 
   return {
-    metas, metasConcluidas, metasNaoConcluidas, indicadores, responsaveis,
-    comportamentos, agendaMacro, objetivoResponsaveis, mes, setMes,
+    metas, metasConcluidas, metasNaoConcluidas, metasRelancadas, indicadores, indicadoresResponsaveis,
+    responsaveis, comportamentos, agendaMacro, objetivoResponsaveis, filhas, mes, setMes,
     isLoading, error, recarregar: carregar,
     removerMetaNaoConcluida: (id: string) =>
       setMetasNaoConcluidas(prev => prev.filter(m => m.id !== id)),

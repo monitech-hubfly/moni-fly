@@ -198,6 +198,25 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
     setLoading(true);
     try {
       const primeiraAtiv = atividades[0]!;
+
+      // ── Bloquear prazo em dia de ausência do responsável ───────────────────
+      if (primeiraAtiv.data.trim() && primeiraAtiv.responsaveisIds.length > 0) {
+        const supabaseAus = createClient();
+        const { data: ausRows } = await supabaseAus
+          .from('carometro_ausencias')
+          .select('profile_id, data')
+          .in('profile_id', primeiraAtiv.responsaveisIds)
+          .eq('data', primeiraAtiv.data.trim());
+        if (ausRows && ausRows.length > 0) {
+          setError(
+            `⚠ O responsável está marcado como ausente em ${primeiraAtiv.data.trim()}. ` +
+            'Escolha outro prazo ou negocie diretamente com quem abriu o chamado.'
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
       const pendingAnexos = primeiraAtiv.pendingAnexos ?? [];
       const result = await criarChamadoSireneComAtividade({
         titulo: titulo.trim(),

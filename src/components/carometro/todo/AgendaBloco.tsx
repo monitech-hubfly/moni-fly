@@ -648,6 +648,78 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
   const [chamadoModalId, setChamadoModalId] = useState<number | null>(null);
   const [pendingConcluirId, setPendingConcluirId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
+
+  // ── Ausências e Faixa de Metas ────────────────────────────────────────────
+  const [ausencias, setAusencias] = useState<Set<string>>(new Set());
+  const [salvandoAusencia, setSalvandoAusencia] = useState<string | null>(null);
+  type MetaFaixa = { id: string; descricao: string; data_fim: string; diasRestantes: number };
+  const [metasFaixa, setMetasFaixa] = useState<MetaFaixa[]>([]);
+
+  useEffect(() => {
+    if (!diasDaSemana.length) return;
+    const datas = diasDaSemana.map(d => d.dateStr);
+    const inicio = datas[0];
+    const fim    = datas[datas.length - 1];
+    if (!inicio || !fim) return;
+
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const [ausRes, metasRes] = await Promise.all([
+        // Ausências: dias marcados pelo usuário nesta semana
+        supabase
+          .from('carometro_ausencias')
+          .select('data')
+          .eq('profile_id', user.id)
+          .in('data', datas),
+        // Metas onde o usuário é responsável (via objetivo_responsaveis), com prazo nesta semana
+        supabase
+          .from('objetivo_responsaveis')
+          .select('objetivo_id, objetivos!inner(id, descricao, data_fim, status)')
+          .eq('profile_id', user.id)
+          .neq('objetivos.status', 'arquivado')
+          .neq('objetivos.status', 'concluido')
+          .gte('objetivos.data_fim', inicio)
+          .lte('objetivos.data_fim', fim),
+      ]);
+
+      // Ausências
+      const novosAus = new Set<string>(
+        ((ausRes.data ?? []) as { data: string }[]).map(r => r.data)
+      );
+      setAusencias(novosAus);
+
+      // Metas com prazo na semana
+      const hoje = new Date(); hoje.setHours(0,0,0,0);
+      type MetasRow = { objetivo_id: string; objetivos: { id: string; descricao: string; data_fim: string } };
+      const novasMetas: MetaFaixa[] = ((metasRes.data ?? []) as MetasRow[])
+        .map(r => ({
+          id: r.objetivos.id,
+          descricao: r.objetivos.descricao,
+          data_fim: r.objetivos.data_fim,
+          diasRestantes: Math.ceil((new Date(r.objetivos.data_fim + 'T00:00:00').getTime() - hoje.getTime()) / (1000*60*60*24)),
+        }));
+      setMetasFaixa(novasMetas);
+    })();
+  }, [diasDaSemana, supabase]);
+
+  const toggleAusencia = useCallback(async (dateStr: string) => {
+    setSalvandoAusencia(dateStr);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSalvandoAusencia(null); return; }
+    const isAusente = ausencias.has(dateStr);
+    if (isAusente) {
+      await supabase.from('carometro_ausencias').delete()
+        .eq('profile_id', user.id).eq('data', dateStr);
+      setAusencias(prev => { const n = new Set(prev); n.delete(dateStr); return n; });
+    } else {
+      await supabase.from('carometro_ausencias')
+        .upsert({ profile_id: user.id, data: dateStr }, { onConflict: 'profile_id,data' });
+      setAusencias(prev => new Set([...prev, dateStr]));
+    }
+    setSalvandoAusencia(null);
+  }, [ausencias, supabase]);
   const dragStateRef = useRef<DragState | null>(null);
   const gradeRef = useRef<HTMLDivElement | null>(null);
   const [conviteAtv, setConviteAtv] = useState<AtividadeAgenda | null>(null);
@@ -848,24 +920,70 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
         {error && <span className="text-xs text-red-500 max-w-xs truncate">{error}</span>}
       </div>
 
-      {/* Cabeçalho dos dias */}
+      {/* Faixa de Metas com prazo nesta semana */}
+      {metasFaixa.length > 0 && (
+        <div className="flex border-b border-gray-100 bg-amber-50">
+          <div style={{ width: LARGURA_HORAS, flexShrink: 0 }}
+            className="text-[9px] text-amber-600 flex items-center justify-end pr-2 select-none font-semibold">
+            Metas
+          </div>
+          {diasDaSemana.map(dia => {
+            const metasDia = metasFaixa.filter(m => m.data_fim === dia.dateStr);
+            return (
+              <div key={dia.dateStr} className="flex-1 px-0.5 py-0.5 flex flex-col gap-0.5 min-h-[20px]">
+                {metasDia.map(m => (
+                  <div key={m.id}
+                    title={`${m.descricao} — vence em ${m.diasRestantes === 0 ? 'hoje' : `${m.diasRestantes}d`}`}
+                    className={`text-[10px] px-1.5 py-0.5 rounded font-medium truncate ${
+                      m.diasRestantes <= 0 ? 'bg-red-500 text-white' :
+                      m.diasRestantes <= 3 ? 'bg-red-100 text-red-700' :
+                      'bg-amber-100 text-amber-800'
+                    }`}>
+                    {m.descricao}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Cabeçalho dos dias + Ausência */}
       <div className="flex border-b border-gray-100 bg-white">
         <div style={{ width: LARGURA_HORAS, flexShrink: 0 }}
           className="text-[9px] text-gray-400 flex items-end justify-end pr-2 pb-1.5 select-none">
           GMT-3
         </div>
-        {diasDaSemana.map(dia => (
-          <div key={dia.dateStr} className="flex-1 text-center py-2 select-none">
-            <div className="text-[10px] text-gray-500 uppercase tracking-wide leading-none mb-1">
-              {dia.label.split(' ')[0]}
+        {diasDaSemana.map(dia => {
+          const isAusente = ausencias.has(dia.dateStr);
+          const isSalvando = salvandoAusencia === dia.dateStr;
+          return (
+            <div key={dia.dateStr} className="flex-1 text-center py-2 select-none">
+              <div className="text-[10px] text-gray-500 uppercase tracking-wide leading-none mb-1">
+                {dia.label.split(' ')[0]}
+              </div>
+              <div className={`text-sm font-medium mx-auto flex items-center justify-center rounded-full w-7 h-7 ${
+                dia.isHoje ? 'bg-blue-500 text-white' : 'text-gray-700'
+              }`}>
+                {dia.date.getDate()}
+              </div>
+              {/* Checkbox de ausência */}
+              <label className={`mt-1 flex items-center justify-center gap-1 cursor-pointer select-none ${isSalvando ? 'opacity-50' : ''}`}
+                title={isAusente ? 'Ausente neste dia — novos chamados não podem usar esta data' : 'Marcar ausência'}>
+                <input
+                  type="checkbox"
+                  checked={isAusente}
+                  disabled={isSalvando}
+                  onChange={() => { void toggleAusencia(dia.dateStr); }}
+                  className="w-3 h-3 accent-amber-500 rounded"
+                />
+                <span className={`text-[9px] ${isAusente ? 'text-amber-600 font-semibold' : 'text-gray-300'}`}>
+                  férias/day off
+                </span>
+              </label>
             </div>
-            <div className={`text-sm font-medium mx-auto flex items-center justify-center rounded-full w-7 h-7 ${
-              dia.isHoje ? 'bg-blue-500 text-white' : 'text-gray-700'
-            }`}>
-              {dia.date.getDate()}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Faixa de eventos de dia inteiro (all-day) — igual Google Calendar */}
