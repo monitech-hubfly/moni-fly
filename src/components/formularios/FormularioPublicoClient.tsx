@@ -1,12 +1,22 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   mascaraMoeda,
   mascaraTelefone,
   moedaParaNumero,
   normalizarCondicional,
 } from '@/lib/formularios/apresentacao';
+import {
+  aplicarCampoComposicao,
+  aplicarFaixaNaLinha,
+  camposDaComposicao,
+  condominioCompleto,
+  MINIMO_CONDOMINIOS,
+  pendenciaDoCondominio,
+  statusDaFaixaPreco,
+  tituloDaComposicao,
+} from '@/lib/formularios/faixas-composicao';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { fetchMunicipiosPorUfs } from '@/lib/ibge';
 import { UFS_BRASIL } from '@/lib/uf';
@@ -125,7 +135,22 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
       const next = { ...atual, [id]: valor };
       if ((atual[id] ?? '') === valor) return next;
       for (const campo of campos) {
-        if (campo.tipo === 'select_cidade' && campo.config?.estado_campo_id === id) next[campo.id] = '';
+        if (campo.tipo === 'select_cidade' && campo.config?.estado_campo_id === id && !campo.config?.multiplo) {
+          next[campo.id] = '';
+        }
+      }
+      return next;
+    });
+  }
+
+  function setLista(id: string, valor: string[]) {
+    setErro(null);
+    setListas((atual) => {
+      const next = { ...atual, [id]: valor };
+      const ufs = new Set(valor.map((uf) => uf.trim().toUpperCase()));
+      for (const campo of campos) {
+        if (campo.tipo !== 'select_cidade' || campo.config?.estado_campo_id !== id || !campo.config?.multiplo) continue;
+        next[campo.id] = (atual[campo.id] ?? []).filter((cidade) => ufs.has(ufDaCidade(cidade)));
       }
       return next;
     });
@@ -137,12 +162,24 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
       if (!campo.obrigatorio || !visiveis.has(campo.id)) continue;
       if (campo.tipo === 'grupo_repetivel') {
         const linhas = parseGrupoRepetivel(textos[campo.id]);
-        const defs = (campo.config?.campos ?? []).filter((def) => !ehTemaGrupo(def));
+        const todos = campo.config?.campos ?? [];
+        const defs = todos.filter((def) => !ehTemaGrupo(def));
+        const chavesComposicao = new Set(camposDaComposicao(todos).map((def) => def.key));
         const preenchidas = linhas.filter((linha) => defs.some((def) => linhaTemValor(def, linha)));
+        const exigeTresCondominios = camposDaComposicao(todos).length > 0;
+        if (exigeTresCondominios) {
+          for (const linha of preenchidas) {
+            const pendencia = pendenciaDoCondominio(linha, todos);
+            if (pendencia) return pendencia;
+          }
+          const completos = linhas.filter((linha) => condominioCompleto(linha, todos)).length;
+          if (completos < MINIMO_CONDOMINIOS) return 'Não foram preenchidos 3 condomínios.';
+          continue;
+        }
         if (campo.obrigatorio && preenchidas.length === 0) return `Preencha: ${campo.label}`;
         for (const linha of preenchidas) {
           for (const def of defs) {
-            if (!def.obrigatorio) continue;
+            if (!def.obrigatorio || chavesComposicao.has(def.key)) continue;
             const incompleto = ehFaixaMoeda(def)
               ? !String(linha[`${def.key}_de`] ?? '').trim() || !String(linha[`${def.key}_ate`] ?? '').trim()
               : !String(linha[def.key] ?? '').trim();
@@ -152,6 +189,10 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
         continue;
       }
       if (campo.tipo === 'checkbox' && (listas[campo.id] ?? []).length === 0) return `Preencha: ${campo.label}`;
+      if ((campo.tipo === 'select_estado' || campo.tipo === 'select_cidade') && campo.config?.multiplo) {
+        if ((listas[campo.id] ?? []).length === 0) return `Preencha: ${campo.label}`;
+        continue;
+      }
       if (campo.tipo === 'arquivo_multiplo' && (arquivos[campo.id] ?? []).length === 0) return `Anexe: ${campo.label}`;
       if (campo.tipo === 'link_ou_arquivo') {
         const temUrl = Boolean((textos[campo.id] ?? '').trim());
@@ -218,6 +259,9 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
         .filter((campo) => campo.tipo !== 'arquivo_multiplo')
         .map((campo) => {
           if (campo.tipo === 'checkbox') {
+            return { campoId: campo.id, valorJson: listas[campo.id] ?? [] };
+          }
+          if ((campo.tipo === 'select_estado' || campo.tipo === 'select_cidade') && campo.config?.multiplo) {
             return { campoId: campo.id, valorJson: listas[campo.id] ?? [] };
           }
           if (campo.tipo === 'moeda') {
@@ -311,11 +355,12 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
                 key={campo.id}
                 campo={campo}
                 textos={textos}
+                listas={listas}
                 texto={textos[campo.id] ?? ''}
                 lista={listas[campo.id] ?? []}
                 arquivos={arquivos[campo.id] ?? []}
                 onTexto={(valor) => setTexto(campo.id, valor)}
-                onLista={(valor) => setListas((atual) => ({ ...atual, [campo.id]: valor }))}
+                onLista={(valor) => setLista(campo.id, valor)}
                 onArquivos={(valor) => setArquivos((atual) => ({ ...atual, [campo.id]: valor }))}
               />
             ))}
@@ -354,6 +399,10 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
   );
 }
 
+function ufDaCidade(valor: string): string {
+  return valor.split('|')[1]?.trim().toUpperCase() ?? '';
+}
+
 function mascaraAreaM2(entrada: string): string {
   const texto = entrada.replace(/\./g, ',').replace(/[^\d,]/g, '');
   const [bruto, ...resto] = texto.split(',');
@@ -362,12 +411,12 @@ function mascaraAreaM2(entrada: string): string {
   return `${inteiro},${resto.join('').slice(0, 2)}`;
 }
 
-function parseGrupoRepetivel(raw: string | undefined): Record<string, string>[] {
+function parseGrupoRepetivel(raw: string | undefined): Record<string, unknown>[] {
   if (!raw?.trim()) return [];
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item) => item && typeof item === 'object') as Record<string, string>[];
+    return parsed.filter((item) => item && typeof item === 'object') as Record<string, unknown>[];
   } catch {
     return [];
   }
@@ -376,6 +425,7 @@ function parseGrupoRepetivel(raw: string | undefined): Record<string, string>[] 
 function CampoPublico({
   campo,
   textos,
+  listas,
   texto,
   lista,
   arquivos,
@@ -385,6 +435,7 @@ function CampoPublico({
 }: {
   campo: FormularioCampo;
   textos: Record<string, string>;
+  listas: Record<string, string[]>;
   texto: string;
   lista: string[];
   arquivos: File[];
@@ -393,7 +444,7 @@ function CampoPublico({
   onArquivos: (valor: File[]) => void;
 }) {
   const label = (
-    <span className="mb-1 block text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+    <span className="mb-1 block whitespace-pre-line text-sm leading-relaxed" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
       {campo.label}
       {campo.obrigatorio ? ' *' : ''}
     </span>
@@ -456,6 +507,28 @@ function CampoPublico({
     );
   }
   if (campo.tipo === 'select_estado') {
+    if (campo.config?.multiplo) {
+      return (
+        <div className="block">
+          {label}
+          <SearchableSelect
+            multiple
+            values={lista}
+            onValuesChange={onLista}
+            options={OPCOES_UF}
+            placeholder="Selecione um ou mais"
+            searchPlaceholder="Buscar estado"
+            emptyOption={null}
+            size="md"
+            menuPortal
+            aria-label={campo.label}
+            triggerClassName={selectTriggerClass}
+            searchClassName={selectBuscaClass}
+            optionClassName={selectOpcaoClass}
+          />
+        </div>
+      );
+    }
     return (
       <div className="block">
         {label}
@@ -477,6 +550,17 @@ function CampoPublico({
   }
   if (campo.tipo === 'select_cidade') {
     const estadoId = campo.config?.estado_campo_id ?? '';
+    if (campo.config?.multiplo) {
+      return (
+        <SelectCidadeMultipla
+          label={label}
+          rotulo={campo.label}
+          ufs={listas[estadoId] ?? []}
+          valores={lista}
+          onLista={onLista}
+        />
+      );
+    }
     return (
       <SelectCidadeCampo
         label={label}
@@ -639,6 +723,78 @@ function SelectCidadeCampo({
   );
 }
 
+function SelectCidadeMultipla({
+  label,
+  rotulo,
+  ufs,
+  valores,
+  onLista,
+}: {
+  label: ReactNode;
+  rotulo: string;
+  ufs: string[];
+  valores: string[];
+  onLista: (valor: string[]) => void;
+}) {
+  const [cidades, setCidades] = useState<{ nome: string; uf: string }[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const chaveUfs = ufs.map((uf) => uf.trim().toUpperCase()).filter((uf) => uf.length === 2).join(',');
+
+  useEffect(() => {
+    const siglas = chaveUfs ? chaveUfs.split(',') : [];
+    if (siglas.length === 0) {
+      setCidades([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    setCarregando(true);
+    void fetchMunicipiosPorUfs(siglas, ctrl.signal)
+      .then((lista) => {
+        if (ctrl.signal.aborted) return;
+        const ordenadas = [...lista].sort(
+          (a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }) || a.uf.localeCompare(b.uf),
+        );
+        setCidades(ordenadas.map((cidade) => ({ nome: cidade.nome, uf: cidade.uf })));
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setCidades([]);
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setCarregando(false);
+      });
+    return () => ctrl.abort();
+  }, [chaveUfs]);
+
+  const semEstado = !chaveUfs;
+  const placeholder = semEstado ? 'Selecione os estados' : carregando ? 'Carregando cidades…' : 'Selecione uma ou mais';
+  const opcoes = cidades.map((cidade) => ({
+    value: `${cidade.nome}|${cidade.uf}`,
+    label: `${cidade.nome} — ${cidade.uf}`,
+  }));
+
+  return (
+    <div className="block">
+      {label}
+      <SearchableSelect
+        multiple
+        values={valores}
+        onValuesChange={onLista}
+        options={opcoes}
+        placeholder={placeholder}
+        searchPlaceholder="Buscar cidade"
+        disabled={semEstado || carregando}
+        emptyOption={null}
+        size="md"
+        menuPortal
+        aria-label={rotulo}
+        triggerClassName={selectTriggerClass}
+        searchClassName={selectBuscaClass}
+        optionClassName={selectOpcaoClass}
+      />
+    </div>
+  );
+}
+
 function ehTemaGrupo(def: FormularioCampoGrupoDef): boolean {
   return def.tipo === 'titulo' || def.key === 'composicao_media';
 }
@@ -660,7 +816,7 @@ function apenasDigitos(entrada: string): string {
   return entrada.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
 }
 
-function linhaTemValor(def: FormularioCampoGrupoDef, linha: Record<string, string>): boolean {
+function linhaTemValor(def: FormularioCampoGrupoDef, linha: Record<string, unknown>): boolean {
   if (ehFaixaMoeda(def)) {
     const de = String(linha[`${def.key}_de`] ?? linha[def.key] ?? '').trim();
     const ate = String(linha[`${def.key}_ate`] ?? '').trim();
@@ -684,6 +840,148 @@ function blocosDoGrupo(defs: FormularioCampoGrupoDef[]) {
   return blocos;
 }
 
+function EntradaGrupo({
+  def,
+  valor,
+  onChange,
+}: {
+  def: FormularioCampoGrupoDef;
+  valor: string;
+  onChange: (valor: string) => void;
+}) {
+  if (def.tipo === 'select') {
+    return (
+      <select value={valor} onChange={(e) => onChange(e.target.value)} style={campoStyle}>
+        <option value="">Selecione</option>
+        {(def.opcoes ?? []).map((opcao) => (
+          <option key={opcao} value={opcao}>
+            {opcao}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  if (def.tipo === 'moeda' || def.key === 'preco_medio_venda') {
+    return (
+      <input
+        type="text"
+        inputMode="numeric"
+        placeholder="R$ 0,00"
+        value={valor}
+        onChange={(e) => onChange(mascaraMoeda(e.target.value))}
+        style={campoStyle}
+      />
+    );
+  }
+  if (def.tipo === 'm2' || def.key === 'metragem_construida') {
+    return (
+      <div className="flex items-center" style={{ ...campoStyle, padding: 0 }}>
+        <input
+          type="text"
+          inputMode="decimal"
+          placeholder="0,00"
+          aria-label={`${def.label} em metros quadrados`}
+          value={valor}
+          onChange={(e) => onChange(mascaraAreaM2(e.target.value))}
+          className="min-w-0 flex-1 bg-transparent px-3 outline-none"
+          style={{
+            minHeight: 44,
+            border: 'none',
+            color: 'var(--moni-text-primary)',
+            fontFamily: 'var(--moni-font-sans)',
+            fontSize: 15,
+          }}
+        />
+        <span className="shrink-0 pr-3 text-sm" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+          m²
+        </span>
+      </div>
+    );
+  }
+  if (ehNumeroInteiro(def)) {
+    return (
+      <input
+        type="text"
+        inputMode="numeric"
+        value={valor}
+        onChange={(e) => onChange(apenasDigitos(e.target.value))}
+        style={campoStyle}
+      />
+    );
+  }
+  return <input type="text" value={valor} onChange={(e) => onChange(e.target.value)} style={campoStyle} />;
+}
+
+function ComposicoesDaFaixa({
+  linha,
+  defs,
+  titulo,
+  campos,
+  onCampo,
+}: {
+  linha: Record<string, unknown>;
+  defs: FormularioCampoGrupoDef[];
+  titulo: string;
+  campos: FormularioCampoGrupoDef[];
+  onCampo: (faixaIndex: number, chave: string, valor: string) => void;
+}) {
+  const faixa = defs.find(ehFaixaMoeda);
+  if (!faixa || campos.length === 0) return null;
+  const de = String(linha[`${faixa.key}_de`] ?? linha[faixa.key] ?? '');
+  const ate = String(linha[`${faixa.key}_ate`] ?? '');
+  const status = statusDaFaixaPreco(de, ate);
+  if (status.tipo === 'incompleta') {
+    if (!de.trim() && !ate.trim()) return null;
+    return (
+      <p className="text-xs" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+        Informe o início e o fim da faixa para abrir a composição média.
+      </p>
+    );
+  }
+  if (status.tipo === 'invertida') {
+    return (
+      <p className="text-xs" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+        O valor final da faixa precisa ser maior que o inicial.
+      </p>
+    );
+  }
+  if (status.tipo === 'ampla') {
+    return (
+      <p className="text-xs" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+        A faixa é ampla demais. Informe um intervalo menor.
+      </p>
+    );
+  }
+  const comps = Array.isArray(linha.composicoes) ? (linha.composicoes as Record<string, string>[]) : [];
+  return (
+    <>
+      {status.faixas.map((item, faixaIndex) => {
+        const comp = comps[faixaIndex] ?? {};
+        return (
+          <div key={`${item.de}-${item.ate}`} className="space-y-2">
+            <p className="pt-2 text-base" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}>
+              {titulo}
+            </p>
+            <p className="text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+              De {item.de} à {item.ate}
+            </p>
+            <div className="space-y-2 pl-3" style={{ borderLeft: '0.5px solid var(--moni-border-default)' }}>
+              {campos.map((def) => (
+                <label key={def.key} className="block">
+                  <span className="mb-1 block text-xs" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+                    {def.label} *
+                  </span>
+                  <EntradaGrupo def={def} valor={String(comp[def.key] ?? '')} onChange={(valorCampo) => onCampo(faixaIndex, def.key, valorCampo)} />
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function GrupoRepetivelCampo({
   label,
   defs,
@@ -698,10 +996,18 @@ function GrupoRepetivelCampo({
   onTexto: (valor: string) => void;
 }) {
   const linhas = parseGrupoRepetivel(valor);
-  const blocos = blocosDoGrupo(defs);
+  const memoria = useRef(new Map<string, Record<string, string>>());
+  const composicao = camposDaComposicao(defs);
+  const chavesComposicao = composicao.map((def) => def.key);
+  const divideFaixas = composicao.length > 0 && defs.some(ehFaixaMoeda);
+  const defsBase = divideFaixas
+    ? defs.filter((def) => !ehTemaGrupo(def) && !chavesComposicao.includes(def.key))
+    : defs;
+  const blocos = blocosDoGrupo(defsBase);
   const vazio = () => {
-    const entrada: Record<string, string> = {};
-    for (const def of defs) {
+    const entrada: Record<string, unknown> = { linha_id: crypto.randomUUID() };
+    const origem = divideFaixas ? defsBase : defs;
+    for (const def of origem) {
       if (ehTemaGrupo(def)) continue;
       if (ehFaixaMoeda(def)) {
         entrada[`${def.key}_de`] = '';
@@ -713,9 +1019,32 @@ function GrupoRepetivelCampo({
     return entrada;
   };
 
-  function gravar(next: Record<string, string>[]) {
+  function gravar(next: Record<string, unknown>[]) {
     onTexto(next.length > 0 ? JSON.stringify(next) : '');
   }
+
+  useEffect(() => {
+    if (!divideFaixas) return;
+    const faixa = defs.find(ehFaixaMoeda);
+    if (!faixa) return;
+    let mudou = false;
+    const next = linhas.map((linha) => {
+      const de = String(linha[`${faixa.key}_de`] ?? linha[faixa.key] ?? '');
+      const ate = String(linha[`${faixa.key}_ate`] ?? '');
+      const status = statusDaFaixaPreco(de, ate);
+      if (status.tipo !== 'ok') return linha;
+      const comps = Array.isArray(linha.composicoes) ? (linha.composicoes as { faixa_de?: string; faixa_ate?: string }[]) : [];
+      const alinhado =
+        comps.length === status.faixas.length &&
+        status.faixas.every((item, i) => comps[i]?.faixa_de === item.de && comps[i]?.faixa_ate === item.ate);
+      if (alinhado) return linha;
+      mudou = true;
+      return aplicarFaixaNaLinha(linha, faixa.key, de, ate, chavesComposicao, memoria.current);
+    });
+    if (mudou) gravar(next);
+    // Alinha blocos já salvos quando a faixa muda fora deste campo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valor]);
 
   return (
     <fieldset className="space-y-3">
@@ -774,13 +1103,18 @@ function GrupoRepetivelCampo({
                               if (i !== index) return item;
                               const deAtual = String(item[`${def.key}_de`] ?? item[def.key] ?? '');
                               const ateAtual = String(item[`${def.key}_ate`] ?? '');
-                              const resto = { ...item };
-                              delete resto[def.key];
-                              return {
-                                ...resto,
-                                [`${def.key}_de`]: lado === 'de' ? mascarado : deAtual,
-                                [`${def.key}_ate`]: lado === 'ate' ? mascarado : ateAtual,
-                              };
+                              const de = lado === 'de' ? mascarado : deAtual;
+                              const ate = lado === 'ate' ? mascarado : ateAtual;
+                              if (!divideFaixas) {
+                                const resto = { ...item };
+                                delete resto[def.key];
+                                return {
+                                  ...resto,
+                                  [`${def.key}_de`]: de,
+                                  [`${def.key}_ate`]: ate,
+                                };
+                              }
+                              return aplicarFaixaNaLinha(item, def.key, de, ate, chavesComposicao, memoria.current);
                             });
                             gravar(next);
                           }}
@@ -877,6 +1211,20 @@ function GrupoRepetivelCampo({
               </div>
             </div>
           ))}
+          {divideFaixas ? (
+            <ComposicoesDaFaixa
+              linha={linha}
+              defs={defs}
+              titulo={tituloDaComposicao(defs)}
+              campos={composicao}
+              onCampo={(faixaIndex, chave, valorCampo) => {
+                const next = linhas.map((item, i) =>
+                  i === index ? aplicarCampoComposicao(item, faixaIndex, chave, valorCampo, memoria.current) : item,
+                );
+                gravar(next);
+              }}
+            />
+          ) : null}
           <button
             type="button"
             className="min-h-[44px] text-xs underline"

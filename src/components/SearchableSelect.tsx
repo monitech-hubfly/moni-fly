@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 
 export type SearchableSelectOption = {
   value: string;
@@ -11,8 +11,11 @@ export type SearchableSelectOption = {
 };
 
 type Props = {
-  value: string;
-  onChange: (value: string) => void;
+  value?: string;
+  onChange?: (value: string) => void;
+  multiple?: boolean;
+  values?: string[];
+  onValuesChange?: (values: string[]) => void;
   options: SearchableSelectOption[];
   placeholder?: string;
   emptyOption?: SearchableSelectOption | null;
@@ -40,9 +43,20 @@ function normalizarBusca(valor: string): string {
     .replace(/\p{M}/gu, '');
 }
 
+function rotuloSemOpcao(valor: string): string {
+  const partes = valor.split('|');
+  if (partes.length === 2 && /^[A-Za-z]{2}$/.test(partes[1].trim())) {
+    return `${partes[0].trim()} — ${partes[1].trim().toUpperCase()}`;
+  }
+  return valor;
+}
+
 export function SearchableSelect({
-  value,
-  onChange,
+  value = '',
+  onChange = () => undefined,
+  multiple = false,
+  values = [],
+  onValuesChange,
   options,
   placeholder = 'Selecione…',
   emptyOption = { value: '', label: placeholder },
@@ -63,12 +77,21 @@ export function SearchableSelect({
   const [query, setQuery] = useState('');
   const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   const todasOpcoes = useMemo(() => {
     const base = emptyOption ? [emptyOption, ...options] : options;
     return base.filter((o, i, arr) => arr.findIndex((x) => x.value === o.value) === i);
   }, [emptyOption, options]);
+
+  const rotulosMultiplos = useMemo(() => {
+    if (!multiple) return [];
+    return values.map((item) => {
+      const hit = todasOpcoes.find((o) => o.value === item);
+      const label = hit?.label?.trim() || rotuloSemOpcao(item);
+      return { value: item, label };
+    });
+  }, [multiple, todasOpcoes, values]);
 
   const rotuloSelecionado = useMemo(() => {
     const vNorm = String(value ?? '').trim().toLowerCase();
@@ -134,6 +157,14 @@ export function SearchableSelect({
     setQuery('');
   }
 
+  function alternar(novoValor: string) {
+    if (!novoValor) return;
+    const proximo = values.includes(novoValor)
+      ? values.filter((item) => item !== novoValor)
+      : [...values, novoValor];
+    onValuesChange?.(proximo);
+  }
+
   const sizeClass =
     size === 'xs'
       ? 'px-1.5 py-0.5 text-[10px] rounded'
@@ -176,6 +207,7 @@ export function SearchableSelect({
           : undefined
       }
       role="listbox"
+      aria-multiselectable={multiple || undefined}
     >
       <div className="border-b border-stone-100 p-1.5">
         <input
@@ -195,7 +227,9 @@ export function SearchableSelect({
             const termo = query.trim();
             if (!termo) return;
             const escolhida = opcoesFiltradas.find((o) => !o.disabled && o.value !== '');
-            if (escolhida) selecionar(escolhida.value);
+            if (!escolhida) return;
+            if (multiple) alternar(escolhida.value);
+            else selecionar(escolhida.value);
           }}
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
@@ -211,7 +245,7 @@ export function SearchableSelect({
           </li>
         ) : (
           opcoesFiltradas.map((o) => {
-            const selecionada = o.value === value;
+            const selecionada = multiple ? values.includes(o.value) : o.value === value;
             return (
               <li key={`${o.value}::${o.label}`}>
                 <button
@@ -221,7 +255,8 @@ export function SearchableSelect({
                   disabled={o.disabled}
                   onClick={() => {
                     if (o.disabled) return;
-                    selecionar(o.value);
+                    if (multiple) alternar(o.value);
+                    else selecionar(o.value);
                   }}
                   className={`w-full text-left disabled:cursor-not-allowed disabled:opacity-50 ${itemClass} ${optionClassName} ${
                     selecionada
@@ -241,31 +276,113 @@ export function SearchableSelect({
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
-      <button
-        ref={triggerRef}
-        type="button"
-        id={id}
-        aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        disabled={disabled}
-        onClick={() => {
-          if (disabled) return;
-          setOpen((v) => !v);
-          if (open) setQuery('');
-        }}
-        className={`${triggerBase} border-stone-200 text-stone-800 hover:border-stone-300 ${sizeClass} ${
-          open ? 'border-moni-accent ring-1 ring-moni-accent/30' : ''
-        } ${triggerClassName}`}
-      >
-        <span className={`min-w-0 truncate ${rotuloSelecionado ? '' : 'text-stone-500'}`}>
-          {rotuloSelecionado || placeholder}
-        </span>
-        <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 text-stone-400 transition ${open ? 'rotate-180' : ''}`}
-          aria-hidden
-        />
-      </button>
+      {multiple ? (
+        <div
+          ref={(el) => {
+            triggerRef.current = el;
+          }}
+          id={id}
+          role="button"
+          tabIndex={disabled ? -1 : 0}
+          aria-label={ariaLabel}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-disabled={disabled || undefined}
+          onKeyDown={(e) => {
+            if (disabled) return;
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            if ((e.target as HTMLElement).closest('[data-searchable-chip-remove]')) return;
+            e.preventDefault();
+            setOpen((v) => !v);
+            if (open) setQuery('');
+          }}
+          onClick={() => {
+            if (disabled) return;
+            setOpen((v) => !v);
+            if (open) setQuery('');
+          }}
+          className={`${triggerBase} h-auto border-stone-200 text-stone-800 hover:border-stone-300 ${sizeClass} ${
+            open ? 'border-moni-accent ring-1 ring-moni-accent/30' : ''
+          } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${triggerClassName}`}
+        >
+          <span className="flex min-w-0 flex-1 flex-wrap gap-1.5 py-0.5">
+            {rotulosMultiplos.length === 0 ? (
+              <span className="text-stone-500">{placeholder}</span>
+            ) : (
+              rotulosMultiplos.map((item) => (
+                <span
+                  key={item.value}
+                  title={item.label}
+                  className="inline-flex max-w-full items-center gap-1 px-2 py-0.5 text-[13px] leading-5"
+                  style={{
+                    borderRadius: 'var(--moni-radius-md)',
+                    border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                    background: 'var(--moni-surface-100)',
+                    color: 'var(--moni-text-primary)',
+                    fontFamily: 'var(--moni-font-sans)',
+                  }}
+                >
+                  <span className="truncate">{item.label}</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    data-searchable-chip-remove
+                    aria-label={`Remover ${item.label}`}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onValuesChange?.(values.filter((atual) => atual !== item.value));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onValuesChange?.(values.filter((atual) => atual !== item.value));
+                    }}
+                    className="inline-flex h-5 w-5 shrink-0 items-center justify-center"
+                    style={{ color: 'var(--moni-text-tertiary)' }}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </span>
+                </span>
+              ))
+            )}
+          </span>
+          <ChevronDown
+            className={`h-3.5 w-3.5 shrink-0 text-stone-400 transition ${open ? 'rotate-180' : ''}`}
+            aria-hidden
+          />
+        </div>
+      ) : (
+        <button
+          ref={(el) => {
+            triggerRef.current = el;
+          }}
+          type="button"
+          id={id}
+          aria-label={ariaLabel}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          disabled={disabled}
+          onClick={() => {
+            if (disabled) return;
+            setOpen((v) => !v);
+            if (open) setQuery('');
+          }}
+          className={`${triggerBase} border-stone-200 text-stone-800 hover:border-stone-300 ${sizeClass} ${
+            open ? 'border-moni-accent ring-1 ring-moni-accent/30' : ''
+          } ${triggerClassName}`}
+        >
+          <span className={`min-w-0 truncate ${rotuloSelecionado ? '' : 'text-stone-500'}`}>
+            {rotuloSelecionado || placeholder}
+          </span>
+          <ChevronDown
+            className={`h-3.5 w-3.5 shrink-0 text-stone-400 transition ${open ? 'rotate-180' : ''}`}
+            aria-hidden
+          />
+        </button>
+      )}
 
       {menuPortal && typeof document !== 'undefined'
         ? menuEl

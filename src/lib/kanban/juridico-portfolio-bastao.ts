@@ -211,7 +211,8 @@ export const TIPOS_BASTAO_JURIDICO_LOTEADORES = ['nda', 'parceria'] as const;
 export type TipoBastaoJuridicoLoteadores = (typeof TIPOS_BASTAO_JURIDICO_LOTEADORES)[number];
 
 /**
- * NDA começa em Jurídico NDA. Parceria começa em Enviar Cto de Parceria.
+ * NDA saiu do funil (migration 679): o Jurídico não devolve mais o card para essas fases.
+ * Parceria começa em Enviar Cto de Parceria.
  * `loteador_juridico` não entra: fase histórica, fora do fluxo.
  */
 const TRILHAS_LOTEADORES: Record<TipoBastaoJuridicoLoteadores, TrilhaDocumento> = {
@@ -238,9 +239,8 @@ const TRILHAS_LOTEADORES: Record<TipoBastaoJuridicoLoteadores, TrilhaDocumento> 
   },
 };
 
-/** Fases do Loteadores que abrem atendimento. Assinaturas e Assinado não entram. */
+/** Fases do Loteadores que abrem atendimento. NDA não abre mais. */
 export const FASES_LOTEADORES_CRIAM_ATENDIMENTO_JURIDICO = [
-  FASE_SLUGS.LOTEADORES_NDA,
   FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA,
 ] as const;
 
@@ -281,6 +281,7 @@ export function decidirBastaoJuridicoLoteadores(input: {
   ordemDestino: number | null;
   faseDestinoNome: string;
 }): DecisaoBastaoPortfolio {
+  if (input.tipo === 'nda') return { acao: 'nao_regredir' };
   const trilha = TRILHAS_LOTEADORES[input.tipo];
   const outras = (
     Object.entries(TRILHAS_LOTEADORES) as [TipoBastaoJuridicoLoteadores, TrilhaDocumento][]

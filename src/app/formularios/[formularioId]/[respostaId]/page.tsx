@@ -70,8 +70,13 @@ function GrupoRepetivelLeitura({ campo, valor }: { campo: FormularioCampo; valor
                 style={blocoIndex > 0 ? { borderTop: 'var(--moni-border-width) solid var(--moni-border-default)' } : undefined}
               >
                 {bloco.titulo ? (
-                  <p className="mb-3 text-base" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}>
+                  <p className={bloco.subtitulo ? 'text-base' : 'mb-3 text-base'} style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}>
                     {bloco.titulo}
+                  </p>
+                ) : null}
+                {bloco.subtitulo ? (
+                  <p className="mb-3 mt-1 text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+                    {bloco.subtitulo}
                   </p>
                 ) : null}
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
@@ -100,7 +105,7 @@ function RespostaCampo({ campo, dados }: { campo: FormularioCampo; dados: Formul
   if (campo.tipo === 'grupo_repetivel') {
     return (
       <div className="space-y-4">
-        <p className="text-sm leading-relaxed" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+        <p className="whitespace-pre-line text-sm leading-relaxed" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
           {campo.label}
         </p>
         <GrupoRepetivelLeitura campo={campo} valor={rv?.valor} />

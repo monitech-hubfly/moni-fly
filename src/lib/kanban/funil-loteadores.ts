@@ -15,34 +15,29 @@ export type LoteadoresFaseCanon = {
 };
 
 /**
- * Esteira canônica — 21 fases ativas (ordem 1–21).
- * Migration 584/585: esteira enxuta e Cto de Parceria antes de Passagem IMOB.
- * Migration 592: NDA e Cto de Parceria em três fases; Revisões R02, Revisões Comitê,
- * Demais Comitês e Enviar Acoplamento p/ Loteador.
- * Migration 594: Enviar Cto de Parceria antes de Jurídico Cto de Parceria.
+ * Esteira canônica — 18 fases ativas.
+ * Migration 679: Jurídico NDA, Assinaturas NDA e NDA Assinado saem do funil.
+ * Cards que estavam em Jurídico NDA vão para Aguardando Ficha.
  */
 export const LOTEADORES_FASES_CANONICAS: readonly LoteadoresFaseCanon[] = [
   { ordem: 1, slug: FASE_SLUGS.LOTEADORES_PRIMEIRO_CONTATO, nome: 'Entrar em contato', slaDias: 1 },
-  { ordem: 2, slug: FASE_SLUGS.NDA_MONI_INC, nome: 'Jurídico NDA', slaDias: 3 },
-  { ordem: 3, slug: FASE_SLUGS.LOTEADORES_NDA_ASSINATURAS, nome: 'Assinaturas NDA', slaDias: 3 },
-  { ordem: 4, slug: FASE_SLUGS.LOTEADORES_NDA_ASSINADO, nome: 'NDA Assinado', slaDias: 3 },
-  { ordem: 5, slug: FASE_SLUGS.AGUARDANDO_FICHA_MONI_INC, nome: 'Aguardando Ficha', slaDias: 3 },
-  { ordem: 6, slug: FASE_SLUGS.LOTEADORES_NOVO_PRODUTO, nome: 'Novo Produto', slaDias: 20 },
-  { ordem: 7, slug: FASE_SLUGS.LOTEADORES_VIABILIDADE, nome: 'Viabilidade / Premissas', slaDias: 1 },
-  { ordem: 8, slug: FASE_SLUGS.VALIDACAO_MONI_INC, nome: 'Validação', slaDias: 1 },
-  { ordem: 9, slug: FASE_SLUGS.LOTEADORES_R2_PLANO_TEORICO, nome: 'R2 Apresentação', slaDias: 5 },
-  { ordem: 10, slug: FASE_SLUGS.LOTEADORES_REVISOES, nome: 'Revisões R02', slaDias: 2 },
-  { ordem: 11, slug: FASE_SLUGS.ACOPLAMENTO_GBOX_MONI_INC, nome: 'Acoplamento + Gbox', slaDias: 5 },
-  { ordem: 12, slug: FASE_SLUGS.LOTEADORES_ENVIAR_ACOPLAMENTO, nome: 'Enviar Acoplamento p/ Loteador', slaDias: 3 },
-  { ordem: 13, slug: FASE_SLUGS.LOTEADORES_COMITE, nome: 'Comitê', slaDias: 3 },
-  { ordem: 14, slug: FASE_SLUGS.REVISOES_POS_COMITE_MONI_INC, nome: 'Revisões Comitê', slaDias: 2 },
-  { ordem: 15, slug: FASE_SLUGS.LOTEADORES_DEMAIS_COMITES, nome: 'Demais Comitês', slaDias: 3 },
-  { ordem: 16, slug: FASE_SLUGS.LOTEADORES_ENVIAR_CTO_PARCERIA, nome: 'Enviar Cto de Parceria', slaDias: 3 },
-  { ordem: 17, slug: FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA, nome: 'Jurídico Cto de Parceria', slaDias: 3 },
-  { ordem: 18, slug: FASE_SLUGS.LOTEADORES_CTO_PARCERIA_ASSINATURAS, nome: 'Assinaturas Cto de Parceria', slaDias: 3 },
-  { ordem: 19, slug: FASE_SLUGS.LOTEADORES_CTO_PARCERIA_ASSINADO, nome: 'Cto de Parceria Assinado', slaDias: 3 },
-  { ordem: 20, slug: FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC, nome: 'Passagem IMOB', slaDias: 1 },
-  { ordem: 21, slug: FASE_SLUGS.LOTEADORES_ASSINADOS, nome: 'Assinados', slaDias: null },
+  { ordem: 2, slug: FASE_SLUGS.AGUARDANDO_FICHA_MONI_INC, nome: 'Aguardando Ficha', slaDias: 3 },
+  { ordem: 3, slug: FASE_SLUGS.LOTEADORES_NOVO_PRODUTO, nome: 'Novo Produto', slaDias: 20 },
+  { ordem: 4, slug: FASE_SLUGS.LOTEADORES_VIABILIDADE, nome: 'Viabilidade / Premissas', slaDias: 1 },
+  { ordem: 5, slug: FASE_SLUGS.VALIDACAO_MONI_INC, nome: 'Validação', slaDias: 1 },
+  { ordem: 6, slug: FASE_SLUGS.LOTEADORES_R2_PLANO_TEORICO, nome: 'R2 Apresentação', slaDias: 5 },
+  { ordem: 7, slug: FASE_SLUGS.LOTEADORES_REVISOES, nome: 'Revisões R02', slaDias: 2 },
+  { ordem: 8, slug: FASE_SLUGS.ACOPLAMENTO_GBOX_MONI_INC, nome: 'Acoplamento + Gbox', slaDias: 5 },
+  { ordem: 9, slug: FASE_SLUGS.LOTEADORES_ENVIAR_ACOPLAMENTO, nome: 'Enviar Acoplamento p/ Loteador', slaDias: 3 },
+  { ordem: 10, slug: FASE_SLUGS.LOTEADORES_COMITE, nome: 'Comitê', slaDias: 3 },
+  { ordem: 11, slug: FASE_SLUGS.REVISOES_POS_COMITE_MONI_INC, nome: 'Revisões Comitê', slaDias: 2 },
+  { ordem: 12, slug: FASE_SLUGS.LOTEADORES_DEMAIS_COMITES, nome: 'Demais Comitês', slaDias: 3 },
+  { ordem: 13, slug: FASE_SLUGS.LOTEADORES_ENVIAR_CTO_PARCERIA, nome: 'Enviar Cto de Parceria', slaDias: 3 },
+  { ordem: 14, slug: FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA, nome: 'Jurídico Cto de Parceria', slaDias: 3 },
+  { ordem: 15, slug: FASE_SLUGS.LOTEADORES_CTO_PARCERIA_ASSINATURAS, nome: 'Assinaturas Cto de Parceria', slaDias: 3 },
+  { ordem: 16, slug: FASE_SLUGS.LOTEADORES_CTO_PARCERIA_ASSINADO, nome: 'Cto de Parceria Assinado', slaDias: 3 },
+  { ordem: 17, slug: FASE_SLUGS.PASSAGEM_WAYSERS_MONI_INC, nome: 'Passagem IMOB', slaDias: 1 },
+  { ordem: 18, slug: FASE_SLUGS.LOTEADORES_ASSINADOS, nome: 'Assinados', slaDias: null },
 ] as const;
 
 /** Fases inativas no banco — mantidas no código para compat / histórico. */
@@ -128,6 +123,27 @@ export const LOTEADORES_FASES_DEPRECATED: readonly LoteadoresFaseCanon[] = [
     ordem: 94,
     slug: FASE_SLUGS.LOTEADORES_FECHAR_CONTRATO,
     nome: 'Contrato (legado)',
+    slaDias: null,
+    deprecated: true,
+  },
+  {
+    ordem: 95,
+    slug: FASE_SLUGS.NDA_MONI_INC,
+    nome: 'Jurídico NDA',
+    slaDias: null,
+    deprecated: true,
+  },
+  {
+    ordem: 96,
+    slug: FASE_SLUGS.LOTEADORES_NDA_ASSINATURAS,
+    nome: 'Assinaturas NDA',
+    slaDias: null,
+    deprecated: true,
+  },
+  {
+    ordem: 97,
+    slug: FASE_SLUGS.LOTEADORES_NDA_ASSINADO,
+    nome: 'NDA Assinado',
     slaDias: null,
     deprecated: true,
   },

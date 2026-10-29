@@ -257,10 +257,13 @@ export const FASE_SLUGS = {
   LOTEADORES_PRIMEIRO_CONTATO: 'primeiro_contato_moni_inc',
   /** @deprecated Fase inativa desde migration 584. */
   LOTEADORES_R1_CONCEITO: 'r1_conceito_moni_inc',
-  /** Alias pedido — Jurídico NDA (slug estável). */
+  /** @deprecated Fase inativa desde migration 679. Cards foram para Aguardando Ficha. */
   NDA_MONI_INC: 'nda_moni_inc',
+  /** @deprecated Fase inativa desde migration 679. */
   LOTEADORES_NDA: 'nda_moni_inc',
+  /** @deprecated Fase inativa desde migration 679. */
   LOTEADORES_NDA_ASSINATURAS: 'assinaturas_nda_moni_inc',
+  /** @deprecated Fase inativa desde migration 679. */
   LOTEADORES_NDA_ASSINADO: 'nda_assinado_moni_inc',
   /** @deprecated Fase inativa desde migration 584. */
   OPCAO_MONI_INC: 'opcao_moni_inc',

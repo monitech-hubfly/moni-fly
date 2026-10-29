@@ -1,4 +1,5 @@
 import type { FormularioCampo, FormularioCampoGrupoDef, FormularioResposta, FormularioSecao } from '@/types/formularios';
+import { camposDaComposicao, tituloDaComposicao } from '@/lib/formularios/faixas-composicao';
 
 export type ItemGrupoApresentado = {
   label: string;
@@ -8,6 +9,7 @@ export type ItemGrupoApresentado = {
 
 export type BlocoGrupoApresentado = {
   titulo: string | null;
+  subtitulo: string | null;
   itens: ItemGrupoApresentado[];
 };
 
@@ -59,7 +61,7 @@ function textoDoItemGrupo(def: FormularioCampoGrupoDef, registro: Record<string,
 function defsDoGrupo(campo: FormularioCampo, registro: Record<string, unknown>): FormularioCampoGrupoDef[] {
   const defs = campo.config?.campos ?? [];
   if (defs.length > 0) return defs;
-  const ordem = ['nome', 'faixa_preco', 'giro_vendas', 'composicao_media', 'metragem_construida', 'num_suites', 'possui_piscina', 'vagas_cobertas', 'preco_medio_venda'];
+  const ordem = ['nome', 'faixa_preco', 'composicao_media', 'giro_vendas', 'metragem_construida', 'num_suites', 'possui_piscina', 'vagas_cobertas', 'preco_medio_venda'];
   const chaves = new Set(Object.keys(registro).filter((key) => !key.endsWith('_de') && !key.endsWith('_ate')));
   const lista = ordem.filter((key) => chaves.has(key) || key === 'composicao_media');
   for (const key of chaves) {
@@ -70,6 +72,12 @@ function defsDoGrupo(campo: FormularioCampo, registro: Record<string, unknown>):
     label: ROTULOS_GRUPO[key] ?? key.replace(/_/g, ' '),
     tipo: key === 'composicao_media' ? 'titulo' : key === 'faixa_preco' ? 'faixa_moeda' : 'texto',
   }));
+}
+
+function composicoesDaLinha(registro: Record<string, unknown>): Record<string, unknown>[] | null {
+  const bruto = registro.composicoes;
+  if (!Array.isArray(bruto) || bruto.length === 0) return null;
+  return bruto.filter((item) => item && typeof item === 'object') as Record<string, unknown>[];
 }
 
 export function linhasDoGrupo(
@@ -90,25 +98,48 @@ export function linhasDoGrupo(
     const registro = row as Record<string, unknown>;
     const defs = defsDoGrupo(campo, registro);
     const nome = String(registro.nome ?? '').trim();
+    const composicoes = composicoesDaLinha(registro);
+    const chavesComposicao = new Set(camposDaComposicao(defs).map((def) => def.key));
     const blocos: BlocoGrupoApresentado[] = [];
-    let atual: BlocoGrupoApresentado = { titulo: null, itens: [] };
+    let atual: BlocoGrupoApresentado = { titulo: null, subtitulo: null, itens: [] };
 
     for (const def of defs) {
-      if (def.key === 'nome') continue;
+      if (def.key === 'nome' || def.key === 'linha_id') continue;
+      if (composicoes && (ehTemaGrupo(def) || chavesComposicao.has(def.key))) continue;
       if (ehTemaGrupo(def)) {
         if (atual.titulo || atual.itens.length > 0) blocos.push(atual);
-        atual = { titulo: rotuloGrupo(def), itens: [] };
+        atual = { titulo: rotuloGrupo(def), subtitulo: null, itens: [] };
         continue;
       }
       const texto = textoDoItemGrupo(def, registro);
-      if (!texto) continue;
+      if (!texto && def.key !== 'giro_vendas') continue;
       atual.itens.push({
         label: rotuloGrupo(def),
-        valor: texto,
+        valor: texto || '—',
         largo: rotuloGrupo(def).length > 42,
       });
     }
     if (atual.titulo || atual.itens.length > 0) blocos.push(atual);
+    if (composicoes) {
+      const campos = camposDaComposicao(defs);
+      for (const comp of composicoes) {
+        const itens: ItemGrupoApresentado[] = [];
+        for (const def of campos) {
+          const texto = textoDoItemGrupo(def, comp);
+          if (!texto && def.key !== 'giro_vendas') continue;
+          itens.push({
+            label: rotuloGrupo(def),
+            valor: texto || '—',
+            largo: rotuloGrupo(def).length > 42,
+          });
+        }
+        blocos.push({
+          titulo: tituloDaComposicao(defs),
+          subtitulo: `De ${comp.faixa_de} à ${comp.faixa_ate}`,
+          itens,
+        });
+      }
+    }
     const visiveis = blocos.filter((bloco) => bloco.itens.length > 0);
     if (!nome && visiveis.length === 0) return [];
     return [{ titulo: nome || `Condomínio ${index + 1}`, blocos: visiveis }];
@@ -137,6 +168,16 @@ export function corDoStatus(status: string): string {
   return map[status] ?? 'var(--moni-text-tertiary)';
 }
 
+export function apresentarValorLista(valor: string): string {
+  const texto = valor.trim();
+  if (!texto) return '';
+  const partes = texto.split('|');
+  if (partes.length === 2 && /^[A-Za-z]{2}$/.test(partes[1].trim())) {
+    return `${partes[0].trim()} — ${partes[1].trim().toUpperCase()}`;
+  }
+  return texto;
+}
+
 export function formatarValorCampo(campo: FormularioCampo, valor: string | string[] | null | undefined): string {
   if (valor === null || valor === undefined || valor === '') return '—';
 
@@ -150,6 +191,11 @@ export function formatarValorCampo(campo: FormularioCampo, valor: string | strin
     return valor.join(', ');
   }
 
+  if ((campo.tipo === 'select_estado' || campo.tipo === 'select_cidade') && Array.isArray(valor)) {
+    const itens = valor.map((item) => apresentarValorLista(String(item))).filter(Boolean);
+    return itens.length > 0 ? itens.join(', ') : '—';
+  }
+
   if (campo.tipo === 'grupo_repetivel') {
     const linhas = linhasDoGrupo(campo, valor);
     if (!linhas) return String(valor);
@@ -158,6 +204,7 @@ export function formatarValorCampo(campo: FormularioCampo, valor: string | strin
       .map((linha) => {
         const partes = linha.blocos.flatMap((bloco) => [
           bloco.titulo ?? '',
+          bloco.subtitulo ?? '',
           ...bloco.itens.map((item) => `${item.label}: ${item.valor}`),
         ]);
         return [linha.titulo, ...partes].filter(Boolean).join('\n');
