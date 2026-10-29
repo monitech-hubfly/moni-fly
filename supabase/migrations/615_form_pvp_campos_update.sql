@@ -96,14 +96,14 @@ SET tipo = 'grupo_repetivel',
       "label_adicionar": "Incluir Condomínio",
       "campos": [
         {"key": "nome", "label": "Nome do condomínio", "tipo": "texto_curto", "obrigatorio": true},
-        {"key": "faixa_preco", "label": "Faixa de preço de venda das casas", "tipo": "faixa_moeda", "obrigatorio": false},
-        {"key": "giro_vendas", "label": "Giro de vendas nessa faixa: quantas casas são vendidas, em média, por ano?", "tipo": "numero", "obrigatorio": false},
+        {"key": "faixa_preco", "label": "Faixa de preço de venda das casas", "tipo": "faixa_moeda", "obrigatorio": true},
         {"key": "composicao_media", "label": "Composição média das casas nessa faixa", "tipo": "titulo", "obrigatorio": false},
-        {"key": "metragem_construida", "label": "Metragem construída aproximada", "tipo": "m2", "obrigatorio": false},
-        {"key": "num_suites", "label": "Número de suítes", "tipo": "numero", "obrigatorio": false},
-        {"key": "possui_piscina", "label": "Possui piscina?", "tipo": "select", "opcoes": ["Sim", "Não"], "obrigatorio": false},
-        {"key": "vagas_cobertas", "label": "Número de vagas cobertas", "tipo": "numero", "obrigatorio": false},
-        {"key": "preco_medio_venda", "label": "Preço médio de venda das casas nessa faixa", "tipo": "moeda", "obrigatorio": false}
+        {"key": "giro_vendas", "label": "Giro de vendas nessa faixa: quantas casas são vendidas, em média, por ano?", "tipo": "numero", "obrigatorio": true},
+        {"key": "metragem_construida", "label": "Metragem construída aproximada", "tipo": "m2", "obrigatorio": true},
+        {"key": "num_suites", "label": "Número de suítes", "tipo": "numero", "obrigatorio": true},
+        {"key": "possui_piscina", "label": "Possui piscina?", "tipo": "select", "opcoes": ["Sim", "Não"], "obrigatorio": true},
+        {"key": "vagas_cobertas", "label": "Número de vagas cobertas", "tipo": "numero", "obrigatorio": true},
+        {"key": "preco_medio_venda", "label": "Preço médio de venda das casas nessa faixa", "tipo": "moeda", "obrigatorio": true}
       ]
     }'::jsonb
 WHERE secao_id = 'sec-pvp-mercado'

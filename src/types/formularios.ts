@@ -10,6 +10,7 @@ export type FormularioCampoGrupoDef = {
 
 export type FormularioCampoConfig = {
   estado_campo_id?: string;
+  multiplo?: boolean;
   label_adicionar?: string;
   campos?: FormularioCampoGrupoDef[];
 };

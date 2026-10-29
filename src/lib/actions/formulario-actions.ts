@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { FORMULARIOS_BUCKET } from '@/lib/constants/formularios-ids';
 import { categoriaHubOuNull } from '@/lib/constants/categorias-hub';
 import { isFrankOrFranqueadoRole } from '@/lib/authz';
-import { opcoesParaLista } from '@/lib/formularios/apresentacao';
+import { apresentarValorLista, opcoesParaLista } from '@/lib/formularios/apresentacao';
 import {
   camposIdentidadeResposta,
   chaveUltimoPreenchimento,
@@ -231,6 +231,10 @@ export async function atualizarClassificacaoFormulario(
 function textoDoValor(row: { valor_texto: string | null; valor_json: unknown }): string | null {
   const texto = String(row.valor_texto ?? '').trim();
   if (texto) return texto;
+  if (Array.isArray(row.valor_json)) {
+    const itens = row.valor_json.map((item) => apresentarValorLista(String(item))).filter(Boolean);
+    if (itens.length > 0) return itens.join(', ');
+  }
   if (typeof row.valor_json === 'string' && row.valor_json.trim()) return row.valor_json.trim();
   return null;
 }
