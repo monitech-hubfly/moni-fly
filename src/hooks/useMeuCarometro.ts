@@ -570,8 +570,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
         let novoScoreEng: number | null = null;
         if (filhasArr.length === 0) {
-          // Sem filhas configuradas — mantém score atual (atividades/cards)
-          novoScoreEng = engajamentoRuntime.score;
+          // Sem filhas configuradas no mês → 0% (não assumiu as metas do mês)
+          novoScoreEng = 0;
         } else if (engRelevantes === 0) {
           // Tem filhas mas todas estão no prazo → 100% (sem penalidade ainda)
           novoScoreEng = 100;
@@ -848,6 +848,10 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             setIndicadoresPrevia(indPrevia);
           }
           } // filteredObjIds.length > 0
+        } else {
+          // Sem Meta Mãe assumida pelo usuário → 0% (não assumiu nenhuma meta do mês)
+          indicadoresAtual    = { porIndicador: [], media: 0 };
+          indicadoresAnterior = { porIndicador: [], media: 0 };
         }
       }
 
