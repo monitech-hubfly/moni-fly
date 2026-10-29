@@ -235,19 +235,20 @@ export function FaqClient({
       </section>
 
       {!modoBusca && categories.length > 0 ? (
-        <section className="mx-auto max-w-5xl px-4 pb-2 pt-8">
-          <p className="mb-3 text-center font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-xs)] uppercase tracking-[0.14em] text-[var(--moni-text-tertiary)]">
+        <section className="mx-auto max-w-4xl px-4 pb-2 pt-10">
+          <p className="mb-4 text-center font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-xs)] uppercase tracking-[0.14em] text-[var(--moni-text-tertiary)]">
             Temas
           </p>
-          <div className="flex flex-wrap justify-center gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {categories.map((categoria) => (
               <button
                 key={categoria.id}
                 type="button"
                 onClick={() => setConsulta(categoria.nome)}
-                className="inline-flex min-h-11 items-center rounded-[var(--moni-radius-pill)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] px-4 font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] text-[var(--moni-text-secondary)] transition-colors duration-200 hover:border-[var(--moni-navy-800)] hover:text-[var(--moni-text-primary)]"
+                className="flex min-h-11 items-center gap-3 rounded-[var(--moni-radius-md)] border-[length:var(--moni-border-width)] border-solid border-[var(--moni-border-default)] bg-[var(--moni-surface-0)] px-4 py-2.5 text-left font-[family-name:var(--moni-font-sans)] text-[length:var(--moni-text-sm)] leading-snug text-[var(--moni-text-secondary)] transition-colors duration-200 hover:border-[var(--moni-navy-800)] hover:text-[var(--moni-text-primary)] focus-visible:border-[var(--moni-navy-800)] focus-visible:outline-none"
               >
-                {categoria.nome}
+                <span className="h-px w-3 shrink-0 bg-[var(--moni-gold-400)]" aria-hidden />
+                <span className="min-w-0 flex-1">{categoria.nome}</span>
               </button>
             ))}
           </div>
