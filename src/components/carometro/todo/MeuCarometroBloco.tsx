@@ -97,11 +97,11 @@ export function MeuCarometroBloco() {
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-600" />
-              50–69% Amarelo
+              51–69% Amarelo
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-600" />
-              &lt;50% Vermelho
+              ≤50% Vermelho
             </span>
             <span className="flex items-center gap-1">
               <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-300" />
