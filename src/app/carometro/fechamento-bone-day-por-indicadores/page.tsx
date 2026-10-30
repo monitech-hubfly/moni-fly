@@ -10,6 +10,7 @@ import {
   getMonthLabel,
   getMonthOptions,
   GRUPOS_CONFIG,
+  ehAreaDiretoria,
 } from '@/hooks/useFechamentoBoneDayPorIndicadores';
 import type { AreaRelatorio, MetaSimples, BlockerSimples } from '@/hooks/useFechamentoBoneDayPorIndicadores';
 
@@ -458,9 +459,21 @@ export default function FechamentoBoneDayPorIndicadoresPage() {
 
   const { grupos, areasSemDados, mes, setMes, isLoading, error, salvarComentario } =
     useFechamentoBoneDayPorIndicadores(effectiveProfileId);
+  const [mostrarDiretoria, setMostrarDiretoria] = useState(false);
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
   const admin = Boolean(isAdmin);
+  const gruposVisiveis = useMemo(
+    () => grupos.map(g => ({
+      ...g,
+      areas: mostrarDiretoria ? g.areas : g.areas.filter(a => !ehAreaDiretoria(a.nome)),
+    })),
+    [grupos, mostrarDiretoria],
+  );
+  const semDadosVisiveis = useMemo(
+    () => (mostrarDiretoria ? areasSemDados : areasSemDados.filter(a => !ehAreaDiretoria(a.nome))),
+    [areasSemDados, mostrarDiretoria],
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--moni-surface-50)' }}>
@@ -485,6 +498,24 @@ export default function FechamentoBoneDayPorIndicadoresPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              minHeight: '44px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontFamily: 'var(--moni-font-sans)',
+              color: 'var(--moni-text-secondary)',
+            }}>
+              <input
+                type="checkbox"
+                checked={mostrarDiretoria}
+                onChange={e => setMostrarDiretoria(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: 'var(--moni-navy-800)' }}
+              />
+              Mostrar Diretoria
+            </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <label style={{ fontSize: '12px', fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-tertiary)' }}>
                 Mês:
@@ -538,12 +569,12 @@ export default function FechamentoBoneDayPorIndicadoresPage() {
         ) : (
           <>
             {/* Cartões de resumo */}
-            <CartoesResumo grupos={grupos} />
+            <CartoesResumo grupos={gruposVisiveis} />
 
             {/* Grupos com tabelas */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {GRUPOS_CONFIG.map(grupo => {
-                const grupoData = grupos.find(g => g.id === grupo.id);
+                const grupoData = gruposVisiveis.find(g => g.id === grupo.id);
                 const areasGrupo = grupoData?.areas ?? [];
 
                 return (
@@ -602,7 +633,7 @@ export default function FechamentoBoneDayPorIndicadoresPage() {
               })}
 
               {/* Áreas sem dados de Carômetro (ex: novas ou sem tracking ativo) */}
-              {areasSemDados.length > 0 && (
+              {semDadosVisiveis.length > 0 && (
                 <div
                   style={{
                     background: 'var(--moni-surface-0)',
@@ -641,11 +672,11 @@ export default function FechamentoBoneDayPorIndicadoresPage() {
                       padding: '2px 10px',
                       flexShrink: 0,
                     }}>
-                      {areasSemDados.length} {areasSemDados.length === 1 ? 'área' : 'áreas'}
+                      {semDadosVisiveis.length} {semDadosVisiveis.length === 1 ? 'área' : 'áreas'}
                     </span>
                   </div>
                   <TabelaGrupo
-                    areas={areasSemDados}
+                    areas={semDadosVisiveis}
                     isAdmin={admin}
                     onSalvarComentario={salvarComentario}
                   />

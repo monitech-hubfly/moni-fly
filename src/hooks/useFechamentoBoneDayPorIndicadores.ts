@@ -53,6 +53,43 @@ function calcularGrupo(indScore: number | null): GrupoId | 'sem-dados' {
   return 'vermelho';
 }
 
+function nomeArea(nome: string): string {
+  return nome.trim().replace(/\s+/g, ' ').toLocaleLowerCase('pt-BR');
+}
+
+export function ehAreaDiretoria(nome: string): boolean {
+  return nomeArea(nome) === 'diretoria';
+}
+
+/** Ajustes só desta tela. As outras continuam com o cálculo automático. */
+function aplicarAjusteExibicao(area: AreaRelatorio): AreaRelatorio {
+  const nome = nomeArea(area.nome);
+  if (nome === 'imob') {
+    return {
+      ...area,
+      scores: { indicadores: 0, engajamento: 0, sirene: 0 },
+      grupo: 'vermelho',
+    };
+  }
+  if (nome === 'projetos - executivos locais') {
+    return {
+      ...area,
+      scores: { ...area.scores, indicadores: 0 },
+      grupo: 'vermelho',
+    };
+  }
+  return area;
+}
+
+function ordenarPorIndicador(lista: AreaRelatorio[]): AreaRelatorio[] {
+  return [...lista].sort((a, b) => {
+    const ia = a.scores.indicadores ?? Number.POSITIVE_INFINITY;
+    const ib = b.scores.indicadores ?? Number.POSITIVE_INFINITY;
+    if (ia !== ib) return ia - ib;
+    return a.nome.localeCompare(b.nome, 'pt-BR');
+  });
+}
+
 // ── Grupos na ordem de exibição ───────────────────────────────────────────────
 export const GRUPOS_CONFIG: { id: GrupoId; label: string; corFundo: string; corTexto: string }[] = [
   {
@@ -303,7 +340,7 @@ export function useFechamentoBoneDayPorIndicadores(effectiveProfileId: string | 
           }
         }
 
-        return {
+        return aplicarAjusteExibicao({
           id: a.id,
           nome: a.nome,
           scores,
@@ -313,7 +350,7 @@ export function useFechamentoBoneDayPorIndicadores(effectiveProfileId: string | 
           blockers: blockersPorArea.get(a.id) ?? [],
           comentario,
           fechamentoId: fechRec?.id ?? null,
-        };
+        });
       });
 
       setAreas(resultado);
@@ -380,7 +417,10 @@ export function useFechamentoBoneDayPorIndicadores(effectiveProfileId: string | 
   );
 
   const grupos: GrupoRelatorio[] = useMemo(
-    () => GRUPOS_CONFIG.map(g => ({ ...g, areas: areas.filter(a => a.grupo === g.id) })),
+    () => GRUPOS_CONFIG.map(g => ({
+      ...g,
+      areas: ordenarPorIndicador(areas.filter(a => a.grupo === g.id)),
+    })),
     [areas],
   );
 
