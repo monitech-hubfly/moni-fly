@@ -2580,17 +2580,12 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
     descricao: '',
     tipo: 'recorrente',
     respId: '',
-    dataInicio: '',
-    dataFim: '',
     isChave: false,
   });
   const set = (k: string, v: string) => { setForm(p => ({ ...p, [k]: v })); setErroForm(''); };
 
   const handleSalvar = async () => {
     if (!form.descricao.trim()) { setErroForm('Informe a descrição da meta.'); return; }
-    if (!form.dataInicio)        { setErroForm('Informe a data de início.'); return; }
-    if (!form.dataFim)           { setErroForm('Informe a data de fim.'); return; }
-    if (form.dataFim < form.dataInicio) { setErroForm('A data de fim deve ser igual ou posterior ao início.'); return; }
     setSalvando(true);
     try {
       const { data: ins, error: e } = await supabase.from('objetivos')
@@ -2601,8 +2596,8 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
           profile_id: form.respId || null,
           status: 'ativo',
           mes,
-          data_inicio: form.dataInicio,
-          data_fim: form.dataFim,
+          data_inicio: null,
+          data_fim: null,
           is_chave: form.isChave,
         })
         .select('id').single();
@@ -2610,7 +2605,7 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
       const metaId = (ins as { id: string }).id;
       LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId,
         operacao: 'INSERT', descricao: `Nova meta no Plano Boné Day: ${form.descricao}` });
-      setForm({ descricao: '', tipo: 'recorrente', respId: '', dataInicio: '', dataFim: '', isChave: false });
+      setForm({ descricao: '', tipo: 'recorrente', respId: '', isChave: false });
       setAberto(false); onSalvo();
     } finally { setSalvando(false); }
   };
@@ -2647,19 +2642,6 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
           onChange={e => setForm(p => ({ ...p, isChave: e.target.checked }))} />
         Meta Chave 🔑
       </label>
-      {/* Datas: início e fim para todos os tipos */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] text-gray-500">Início *</label>
-          <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
-            value={form.dataInicio} onChange={e => set('dataInicio', e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] text-gray-500">Fim *</label>
-          <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
-            value={form.dataFim} onChange={e => set('dataFim', e.target.value)} />
-        </div>
-      </div>
       {erroForm && <p className="text-[10px] text-red-500">{erroForm}</p>}
       <div className="flex gap-2 justify-end">
         <button type="button" onClick={() => { setAberto(false); setErroForm(''); }}
