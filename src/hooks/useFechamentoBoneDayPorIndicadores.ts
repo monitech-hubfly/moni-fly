@@ -67,8 +67,8 @@ function aplicarAjusteExibicao(area: AreaRelatorio): AreaRelatorio {
   if (nome === 'imob') {
     return {
       ...area,
-      scores: { indicadores: 0, engajamento: 0, sirene: 0 },
-      grupo: 'vermelho',
+      scores: { indicadores: null, engajamento: null, sirene: null },
+      grupo: 'sem-dados',
     };
   }
   if (nome === 'projetos - executivos locais') {
@@ -85,7 +85,7 @@ function ordenarPorIndicador(lista: AreaRelatorio[]): AreaRelatorio[] {
   return [...lista].sort((a, b) => {
     const ia = a.scores.indicadores ?? Number.POSITIVE_INFINITY;
     const ib = b.scores.indicadores ?? Number.POSITIVE_INFINITY;
-    if (ia !== ib) return ia - ib;
+    if (ia !== ib) return ib - ia;
     return a.nome.localeCompare(b.nome, 'pt-BR');
   });
 }
