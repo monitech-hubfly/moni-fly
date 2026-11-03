@@ -180,6 +180,7 @@ import {
   negocioDraftVazio,
   type NegocioDraftKanban,
 } from '@/lib/kanban/negocio-draft';
+import { mesclarDraftLateral } from '@/lib/kanban/mesclar-draft-lateral';
 import {
   opcoesTipoNegociacaoComValorAtual,
   opcoesProdutoModeloCasaComValorAtual,
@@ -854,6 +855,7 @@ export function KanbanCardModal({
   const fundingDirtyRef = useRef(false);
   const fundingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lateralCardIdRef = useRef<string | null>(null);
+  const cardLoadSeqRef = useRef(0);
   const processoIdLateralRef = useRef('');
   const basePathRef = useRef(basePath);
   basePathRef.current = basePath;
@@ -1216,7 +1218,41 @@ export function KanbanCardModal({
     }
   }
 
+  function aplicarDraftLateral<T>(input: {
+    local: T;
+    servidor: T;
+    hidratadoRef: { current: boolean };
+    ignorarRef: { current: boolean };
+    dirtyRef: { current: boolean };
+    timerRef: { current: ReturnType<typeof setTimeout> | null };
+    setRef: (valor: T) => void;
+    setDraft: (valor: T) => void;
+    persist: () => void;
+  }) {
+    const mesclado = mesclarDraftLateral(input.local, input.servidor);
+    const diferente = JSON.stringify(mesclado) !== JSON.stringify(input.servidor);
+    input.hidratadoRef.current = true;
+    if (input.timerRef.current) {
+      clearTimeout(input.timerRef.current);
+      input.timerRef.current = null;
+    }
+    input.ignorarRef.current = true;
+    input.dirtyRef.current = false;
+    input.setRef(mesclado);
+    input.setDraft(mesclado);
+    if (diferente) void input.persist();
+  }
+
+  function editarNegocioDraft(updater: (atual: NegocioDraftKanban) => NegocioDraftKanban) {
+    const next = updater(negocioDraftRef.current);
+    negocioDraftRef.current = next;
+    negocioDirtyRef.current = true;
+    setNegocioDraft(next);
+  }
+
   async function loadCard(opts?: { silencioso?: boolean }) {
+    const seq = ++cardLoadSeqRef.current;
+    const cargaObsoleta = () => seq !== cardLoadSeqRef.current;
     const silencioso = Boolean(opts?.silencioso && card);
     if (!silencioso) {
       setLoading(true);
@@ -1533,28 +1569,64 @@ export function KanbanCardModal({
         nativeRedeFranqueadoId =
           (cardData as { rede_franqueado_id?: string | null }).rede_franqueado_id ?? null;
         const cardNativoId = String((cardData as { id?: string }).id ?? cardId);
+        if (cargaObsoleta()) return;
         lateralCardIdRef.current = cardNativoId;
-        preObraIgnorarRef.current = true;
-        preObraHidratadoRef.current = true;
-        fundingIgnorarRef.current = true;
-        fundingHidratadoRef.current = true;
-        setOperacoesPreObraDraft(operacoesPreObraDraftFromCard(cardData as Record<string, unknown>));
+        aplicarDraftLateral({
+          local: operacoesPreObraDraftRef.current,
+          servidor: operacoesPreObraDraftFromCard(cardData as Record<string, unknown>),
+          hidratadoRef: preObraHidratadoRef,
+          ignorarRef: preObraIgnorarRef,
+          dirtyRef: preObraDirtyRef,
+          timerRef: preObraTimerRef,
+          setRef: (valor) => {
+            operacoesPreObraDraftRef.current = valor;
+          },
+          setDraft: setOperacoesPreObraDraft,
+          persist: () => {
+            void persistirLateraisRef.current.preObra();
+          },
+        });
         setPreobraEspelhoChecklist(preobraEspelhoFromCard(cardData as Record<string, unknown>));
         const creditoRes = await supabase
           .from('kanban_cards')
           .select('credito_lateral')
           .eq('id', cardId)
           .maybeSingle();
+        if (cargaObsoleta()) return;
         if (!creditoRes.error) {
-          creditoIgnorarRef.current = true;
-          creditoHidratadoRef.current = true;
-          setCreditoDraft(
-            creditoLateralFromRaw(
+          aplicarDraftLateral({
+            local: creditoDraftRef.current,
+            servidor: creditoLateralFromRaw(
               (creditoRes.data as { credito_lateral?: unknown } | null)?.credito_lateral,
             ),
-          );
+            hidratadoRef: creditoHidratadoRef,
+            ignorarRef: creditoIgnorarRef,
+            dirtyRef: creditoDirtyRef,
+            timerRef: creditoTimerRef,
+            setRef: (valor) => {
+              creditoDraftRef.current = valor;
+            },
+            setDraft: setCreditoDraft,
+            persist: () => {
+              void persistirLateraisRef.current.credito();
+            },
+          });
         }
-        setFundingDraft(fundingDraftFromRow(cardData as Record<string, unknown>));
+        aplicarDraftLateral({
+          local: fundingDraftRef.current,
+          servidor: fundingDraftFromRow(cardData as Record<string, unknown>),
+          hidratadoRef: fundingHidratadoRef,
+          ignorarRef: fundingIgnorarRef,
+          dirtyRef: fundingDirtyRef,
+          timerRef: fundingTimerRef,
+          setRef: (valor) => {
+            fundingDraftRef.current = valor;
+          },
+          setDraft: setFundingDraft,
+          persist: () => {
+            void persistirLateraisRef.current.funding();
+          },
+        });
         void mesclarLateraisPreenchidosDoGrupo(cardNativoId).then((mescla) => {
           if (!mescla || lateralCardIdRef.current !== cardNativoId) return;
           setOperacoesPreObraDraft((d) => {
@@ -1756,6 +1828,7 @@ export function KanbanCardModal({
         }
       }
 
+      if (cargaObsoleta()) return;
       modalLoadIdRef.current = cardParaEstado.id;
       setCard(cardParaEstado);
       const dr = loaded.data_reuniao ? String(loaded.data_reuniao).slice(0, 10) : '';
@@ -1814,15 +1887,30 @@ export function KanbanCardModal({
           return det;
         });
         const opcoesNegocioPrazo = await fetchFasesNegocioPrazoOpcoes(supabase);
+        if (cargaObsoleta()) return;
         setFasesNegocioPrazo(opcoesNegocioPrazo);
-        negocioIgnorarRef.current = true;
-        negocioHidratadoRef.current = true;
         processoIdLateralRef.current = String(det.processo?.id ?? '');
-        setNegocioDraft(negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo));
+        aplicarDraftLateral({
+          local: negocioDraftRef.current,
+          servidor: negocioDraftFromProcesso(det.processo, opcoesNegocioPrazo),
+          hidratadoRef: negocioHidratadoRef,
+          ignorarRef: negocioIgnorarRef,
+          dirtyRef: negocioDirtyRef,
+          timerRef: negocioTimerRef,
+          setRef: (valor) => {
+            negocioDraftRef.current = valor;
+          },
+          setDraft: setNegocioDraft,
+          persist: () => {
+            void persistirLateraisRef.current.negocio();
+          },
+        });
       } catch {
-        negocioHidratadoRef.current = false;
+        if (!negocioDirtyRef.current) {
+          negocioHidratadoRef.current = false;
+          setNegocioDraft(negocioDraftVazio());
+        }
         setModalDetalhes({ rede: null, processo: null, redeIdContrato: null, empresas: null });
-        setNegocioDraft(negocioDraftVazio());
       }
 
       const mapFaseRow = mapKanbanFaseRow;
@@ -3788,7 +3876,7 @@ export function KanbanCardModal({
   }, [fundingDraft]);
 
   useEffect(() => {
-    return () => {
+    const flushLaterais = () => {
       if (preObraTimerRef.current) clearTimeout(preObraTimerRef.current);
       if (creditoTimerRef.current) clearTimeout(creditoTimerRef.current);
       if (negocioTimerRef.current) clearTimeout(negocioTimerRef.current);
@@ -3809,6 +3897,11 @@ export function KanbanCardModal({
         fundingDirtyRef.current = false;
         void persistirLateraisRef.current.funding();
       }
+    };
+    window.addEventListener('pagehide', flushLaterais);
+    return () => {
+      window.removeEventListener('pagehide', flushLaterais);
+      flushLaterais();
     };
   }, [cardId]);
 
@@ -6624,17 +6717,21 @@ export function KanbanCardModal({
                       <KanbanCardModalCreditoSessao
                         key={card.id}
                         draft={creditoDraft}
-                        onChange={setCreditoDraft}
+                        onChange={(next) => {
+                          creditoDraftRef.current = next;
+                          creditoDirtyRef.current = true;
+                          setCreditoDraft(next);
+                        }}
                         valorTerreno={negocioDraft.valor_terreno}
                         valorObra={negocioDraft.custo_obra}
                         tipoNegocio={negocioDraft.tipo_aquisicao_terreno}
                         bookEmpreendimento={negocioDraft.book_empreendimento}
                         checkAnaliseCredito={negocioDraft.check_analise_credito}
                         onBookChange={(book_empreendimento) =>
-                          setNegocioDraft((d) => ({ ...d, book_empreendimento }))
+                          editarNegocioDraft((d) => ({ ...d, book_empreendimento }))
                         }
                         onCheckChange={(check_analise_credito) =>
-                          setNegocioDraft((d) => ({ ...d, check_analise_credito }))
+                          editarNegocioDraft((d) => ({ ...d, check_analise_credito }))
                         }
                         onSalvar={() => void handleSalvarCredito()}
                         salvando={salvandoCredito}
@@ -7989,7 +8086,12 @@ export function KanbanCardModal({
               ehFunilFunding && !isLegado ? (
                 <KanbanCardModalDadosFunding
                   draft={fundingDraft}
-                  onChange={(patch) => setFundingDraft((d) => ({ ...d, ...patch }))}
+                  onChange={(patch) => {
+                  const next = { ...fundingDraftRef.current, ...patch };
+                  fundingDraftRef.current = next;
+                  fundingDirtyRef.current = true;
+                  setFundingDraft(next);
+                }}
                   onSalvar={() => void handleSalvarFunding()}
                   salvando={salvandoFunding}
                   podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam}
@@ -8014,7 +8116,7 @@ export function KanbanCardModal({
                         <span className="text-[11px] font-medium text-stone-500">Tipo de negociação</span>
                         <SearchableSelect
                           value={negocioDraft.tipo_aquisicao_terreno}
-                          onChange={(v) => setNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: v }))}
+                          onChange={(v) => editarNegocioDraft((d) => ({ ...d, tipo_aquisicao_terreno: v }))}
                           placeholder="Selecione"
                           className="mt-0.5"
                           options={opcoesTipoNegociacaoComValorAtual(negocioDraft.tipo_aquisicao_terreno)}
@@ -8024,7 +8126,7 @@ export function KanbanCardModal({
                         <span className="text-[11px] font-medium text-stone-500">Valor do Terreno</span>
                         <KanbanCardModalMoedaField
                           value={negocioDraft.valor_terreno}
-                          onChange={(valor_terreno) => setNegocioDraft((d) => ({ ...d, valor_terreno }))}
+                          onChange={(valor_terreno) => editarNegocioDraft((d) => ({ ...d, valor_terreno }))}
                         />
                       </label>
                       {isTipoPermutaParcial(negocioDraft.tipo_aquisicao_terreno) ? (
@@ -8036,7 +8138,7 @@ export function KanbanCardModal({
                           min="0"
                           max="100"
                           value={negocioDraft.pct_compra_parcial_terreno}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, pct_compra_parcial_terreno: e.target.value }))}
+                          onChange={(e) => editarNegocioDraft((d) => ({ ...d, pct_compra_parcial_terreno: e.target.value }))}
                           className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                         />
                       </label>
@@ -8050,7 +8152,7 @@ export function KanbanCardModal({
                           min="0"
                           max="100"
                           value={negocioDraft.pct_vgv_terrenista}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, pct_vgv_terrenista: e.target.value }))}
+                          onChange={(e) => editarNegocioDraft((d) => ({ ...d, pct_vgv_terrenista: e.target.value }))}
                           className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                         />
                       </label>
@@ -8063,7 +8165,7 @@ export function KanbanCardModal({
                         step="0.01"
                         min="0"
                         value={negocioDraft.m2_terreno}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, m2_terreno: e.target.value }))}
+                        onChange={(e) => editarNegocioDraft((d) => ({ ...d, m2_terreno: e.target.value }))}
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
@@ -8072,13 +8174,13 @@ export function KanbanCardModal({
                       proc.link_opcao_permuta,
                       {
                         value: negocioDraft.link_opcao_permuta,
-                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_opcao_permuta: v })),
+                        onChange: (v) => editarNegocioDraft((d) => ({ ...d, link_opcao_permuta: v })),
                       },
                     )}
                     <KanbanCardModalNegocioPrazoField
                       label="Prazo Opção"
                       draft={negocioDraft.prazo_opcao}
-                      onChange={(prazo_opcao) => setNegocioDraft((d) => ({ ...d, prazo_opcao }))}
+                      onChange={(prazo_opcao) => editarNegocioDraft((d) => ({ ...d, prazo_opcao }))}
                       faseOpcoes={fasesNegocioPrazo}
                       disabled={salvandoNegocio}
                     >
@@ -8086,7 +8188,7 @@ export function KanbanCardModal({
                         <span className="text-[11px] font-medium text-stone-500">Obs. Opção</span>
                         <textarea
                           value={negocioDraft.obs_opcao}
-                          onChange={(e) => setNegocioDraft((d) => ({ ...d, obs_opcao: e.target.value }))}
+                          onChange={(e) => editarNegocioDraft((d) => ({ ...d, obs_opcao: e.target.value }))}
                           rows={2}
                           className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                         />
@@ -8097,7 +8199,7 @@ export function KanbanCardModal({
                       <input
                         type="date"
                         value={negocioDraft.data_ass_opcao_terreno}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, data_ass_opcao_terreno: e.target.value }))}
+                        onChange={(e) => editarNegocioDraft((d) => ({ ...d, data_ass_opcao_terreno: e.target.value }))}
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
@@ -8105,7 +8207,7 @@ export function KanbanCardModal({
                       <span className="text-[11px] font-medium text-stone-500">Produto / Modelo</span>
                       <SearchableSelect
                         value={negocioDraft.produto_modelo_casa}
-                        onChange={(v) => setNegocioDraft((d) => ({ ...d, produto_modelo_casa: v ?? '' }))}
+                        onChange={(v) => editarNegocioDraft((d) => ({ ...d, produto_modelo_casa: v ?? '' }))}
                         className="mt-0.5"
                         options={opcoesProdutoModeloCasaComValorAtual(negocioDraft.produto_modelo_casa)}
                       />
@@ -8115,7 +8217,7 @@ export function KanbanCardModal({
                       proc.extrato_modelo_configurado,
                       {
                         value: negocioDraft.extrato_modelo_configurado,
-                        onChange: (v) => setNegocioDraft((d) => ({ ...d, extrato_modelo_configurado: v })),
+                        onChange: (v) => editarNegocioDraft((d) => ({ ...d, extrato_modelo_configurado: v })),
                       },
                     )}
                     <label className="block">
@@ -8125,7 +8227,7 @@ export function KanbanCardModal({
                         step="0.01"
                         min="0"
                         value={negocioDraft.m2_casa}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, m2_casa: e.target.value }))}
+                        onChange={(e) => editarNegocioDraft((d) => ({ ...d, m2_casa: e.target.value }))}
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
@@ -8133,7 +8235,7 @@ export function KanbanCardModal({
                       <span className="text-[11px] font-medium text-stone-500">Custo da Obra</span>
                       <KanbanCardModalMoedaField
                         value={negocioDraft.custo_obra}
-                        onChange={(custo_obra) => setNegocioDraft((d) => ({ ...d, custo_obra }))}
+                        onChange={(custo_obra) => editarNegocioDraft((d) => ({ ...d, custo_obra }))}
                       />
                     </label>
                     {renderNegocioLinkCampo(
@@ -8141,7 +8243,7 @@ export function KanbanCardModal({
                       proc.link_bca,
                       {
                         value: negocioDraft.link_bca,
-                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_bca: v })),
+                        onChange: (v) => editarNegocioDraft((d) => ({ ...d, link_bca: v })),
                       },
                     )}
                     {renderNegocioLinkCampo(
@@ -8149,21 +8251,21 @@ export function KanbanCardModal({
                       proc.link_mapa_competidores,
                       {
                         value: negocioDraft.link_mapa_competidores,
-                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_mapa_competidores: v })),
+                        onChange: (v) => editarNegocioDraft((d) => ({ ...d, link_mapa_competidores: v })),
                       },
                     )}
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">VGV pretendido</span>
                       <KanbanCardModalMoedaField
                         value={negocioDraft.vgv_pretendido}
-                        onChange={(vgv_pretendido) => setNegocioDraft((d) => ({ ...d, vgv_pretendido }))}
+                        onChange={(vgv_pretendido) => editarNegocioDraft((d) => ({ ...d, vgv_pretendido }))}
                       />
                     </label>
                     <label className="block">
                       <span className="text-[11px] font-medium text-stone-500">Valor Recompra</span>
                       <KanbanCardModalMoedaField
                         value={negocioDraft.valor_recompra}
-                        onChange={(valor_recompra) => setNegocioDraft((d) => ({ ...d, valor_recompra }))}
+                        onChange={(valor_recompra) => editarNegocioDraft((d) => ({ ...d, valor_recompra }))}
                       />
                     </label>
                     {renderNegocioLinkCampo(
@@ -8171,7 +8273,7 @@ export function KanbanCardModal({
                       proc.link_acoplamento,
                       {
                         value: negocioDraft.link_acoplamento,
-                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
+                        onChange: (v) => editarNegocioDraft((d) => ({ ...d, link_acoplamento: v })),
                       },
                     )}
                     {renderNegocioLinkCampo(
@@ -8179,7 +8281,7 @@ export function KanbanCardModal({
                       proc.link_gbox,
                       {
                         value: negocioDraft.link_gbox,
-                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox: v })),
+                        onChange: (v) => editarNegocioDraft((d) => ({ ...d, link_gbox: v })),
                       },
                     )}
                     {renderNegocioLinkCampo(
@@ -8187,7 +8289,7 @@ export function KanbanCardModal({
                       proc.link_gbox_ozempic,
                       {
                         value: negocioDraft.link_gbox_ozempic,
-                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_gbox_ozempic: v })),
+                        onChange: (v) => editarNegocioDraft((d) => ({ ...d, link_gbox_ozempic: v })),
                       },
                     )}
                     {renderNegocioLinkCampo(
@@ -8195,7 +8297,7 @@ export function KanbanCardModal({
                       proc.link_apresentacao_comite,
                       {
                         value: negocioDraft.link_apresentacao_comite,
-                        onChange: (v) => setNegocioDraft((d) => ({ ...d, link_apresentacao_comite: v })),
+                        onChange: (v) => editarNegocioDraft((d) => ({ ...d, link_apresentacao_comite: v })),
                       },
                     )}
                     <label className="block">
@@ -8203,7 +8305,7 @@ export function KanbanCardModal({
                       <input
                         type="date"
                         value={negocioDraft.data_aprovacao_comite}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, data_aprovacao_comite: e.target.value }))}
+                        onChange={(e) => editarNegocioDraft((d) => ({ ...d, data_aprovacao_comite: e.target.value }))}
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
@@ -8211,7 +8313,7 @@ export function KanbanCardModal({
                       label="Prazo Instrumento Garantidor"
                       draft={negocioDraft.prazo_instrumento_garantidor}
                       onChange={(prazo_instrumento_garantidor) =>
-                        setNegocioDraft((d) => ({ ...d, prazo_instrumento_garantidor }))
+                        editarNegocioDraft((d) => ({ ...d, prazo_instrumento_garantidor }))
                       }
                       faseOpcoes={fasesNegocioPrazo}
                       disabled={salvandoNegocio}
@@ -8221,7 +8323,7 @@ export function KanbanCardModal({
                         <textarea
                           value={negocioDraft.obs_instrumento_garantidor}
                           onChange={(e) =>
-                            setNegocioDraft((d) => ({ ...d, obs_instrumento_garantidor: e.target.value }))
+                            editarNegocioDraft((d) => ({ ...d, obs_instrumento_garantidor: e.target.value }))
                           }
                           rows={2}
                           className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
@@ -8233,14 +8335,14 @@ export function KanbanCardModal({
                       <input
                         type="date"
                         value={negocioDraft.data_ass_contrato_terreno}
-                        onChange={(e) => setNegocioDraft((d) => ({ ...d, data_ass_contrato_terreno: e.target.value }))}
+                        onChange={(e) => editarNegocioDraft((d) => ({ ...d, data_ass_contrato_terreno: e.target.value }))}
                         className="mt-0.5 w-full rounded border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800"
                       />
                     </label>
                     <KanbanCardModalNegociacaoLinhasField
                       linhas={negocioDraft.negociacao_linhas}
                       onChange={(negociacao_linhas) =>
-                        setNegocioDraft((d) => ({ ...d, negociacao_linhas }))
+                        editarNegocioDraft((d) => ({ ...d, negociacao_linhas }))
                       }
                       disabled={salvandoNegocio}
                       opcoesVinculo={calculadoraOpcoesVinculoNegociacao}
@@ -8258,7 +8360,7 @@ export function KanbanCardModal({
                       <button
                         type="button"
                         onClick={() =>
-                          setNegocioDraft((atual) => ({
+                          editarNegocioDraft((atual) => ({
                             ...negocioDraftFromProcesso(proc, fasesNegocioPrazo),
                             book_empreendimento: atual.book_empreendimento,
                             check_analise_credito: atual.check_analise_credito,
@@ -8408,7 +8510,12 @@ export function KanbanCardModal({
               'Dados Pré Obra',
               <KanbanCardModalDadosPreObraOperacoes
                 draft={operacoesPreObraDraft}
-                onChange={(patch) => setOperacoesPreObraDraft((d) => ({ ...d, ...patch }))}
+                onChange={(patch) => {
+                  const next = { ...operacoesPreObraDraftRef.current, ...patch };
+                  operacoesPreObraDraftRef.current = next;
+                  preObraDirtyRef.current = true;
+                  setOperacoesPreObraDraft(next);
+                }}
                 onSalvar={() => void handleSalvarPreObraOperacoes()}
                 salvando={salvandoPreObra}
                 podeEditar={!ocultarGestaoCard && modalSessao.ehAdminOuTeam && !isLegado}
@@ -8420,17 +8527,21 @@ export function KanbanCardModal({
               <KanbanCardModalCreditoSessao
                 key={card.id}
                 draft={creditoDraft}
-                onChange={setCreditoDraft}
+                onChange={(next) => {
+                          creditoDraftRef.current = next;
+                          creditoDirtyRef.current = true;
+                          setCreditoDraft(next);
+                        }}
                 valorTerreno={negocioDraft.valor_terreno}
                 valorObra={negocioDraft.custo_obra}
                 tipoNegocio={negocioDraft.tipo_aquisicao_terreno}
                 bookEmpreendimento={negocioDraft.book_empreendimento}
                 checkAnaliseCredito={negocioDraft.check_analise_credito}
                 onBookChange={(book_empreendimento) =>
-                  setNegocioDraft((d) => ({ ...d, book_empreendimento }))
+                  editarNegocioDraft((d) => ({ ...d, book_empreendimento }))
                 }
                 onCheckChange={(check_analise_credito) =>
-                  setNegocioDraft((d) => ({ ...d, check_analise_credito }))
+                  editarNegocioDraft((d) => ({ ...d, check_analise_credito }))
                 }
                 onSalvar={() => void handleSalvarCredito()}
                 salvando={salvandoCredito}

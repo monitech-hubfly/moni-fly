@@ -2,7 +2,7 @@
 
 import { Fragment, type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Upload, Loader2 } from 'lucide-react';
-import { prefetchChecklistFase } from '@/lib/kanban/fase-checklist-leitura';
+import { invalidarChecklistFase, prefetchChecklistFase } from '@/lib/kanban/fase-checklist-leitura';
 import { createClient } from '@/lib/supabase/client';
 import {
   upsertFaseChecklistResposta,
@@ -287,6 +287,22 @@ export function FaseChecklistCard({
   const execucaoMaterialSyncFeitoRef = useRef('');
   const gboxPlanilhaSyncFeitoRef = useRef('');
   const negocioDirtyRef = useRef<Set<string>>(new Set());
+  const pendentesChecklistRef = useRef(new Map<string, { valor: string; chave?: string }>());
+  const timersChecklistRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const salvarChecklistRef = useRef<
+    (itemId: string, valor?: string, arquivo_path?: string | null, chavePraca?: string) => Promise<ActionResult>
+  >(async () => ({ ok: false, error: 'Checklist ainda não pronto.' }));
+  const escopoChecklistRef = useRef(`${cardId}:${faseId}`);
+  if (escopoChecklistRef.current !== `${cardId}:${faseId}`) {
+    escopoChecklistRef.current = `${cardId}:${faseId}`;
+    for (const timer of timersChecklistRef.current.values()) clearTimeout(timer);
+    timersChecklistRef.current.clear();
+    const salvarAnterior = salvarChecklistRef.current;
+    for (const [itemId, pendente] of pendentesChecklistRef.current) {
+      void salvarAnterior(itemId, pendente.valor, undefined, pendente.chave);
+    }
+    pendentesChecklistRef.current.clear();
+  }
   const negocioEspelhoKey = JSON.stringify(negocioEspelho ?? null);
   const [preBatalhaGrupos, setPreBatalhaGrupos] = useState<RankingPorFaixaMercado[]>([]);
 
@@ -351,6 +367,16 @@ export function FaseChecklistCard({
         const respPorItem = new Map<string, FaseChecklistResposta>();
         for (const r of respRows) respPorItem.set(r.item_id, r);
         for (const it of itensOrdenados) {
+          const pendente = pendentesChecklistRef.current.get(it.id);
+          if (pendente) {
+            map.set(it.id, {
+              valor: pendente.valor,
+              arquivo_path: null,
+              salvando: false,
+              erro: null,
+            });
+            continue;
+          }
           const chaveCompartilhada = String(it.chave_compartilhada ?? '').trim();
           if (chaveCompartilhada) {
             const parsed = parseChecklistCompartilhadoValor(it.tipo, compartilhadoPorChave.get(chaveCompartilhada));
@@ -844,8 +870,54 @@ export function FaseChecklistCard({
       valor: String(valorFinal ?? ''),
       arquivo_path: arquivoFinal,
     });
+    if (res.ok && !erroFinal) invalidarChecklistFase(cardId, faseId);
     return res.ok && !erroFinal ? { ok: true } : { ok: false, error: erroFinal ?? (!res.ok ? res.error : 'Erro ao salvar') };
   }
+
+  salvarChecklistRef.current = salvar;
+
+  function limparPendenciaChecklist(itemId: string) {
+    const timer = timersChecklistRef.current.get(itemId);
+    if (timer) clearTimeout(timer);
+    timersChecklistRef.current.delete(itemId);
+    pendentesChecklistRef.current.delete(itemId);
+  }
+
+  function agendarChecklist(itemId: string, valor: string, chave?: string) {
+    pendentesChecklistRef.current.set(itemId, { valor, chave });
+    const anterior = timersChecklistRef.current.get(itemId);
+    if (anterior) clearTimeout(anterior);
+    timersChecklistRef.current.set(
+      itemId,
+      setTimeout(() => {
+        timersChecklistRef.current.delete(itemId);
+        const pendente = pendentesChecklistRef.current.get(itemId);
+        pendentesChecklistRef.current.delete(itemId);
+        if (!pendente) return;
+        void salvarChecklistRef.current(itemId, pendente.valor, undefined, pendente.chave);
+      }, 400),
+    );
+  }
+
+  function flushChecklistPendente() {
+    for (const timer of timersChecklistRef.current.values()) clearTimeout(timer);
+    timersChecklistRef.current.clear();
+    for (const [itemId, pendente] of pendentesChecklistRef.current) {
+      void salvarChecklistRef.current(itemId, pendente.valor, undefined, pendente.chave);
+    }
+    pendentesChecklistRef.current.clear();
+  }
+
+  useEffect(() => {
+    const aoSair = () => flushChecklistPendente();
+    window.addEventListener('pagehide', aoSair);
+    return () => {
+      window.removeEventListener('pagehide', aoSair);
+      flushChecklistPendente();
+    };
+    // O flush lê os refs atuais. Recria só ao trocar de card ou fase.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardId, faseId]);
 
   async function compararAposAssinado(itemId: string) {
     try {
@@ -978,8 +1050,10 @@ export function FaseChecklistCard({
             return;
           }
           setResposta(item.id, { valor });
+          agendarChecklist(item.id, valor, chave);
         }}
         onBlur={(valor) => {
+          limparPendenciaChecklist(item.id);
           if (
             !multiPracaAtivo &&
             isDadosCidadeFaseSlug(faseSlug) &&
@@ -1018,6 +1092,7 @@ export function FaseChecklistCard({
           } else {
             setResposta(item.id, { valor });
           }
+          limparPendenciaChecklist(item.id);
           await salvar(item.id, valor, undefined, chave);
         }}
         />

@@ -48,9 +48,12 @@ export function prefetchChecklistFase(cardId: string, faseId: string): Promise<C
   const promessa = buscarChecklistFase(idCard, idFase);
   emVoo.set(chave, promessa);
   void promessa.finally(() => {
-    window.setTimeout(() => {
-      if (emVoo.get(chave) === promessa) emVoo.delete(chave);
-    }, 15000);
+    if (emVoo.get(chave) === promessa) emVoo.delete(chave);
   });
   return promessa;
+}
+
+/** Descarta a leitura em voo para o próximo acesso buscar o que acabou de ser salvo. */
+export function invalidarChecklistFase(cardId: string, faseId: string) {
+  emVoo.delete(`${cardId.trim()}:${faseId.trim()}`);
 }
