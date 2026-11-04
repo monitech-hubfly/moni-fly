@@ -1,20 +1,41 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 import { gerarSnapshotCarometro } from '@/lib/carometro/carometro-status-snapshot';
+
+const ADMIN_EMAIL = 'danilo.n@moni.casa';
 
 /**
  * Rota temporária de auditoria e recalculo de snapshots do Carômetro.
  * DELETAR APÓS USO.
  *
+ * Aceita autenticação por CRON_SECRET (query param) OU sessão do usuário admin logado.
+ *
  * GET /api/admin/recalc-carometro?secret=CRON_SECRET&acao=audit
- * GET /api/admin/recalc-carometro?secret=CRON_SECRET&acao=deletar&datas=2026-11-01,2026-11-02
- * GET /api/admin/recalc-carometro?secret=CRON_SECRET&acao=recalcular&datas=2026-11-03
+ * GET /api/admin/recalc-carometro?acao=audit                      ← admin logado no browser
+ * GET /api/admin/recalc-carometro?acao=deletar&datas=2026-11-01,2026-11-02
+ * GET /api/admin/recalc-carometro?acao=recalcular&datas=2026-11-03
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
+  // Auth 1: CRON_SECRET via query param
   const secret = process.env.CRON_SECRET;
-  if (!secret || searchParams.get('secret') !== secret) {
+  const secretOk = secret && searchParams.get('secret') === secret;
+
+  // Auth 2: sessão do usuário admin logado (cookie de sessão Supabase)
+  let sessionOk = false;
+  if (!secretOk) {
+    try {
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      sessionOk = user?.email === ADMIN_EMAIL;
+    } catch {
+      sessionOk = false;
+    }
+  }
+
+  if (!secretOk && !sessionOk) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
   }
 
