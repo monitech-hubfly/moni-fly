@@ -165,5 +165,92 @@ export async function GET(request: Request) {
     return NextResponse.json({ acao: 'recalcular', total_usuarios: usuarios.length, resultados });
   }
 
-  return NextResponse.json({ error: `acao inválida: ${acao}. Use audit, deletar ou recalcular.` }, { status: 400 });
+  // ── EXECUTAR TUDO: deletar Nov-01 e Nov-02, recalcular Nov-03 ─────────────
+  if (acao === 'executar-tudo') {
+    const datasParaDeletar  = ['2026-11-01', '2026-11-02'];
+    const datasParaRecalcular = ['2026-11-03'];
+
+    // 1. Deletar
+    const deletados: { data: string; deletados: number; erro?: string }[] = [];
+    for (const data of datasParaDeletar) {
+      const { error, count } = await db
+        .from('carometro_status_diario')
+        .delete({ count: 'exact' })
+        .eq('data', data);
+      deletados.push(error
+        ? { data, deletados: 0, erro: error.message }
+        : { data, deletados: count ?? 0 },
+      );
+    }
+
+    // 2. Recalcular Nov-03
+    const { data: pessoas, error: pessoasErr } = await db
+      .from('area_pessoas')
+      .select('profile_id, area_id, nome')
+      .eq('ativo', true)
+      .not('profile_id', 'is', null)
+      .not('area_id', 'is', null);
+
+    if (pessoasErr) return NextResponse.json({ error: pessoasErr.message }, { status: 500 });
+
+    type PessoaRow2 = { profile_id: string; area_id: string; nome: string | null };
+    const usuarios2 = (pessoas ?? []) as PessoaRow2[];
+
+    const recalculados: { data: string; ok: number; erros: number; falhas: { profile_id: string; erro: string }[] }[] = [];
+    for (const dataStr of datasParaRecalcular) {
+      const dataObj = new Date(`${dataStr}T12:00:00`);
+      let ok = 0;
+      const falhas: { profile_id: string; erro: string }[] = [];
+      const LOTE = 10;
+      for (let i = 0; i < usuarios2.length; i += LOTE) {
+        const lote = usuarios2.slice(i, i + LOTE);
+        await Promise.all(
+          lote.map(async u => {
+            try {
+              await gerarSnapshotCarometro(db, u.profile_id, u.area_id, u.nome, dataObj);
+              ok++;
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              falhas.push({ profile_id: u.profile_id, erro: msg });
+            }
+          }),
+        );
+      }
+      recalculados.push({ data: dataStr, ok, erros: falhas.length, falhas });
+    }
+
+    // 3. Auditoria final: mostra o estado atual de Nov
+    const mesAtual = '2026-11';
+    const { data: snapFinal } = await db
+      .from('carometro_status_diario')
+      .select('profile_id, data, sirene, engajamento, indicadores')
+      .gte('data', `${mesAtual}-01`)
+      .order('data');
+
+    type SnapRow2 = {
+      profile_id: string; data: string;
+      sirene: Record<string, unknown> | null;
+      engajamento: Record<string, unknown> | null;
+      indicadores: Record<string, unknown> | null;
+    };
+    const rows2 = (snapFinal ?? []) as SnapRow2[];
+    const datasPresentes = [...new Set(rows2.map(r => r.data))].sort();
+
+    return NextResponse.json({
+      acao: 'executar-tudo',
+      etapa_1_deletados:   deletados,
+      etapa_2_recalculados: recalculados,
+      estado_final: {
+        total_registros: rows2.length,
+        datas_presentes: datasPresentes,
+        usuarios_por_data: datasPresentes.map(d => ({
+          data:   d,
+          total:  rows2.filter(r => r.data === d).length,
+          erros:  rows2.filter(r => r.data === d && r.sirene === null).length,
+        })),
+      },
+    });
+  }
+
+  return NextResponse.json({ error: `acao inválida: ${acao}. Use audit, deletar, recalcular ou executar-tudo.` }, { status: 400 });
 }
