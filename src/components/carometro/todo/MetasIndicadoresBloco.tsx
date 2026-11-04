@@ -921,28 +921,26 @@ function MetaCard({
               }`}>
               {togglenando ? '…' : assumiu ? '✓ Minha' : 'Assumir'}
             </button>
-            {/* Concluído per-user — indisponível para metas recorrentes */}
-            {!isRecorrente && (
-              assumiu ? (
-                concluiuMeta ? (
-                  <button type="button" onClick={handleReabrir} disabled={reabrindo}
-                    className="text-[10px] px-1.5 py-0.5 rounded border bg-green-100 text-green-700 border-green-300 hover:bg-green-200 transition-colors whitespace-nowrap disabled:opacity-50">
-                    {reabrindo ? '…' : '✓ Concluída'}
-                  </button>
-                ) : (
-                  <button type="button" onClick={handleConcluir} disabled={concluindo}
-                    className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors px-0.5 disabled:opacity-50"
-                    title="Marcar como concluída para mim">
-                    {concluindo ? '…' : '✓'}
-                  </button>
-                )
+            {/* Concluído per-user — disponível para todos os tipos de meta (Atingível e Recorrente) */}
+            {assumiu ? (
+              concluiuMeta ? (
+                <button type="button" onClick={handleReabrir} disabled={reabrindo}
+                  className="text-[10px] px-1.5 py-0.5 rounded border bg-green-100 text-green-700 border-green-300 hover:bg-green-200 transition-colors whitespace-nowrap disabled:opacity-50">
+                  {reabrindo ? '…' : '✓ Concluída'}
+                </button>
               ) : (
-                <button type="button" disabled
-                  className="text-[14px] text-gray-300 font-bold px-0.5 cursor-not-allowed"
-                  title="Assuma esta meta primeiro para poder concluí-la">
-                  ✓
+                <button type="button" onClick={handleConcluir} disabled={concluindo}
+                  className="text-[14px] text-green-500 hover:text-green-700 font-bold transition-colors px-0.5 disabled:opacity-50"
+                  title={isRecorrente ? 'Marcar recorrente como concluída neste ciclo' : 'Marcar como concluída para mim'}>
+                  {concluindo ? '…' : '✓'}
                 </button>
               )
+            ) : (
+              <button type="button" disabled
+                className="text-[14px] text-gray-300 font-bold px-0.5 cursor-not-allowed"
+                title="Assuma esta meta primeiro para poder concluí-la">
+                ✓
+              </button>
             )}
             {/* Arquivar — exclusivo para admins em metas recorrentes */}
             {isRecorrente && isAdmin && (

@@ -819,21 +819,27 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       type SnapCicloRow = { data: string; sirene: unknown; engajamento: unknown; indicadores: unknown };
       const cicloRows = (cicloSnaps ?? []) as SnapCicloRow[];
 
-      // Inclui o score runtime de hoje caso o upsert ainda não tenha completado
+      // hasTodaySnap mantido para compatibilidade (não mais usado no cálculo do ciclo)
       const hasTodaySnap = cicloRows.some(r => r.data === hojeStr);
+      void hasTodaySnap; // evita warning de unused variable
 
       function mediaScoresCiclo(
         key: 'sirene' | 'engajamento' | 'indicadores',
         runtimeScore: number | null,
       ): number | null {
+        // Exclui o registro de hoje do histórico salvo: o snapshot pode estar stale
+        // (salvo em visita anterior com valor diferente do atual). Sempre usa o
+        // runtimeScore ao vivo para hoje, garantindo que a bolinha direita reflita
+        // o estado atual sem precisar de dupla visita.
         const scores = cicloRows
+          .filter(r => r.data !== hojeStr)
           .map(r => {
             const blob = r[key] as Record<string, unknown> | null;
             return typeof blob?.score === 'number' ? (blob.score as number) : (typeof blob?.media === 'number' ? (blob.media as number) : null);
           })
           .filter((s): s is number => s !== null);
-        // Se hoje ainda não tem snapshot salvo, adiciona o score runtime
-        if (!hasTodaySnap && runtimeScore !== null) scores.push(runtimeScore);
+        // Sempre inclui o score ao vivo de hoje
+        if (runtimeScore !== null) scores.push(runtimeScore);
         if (scores.length === 0) return null;
         return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
       }
