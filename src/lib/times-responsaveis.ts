@@ -63,6 +63,7 @@ export const MONI_EMAIL_POR_NOME: Record<string, string> = {
   'Paula Cruz': 'paula.cruz@moni.casa',
   'Thais Petri': 'thais.petri@moni.casa',
   'Vinícius Melo': 'vinicius.melo@moni.casa',
+  'Gabriela Dias': 'gabriela.dias@moni.casa',
 };
 
 export const MONI_TODOS_EMAILS: readonly string[] = [
@@ -110,6 +111,7 @@ export const HDM_RESPONSAVEIS: Record<HdmTime, { nome: string; email: string }[]
   'Modelo Virtual': [
     { nome: 'Bruna Scarpeli', email: 'bruna.scarpeli@moni.casa' },
     { nome: 'Alef Lopes', email: 'alef.lopes@moni.casa' },
+    { nome: 'Gabriela Dias', email: 'gabriela.dias@moni.casa' },
   ],
   Produto: [
     { nome: 'Vinícius França', email: 'vinicius.fr@moni.casa' },
