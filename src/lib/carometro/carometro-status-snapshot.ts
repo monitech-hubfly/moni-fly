@@ -28,14 +28,14 @@ export async function gerarSnapshotCarometro(
       .in('status', ['nao_iniciado', 'em_andamento'])
       .eq('arquivado', false),
     db.from('sirene_topicos')
-      .select('id, data_fim, prazo_proposto')
+      .select('id, data_fim, prazo_proposto, updated_at')
       .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
       .in('status', ['concluido', 'aprovado'])
       .eq('arquivado', false)
       .gte('updated_at', semanaInicioSnapStr),
   ]);
 
-  type TopicosSnapRow = { id: unknown; data_fim: string | null; prazo_proposto: string | null };
+  type TopicosSnapRow = { id: unknown; data_fim: string | null; prazo_proposto: string | null; updated_at?: string | null };
   const topicosAbertos = (topicosAbertosSnap.data ?? []) as TopicosSnapRow[];
   const topicosConcluidos = ((topicosConcluidosSnap.data ?? []) as TopicosSnapRow[]).filter(t => {
     const prazo = t.data_fim || t.prazo_proposto;
@@ -57,23 +57,23 @@ export async function gerarSnapshotCarometro(
     return prazo && prazo > hojeStr;
   }).length;
 
+  // Fórmula com tier (100/75/50/20%) — igual ao browser (useMeuCarometro.ts)
   const sireneTotal = topicosConcluidos.length + sireneAtrasados + sireneVenceHoje;
-  const sireneScore = sireneTotal === 0
+  const creditosSirene = topicosConcluidos.reduce((sum, t) => {
+    const prazo = t.data_fim || t.prazo_proposto;
+    return sum + tierFilha(prazo, t.updated_at ?? null);
+  }, 0);
+  const sireneScoreRaw = sireneTotal === 0
     ? 100
-    : Math.max(0, Math.round((topicosConcluidos.length / sireneTotal) * 100));
+    : Math.max(0, Math.round((creditosSirene / (sireneTotal * 100)) * 100));
 
-  // Cap Sirene: chamado aberto há >15 dias caps score em 50%
-  const quinzeDiasAtras = new Date(hoje);
-  quinzeDiasAtras.setDate(hoje.getDate() - 15);
-  const quinzeDiasAtrasStr = quinzeDiasAtras.toISOString().slice(0, 10);
-  const { data: topicosAntigos } = await db.from('sirene_topicos')
-    .select('id')
-    .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
-    .in('status', ['nao_iniciado', 'em_andamento'])
-    .eq('arquivado', false)
-    .lt('criado_em', quinzeDiasAtrasStr);
-  const temChamadoAntigo = (topicosAntigos ?? []).length > 0;
-  const sireneFinal = temChamadoAntigo ? Math.min(sireneScore, 50) : sireneScore;
+  // Cap 50%: chamado aberto com prazo vencido há >15 dias — igual ao browser
+  const quinzeDiasAtrasStr = new Date(hoje.getTime() - 15 * 86_400_000).toISOString().slice(0, 10);
+  const temChamadoAntigo = topicosAbertos.some(t => {
+    const prazo = t.data_fim || t.prazo_proposto;
+    return !!prazo && prazo < quinzeDiasAtrasStr;
+  });
+  const sireneFinal = temChamadoAntigo ? Math.min(sireneScoreRaw, 50) : sireneScoreRaw;
 
   const sireneData = {
     atrasados:  sireneAtrasados,
@@ -118,7 +118,7 @@ export async function gerarSnapshotCarometro(
       .gte('updated_at', semanaInicioSnapStr),
     // Metas Filhas do usuário no mês vigente (Engajamento v2)
     db.from('objetivos')
-      .select('id, status, data_fim, updated_at')
+      .select('id, status, data_fim, atualizado_em')
       .eq('profile_id', profileId)
       .not('objetivo_pai_id', 'is', null)
       .eq('mes', mesAtualEng),
@@ -177,7 +177,7 @@ export async function gerarSnapshotCarometro(
     : Math.max(0, Math.round((proxConcluidos / proxDenominador) * 100));
 
   // Engajamento v2: score baseado em Metas Filhas + Tier
-  type FilhaEngRow = { id: string; status: string; data_fim: string | null; updated_at: string | null };
+  type FilhaEngRow = { id: string; status: string; data_fim: string | null; atualizado_em: string | null };
   const filhasArr = (filhasEngRes.data ?? []) as FilhaEngRow[];
 
   const filhasConcluidas      = filhasArr.filter(f => f.status === 'concluido');
@@ -194,7 +194,7 @@ export async function gerarSnapshotCarometro(
     novoScoreEng = 100; // tem filhas, todas no prazo → sem penalidade
   } else {
     const totalCreditos = filhasConcluidas.reduce(
-      (sum, f) => sum + tierFilha(f.data_fim, f.updated_at), 0
+      (sum, f) => sum + tierFilha(f.data_fim, f.atualizado_em), 0
     );
     novoScoreEng = Math.max(0, Math.round((totalCreditos / (engRelevantes * 100)) * 100));
   }
@@ -272,8 +272,9 @@ export async function gerarSnapshotCarometro(
             deadline = new Date(meta.data_fim + 'T23:59:59');
           }
 
-          const isConcluido = resp?.concluido === true;
-          const concluidoEm = resp?.concluido_em ?? meta.concluido_em ?? null;
+          // Fallback: cobre dados históricos onde apenas objetivos.status foi atualizado
+          const isConcluido = resp?.concluido === true || meta.status === 'concluido';
+          const concluidoEm = resp?.concluido_em ?? null;
 
           let score: number;
           if (isConcluido && concluidoEm) {

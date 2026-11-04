@@ -538,12 +538,12 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         const mesAtualEng = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
         const { data: filhasData } = await supabase
           .from('objetivos')
-          .select('id, descricao, status, data_fim, updated_at')
+          .select('id, descricao, status, data_fim, atualizado_em')
           .eq('profile_id', effectiveProfileId)
           .not('objetivo_pai_id', 'is', null)
           .eq('mes', mesAtualEng);
 
-        type FilhaRow = { id: string; descricao: string; status: string; data_fim: string | null; updated_at: string | null };
+        type FilhaRow = { id: string; descricao: string; status: string; data_fim: string | null; atualizado_em: string | null };
         const filhasArr = (filhasData ?? []) as FilhaRow[];
 
         function calcTierCreditFilha(dataFim: string | null, updatedAt: string | null): number {
@@ -576,7 +576,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           // Tem filhas mas todas estão no prazo → 100% (sem penalidade ainda)
           novoScoreEng = 100;
         } else {
-          const totalCreditos = filhasConcluidas.reduce((sum, f) => sum + calcTierCreditFilha(f.data_fim, f.updated_at), 0);
+          const totalCreditos = filhasConcluidas.reduce((sum, f) => sum + calcTierCreditFilha(f.data_fim, f.atualizado_em), 0);
           novoScoreEng = Math.max(0, Math.round((totalCreditos / (engRelevantes * 100)) * 100));
         }
 
@@ -585,7 +585,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         // Contagem por tier para exibição no accordion
         let engNp = 0, engT1 = 0, engT2 = 0, engT3 = 0;
         for (const f of filhasConcluidas) {
-          const c = calcTierCreditFilha(f.data_fim, f.updated_at);
+          const c = calcTierCreditFilha(f.data_fim, f.atualizado_em);
           if (c === 100) engNp++; else if (c === 75) engT1++; else if (c === 50) engT2++; else engT3++;
         }
 
@@ -674,6 +674,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           // Nenhuma Meta Mãe assumida → 0%
           indicadoresAtual    = { porIndicador: [], media: 0 };
           indicadoresAnterior = { porIndicador: [], media: 0 };
+          setIndicadoresPrevia({ porIndicador: [], media: 0 });
         } else {
           // 2. Detalhes das Metas Mãe do mês vigente (ativo, relancada, concluido)
           const { data: metasData } = await supabase
@@ -693,6 +694,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             // Assumiu metas em outros meses mas não neste → 0%
             indicadoresAtual    = { porIndicador: [], media: 0 };
             indicadoresAnterior = { porIndicador: [], media: 0 };
+            setIndicadoresPrevia({ porIndicador: [], media: 0 });
           } else {
             const objRespMap = new Map(objRespRows.map(r => [r.objetivo_id, r]));
             const anoAtualInd  = hoje.getFullYear();
@@ -720,8 +722,9 @@ export function useMeuCarometro(): UseMeuCarometroResult {
                 deadline = new Date(meta.data_fim + 'T23:59:59');
               }
 
-              const isConcluido = resp?.concluido === true;
-              const concluidoEm = resp?.concluido_em ?? meta.concluido_em ?? null;
+              // Fallback: cobre dados históricos onde apenas objetivos.status foi atualizado
+              const isConcluido = resp?.concluido === true || meta.status === 'concluido';
+              const concluidoEm = resp?.concluido_em ?? null;
 
               let score: number;
               if (isConcluido && concluidoEm) {
