@@ -1,5 +1,6 @@
 'use client';
 
+import type React from 'react';
 import { ExternalLink, X } from 'lucide-react';
 
 export type StatusPrazo = 'atrasado' | 'esta_semana' | 'futuro' | 'sem_prazo';
@@ -17,6 +18,8 @@ type BacklogColunaProps = {
   onClickExternal?: () => void;
   /** Callback de exclusão. Quando presente, exibe botão ✕ ao lado do dot de status. */
   onExcluir?: () => void;
+  /** Badge de tier/atraso exibido entre a bolinha e o ícone de abrir (ex: "T1 · 1d"). */
+  tierBadge?: React.ReactNode;
 };
 
 const BORDER_COLOR: Record<StatusPrazo, string> = {
@@ -80,6 +83,7 @@ export function BacklogColunaCard({
   href,
   onClickExternal,
   onExcluir,
+  tierBadge,
 }: BacklogColunaProps) {
   const borderColor = BORDER_COLOR[status];
   const prazoLabel  = formatarPrazo(prazo, status);
@@ -107,6 +111,7 @@ export function BacklogColunaCard({
         </div>
         <div className="flex items-center gap-1 shrink-0 mt-1">
           <span className={`h-2 w-2 rounded-full ${DOT_COR[status]}`} />
+          {tierBadge}
           {onClickExternal ? (
             <button
               type="button"

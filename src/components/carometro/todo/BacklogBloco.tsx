@@ -169,37 +169,36 @@ function ColunaSirene({ items, onAbrirChamado }: ColunaSireneProps) {
             dragId={`sirene::${item.id}`}
             dragData={{ type: 'sirene', id: item.id, titulo: tituloExibir, chamado_id: item.chamado_id ?? null }}
           >
-            <div className="relative">
-              <BacklogColunaCard
-                tipo="sirene"
-                titulo={tituloExibir}
-                prazo={prazo}
-                prioridade={item.prioridade}
-                numeroChamado={item.chamado_numero}
-                status={status}
-                origemBadge="Sirene"
-                onClickExternal={
-                  item.chamado_interno_id != null
-                    ? () => onAbrirChamado(item.chamado_interno_id!, item.interacao_id ?? null)
-                    : undefined
-                }
-                href={
-                  item.chamado_interno_id == null && item.interacao_id
-                    ? `/sirene/chamados?interacao=${item.interacao_id}`
-                    : undefined
-                }
-              />
-              {/* Badge de Tier para chamados atrasados */}
-              {tierInfo && (
-                <span
-                  className="absolute top-1.5 right-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
-                  style={{ backgroundColor: tierInfo.cor }}
-                  title={`${tierInfo.tier}: ${tierInfo.dias} dia(s) de atraso — crédito parcial ao concluir`}
-                >
-                  {tierInfo.tier} · {tierInfo.dias}d
-                </span>
-              )}
-            </div>
+            <BacklogColunaCard
+              tipo="sirene"
+              titulo={tituloExibir}
+              prazo={prazo}
+              prioridade={item.prioridade}
+              numeroChamado={item.chamado_numero}
+              status={status}
+              origemBadge="Sirene"
+              onClickExternal={
+                item.chamado_interno_id != null
+                  ? () => onAbrirChamado(item.chamado_interno_id!, item.interacao_id ?? null)
+                  : undefined
+              }
+              href={
+                item.chamado_interno_id == null && item.interacao_id
+                  ? `/sirene/chamados?interacao=${item.interacao_id}`
+                  : undefined
+              }
+              tierBadge={
+                tierInfo ? (
+                  <span
+                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white shrink-0"
+                    style={{ backgroundColor: tierInfo.cor }}
+                    title={`${tierInfo.tier}: ${tierInfo.dias} dia(s) de atraso — crédito parcial ao concluir`}
+                  >
+                    {tierInfo.tier} · {tierInfo.dias}d
+                  </span>
+                ) : undefined
+              }
+            />
           </DraggableSirene>
         );
       })}
