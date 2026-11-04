@@ -634,224 +634,118 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       let indicadoresAtual: IndicadoresSnapshot    = { porIndicador: [], media: null };
       let indicadoresPreviaLocal: IndicadoresSnapshot | null = null;
 
+      // ── Indicadores v3: scoring baseado na conclusão da Meta Mãe ────────────
+      // Tier por atraso na entrega da Meta Mãe (100/75/50/20/0).
+      // Recorrente: prazo = última sexta útil do mês (ciclo Boné Day).
+      // Projeto: prazo = data_fim da meta.
+      // Sem Meta Mãe assumida → 0%.
       {
+        /** Última sexta-feira do mês (ciclo Boné Day). mes = 1-indexed. */
+        function ultimaSextaUtilDoMes(ano: number, mes: number): Date {
+          const ultimo = new Date(ano, mes, 0); // day-0 trick: último dia do mês
+          const dow = ultimo.getDay();           // 0=Dom … 5=Sex … 6=Sáb
+          ultimo.setDate(ultimo.getDate() - (dow + 2) % 7); // recua até sexta
+          return ultimo;
+        }
+
+        /** Pontuação tier por dias de atraso em relação ao deadline. */
+        function tierPorAtraso(concluidoEm: string, deadline: Date): number {
+          const conc = new Date(concluidoEm.slice(0, 10) + 'T00:00:00');
+          const dias = Math.floor((conc.getTime() - deadline.getTime()) / 86_400_000);
+          if (dias <= 0)  return 100;
+          if (dias <= 6)  return 75;
+          if (dias <= 14) return 50;
+          return 20;
+        }
+
+        const mesAtualInd = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+
+        // 1. Metas Mãe que o usuário assumiu
         const { data: objRespData } = await supabase
           .from('objetivo_responsaveis')
-          .select('objetivo_id, data_inicio')
+          .select('objetivo_id, concluido, concluido_em')
           .eq('profile_id', effectiveProfileId);
 
-        type ObjRespRow = { objetivo_id: string; data_inicio: string | null };
-        const objRespRows = (objRespData ?? []) as ObjRespRow[];
-        const objIds = objRespRows.map(o => o.objetivo_id).filter(Boolean);
+        type ObjRespIndRow = { objetivo_id: string; concluido: boolean | null; concluido_em: string | null };
+        const objRespRows = (objRespData ?? []) as ObjRespIndRow[];
+        const objIds = objRespRows.map(r => r.objetivo_id).filter(Boolean);
 
-        // Mapa objetivo_id → data_inicio: usado para não penalizar projetos ainda não iniciados
-        const metaDataInicioMap = new Map<string, string>(
-          objRespRows.filter(r => r.data_inicio != null).map(r => [r.objetivo_id, r.data_inicio!])
-        );
-
-        if (objIds.length > 0) {
-          // Filtra apenas metas do mês vigente com status ativo ou relançado.
-          // Metas concluídas e arquivadas não entram no cálculo — não penalizam o score.
-          const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-          // Busca nomes dos objetivos para distinguir indicadores homônimos
-          const { data: objetivosData } = await supabase
-            .from('objetivos')
-            .select('id, descricao')
-            .in('id', objIds)
-            .eq('mes', mesAtual)
-            .in('status', ['ativo', 'relancada']);
-          // Extrai IDs já filtrados (mês vigente + status ativo/relancada) para a query de indicadores
-          const filteredObjs = (objetivosData ?? []) as { id: string; descricao: string }[];
-          const filteredObjIds = filteredObjs.map(o => o.id);
-          const objNomeMap = new Map<string, string>(filteredObjs.map(o => [o.id, o.descricao]));
-
-          if (filteredObjIds.length > 0) {
-          const { data: indsData } = await supabase
-            .from('indicadores')
-            .select('id, nome, semaforo_faixas, objetivo_id')
-            .in('objetivo_id', filteredObjIds)
-            .eq('ativo', true);
-
-          type IndRow = { id: string; nome: string; semaforo_faixas: unknown; objetivo_id: string | null };
-          const indsTyped = ((indsData ?? []) as IndRow[]);
-          const indIds = indsTyped.map(i => i.id);
-
-          if (indIds.length > 0) {
-            // Busca apenas semanas que pertencem ao mês vigente (regra da quinta-feira)
-            const semanasParaBuscar = semAnteriorNaMes ? [semAnteriorInd, semana] : [semana];
-            const { data: lancamentosData } = await supabase
-              .from('indicador_lancamentos')
-              .select('indicador_id, valor, semana')
-              .in('indicador_id', indIds)
-              .in('semana', semanasParaBuscar);
-
-            type LancRow = { indicador_id: string; valor: unknown; semana: number };
-            const lancRows = (lancamentosData ?? []) as LancRow[];
-
-            const lancMapAnterior = new Map<string, unknown>(
-              lancRows.filter(l => l.semana === semAnteriorInd).map(l => [l.indicador_id, l.valor])
-            );
-            const lancMapAtual = new Map<string, unknown>(
-              lancRows.filter(l => l.semana === semana).map(l => [l.indicador_id, l.valor])
-            );
-
-            type SfRaw = { is_projeto_relativo?: boolean; data_inicio?: string; data_fim?: string; dias_uteis?: number };
-
-            function calcIndicadores(lancMap: Map<string, unknown>, refDate: Date): IndicadoresSnapshot {
-              const porIndicador: IndicadorItem[] = [];
-              const metaScoresMap = new Map<string, number[]>();
-              for (const ind of indsTyped) {
-                const objNome = ind.objetivo_id ? (objNomeMap.get(ind.objetivo_id) ?? '') : '';
-                const nomeDisplay = objNome ? `${objNome} — ${ind.nome}` : (ind.nome || ind.id);
-                const rawSf = ind.semaforo_faixas as SfRaw | null;
-                const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
-                const metaKey = ind.objetivo_id ?? ind.id;
-
-                // Se a meta tem data_inicio futura, o projeto ainda não iniciou —
-                // não penaliza o score independentemente do tipo de indicador.
-                const metaDataInicio = ind.objetivo_id ? (metaDataInicioMap.get(ind.objetivo_id) ?? null) : null;
-                if (metaDataInicio) {
-                  const metaInicio = new Date(metaDataInicio + 'T00:00:00');
-                  if (refDate < metaInicio) {
-                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
-                    continue;
-                  }
-                }
-
-                if (isProjeto) {
-                  const esp = calcularEsperadoPct(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', refDate);
-
-                  if (esp <= 0) {
-                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
-                    continue;
-                  }
-
-                  // Cap de 70 pts se refDate ultrapassou a semana do data_fim
-                  const dataFimDate = new Date((rawSf!.data_fim ?? '') + 'T00:00:00');
-                  const dataFimDow = dataFimDate.getDay() || 7;
-                  const endOfDeadlineWeek = new Date(dataFimDate);
-                  endOfDeadlineWeek.setDate(dataFimDate.getDate() + (7 - dataFimDow));
-                  const isPastDeadlineWeek = refDate > endOfDeadlineWeek;
-
-                  const valor  = lancMap.get(ind.id);
-                  const valStr = valor != null ? String(valor).trim() : '';
-
-                  if (valStr === '' || valStr === '-') {
-                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: 0 });
-                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
-                  } else {
-                    const n = Number(valStr.replace(',', '.'));
-                    if (!Number.isFinite(n)) {
-                      porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: null });
-                      continue;
-                    }
-                    const ratio = Math.min(100, (n / esp) * 100);
-                    let score = 0;
-                    if (ratio >= 75) score = 100;
-                    else if (ratio >= 60) score = 75;
-                    else if (ratio >= 30) score = 50;
-                    if (isPastDeadlineWeek && score > 70) score = 70;
-                    porIndicador.push({ nome: nomeDisplay, valor: n, meta: esp, percentual: score });
-                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
-                  }
-                } else {
-                  const valor  = lancMap.get(ind.id);
-                  const valStr = valor != null ? String(valor).trim() : '';
-
-                  if (valStr === '' || valStr === '-') {
-                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: 0 });
-                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
-                  } else {
-                    const score = scoreDeValorESemaforo(valor, ind.semaforo_faixas);
-                    const n     = Number(valStr.replace(',', '.'));
-                    porIndicador.push({ nome: nomeDisplay, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
-                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
-                  }
-                }
-              }
-              // Score por meta (média dos seus indicadores), depois média das metas — peso igual por meta
-              const metaMedias: number[] = [];
-              for (const scores of metaScoresMap.values()) {
-                metaMedias.push(Math.round(scores.reduce((s, v) => s + v, 0) / scores.length));
-              }
-              const media = metaMedias.length > 0
-                ? Math.round(metaMedias.reduce((s, v) => s + v, 0) / metaMedias.length)
-                : null;
-              return { porIndicador, media };
-            }
-
-            indicadoresAnterior = calcIndicadores(lancMapAnterior, sextaAnterior);
-            indicadoresAtual    = calcIndicadores(lancMapAtual, hojeRef);
-
-            // ── Prévia de Indicadores (v2): Atingível=100% no prazo/0% vencida ──
-            // Recorrente: mantém score semanal atual.
-            function calcPreviaIndicadores(): IndicadoresSnapshot {
-              const porIndicador: IndicadorItem[] = [];
-              const metaScoresMap = new Map<string, number[]>();
-              let todosAindaNaoIniciados = true;
-              for (const ind of indsTyped) {
-                const objNome    = ind.objetivo_id ? (objNomeMap.get(ind.objetivo_id) ?? '') : '';
-                const nomeDisplay = objNome ? `${objNome} — ${ind.nome}` : (ind.nome || ind.id);
-                const rawSf = ind.semaforo_faixas as SfRaw | null;
-                const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
-                const metaKey = ind.objetivo_id ?? ind.id;
-                // Não penaliza meta ainda não iniciada
-                const metaDataInicio = ind.objetivo_id ? (metaDataInicioMap.get(ind.objetivo_id) ?? null) : null;
-                if (metaDataInicio) {
-                  const metaInicio = new Date(metaDataInicio + 'T00:00:00');
-                  if (hojeRef < metaInicio) {
-                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
-                    continue; // "não iniciada" — não computa score mas também não conta como "dado presente"
-                  }
-                }
-                // Se chegou aqui, o indicador está ativo e deve ser contado
-                todosAindaNaoIniciados = false;
-                if (isProjeto) {
-                  // Atingível: 100% enquanto dentro do prazo, 0% ao vencer
-                  const dataFim = rawSf!.data_fim ?? '';
-                  if (!dataFim) {
-                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
-                    continue;
-                  }
-                  const prazoDate = new Date(dataFim + 'T23:59:59');
-                  const previa = hojeRef <= prazoDate ? 100 : 0;
-                  porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: previa });
-                  metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), previa]);
-                } else {
-                  // Recorrente: score semanal atual
-                  const valor  = lancMapAtual.get(ind.id);
-                  const valStr = valor != null ? String(valor).trim() : '';
-                  if (valStr === '' || valStr === '-') {
-                    porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: 0 });
-                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
-                  } else {
-                    const score = scoreDeValorESemaforo(valor, ind.semaforo_faixas);
-                    const n     = Number(valStr.replace(',', '.'));
-                    porIndicador.push({ nome: nomeDisplay, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
-                    metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
-                  }
-                }
-              }
-              const metaMedias: number[] = [];
-              for (const scores of metaScoresMap.values()) {
-                metaMedias.push(Math.round(scores.reduce((s, v) => s + v, 0) / scores.length));
-              }
-              // Se todos os indicadores ainda não iniciaram: mostrar 100% (não penalizar)
-              // Se metaScoresMap vazia mas há indicadores ativos: mostrar null (sem dados)
-              const media = metaMedias.length > 0
-                ? Math.round(metaMedias.reduce((s, v) => s + v, 0) / metaMedias.length)
-                : (todosAindaNaoIniciados && indsTyped.length > 0 ? 100 : null);
-              return { porIndicador, media };
-            }
-            const indPrevia = calcPreviaIndicadores();
-            indicadoresPreviaLocal = indPrevia;
-            setIndicadoresPrevia(indPrevia);
-          }
-          } // filteredObjIds.length > 0
-        } else {
-          // Sem Meta Mãe assumida pelo usuário → 0% (não assumiu nenhuma meta do mês)
+        if (objIds.length === 0) {
+          // Nenhuma Meta Mãe assumida → 0%
           indicadoresAtual    = { porIndicador: [], media: 0 };
           indicadoresAnterior = { porIndicador: [], media: 0 };
+        } else {
+          // 2. Detalhes das Metas Mãe do mês vigente (ativo, relancada, concluido)
+          const { data: metasData } = await supabase
+            .from('objetivos')
+            .select('id, descricao, tipo, data_fim, status, concluido_em')
+            .in('id', objIds)
+            .eq('mes', mesAtualInd)
+            .in('status', ['ativo', 'relancada', 'concluido']);
+
+          type MetaMaeRow = {
+            id: string; descricao: string; tipo: string;
+            data_fim: string | null; status: string; concluido_em: string | null;
+          };
+          const metas = (metasData ?? []) as MetaMaeRow[];
+
+          if (metas.length === 0) {
+            // Assumiu metas em outros meses mas não neste → 0%
+            indicadoresAtual    = { porIndicador: [], media: 0 };
+            indicadoresAnterior = { porIndicador: [], media: 0 };
+          } else {
+            const objRespMap = new Map(objRespRows.map(r => [r.objetivo_id, r]));
+            const anoAtualInd  = hoje.getFullYear();
+            const mesNumInd    = hoje.getMonth() + 1; // 1-indexed
+
+            const scores: number[]     = [];
+            const porIndicador: IndicadorItem[] = [];
+
+            for (const meta of metas) {
+              const resp = objRespMap.get(meta.id);
+              const tipo = (meta.tipo ?? '').toLowerCase();
+
+              // Calcular deadline conforme tipo
+              let deadline: Date;
+              if (tipo === 'recorrente') {
+                deadline = ultimaSextaUtilDoMes(anoAtualInd, mesNumInd);
+              } else {
+                // Atingível-Projeto: usa data_fim da meta
+                if (!meta.data_fim) {
+                  // Sem prazo definido → 100% (ainda não penaliza)
+                  scores.push(100);
+                  porIndicador.push({ nome: meta.descricao, valor: 0, meta: 0, percentual: 100 });
+                  continue;
+                }
+                deadline = new Date(meta.data_fim + 'T23:59:59');
+              }
+
+              const isConcluido = resp?.concluido === true;
+              const concluidoEm = resp?.concluido_em ?? meta.concluido_em ?? null;
+
+              let score: number;
+              if (isConcluido && concluidoEm) {
+                // Meta concluída: aplica tier por atraso
+                score = tierPorAtraso(concluidoEm, deadline);
+              } else {
+                // Meta ainda aberta: penaliza só se passou do prazo
+                score = hoje <= deadline ? 100 : 0;
+              }
+
+              scores.push(score);
+              porIndicador.push({ nome: meta.descricao, valor: 0, meta: 0, percentual: score });
+            }
+
+            const media = scores.length > 0
+              ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+              : 0;
+
+            // Sem distinção semanal neste modelo — anterior = atual
+            indicadoresAtual    = { porIndicador, media };
+            indicadoresAnterior = { porIndicador, media };
+            indicadoresPreviaLocal = { porIndicador, media };
+            setIndicadoresPrevia({ porIndicador, media });
+          }
         }
       }
 

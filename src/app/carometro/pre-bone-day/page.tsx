@@ -2721,7 +2721,7 @@ function PreBoneDayPageContent() {
     const metaOriginal = metasNaoConcluidas.find(m => m.id === id);
     if (!metaOriginal || !areaId) return;
 
-    // 1. Criar nova meta zerada no mês atual, preservando a data de abertura original
+    // 1. Criar nova Meta Mãe zerada no mês atual (sem datas — usuário vai replanejar)
     const { data: novaMeta, error: e } = await supabase.from('objetivos').insert({
       area_id: areaId,
       descricao: metaOriginal.descricao,
@@ -2732,13 +2732,38 @@ function PreBoneDayPageContent() {
       criado_em: metaOriginal.criado_em,
       status: 'ativo',
       mes,
+      data_inicio: null,
+      data_fim: null,
     }).select('id').single();
     if (e || !novaMeta) { console.error('[Relançar]', e); return; }
 
-    // 2. Marcar original como relançada (remove de Metas não concluídas)
+    const novaMetaId = (novaMeta as { id: string }).id;
+
+    // 2. Para Recorrente: copiar Filhas sem datas (usuário define novos prazos)
+    if ((metaOriginal.tipo ?? '').toLowerCase() === 'recorrente') {
+      const { data: filhasOriginais } = await supabase
+        .from('objetivos')
+        .select('descricao, profile_id')
+        .eq('objetivo_pai_id', id)
+        .not('status', 'eq', 'arquivado');
+      for (const f of (filhasOriginais ?? []) as { descricao: string; profile_id: string | null }[]) {
+        await supabase.from('objetivos').insert({
+          objetivo_pai_id: novaMetaId,
+          area_id: areaId,
+          descricao: f.descricao,
+          profile_id: f.profile_id,
+          status: 'ativo',
+          mes,
+          data_inicio: null,
+          data_fim: null,
+        });
+      }
+    }
+    // Projeto: Filhas não são copiadas — usuário cria do zero
+
+    // 3. Marcar original como relançada
     const { error: eUpdate } = await supabase.from('objetivos')
-      .update({ status: 'relancada' })
-      .eq('id', id);
+      .update({ status: 'relancada' }).eq('id', id);
     if (eUpdate) { console.error('[Relançar] update status falhou:', eUpdate); return; }
 
     LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id,
@@ -2756,51 +2781,40 @@ function PreBoneDayPageContent() {
 
   // Conclusão global (admin): encerra o objetivo para todos (move para Bloco 1)
   const handleConcluirMeta = useCallback(async (id: string) => {
+    // Bloqueia se houver Metas Filhas ainda abertas
+    const { data: filhasAbertas } = await supabase
+      .from('objetivos').select('id').eq('objetivo_pai_id', id)
+      .not('status', 'in', '("concluido","arquivado","relancada")');
+    if (filhasAbertas && filhasAbertas.length > 0) {
+      alert('Feche todas as Metas Filhas antes de concluir esta meta.');
+      return;
+    }
     const { error: e } = await supabase.from('objetivos')
       .update({ status: 'concluido', concluido_em: new Date().toISOString() }).eq('id', id);
     if (e) { console.error('[ConcluirMeta]', e); return; }
-    // Auto-fill 100% nos indicadores ativos da meta ao concluir (admin)
-    if (currentUserId) {
-      const semana = isoWeek(new Date());
-      const anoAtual = new Date().getFullYear();
-      const { data: indsParaFill } = await supabase
-        .from('indicadores').select('id').eq('objetivo_id', id).eq('ativo', true);
-      for (const ind of (indsParaFill ?? []) as { id: string }[]) {
-        const { data: existing } = await supabase.from('indicador_lancamentos').select('id')
-          .eq('indicador_id', ind.id).eq('semana', semana).eq('semana_ano', anoAtual).maybeSingle();
-        if (!existing) {
-          await supabase.from('indicador_lancamentos')
-            .insert({ indicador_id: ind.id, semana, semana_ano: anoAtual, valor: '100', profile_id: currentUserId });
-        }
-      }
-    }
     LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id, operacao: 'UPDATE', descricao: 'Meta encerrada globalmente' });
     recarregar();
-  }, [supabase, recarregar, currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Conclusão individual (per-user): marca/desmarca a própria participação
   const handleConcluirMetaIndividual = useCallback(async (id: string, reabrir = false) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    // Bloqueia conclusão individual se houver Filhas do próprio usuário ainda abertas
+    if (!reabrir) {
+      const { data: filhasAbertas } = await supabase
+        .from('objetivos').select('id').eq('objetivo_pai_id', id)
+        .eq('profile_id', user.id)
+        .not('status', 'in', '("concluido","arquivado","relancada")');
+      if (filhasAbertas && filhasAbertas.length > 0) {
+        alert('Feche todas as Metas Filhas antes de concluir esta meta.');
+        return;
+      }
+    }
     const { error: e } = await supabase.from('objetivo_responsaveis')
       .update({ concluido: !reabrir, concluido_em: reabrir ? null : new Date().toISOString() })
       .eq('objetivo_id', id).eq('profile_id', user.id);
     if (e) { console.error('[ConcluirMetaIndividual]', e); return; }
-    // Auto-fill 100% nos indicadores ao concluir individualmente
-    if (!reabrir) {
-      const semana = isoWeek(new Date());
-      const anoAtual = new Date().getFullYear();
-      const { data: indsParaFill } = await supabase
-        .from('indicadores').select('id').eq('objetivo_id', id).eq('ativo', true);
-      for (const ind of (indsParaFill ?? []) as { id: string }[]) {
-        const { data: existing } = await supabase.from('indicador_lancamentos').select('id')
-          .eq('indicador_id', ind.id).eq('semana', semana).eq('semana_ano', anoAtual).maybeSingle();
-        if (!existing) {
-          await supabase.from('indicador_lancamentos')
-            .insert({ indicador_id: ind.id, semana, semana_ano: anoAtual, valor: '100', profile_id: user.id });
-        }
-      }
-    }
     LOG({ modulo: 'Planejamento', entidade: 'objetivo_responsaveis', entidade_id: id,
       operacao: 'UPDATE', descricao: reabrir ? 'Meta reaberta (individual)' : 'Meta concluída (individual)' });
     recarregar();
