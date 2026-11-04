@@ -163,40 +163,18 @@ function calcularScoresArea(
   const sireneScore =
     sireneRelevantes > 0 ? Math.max(0, Math.round((sireneConcluidos / sireneRelevantes) * 100)) : null;
 
-  // Engajamento — média de 3 sub-scores
-  let engAtivReal = 0, engAtivAgend = 0;
-  let engCardsEmDia = 0, engCardsComSLA = 0;
-  let engProxConc = 0, engProxRel = 0;
-  for (const r of snapshots) {
-    const e = r.engajamento as Record<string, unknown> | null;
-    if (!e || typeof e !== 'object') continue;
-    const at = e.atividades as Record<string, unknown> | null;
-    if (at) {
-      engAtivReal += typeof at.realizadas === 'number' ? at.realizadas : 0;
-      engAtivAgend += typeof at.agendadas === 'number' ? at.agendadas : 0;
-    }
-    const ca = e.cards as Record<string, unknown> | null;
-    if (ca) {
-      engCardsEmDia += typeof ca.emDia === 'number' ? ca.emDia : 0;
-      engCardsComSLA += typeof ca.comSLA === 'number' ? ca.comSLA : 0;
-    }
-    const pr = e.proximas as Record<string, unknown> | null;
-    if (pr) {
-      engProxConc += typeof pr.concluidos === 'number' ? pr.concluidos : 0;
-      engProxRel += typeof pr.relevantes === 'number' ? pr.relevantes : 0;
-    }
-  }
-  const scoreAtiv = engAtivAgend > 0 ? Math.max(0, Math.round((engAtivReal / engAtivAgend) * 100)) : 0;
-  const scoreCards =
-    engCardsComSLA > 0
-      ? Math.max(0, Math.round((engCardsEmDia / engCardsComSLA) * 100))
-      : snapshots.length > 0
-      ? 100
-      : null;
-  const scoreProx = engProxRel > 0 ? Math.max(0, Math.round((engProxConc / engProxRel) * 100)) : 100;
-  const engSubs = [scoreAtiv, scoreCards, scoreProx].filter((s): s is number => s !== null);
+  // Engajamento v2 — média do score individual (engajamento.score) por snapshot.
+  // O campo `score` já reflete as Metas Filhas + Tier (mesma fórmula do Meu Carômetro).
+  const engScores = snapshots
+    .map(r => {
+      const e = r.engajamento as Record<string, unknown> | null;
+      if (!e || typeof e !== 'object') return null;
+      const v = e.score;
+      return typeof v === 'number' ? Math.round(v) : null;
+    })
+    .filter((v): v is number => v !== null);
   const engScore =
-    engSubs.length > 0 ? Math.round(engSubs.reduce((a, b) => a + b, 0) / engSubs.length) : null;
+    engScores.length > 0 ? Math.round(engScores.reduce((a, b) => a + b, 0) / engScores.length) : null;
 
   // Indicadores — média das médias (por snapshot)
   const indSemanaMin = INDICADORES_SEMANA_MIN[mes] ?? null;

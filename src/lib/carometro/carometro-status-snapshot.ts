@@ -1,69 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isoWeek } from '@/utils/periodos';
 import { calcularSlaKanbanCard, faseExcluidaDoAtrasoSla } from '@/lib/kanban/kanban-card-sla';
-
-// ── Semáforo — cores hex (sincronizado com useMeuCarometro) ──────────────────
-const COR_PARA_SCORE: Record<string, number> = {
-  '#1e7a3a': 100,
-  '#52b36f': 67,
-  '#f2c94c': 50,
-  '#d24141': 0,
-};
-
-type SemaforoFaixa = { cor: string; limite: string | number; comparacao?: string };
-
-/** Retorna 0–100 usando cores hex. Sem lançamento/inválido = 50 (neutro). */
-function scoreDeValorESemaforoHex(valor: unknown, semaforo_faixas: unknown): number {
-  if (valor == null || valor === '') return 50;
-  const faixas = (semaforo_faixas as { faixas?: SemaforoFaixa[] } | null)?.faixas;
-  if (!faixas?.length) return 50;
-
-  const n = Number(String(valor).replace(',', '.'));
-  if (!Number.isFinite(n)) return 50;
-
-  for (const f of faixas) {
-    const limite = Number(String(f.limite ?? '').replace(',', '.'));
-    if (!Number.isFinite(limite)) continue;
-    const op = f.comparacao ?? 'gte';
-    let match = false;
-    if (op === 'gte') match = n >= limite;
-    else if (op === 'gt')  match = n > limite;
-    else if (op === 'lte') match = n <= limite;
-    else if (op === 'lt')  match = n < limite;
-    else if (op === 'eq')  match = n === limite;
-    if (match) return COR_PARA_SCORE[f.cor?.toLowerCase()] ?? 50;
-  }
-  return 50;
-}
-
-/**
- * Calcula % esperado de um indicador Atingível/Projeto com base em dias úteis.
- * Calcula o total de dias úteis dinamicamente (não depende de dias_uteis salvo).
- */
-function calcularEsperadoPctDinamico(dataInicio: string, dataFim: string, refDate: Date): number {
-  if (!dataInicio || !dataFim) return 0;
-  const ref  = new Date(refDate); ref.setHours(0, 0, 0, 0);
-  const inicio = new Date(dataInicio + 'T00:00:00');
-  const fim    = new Date(dataFim    + 'T00:00:00');
-  if (ref < inicio) return 0;
-
-  let total = 0;
-  const dt = new Date(inicio);
-  while (dt <= fim) {
-    if (dt.getDay() !== 0 && dt.getDay() !== 6) total++;
-    dt.setDate(dt.getDate() + 1);
-  }
-  if (total === 0) return 0;
-  if (ref >= fim) return 100;
-
-  let count = 0;
-  const d2 = new Date(inicio);
-  while (d2 <= ref) {
-    if (d2.getDay() !== 0 && d2.getDay() !== 6) count++;
-    d2.setDate(d2.getDate() + 1);
-  }
-  return Math.min(100, Math.round((count / total) * 100));
-}
+import { ultimaSextaUtilDoMes, tierPorAtraso, tierFilha } from '@/lib/carometro/scoring-utils';
 
 // ── Snapshot principal ───────────────────────────────────────────────────────
 export async function gerarSnapshotCarometro(
@@ -74,29 +12,10 @@ export async function gerarSnapshotCarometro(
   data: Date,
 ) {
   const hoje    = data;
-  const semana  = isoWeek(hoje);
   const hojeStr = hoje.toISOString().slice(0, 10);
-
-  // S-1: semana anterior usada como referência de indicadores (igual ao useMeuCarometro)
-  const semAnteriorInd = semana > 1 ? semana - 1 : 52;
-  // sextaAnterior: data de referência para calcular % esperado dos indicadores de S-1
-  const dowRef = hoje.getDay() || 7;
-  const segundaSemana = new Date(hoje);
-  segundaSemana.setDate(hoje.getDate() - (dowRef - 1));
-  const sextaAnterior = new Date(segundaSemana);
-  sextaAnterior.setDate(segundaSemana.getDate() - 3);
-
-  // Regra da quinta-feira: a semana pertence ao mês que contém sua quinta-feira
-  const thursdayAnteriorSnap = new Date(sextaAnterior);
-  thursdayAnteriorSnap.setDate(sextaAnterior.getDate() - 1);
-  const semAnteriorNaMesSnap = thursdayAnteriorSnap.getMonth() === hoje.getMonth()
-    && thursdayAnteriorSnap.getFullYear() === hoje.getFullYear();
-  // Semana e data de referência do mês vigente para o snapshot
-  const semRefSnap    = semAnteriorNaMesSnap ? semAnteriorInd : semana;
-  const refDateSnap   = semAnteriorNaMesSnap ? sextaAnterior  : hoje;
+  const semana  = isoWeek(hoje);
 
   // ── Sirene ─────────────────────────────────────────────────────────────────
-  // Início da semana para filtro de concluídos
   const dowSnap = hoje.getDay() || 7;
   const semanaInicioSnap = new Date(hoje);
   semanaInicioSnap.setDate(hoje.getDate() - (dowSnap - 1));
@@ -124,29 +43,37 @@ export async function gerarSnapshotCarometro(
   });
 
   const semPrazo = topicosAbertos.filter(t => !t.data_fim && !t.prazo_proposto).length;
-  // Atrasado = prazo < hoje (prazo = hoje ainda não é atrasado)
   const sireneAtrasados = topicosAbertos.filter(t => {
     const prazo = t.data_fim || t.prazo_proposto;
     if (!prazo) return false;
     return prazo < hojeStr;
   }).length;
-  // Vence hoje = open com prazo = hoje
   const sireneVenceHoje = topicosAbertos.filter(t => {
     const prazo = t.data_fim || t.prazo_proposto;
     return prazo === hojeStr;
   }).length;
-  // Futuras = open com prazo > hoje (não entram no score)
   const sireneFuturas = topicosAbertos.filter(t => {
     const prazo = t.data_fim || t.prazo_proposto;
     return prazo && prazo > hojeStr;
   }).length;
 
-  // Score: concluidos / (concluidos + atrasados + venceHoje). Futuras nunca entram.
-  // total = 0 → 100% (em dia, sem pendências)
   const sireneTotal = topicosConcluidos.length + sireneAtrasados + sireneVenceHoje;
   const sireneScore = sireneTotal === 0
     ? 100
     : Math.max(0, Math.round((topicosConcluidos.length / sireneTotal) * 100));
+
+  // Cap Sirene: chamado aberto há >15 dias caps score em 50%
+  const quinzeDiasAtras = new Date(hoje);
+  quinzeDiasAtras.setDate(hoje.getDate() - 15);
+  const quinzeDiasAtrasStr = quinzeDiasAtras.toISOString().slice(0, 10);
+  const { data: topicosAntigos } = await db.from('sirene_topicos')
+    .select('id')
+    .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
+    .in('status', ['nao_iniciado', 'em_andamento'])
+    .eq('arquivado', false)
+    .lt('criado_em', quinzeDiasAtrasStr);
+  const temChamadoAntigo = (topicosAntigos ?? []).length > 0;
+  const sireneFinal = temChamadoAntigo ? Math.min(sireneScore, 50) : sireneScore;
 
   const sireneData = {
     atrasados:  sireneAtrasados,
@@ -156,15 +83,18 @@ export async function gerarSnapshotCarometro(
     relevantes: sireneTotal,
     concluidos: topicosConcluidos.length,
     semPrazo,
-    score:      sireneScore,
+    score:      sireneFinal,
   };
 
-  // ── Engajamento (3 sub-scores independentes) ─────────────────────────────────
-  // Fonte de verdade: APENAS responsavel_id (campo "Responsável do Card" na UI).
-  // Cards sem responsavel_id ficam com Ingrid (padrão). franqueado_id nunca é usado.
+  // ── Engajamento v2: Metas Filhas + Tier ──────────────────────────────────
+  // Espelha exatamente a lógica de useMeuCarometro.ts (Engajamento v2).
+  // Mantém os campos antigos (atividades/cards/proximas) para backward compat com
+  // useFechamentoBoneDay que os agrega por equipe.
   const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`;
 
-  const [ganttEngRes, kanbanAbertosRes, proximasEngRes, proximasConcluidosRes] = await Promise.all([
+  const mesAtualEng = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+
+  const [ganttEngRes, kanbanAbertosRes, proximasEngRes, proximasConcluidosRes, filhasEngRes] = await Promise.all([
     db.from('gantt_planejamento')
       .select('id, data, data_conclusao_real')
       .eq('profile_id', profileId)
@@ -172,7 +102,7 @@ export async function gerarSnapshotCarometro(
       .lte('data', hojeStr)
       .is('sirene_chamado_id', null)
       .is('card_id', null)
-      .not('objetivo_id', 'is', null),   // exclui "Sem vínculo à meta"
+      .not('objetivo_id', 'is', null),
     db.from('kanban_cards')
       .select('id, created_at, entered_fase_at, sla_iniciado_em, sla_pausado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
       .or(orKanban).eq('arquivado', false).eq('concluido', false),
@@ -186,33 +116,35 @@ export async function gerarSnapshotCarometro(
       .not('prazo_atividade', 'is', null)
       .lte('prazo_atividade', hojeStr)
       .gte('updated_at', semanaInicioSnapStr),
+    // Metas Filhas do usuário no mês vigente (Engajamento v2)
+    db.from('objetivos')
+      .select('id, status, data_fim, updated_at')
+      .eq('profile_id', profileId)
+      .not('objetivo_pai_id', 'is', null)
+      .eq('mes', mesAtualEng),
   ]);
 
-  // Sub-score 1: Atividades da Agenda — esta semana (gantt_planejamento)
+  // Sub-scores antigos (mantidos para agregação de equipe no Fechamento Boné Day)
   type GanttEngRow = { id: string; data: string; data_conclusao_real: string | null };
   const ganttArr = (ganttEngRes.data ?? []) as GanttEngRow[];
   const atividadesAgendadas = ganttArr.length;
   const atividadesRealizadas = ganttArr.filter(g => !!g.data_conclusao_real).length;
-  // Não concluída = agendada sem data_conclusao_real (inclui hoje — afeta score imediatamente)
   const atividadesAtrasadas  = ganttArr.filter(g => !g.data_conclusao_real).length;
   const scoreAtividades = atividadesAgendadas === 0
     ? 0
     : Math.max(0, Math.round((atividadesRealizadas / atividadesAgendadas) * 100));
 
-  // Sub-score 2: Cards com SLA
   type FaseKanban = { sla_dias: number | null; sla_tipo: string | null; slug: string | null };
   type KanbanCardSla = {
     id: string; created_at: string; entered_fase_at: string | null;
     sla_iniciado_em: string | null; sla_pausado_em: string | null; fase: FaseKanban | FaseKanban[] | null;
   };
-
   const kanbanArr = (kanbanAbertosRes.data ?? []) as KanbanCardSla[];
   const cardsComSLA = kanbanArr.filter(c => {
     const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
     if (faseExcluidaDoAtrasoSla(fase?.slug)) return false;
     return (fase?.sla_dias ?? null) !== null;
   });
-  // Cards com trava ativa → bloqueados: excluídos do score (nem bônus, nem penalidade)
   const cardsBloqueados = cardsComSLA.filter(c => Boolean(c.sla_pausado_em)).length;
   const cardsNaoBloqueados = cardsComSLA.filter(c => !c.sla_pausado_em);
   const cardsAtrasados = cardsNaoBloqueados.filter(c => {
@@ -228,180 +160,138 @@ export async function gerarSnapshotCarometro(
     }).status === 'atrasado';
   }).length;
   const cardsEmDia = cardsNaoBloqueados.length - cardsAtrasados;
-  // Score: apenas sobre os cards sem trava ativa. Nenhum card ativo (todos bloqueados) = 100%.
   const scoreCards = cardsComSLA.length === 0 || cardsNaoBloqueados.length === 0
     ? 100
     : Math.max(0, Math.round((cardsEmDia / cardsNaoBloqueados.length) * 100));
 
-  // Sub-score 3: Próximas Atividades (kanban_cards.prazo_atividade)
-  // Score B: concluidos / (concluidos + atrasados). Vence hoje = contexto, não penaliza.
   type ProximaEngRow = { id: string; prazo_atividade: string | null };
   const proximasAbertosArr    = (proximasEngRes.data        ?? []) as ProximaEngRow[];
   const proximasConcluidosArr = (proximasConcluidosRes.data ?? []) as ProximaEngRow[];
   const proxVenceHoje  = proximasAbertosArr.filter(c => c.prazo_atividade === hojeStr).length;
   const proxAtrasadas  = proximasAbertosArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
   const proxConcluidos = proximasConcluidosArr.length;
-  // Cards sem próxima atividade mapeada = penaliza (todo card ativo deveria ter uma)
   const cardsSemProxima = kanbanArr.length - proximasAbertosArr.length;
-  // Denominador: concluídos + atrasadas + vence hoje + sem próxima mapeada.
-  // Cards com prazo futuro não entram na conta de hoje.
   const proxDenominador = proxConcluidos + proxAtrasadas + proxVenceHoje + cardsSemProxima;
   const scoreProximas = proxDenominador === 0
-    ? 100  // sem cards ou todos com próximas futuras = 100%
+    ? 100
     : Math.max(0, Math.round((proxConcluidos / proxDenominador) * 100));
 
-  // Score combinado = média dos sub-scores não-null (pesos iguais)
-  const engSubScores = [scoreAtividades, scoreCards, scoreProximas].filter((s): s is number => s !== null);
-  const engScore = engSubScores.length === 0
-    ? null
-    : Math.round(engSubScores.reduce((s, v) => s + v, 0) / engSubScores.length);
+  // Engajamento v2: score baseado em Metas Filhas + Tier
+  type FilhaEngRow = { id: string; status: string; data_fim: string | null; updated_at: string | null };
+  const filhasArr = (filhasEngRes.data ?? []) as FilhaEngRow[];
+
+  const filhasConcluidas      = filhasArr.filter(f => f.status === 'concluido');
+  const filhasVencidasAbertas = filhasArr.filter(f =>
+    f.status !== 'concluido' && f.status !== 'arquivado' && f.status !== 'relancada' &&
+    !!f.data_fim && f.data_fim < hojeStr
+  );
+  const engRelevantes = filhasConcluidas.length + filhasVencidasAbertas.length;
+
+  let novoScoreEng: number;
+  if (filhasArr.length === 0) {
+    novoScoreEng = 0; // sem filhas → não assumiu metas do mês
+  } else if (engRelevantes === 0) {
+    novoScoreEng = 100; // tem filhas, todas no prazo → sem penalidade
+  } else {
+    const totalCreditos = filhasConcluidas.reduce(
+      (sum, f) => sum + tierFilha(f.data_fim, f.updated_at), 0
+    );
+    novoScoreEng = Math.max(0, Math.round((totalCreditos / (engRelevantes * 100)) * 100));
+  }
 
   const engajamentoData = {
+    // Campos antigos mantidos para backward compat (usados pela agregação de equipe no Fechamento)
     atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
     cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, bloqueados: cardsBloqueados, score: scoreCards },
-    proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, semProxima: cardsSemProxima, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas + cardsSemProxima, score: scoreProximas },
-    score:      engScore,
+    proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, semProxima: cardsSemProxima, relevantes: proxDenominador, score: scoreProximas },
+    // Score v2 (Metas Filhas) — fonte de verdade para Meu Carômetro e Fechamento
+    score:      novoScoreEng,
+    // Detalhe das filhas para auditoria
+    filhas: {
+      total:           filhasArr.length,
+      concluidas:      filhasConcluidas.length,
+      vencidas_abertas: filhasVencidasAbertas.length,
+      no_prazo:        filhasArr.length - filhasConcluidas.length - filhasVencidasAbertas.length,
+    },
   };
 
-  // ── Indicadores (sincronizado com useMeuCarometro) ───────────────────────
-  // Usa objetivo_responsaveis para encontrar indicadores do usuário.
-  // Lógica diferenciada: Atingível/Projeto (is_projeto_relativo) vs Recorrente.
-  let indicadoresData: Record<string, unknown> = { porIndicador: [], media: null };
+  // ── Indicadores v3: scoring baseado na conclusão da Meta Mãe ─────────────
+  // Espelha exatamente a lógica de useMeuCarometro.ts (Indicadores v3).
+  let indicadoresData: Record<string, unknown> = { porIndicador: [], media: 0 };
 
   {
+    const mesAtualInd = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    const anoAtualInd = hoje.getFullYear();
+    const mesNumInd   = hoje.getMonth() + 1; // 1-indexed
+
     const { data: objRespData } = await db
       .from('objetivo_responsaveis')
-      .select('objetivo_id, data_inicio')
+      .select('objetivo_id, concluido, concluido_em')
       .eq('profile_id', profileId);
 
-    type ObjRespRowSnap = { objetivo_id: string; data_inicio: string | null };
-    const objRespRowsSnap = (objRespData ?? []) as ObjRespRowSnap[];
-    const objIds = objRespRowsSnap.map(o => o.objetivo_id).filter(Boolean);
+    type ObjRespRow = { objetivo_id: string; concluido: boolean | null; concluido_em: string | null };
+    const objRespRows = (objRespData ?? []) as ObjRespRow[];
+    const objIds = objRespRows.map(r => r.objetivo_id).filter(Boolean);
 
-    // Mapa objetivo_id → data_inicio: evita penalizar projetos ainda não iniciados
-    const metaDataInicioMapSnap = new Map<string, string>(
-      objRespRowsSnap.filter(r => r.data_inicio != null).map(r => [r.objetivo_id, r.data_inicio!])
-    );
-
-    if (objIds.length > 0) {
-      // Filtra apenas metas do mês vigente com status ativo ou relançado.
-      // Metas concluídas e arquivadas não entram no cálculo — não penalizam o score.
-      const mesAtualSnap = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
-      const { data: objetivosData } = await db
+    if (objIds.length === 0) {
+      indicadoresData = { porIndicador: [], media: 0 };
+    } else {
+      const { data: metasData } = await db
         .from('objetivos')
-        .select('id, descricao')
+        .select('id, descricao, tipo, data_fim, status, concluido_em')
         .in('id', objIds)
-        .eq('mes', mesAtualSnap)
-        .in('status', ['ativo', 'relancada']);
-      // Extrai IDs já filtrados (mês vigente + status ativo/relancada)
-      const filteredObjsSnap = (objetivosData ?? []) as { id: string; descricao: string }[];
-      const filteredObjIdsSnap = filteredObjsSnap.map(o => o.id);
-      const objNomeMap = new Map<string, string>(filteredObjsSnap.map(o => [o.id, o.descricao]));
+        .eq('mes', mesAtualInd)
+        .in('status', ['ativo', 'relancada', 'concluido']);
 
-      if (filteredObjIdsSnap.length > 0) {
-      const { data: indsData } = await db
-        .from('indicadores')
-        .select('id, nome, semaforo_faixas, objetivo_id')
-        .in('objetivo_id', filteredObjIdsSnap)
-        .eq('ativo', true);
+      type MetaMaeRow = {
+        id: string; descricao: string; tipo: string;
+        data_fim: string | null; status: string; concluido_em: string | null;
+      };
+      const metas = (metasData ?? []) as MetaMaeRow[];
 
-      type IndRow = { id: string; nome: string; semaforo_faixas: unknown; objetivo_id: string | null };
-      const indsTyped = (indsData ?? []) as IndRow[];
-      const indIds = indsTyped.map(i => i.id);
+      if (metas.length === 0) {
+        indicadoresData = { porIndicador: [], media: 0 };
+      } else {
+        const objRespMap = new Map(objRespRows.map(r => [r.objetivo_id, r]));
+        const scores: number[] = [];
+        const porIndicador: { nome: string; valor: number; meta: number; percentual: number }[] = [];
 
-      if (indIds.length > 0) {
-        // Busca lançamentos da semana de referência do mês vigente
-        const { data: lancsData } = await db
-          .from('indicador_lancamentos')
-          .select('indicador_id, valor')
-          .in('indicador_id', indIds)
-          .eq('semana', semRefSnap);
+        for (const meta of metas) {
+          const resp = objRespMap.get(meta.id);
+          const tipo = (meta.tipo ?? '').toLowerCase();
 
-        const lancMap = new Map<string, unknown>(
-          ((lancsData ?? []) as { indicador_id: string; valor: unknown }[]).map(l => [l.indicador_id, l.valor])
-        );
-
-        type SfRaw = { is_projeto_relativo?: boolean; data_inicio?: string; data_fim?: string };
-        type IndItem = { nome: string; valor: number; meta: number; percentual: number | null };
-        const porIndicador: IndItem[] = [];
-        const metaScoresMap = new Map<string, number[]>();
-
-        for (const ind of indsTyped) {
-          const objNome    = ind.objetivo_id ? (objNomeMap.get(ind.objetivo_id) ?? '') : '';
-          const nomeDisplay = objNome ? `${objNome} — ${ind.nome}` : (ind.nome || ind.id);
-          const rawSf = ind.semaforo_faixas as SfRaw | null;
-          const isProjeto = rawSf != null && typeof rawSf === 'object' && !Array.isArray(rawSf) && rawSf.is_projeto_relativo;
-          const metaKey = ind.objetivo_id ?? ind.id;
-
-          // Se a meta tem data_inicio futura, o projeto ainda não iniciou —
-          // não penaliza o score independentemente do tipo de indicador.
-          const metaDataInicioSnap = ind.objetivo_id ? (metaDataInicioMapSnap.get(ind.objetivo_id) ?? null) : null;
-          if (metaDataInicioSnap) {
-            const metaInicioSnap = new Date(metaDataInicioSnap + 'T00:00:00');
-            if (refDateSnap < metaInicioSnap) {
-              porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
-              continue;
-            }
-          }
-
-          if (isProjeto) {
-            const esp = calcularEsperadoPctDinamico(rawSf!.data_inicio ?? '', rawSf!.data_fim ?? '', refDateSnap);
-            if (esp <= 0) {
-              porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: null });
-              continue;
-            }
-
-            // Cap de 70 pts se sextaAnterior ultrapassou a semana do data_fim
-            const dataFimDate = new Date((rawSf!.data_fim ?? '') + 'T00:00:00');
-            const dataFimDow = dataFimDate.getDay() || 7;
-            const endOfDeadlineWeek = new Date(dataFimDate);
-            endOfDeadlineWeek.setDate(dataFimDate.getDate() + (7 - dataFimDow));
-            const isPastDeadlineWeek = refDateSnap > endOfDeadlineWeek;
-
-            const valor  = lancMap.get(ind.id);
-            const valStr = valor != null ? String(valor).trim() : '';
-            if (valStr === '' || valStr === '-') {
-              porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: 0 });
-              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
-            } else {
-              const n = Number(valStr.replace(',', '.'));
-              if (!Number.isFinite(n)) { porIndicador.push({ nome: nomeDisplay, valor: 0, meta: esp, percentual: null }); continue; }
-              const ratio = Math.min(100, (n / esp) * 100);
-              let score = 0;
-              if (ratio >= 75) score = 100;
-              else if (ratio >= 60) score = 75;
-              else if (ratio >= 30) score = 50;
-              if (isPastDeadlineWeek && score > 70) score = 70;
-              porIndicador.push({ nome: nomeDisplay, valor: n, meta: esp, percentual: score });
-              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
-            }
+          let deadline: Date;
+          if (tipo === 'recorrente') {
+            deadline = ultimaSextaUtilDoMes(anoAtualInd, mesNumInd);
           } else {
-            const valor  = lancMap.get(ind.id);
-            const valStr = valor != null ? String(valor).trim() : '';
-            if (valStr === '' || valStr === '-') {
-              porIndicador.push({ nome: nomeDisplay, valor: 0, meta: 0, percentual: 0 });
-              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), 0]);
-            } else {
-              const score = scoreDeValorESemaforoHex(valor, ind.semaforo_faixas);
-              const n     = Number(valStr.replace(',', '.'));
-              porIndicador.push({ nome: nomeDisplay, valor: Number.isFinite(n) ? n : 0, meta: 0, percentual: score });
-              metaScoresMap.set(metaKey, [...(metaScoresMap.get(metaKey) ?? []), score]);
+            if (!meta.data_fim) {
+              scores.push(100);
+              porIndicador.push({ nome: meta.descricao, valor: 0, meta: 0, percentual: 100 });
+              continue;
             }
+            deadline = new Date(meta.data_fim + 'T23:59:59');
           }
+
+          const isConcluido = resp?.concluido === true;
+          const concluidoEm = resp?.concluido_em ?? meta.concluido_em ?? null;
+
+          let score: number;
+          if (isConcluido && concluidoEm) {
+            score = tierPorAtraso(concluidoEm, deadline);
+          } else {
+            score = hoje <= deadline ? 100 : 0;
+          }
+
+          scores.push(score);
+          porIndicador.push({ nome: meta.descricao, valor: 0, meta: 0, percentual: score });
         }
 
-        // Score por meta (média dos seus indicadores), depois média das metas — peso igual por meta
-        const metaMedias: number[] = [];
-        for (const scores of metaScoresMap.values()) {
-          metaMedias.push(Math.round(scores.reduce((s, v) => s + v, 0) / scores.length));
-        }
-        const media = metaMedias.length > 0
-          ? Math.round(metaMedias.reduce((s, v) => s + v, 0) / metaMedias.length)
-          : null;
+        const media = scores.length > 0
+          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+          : 0;
 
         indicadoresData = { porIndicador, media };
       }
-      } // filteredObjIdsSnap.length > 0
     }
   }
 

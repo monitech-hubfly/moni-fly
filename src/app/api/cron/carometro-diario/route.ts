@@ -3,11 +3,14 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { gerarSnapshotCarometro } from '@/lib/carometro/carometro-status-snapshot';
 
 /**
- * Cron: snapshot diário do Carômetro (Sirene / Engajamento / Indicadores)
+ * Cron: snapshot diário do Carômetro (Sirene / Engajamento v2 / Indicadores v3)
  * para cada usuário em area_pessoas.
+ *
  * GET /api/cron/carometro-diario
  * Header: Authorization: Bearer <CRON_SECRET>
- * Schedule: diário às 22h (vercel.json)
+ * Schedule: "59 23 * * *" (vercel.json)
+ *
+ * Processamento em lotes de 10 para evitar timeout da função Vercel.
  */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -40,20 +43,27 @@ export async function GET(request: Request) {
   }[];
 
   let ok = 0;
-  const falhas: string[] = [];
+  const falhas: { profile_id: string; erro: string }[] = [];
 
-  await Promise.all(
-    usuarios.map(async u => {
-      try {
-        await gerarSnapshotCarometro(db, u.profile_id, u.area_id, u.nome, hoje);
-        ok++;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error(`[carometro-diario] erro profile=${u.profile_id}:`, msg);
-        falhas.push(u.profile_id);
-      }
-    }),
-  );
+  // Processa em lotes de 10 para evitar timeout e sobrecarga de conexões
+  const LOTE_SIZE = 10;
+  for (let i = 0; i < usuarios.length; i += LOTE_SIZE) {
+    const lote = usuarios.slice(i, i + LOTE_SIZE);
+    await Promise.all(
+      lote.map(async u => {
+        try {
+          await gerarSnapshotCarometro(db, u.profile_id, u.area_id, u.nome, hoje);
+          ok++;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error(`[carometro-diario] erro profile=${u.profile_id}:`, msg);
+          falhas.push({ profile_id: u.profile_id, erro: msg });
+        }
+      }),
+    );
+  }
+
+  console.log(`[carometro-diario] concluído: ${ok}/${usuarios.length} ok, ${falhas.length} falhas`);
 
   return NextResponse.json({
     ok,

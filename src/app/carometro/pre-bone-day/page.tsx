@@ -2684,6 +2684,24 @@ function PreBoneDayPageContent() {
 
   const areaId = selectedAreaId || null; // alias usado por handlers e hook
 
+  /**
+   * Dispara recálculo e save do snapshot imediatamente após qualquer ação que
+   * altere o score (concluir meta, relançar, criar meta).
+   * Fire-and-forget: erros são logados mas não bloqueiam a UI.
+   */
+  const triggerSnapshot = useCallback(async (profileId?: string | null) => {
+    if (!areaId) return;
+    try {
+      await fetch('/api/carometro/snapshot-agora', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ area_id: areaId, ...(profileId ? { profile_id: profileId } : {}) }),
+      });
+    } catch (e) {
+      console.warn('[triggerSnapshot] erro (não crítico):', e);
+    }
+  }, [areaId]);
+
   const [isAdmin,          setIsAdmin]          = useState<boolean | null>(null);
   const [currentUserId,    setCurrentUserId]    = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
@@ -2770,7 +2788,8 @@ function PreBoneDayPageContent() {
       operacao: 'INSERT', descricao: `Meta relançada no mês ${mes}: ${metaOriginal.descricao}` });
     removerMetaNaoConcluida(id);
     recarregar();
-  }, [supabase, areaId, mes, metasNaoConcluidas, recarregar, removerMetaNaoConcluida]); // eslint-disable-line react-hooks/exhaustive-deps
+    void triggerSnapshot();
+  }, [supabase, areaId, mes, metasNaoConcluidas, recarregar, removerMetaNaoConcluida, triggerSnapshot]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleArquivarMeta = useCallback(async (id: string) => {
     await supabase.from('objetivos').update({ status: 'arquivado' }).eq('id', id);
@@ -2794,7 +2813,8 @@ function PreBoneDayPageContent() {
     if (e) { console.error('[ConcluirMeta]', e); return; }
     LOG({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id, operacao: 'UPDATE', descricao: 'Meta encerrada globalmente' });
     recarregar();
-  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+    void triggerSnapshot();
+  }, [supabase, recarregar, triggerSnapshot]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Conclusão individual (per-user): marca/desmarca a própria participação
   const handleConcluirMetaIndividual = useCallback(async (id: string, reabrir = false) => {
@@ -2818,7 +2838,8 @@ function PreBoneDayPageContent() {
     LOG({ modulo: 'Planejamento', entidade: 'objetivo_responsaveis', entidade_id: id,
       operacao: 'UPDATE', descricao: reabrir ? 'Meta reaberta (individual)' : 'Meta concluída (individual)' });
     recarregar();
-  }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+    void triggerSnapshot(user.id);
+  }, [supabase, recarregar, triggerSnapshot]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleExcluirMeta = useCallback(async (id: string) => {
     const { error: e } = await supabase.from('objetivos').delete().eq('id', id);
@@ -3139,7 +3160,7 @@ function PreBoneDayPageContent() {
                   ))
                 )}
                 {isAdmin && areaId && (
-                  <FormNovaMeta areaId={areaId} responsaveis={responsaveis} onSalvo={recarregar} mes={mes} />
+                  <FormNovaMeta areaId={areaId} responsaveis={responsaveis} onSalvo={() => { recarregar(); void triggerSnapshot(); }} mes={mes} />
                 )}
               </div>
             )}
