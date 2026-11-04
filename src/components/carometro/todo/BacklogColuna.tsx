@@ -1,6 +1,6 @@
 'use client';
 
-import type React from 'react';
+import type { ReactNode } from 'react';
 import { ExternalLink, X } from 'lucide-react';
 
 export type StatusPrazo = 'atrasado' | 'esta_semana' | 'futuro' | 'sem_prazo';
@@ -19,7 +19,7 @@ type BacklogColunaProps = {
   /** Callback de exclusão. Quando presente, exibe botão ✕ ao lado do dot de status. */
   onExcluir?: () => void;
   /** Badge de tier/atraso exibido entre a bolinha e o ícone de abrir (ex: "T1 · 1d"). */
-  tierBadge?: React.ReactNode;
+  tierBadge?: ReactNode;
 };
 
 const BORDER_COLOR: Record<StatusPrazo, string> = {
