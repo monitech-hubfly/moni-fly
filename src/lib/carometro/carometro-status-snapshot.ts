@@ -1,7 +1,63 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isoWeek } from '@/utils/periodos';
-import { calcularSlaKanbanCard, faseExcluidaDoAtrasoSla } from '@/lib/kanban/kanban-card-sla';
 import { ultimaSextaUtilDoMes, tierPorAtraso, tierFilha } from '@/lib/carometro/scoring-utils';
+
+// ── Tipos de evidência (espelhados em useMeuCarometro.ts) ────────────────────
+export type SireneTopicoDetalhe = {
+  id: number;
+  chamado_id: number | null;
+  nome: string | null;
+  prazo: string | null;
+  status: string;
+  tipo: 'concluido' | 'em_aberto';
+  dias_atraso: number | null;
+  tier: string;
+  credito: number;
+  updated_at?: string | null;
+};
+
+export type FilhaDetalhe = {
+  id: string;
+  descricao: string;
+  data_fim: string | null;
+  status: string;
+  atualizado_em: string | null;
+  dias_atraso: number | null;
+  tier: string;
+  credito: number;
+};
+
+export type IndicadorDetalhe = {
+  id: string;
+  nome: string;
+  tipo: string;
+  deadline_calculada: string | null;
+  status: string;
+  isConcluido: boolean;
+  concluido_em: string | null;
+  dias_atraso: number | null;
+  tier: string;
+  percentual: number;
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function calcTierSirene(prazo: string | null, updatedAt: string | null): { tier: string; credito: number } {
+  if (!prazo || !updatedAt) return { tier: 'no_prazo', credito: 100 };
+  const prazoDate = new Date(prazo + 'T00:00:00');
+  const concDate  = new Date(updatedAt.slice(0, 10) + 'T00:00:00');
+  const dias = Math.floor((concDate.getTime() - prazoDate.getTime()) / 86_400_000);
+  if (dias <= 0)  return { tier: 'no_prazo', credito: 100 };
+  if (dias <= 6)  return { tier: 'T1',      credito: 75 };
+  if (dias <= 14) return { tier: 'T2',      credito: 50 };
+  return              { tier: 'T3',          credito: 20 };
+}
+
+function diasAtraso(prazo: string | null, ref: Date): number | null {
+  if (!prazo) return null;
+  const prazoDate = new Date(prazo + 'T00:00:00');
+  return Math.floor((ref.getTime() - prazoDate.getTime()) / 86_400_000);
+}
 
 // ── Snapshot principal ───────────────────────────────────────────────────────
 export async function gerarSnapshotCarometro(
@@ -13,7 +69,7 @@ export async function gerarSnapshotCarometro(
 ) {
   const hoje    = data;
   const hojeStr = hoje.toISOString().slice(0, 10);
-  const semana  = isoWeek(hoje);
+  void nomeUsuario; // parâmetro mantido por compatibilidade com callers existentes
 
   // ── Sirene ─────────────────────────────────────────────────────────────────
   const dowSnap = hoje.getDay() || 7;
@@ -23,175 +79,119 @@ export async function gerarSnapshotCarometro(
 
   const [topicosAbertosSnap, topicosConcluidosSnap] = await Promise.all([
     db.from('sirene_topicos')
-      .select('id, data_fim, prazo_proposto')
+      .select('id, chamado_id, nome, data_fim, prazo_proposto, status, updated_at')
       .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
       .in('status', ['nao_iniciado', 'em_andamento'])
       .eq('arquivado', false),
     db.from('sirene_topicos')
-      .select('id, data_fim, prazo_proposto, updated_at')
+      .select('id, chamado_id, nome, data_fim, prazo_proposto, status, updated_at')
       .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
       .in('status', ['concluido', 'aprovado'])
       .eq('arquivado', false)
       .gte('updated_at', semanaInicioSnapStr),
   ]);
 
-  type TopicosSnapRow = { id: unknown; data_fim: string | null; prazo_proposto: string | null; updated_at?: string | null };
-  const topicosAbertos = (topicosAbertosSnap.data ?? []) as TopicosSnapRow[];
-  const topicosConcluidos = ((topicosConcluidosSnap.data ?? []) as TopicosSnapRow[]).filter(t => {
+  type TopicoSnap = {
+    id: number; chamado_id: number | null; nome: string | null;
+    data_fim: string | null; prazo_proposto: string | null;
+    status: string; updated_at: string | null;
+  };
+  const topicosAbertos   = (topicosAbertosSnap.data   ?? []) as TopicoSnap[];
+  const topicosConcluidos = ((topicosConcluidosSnap.data ?? []) as TopicoSnap[]).filter(t => {
     const prazo = t.data_fim || t.prazo_proposto;
     return prazo && prazo <= hojeStr;
   });
 
-  const semPrazo = topicosAbertos.filter(t => !t.data_fim && !t.prazo_proposto).length;
-  const sireneAtrasados = topicosAbertos.filter(t => {
-    const prazo = t.data_fim || t.prazo_proposto;
-    if (!prazo) return false;
-    return prazo < hojeStr;
-  }).length;
-  const sireneVenceHoje = topicosAbertos.filter(t => {
-    const prazo = t.data_fim || t.prazo_proposto;
-    return prazo === hojeStr;
-  }).length;
-  const sireneFuturas = topicosAbertos.filter(t => {
-    const prazo = t.data_fim || t.prazo_proposto;
-    return prazo && prazo > hojeStr;
+  const topicosSemPrazo      = topicosAbertos.filter(t => !t.data_fim && !t.prazo_proposto).length;
+  const topicosAtrasados     = topicosAbertos.filter(t => { const p = t.data_fim || t.prazo_proposto; return p && p < hojeStr; }).length;
+  const topicosVenceHoje     = topicosAbertos.filter(t => { const p = t.data_fim || t.prazo_proposto; return p === hojeStr; }).length;
+  const topicosFuturas       = topicosAbertos.filter(t => { const p = t.data_fim || t.prazo_proposto; return p && p > hojeStr; }).length;
+  const topicosUltraAtrasados = topicosAbertos.filter(t => {
+    const p = t.data_fim || t.prazo_proposto; if (!p) return false;
+    return diasAtraso(p, hoje) !== null && (diasAtraso(p, hoje) as number) > 15;
   }).length;
 
-  // Fórmula com tier (100/75/50/20%) — igual ao browser (useMeuCarometro.ts)
-  const sireneTotal = topicosConcluidos.length + sireneAtrasados + sireneVenceHoje;
-  const creditosSirene = topicosConcluidos.reduce((sum, t) => {
-    const prazo = t.data_fim || t.prazo_proposto;
-    return sum + tierFilha(prazo, t.updated_at ?? null);
+  // Score v2 tier — créditos ponderados
+  const sireneTotal = topicosConcluidos.length + topicosAtrasados + topicosVenceHoje;
+  const creditoTotal = topicosConcluidos.reduce((sum, t) => {
+    const p = t.data_fim || t.prazo_proposto;
+    return sum + calcTierSirene(p, t.updated_at).credito;
   }, 0);
   const sireneScoreRaw = sireneTotal === 0
     ? 100
-    : Math.max(0, Math.round((creditosSirene / (sireneTotal * 100)) * 100));
+    : Math.max(0, Math.round((creditoTotal / (sireneTotal * 100)) * 100));
+  const capAtivo    = topicosUltraAtrasados > 0;
+  const sireneScore = capAtivo ? Math.min(sireneScoreRaw, 50) : sireneScoreRaw;
 
-  // Cap 50%: chamado aberto com prazo vencido há >15 dias — igual ao browser
-  const quinzeDiasAtrasStr = new Date(hoje.getTime() - 15 * 86_400_000).toISOString().slice(0, 10);
-  const temChamadoAntigo = topicosAbertos.some(t => {
-    const prazo = t.data_fim || t.prazo_proposto;
-    return !!prazo && prazo < quinzeDiasAtrasStr;
-  });
-  const sireneFinal = temChamadoAntigo ? Math.min(sireneScoreRaw, 50) : sireneScoreRaw;
+  // Montar evidências por tópico
+  const topicosDetalhe: SireneTopicoDetalhe[] = [
+    ...topicosConcluidos.map(t => {
+      const p = t.data_fim || t.prazo_proposto;
+      const { tier, credito } = calcTierSirene(p, t.updated_at);
+      return {
+        id: t.id, chamado_id: t.chamado_id, nome: t.nome, prazo: p,
+        status: t.status, tipo: 'concluido' as const,
+        dias_atraso: p ? (diasAtraso(t.updated_at ? t.updated_at.slice(0,10) : hojeStr + 'T00:00:00', new Date(p + 'T00:00:00')) !== null
+          ? Math.floor((new Date(t.updated_at?.slice(0,10) ?? hojeStr).getTime() - new Date(p).getTime()) / 86_400_000)
+          : null) : null,
+        tier, credito, updated_at: t.updated_at,
+      };
+    }),
+    ...topicosAbertos.map(t => {
+      const p = t.data_fim || t.prazo_proposto;
+      const da = p ? diasAtraso(p, hoje) : null;
+      const tier = da === null ? 'sem_prazo' : da <= 0 ? 'no_prazo' : da <= 6 ? 'T1' : da <= 14 ? 'T2' : da <= 15 ? 'T3' : 'ultra_atrasado';
+      return {
+        id: t.id, chamado_id: t.chamado_id, nome: t.nome, prazo: p,
+        status: t.status, tipo: 'em_aberto' as const,
+        dias_atraso: da !== null ? Math.max(0, da) : null,
+        tier, credito: 0, updated_at: t.updated_at,
+      };
+    }),
+  ];
 
   const sireneData = {
-    atrasados:  sireneAtrasados,
-    abertos:    topicosAbertos.length,
-    venceHoje:  sireneVenceHoje,
-    futuras:    sireneFuturas,
-    relevantes: sireneTotal,
-    concluidos: topicosConcluidos.length,
-    semPrazo,
-    score:      sireneFinal,
+    score:         sireneScore,
+    cap_ativo:     capAtivo,
+    relevantes:    sireneTotal,
+    concluidos:    topicosConcluidos.length,
+    atrasados:     topicosAtrasados,
+    venceHoje:     topicosVenceHoje,
+    futuras:       topicosFuturas,
+    semPrazo:      topicosSemPrazo,
+    super_atrasados: topicosUltraAtrasados,
+    topicos:       topicosDetalhe,
   };
 
-  // ── Engajamento v2: Metas Filhas + Tier ──────────────────────────────────
-  // Espelha exatamente a lógica de useMeuCarometro.ts (Engajamento v2).
-  // Mantém os campos antigos (atividades/cards/proximas) para backward compat com
-  // useFechamentoBoneDay que os agrega por equipe.
-  const orKanban = `responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`;
-
+  // ── Engajamento v2: Metas Filhas + Tier (sem código antigo de atividades/cards) ──
   const mesAtualEng = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
-  const [ganttEngRes, kanbanAbertosRes, proximasEngRes, proximasConcluidosRes, filhasEngRes] = await Promise.all([
-    db.from('gantt_planejamento')
-      .select('id, data, data_conclusao_real')
-      .eq('profile_id', profileId)
-      .gte('data', semanaInicioSnapStr)
-      .lte('data', hojeStr)
-      .is('sirene_chamado_id', null)
-      .is('card_id', null)
-      .not('objetivo_id', 'is', null),
-    db.from('kanban_cards')
-      .select('id, created_at, entered_fase_at, sla_iniciado_em, sla_pausado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
-      .or(orKanban).eq('arquivado', false).eq('concluido', false),
-    db.from('kanban_cards')
-      .select('id, prazo_atividade')
-      .or(orKanban).eq('arquivado', false).eq('concluido', false)
-      .not('prazo_atividade', 'is', null),
-    db.from('kanban_cards')
-      .select('id, prazo_atividade')
-      .or(orKanban).eq('arquivado', false).eq('concluido', true)
-      .not('prazo_atividade', 'is', null)
-      .lte('prazo_atividade', hojeStr)
-      .gte('updated_at', semanaInicioSnapStr),
-    // Metas Filhas do usuário no mês vigente (Engajamento v2)
-    db.from('objetivos')
-      .select('id, status, data_fim, atualizado_em')
-      .eq('profile_id', profileId)
-      .not('objetivo_pai_id', 'is', null)
-      .eq('mes', mesAtualEng),
-  ]);
+  const { data: filhasData } = await db
+    .from('objetivos')
+    .select('id, descricao, status, data_fim, atualizado_em')
+    .eq('profile_id', profileId)
+    .not('objetivo_pai_id', 'is', null)
+    .eq('mes', mesAtualEng);
 
-  // Sub-scores antigos (mantidos para agregação de equipe no Fechamento Boné Day)
-  type GanttEngRow = { id: string; data: string; data_conclusao_real: string | null };
-  const ganttArr = (ganttEngRes.data ?? []) as GanttEngRow[];
-  const atividadesAgendadas = ganttArr.length;
-  const atividadesRealizadas = ganttArr.filter(g => !!g.data_conclusao_real).length;
-  const atividadesAtrasadas  = ganttArr.filter(g => !g.data_conclusao_real).length;
-  const scoreAtividades = atividadesAgendadas === 0
-    ? 0
-    : Math.max(0, Math.round((atividadesRealizadas / atividadesAgendadas) * 100));
-
-  type FaseKanban = { sla_dias: number | null; sla_tipo: string | null; slug: string | null };
-  type KanbanCardSla = {
-    id: string; created_at: string; entered_fase_at: string | null;
-    sla_iniciado_em: string | null; sla_pausado_em: string | null; fase: FaseKanban | FaseKanban[] | null;
-  };
-  const kanbanArr = (kanbanAbertosRes.data ?? []) as KanbanCardSla[];
-  const cardsComSLA = kanbanArr.filter(c => {
-    const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
-    if (faseExcluidaDoAtrasoSla(fase?.slug)) return false;
-    return (fase?.sla_dias ?? null) !== null;
-  });
-  const cardsBloqueados = cardsComSLA.filter(c => Boolean(c.sla_pausado_em)).length;
-  const cardsNaoBloqueados = cardsComSLA.filter(c => !c.sla_pausado_em);
-  const cardsAtrasados = cardsNaoBloqueados.filter(c => {
-    const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
-    return calcularSlaKanbanCard({
-      created_at:      c.created_at,
-      entered_fase_at: c.entered_fase_at,
-      sla_iniciado_em: c.sla_iniciado_em,
-      sla_pausado_em:  c.sla_pausado_em,
-      sla_dias:        fase?.sla_dias ?? null,
-      sla_tipo:        fase?.sla_tipo ?? null,
-      faseSlug:        fase?.slug     ?? null,
-    }).status === 'atrasado';
-  }).length;
-  const cardsEmDia = cardsNaoBloqueados.length - cardsAtrasados;
-  const scoreCards = cardsComSLA.length === 0 || cardsNaoBloqueados.length === 0
-    ? 100
-    : Math.max(0, Math.round((cardsEmDia / cardsNaoBloqueados.length) * 100));
-
-  type ProximaEngRow = { id: string; prazo_atividade: string | null };
-  const proximasAbertosArr    = (proximasEngRes.data        ?? []) as ProximaEngRow[];
-  const proximasConcluidosArr = (proximasConcluidosRes.data ?? []) as ProximaEngRow[];
-  const proxVenceHoje  = proximasAbertosArr.filter(c => c.prazo_atividade === hojeStr).length;
-  const proxAtrasadas  = proximasAbertosArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
-  const proxConcluidos = proximasConcluidosArr.length;
-  const cardsSemProxima = kanbanArr.length - proximasAbertosArr.length;
-  const proxDenominador = proxConcluidos + proxAtrasadas + proxVenceHoje + cardsSemProxima;
-  const scoreProximas = proxDenominador === 0
-    ? 100
-    : Math.max(0, Math.round((proxConcluidos / proxDenominador) * 100));
-
-  // Engajamento v2: score baseado em Metas Filhas + Tier
-  type FilhaEngRow = { id: string; status: string; data_fim: string | null; atualizado_em: string | null };
-  const filhasArr = (filhasEngRes.data ?? []) as FilhaEngRow[];
+  type FilhaRow = { id: string; descricao: string; status: string; data_fim: string | null; atualizado_em: string | null };
+  const filhasArr = (filhasData ?? []) as FilhaRow[];
 
   const filhasConcluidas      = filhasArr.filter(f => f.status === 'concluido');
   const filhasVencidasAbertas = filhasArr.filter(f =>
     f.status !== 'concluido' && f.status !== 'arquivado' && f.status !== 'relancada' &&
     !!f.data_fim && f.data_fim < hojeStr
   );
+  const filhasNoPrazo = filhasArr.filter(f =>
+    f.status !== 'concluido' && f.status !== 'arquivado' && f.status !== 'relancada' &&
+    (!f.data_fim || f.data_fim >= hojeStr)
+  );
   const engRelevantes = filhasConcluidas.length + filhasVencidasAbertas.length;
 
   let novoScoreEng: number;
   if (filhasArr.length === 0) {
-    novoScoreEng = 0; // sem filhas → não assumiu metas do mês
+    novoScoreEng = 0;
   } else if (engRelevantes === 0) {
-    novoScoreEng = 100; // tem filhas, todas no prazo → sem penalidade
+    novoScoreEng = 100;
   } else {
     const totalCreditos = filhasConcluidas.reduce(
       (sum, f) => sum + tierFilha(f.data_fim, f.atualizado_em), 0
@@ -199,30 +199,57 @@ export async function gerarSnapshotCarometro(
     novoScoreEng = Math.max(0, Math.round((totalCreditos / (engRelevantes * 100)) * 100));
   }
 
+  // Evidências por filha
+  const filhasDetalhes: FilhaDetalhe[] = filhasArr
+    .filter(f => f.status !== 'arquivado')
+    .map(f => {
+      let tier: string;
+      let credito: number;
+      let da: number | null = null;
+
+      if (f.status === 'concluido') {
+        credito = tierFilha(f.data_fim, f.atualizado_em);
+        if (f.data_fim && f.atualizado_em) {
+          da = Math.floor(
+            (new Date(f.atualizado_em.slice(0, 10) + 'T00:00:00').getTime() -
+             new Date(f.data_fim + 'T00:00:00').getTime()) / 86_400_000
+          );
+        }
+        tier = da === null ? 'no_prazo' : da <= 0 ? 'no_prazo' : da <= 6 ? 'T1' : da <= 14 ? 'T2' : 'T3';
+      } else if (f.data_fim && f.data_fim < hojeStr) {
+        da = diasAtraso(f.data_fim, hoje) ?? 0;
+        tier = 'vencida_aberta';
+        credito = 0;
+      } else {
+        tier = 'no_prazo_aberta';
+        credito = 0;
+      }
+
+      return {
+        id: f.id, descricao: f.descricao, data_fim: f.data_fim,
+        status: f.status, atualizado_em: f.atualizado_em,
+        dias_atraso: da, tier, credito,
+      };
+    });
+
   const engajamentoData = {
-    // Campos antigos mantidos para backward compat (usados pela agregação de equipe no Fechamento)
-    atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
-    cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, bloqueados: cardsBloqueados, score: scoreCards },
-    proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, semProxima: cardsSemProxima, relevantes: proxDenominador, score: scoreProximas },
-    // Score v2 (Metas Filhas) — fonte de verdade para Meu Carômetro e Fechamento
-    score:      novoScoreEng,
-    // Detalhe das filhas para auditoria
+    score: novoScoreEng,
     filhas: {
-      total:           filhasArr.length,
-      concluidas:      filhasConcluidas.length,
+      total:            filhasArr.length,
+      concluidas:       filhasConcluidas.length,
       vencidas_abertas: filhasVencidasAbertas.length,
-      no_prazo:        filhasArr.length - filhasConcluidas.length - filhasVencidasAbertas.length,
+      no_prazo:         filhasNoPrazo.length,
+      detalhes:         filhasDetalhes,
     },
   };
 
   // ── Indicadores v3: scoring baseado na conclusão da Meta Mãe ─────────────
-  // Espelha exatamente a lógica de useMeuCarometro.ts (Indicadores v3).
-  let indicadoresData: Record<string, unknown> = { porIndicador: [], media: 0 };
+  let indicadoresData: { media: number; porIndicador: IndicadorDetalhe[] } = { media: 0, porIndicador: [] };
 
   {
     const mesAtualInd = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
     const anoAtualInd = hoje.getFullYear();
-    const mesNumInd   = hoje.getMonth() + 1; // 1-indexed
+    const mesNumInd   = hoje.getMonth() + 1;
 
     const { data: objRespData } = await db
       .from('objetivo_responsaveis')
@@ -233,9 +260,7 @@ export async function gerarSnapshotCarometro(
     const objRespRows = (objRespData ?? []) as ObjRespRow[];
     const objIds = objRespRows.map(r => r.objetivo_id).filter(Boolean);
 
-    if (objIds.length === 0) {
-      indicadoresData = { porIndicador: [], media: 0 };
-    } else {
+    if (objIds.length > 0) {
       const { data: metasData } = await db
         .from('objetivos')
         .select('id, descricao, tipo, data_fim, status, concluido_em')
@@ -249,49 +274,66 @@ export async function gerarSnapshotCarometro(
       };
       const metas = (metasData ?? []) as MetaMaeRow[];
 
-      if (metas.length === 0) {
-        indicadoresData = { porIndicador: [], media: 0 };
-      } else {
+      if (metas.length > 0) {
         const objRespMap = new Map(objRespRows.map(r => [r.objetivo_id, r]));
         const scores: number[] = [];
-        const porIndicador: { nome: string; valor: number; meta: number; percentual: number }[] = [];
+        const porIndicador: IndicadorDetalhe[] = [];
 
         for (const meta of metas) {
           const resp = objRespMap.get(meta.id);
           const tipo = (meta.tipo ?? '').toLowerCase();
 
           let deadline: Date;
+          let deadlineStr: string;
           if (tipo === 'recorrente') {
-            deadline = ultimaSextaUtilDoMes(anoAtualInd, mesNumInd);
+            deadline    = ultimaSextaUtilDoMes(anoAtualInd, mesNumInd);
+            deadlineStr = deadline.toISOString().slice(0, 10);
           } else {
             if (!meta.data_fim) {
               scores.push(100);
-              porIndicador.push({ nome: meta.descricao, valor: 0, meta: 0, percentual: 100 });
+              porIndicador.push({
+                id: meta.id, nome: meta.descricao, tipo,
+                deadline_calculada: null, status: meta.status,
+                isConcluido: false, concluido_em: null,
+                dias_atraso: null, tier: 'sem_prazo', percentual: 100,
+              });
               continue;
             }
-            deadline = new Date(meta.data_fim + 'T23:59:59');
+            deadline    = new Date(meta.data_fim + 'T23:59:59');
+            deadlineStr = meta.data_fim;
           }
 
-          // Fallback: cobre dados históricos onde apenas objetivos.status foi atualizado
           const isConcluido = resp?.concluido === true || meta.status === 'concluido';
           const concluidoEm = resp?.concluido_em ?? null;
 
           let score: number;
+          let tier: string;
+          let da: number | null = null;
+
           if (isConcluido && concluidoEm) {
             score = tierPorAtraso(concluidoEm, deadline);
+            da = Math.floor(
+              (new Date(concluidoEm.slice(0, 10) + 'T00:00:00').getTime() - deadline.getTime()) / 86_400_000
+            );
+            tier = da <= 0 ? 'no_prazo' : da <= 6 ? 'T1' : da <= 14 ? 'T2' : 'T3';
           } else {
             score = hoje <= deadline ? 100 : 0;
+            tier  = hoje <= deadline ? 'em_aberto_no_prazo' : 'em_aberto_vencido';
           }
 
           scores.push(score);
-          porIndicador.push({ nome: meta.descricao, valor: 0, meta: 0, percentual: score });
+          porIndicador.push({
+            id: meta.id, nome: meta.descricao, tipo,
+            deadline_calculada: deadlineStr, status: meta.status,
+            isConcluido, concluido_em: concluidoEm,
+            dias_atraso: da, tier, percentual: score,
+          });
         }
 
         const media = scores.length > 0
           ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
           : 0;
-
-        indicadoresData = { porIndicador, media };
+        indicadoresData = { media, porIndicador };
       }
     }
   }

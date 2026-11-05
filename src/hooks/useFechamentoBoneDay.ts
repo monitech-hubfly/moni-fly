@@ -258,18 +258,17 @@ export function useFechamentoBoneDay(
           for (const snap of profMap.values()) snapshots.push(snap);
         }
 
-        // Sirene — acumulado: ΣConcluidos / ΣRelevantes
-        let sireneConcluidos = 0;
-        let sireneRelevantes = 0;
-        for (const r of snapshots) {
-          const s = r.sirene as Record<string, unknown> | null;
-          if (s && typeof s === 'object') {
-            sireneConcluidos += typeof s.concluidos === 'number' ? s.concluidos : 0;
-            sireneRelevantes += typeof s.relevantes === 'number' ? s.relevantes : 0;
-          }
-        }
-        const sireneScore = sireneRelevantes > 0
-          ? Math.max(0, Math.round((sireneConcluidos / sireneRelevantes) * 100))
+        // Sirene — média do score tier-based por snapshot (alinhado ao Meu Carômetro v2)
+        const sireneScores = snapshots
+          .map(r => {
+            const s = r.sirene as Record<string, unknown> | null;
+            if (!s || typeof s !== 'object') return null;
+            const v = s.score;
+            return typeof v === 'number' ? Math.round(v) : null;
+          })
+          .filter((v): v is number => v !== null);
+        const sireneScore = sireneScores.length > 0
+          ? Math.round(sireneScores.reduce((a, b) => a + b, 0) / sireneScores.length)
           : null;
 
         // Engajamento v2 — média do score individual (engajamento.score) por snapshot.

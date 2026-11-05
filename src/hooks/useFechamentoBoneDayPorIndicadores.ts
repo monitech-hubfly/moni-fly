@@ -150,18 +150,18 @@ function calcularScoresArea(
     for (const snap of profMap.values()) snapshots.push(snap);
   }
 
-  // Sirene — ΣConcluidos / ΣRelevantes
-  let sireneConcluidos = 0;
-  let sireneRelevantes = 0;
-  for (const r of snapshots) {
-    const s = r.sirene as Record<string, unknown> | null;
-    if (s && typeof s === 'object') {
-      sireneConcluidos += typeof s.concluidos === 'number' ? s.concluidos : 0;
-      sireneRelevantes += typeof s.relevantes === 'number' ? s.relevantes : 0;
-    }
-  }
-  const sireneScore =
-    sireneRelevantes > 0 ? Math.max(0, Math.round((sireneConcluidos / sireneRelevantes) * 100)) : null;
+  // Sirene — média do score tier-based por snapshot (alinhado ao Meu Carômetro v2)
+  const sireneScoresArr = snapshots
+    .map(r => {
+      const s = r.sirene as Record<string, unknown> | null;
+      if (!s || typeof s !== 'object') return null;
+      const v = s.score;
+      return typeof v === 'number' ? Math.round(v) : null;
+    })
+    .filter((v): v is number => v !== null);
+  const sireneScore = sireneScoresArr.length > 0
+    ? Math.round(sireneScoresArr.reduce((a, b) => a + b, 0) / sireneScoresArr.length)
+    : null;
 
   // Engajamento v2 — média do score individual (engajamento.score) por snapshot.
   // O campo `score` já reflete as Metas Filhas + Tier (mesma fórmula do Meu Carômetro).

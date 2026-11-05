@@ -4,7 +4,46 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isoWeek, isoWeekYear } from '@/utils/periodos';
 import { useSimulacaoUsuario } from '@/components/carometro/todo/SeletorUsuarioAdmin';
-import { calcularSlaKanbanCard, faseExcluidaDoAtrasoSla } from '@/lib/kanban/kanban-card-sla';
+import { ultimaSextaUtilDoMes, tierPorAtraso, tierFilha } from '@/lib/carometro/scoring-utils';
+
+// ── Tipos de evidência ────────────────────────────────────────────────────────
+
+export type SireneTopicoDetalhe = {
+  id: number;
+  chamado_id: number | null;
+  nome: string | null;
+  prazo: string | null;
+  status: string;
+  tipo: 'concluido' | 'em_aberto';
+  dias_atraso: number | null;
+  tier: string;
+  credito: number;
+  updated_at?: string | null;
+};
+
+export type FilhaDetalhe = {
+  id: string;
+  descricao: string;
+  data_fim: string | null;
+  status: string;
+  atualizado_em: string | null;
+  dias_atraso: number | null;
+  tier: string;
+  credito: number;
+};
+
+export type IndicadorDetalhe = {
+  id: string;
+  nome: string;
+  tipo: string;
+  deadline_calculada: string | null;
+  status: string;
+  isConcluido: boolean;
+  concluido_em: string | null;
+  dias_atraso: number | null;
+  tier: string;
+  percentual: number;
+};
 
 export type DiaStatus = {
   data: string;
@@ -20,35 +59,34 @@ export type SemanaStatusInd = {
 };
 
 export type SireneSnapshot = {
-  atrasados:            number;
-  abertos:              number;
-  venceHoje:            number;
-  futuras:              number;
-  relevantes:           number;
-  concluidos:           number;
-  semPrazo:             number;
-  score:                number | null;
-  // Tier breakdown (v2) — para exibição detalhada no accordion
-  concluidos_no_prazo?: number;
-  concluidos_t1?:       number;
-  concluidos_t2?:       number;
-  concluidos_t3?:       number;
-  // Chamados em aberto com prazo vencido há 15+ dias (além do T3) — ativam cap de 50%
-  super_atrasados?:     number;
+  score:           number | null;
+  cap_ativo?:      boolean;
+  relevantes:      number;
+  concluidos:      number;
+  atrasados:       number;
+  venceHoje:       number;
+  futuras:         number;
+  semPrazo:        number;
+  super_atrasados?: number;
+  topicos?:        SireneTopicoDetalhe[];
 };
 
 export type EngajamentoSnapshot = {
-  atividades: { agendadas: number; realizadas: number; atrasadas: number; score: number | null };
-  cards:      { comSLA: number; emDia: number; atrasados: number; bloqueados: number; score: number | null };
-  proximas:   { concluidos: number; venceHoje: number; atrasadas: number; semProxima: number; relevantes: number; score: number | null };
   score: number | null;
+  filhas: {
+    total: number;
+    concluidas: number;
+    vencidas_abertas: number;
+    no_prazo: number;
+    detalhes?: FilhaDetalhe[];
+  };
 };
 
 export type IndicadorItem = {
   nome: string;
   valor: number;
   meta: number;
-  percentual: number | null; // null = "Nada esperado para essa semana" (Projeto com esp=0)
+  percentual: number | null;
 };
 
 export type IndicadoresSnapshot = {
@@ -79,72 +117,6 @@ export type UseMeuCarometroResult = {
   refetch: () => void;
 };
 
-// Mapeamento cor semáforo → score 0-100
-const COR_PARA_SCORE: Record<string, number> = {
-  '#1e7a3a': 100,
-  '#52b36f': 67,
-  '#f2c94c': 50,
-  '#d24141': 0,
-};
-
-type SemaforoFaixa = { cor: string; limite: string | number; comparacao?: string };
-
-function scoreDeValorESemaforo(valor: unknown, semaforo_faixas: unknown): number {
-  if (valor == null || valor === '') return 50;
-  const faixas = (semaforo_faixas as { faixas?: SemaforoFaixa[] } | null)?.faixas;
-  if (!faixas?.length) return 50;
-
-  const n = Number(String(valor).replace(',', '.'));
-  if (!Number.isFinite(n)) return 50;
-
-  for (const f of faixas) {
-    const limite = Number(String(f.limite ?? '').replace(',', '.'));
-    if (!Number.isFinite(limite)) continue;
-    const op = f.comparacao ?? 'gte';
-    let match = false;
-    if (op === 'gte') match = n >= limite;
-    else if (op === 'gt')  match = n > limite;
-    else if (op === 'lte') match = n <= limite;
-    else if (op === 'lt')  match = n < limite;
-    else if (op === 'eq')  match = n === limite;
-    if (match) return COR_PARA_SCORE[f.cor?.toLowerCase()] ?? 50;
-  }
-  return 50;
-}
-
-/**
- * Calcula % esperado de um indicador Atingível/Projeto com base em dias úteis decorridos.
- * Exclui apenas fins de semana. Calcula o total de dias úteis dinamicamente (não depende
- * do campo dias_uteis salvo no banco, que pode estar vazio).
- * Retorna 0 se projeto não iniciado, 100 se já passou do prazo.
- */
-function calcularEsperadoPct(dataInicio: string, dataFim: string, refDate?: Date): number {
-  if (!dataInicio || !dataFim) return 0;
-  const ref  = new Date(refDate ?? new Date()); ref.setHours(0, 0, 0, 0);
-  const inicio = new Date(dataInicio + 'T00:00:00');
-  const fim    = new Date(dataFim    + 'T00:00:00');
-  if (ref < inicio) return 0;
-
-  // Total dias úteis do projeto (data_inicio → data_fim)
-  let total = 0;
-  const dt = new Date(inicio);
-  while (dt <= fim) {
-    if (dt.getDay() !== 0 && dt.getDay() !== 6) total++;
-    dt.setDate(dt.getDate() + 1);
-  }
-  if (total === 0) return 0;
-
-  if (ref >= fim) return 100;
-
-  // Dias úteis decorridos (data_inicio → ref)
-  let count = 0;
-  const d2 = new Date(inicio);
-  while (d2 <= ref) {
-    if (d2.getDay() !== 0 && d2.getDay() !== 6) count++;
-    d2.setDate(d2.getDate() + 1);
-  }
-  return Math.min(100, Math.round((count / total) * 100));
-}
 
 function getDiasSemanAtual(): string[] {
   const hoje = new Date();
@@ -242,13 +214,13 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const [topicosAbertosRes, topicosConcluidosRes] = await Promise.all([
         supabase
           .from('sirene_topicos')
-          .select('id, data_fim, prazo_proposto, chamado_id, interacao_id, sirene_chamados!chamado_id(arquivado)')
+          .select('id, nome, status, data_fim, prazo_proposto, chamado_id, interacao_id, sirene_chamados!chamado_id(arquivado)')
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['nao_iniciado', 'em_andamento'])
           .eq('arquivado', false),
         supabase
           .from('sirene_topicos')
-          .select('id, data_fim, prazo_proposto, updated_at')
+          .select('id, nome, status, data_fim, prazo_proposto, updated_at')
           .or(`responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`)
           .in('status', ['concluido', 'aprovado'])
           .eq('arquivado', false)
@@ -257,6 +229,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
       type TopicosRow = {
         id: unknown;
+        nome?: string | null;
+        status?: string;
         data_fim: string | null;
         prazo_proposto: string | null;
         updated_at?: string | null;
@@ -390,149 +364,57 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         ? Math.min(sireneScoreRaw, 50)
         : sireneScoreRaw;
 
+      // Montar evidências por tópico (topicos[])
+      const topicosDetalhe: SireneTopicoDetalhe[] = [
+        ...topicosConcluidos.map(t => {
+          const prazo = t.data_fim || t.prazo_proposto;
+          const credito = calcTierCredit(prazo, t.updated_at ?? null);
+          const tier = credito === 100 ? 'no_prazo' : credito === 75 ? 'T1' : credito === 50 ? 'T2' : 'T3';
+          let da: number | null = null;
+          if (prazo && t.updated_at) {
+            da = Math.floor(
+              (new Date(t.updated_at.slice(0, 10) + 'T00:00:00').getTime() -
+               new Date(prazo + 'T00:00:00').getTime()) / 86_400_000
+            );
+          }
+          return {
+            id: t.id as number, chamado_id: t.chamado_id as number | null,
+            nome: t.nome as string | null, prazo, status: t.status ?? 'concluido',
+            tipo: 'concluido' as const, dias_atraso: da !== null ? Math.max(0, da) : null,
+            tier, credito, updated_at: t.updated_at ?? null,
+          };
+        }),
+        ...topicosAbertos.map(t => {
+          const prazo = t.data_fim || t.prazo_proposto;
+          const prazoDate = prazo ? new Date(prazo + 'T00:00:00') : null;
+          const da = prazoDate ? Math.floor((hoje.getTime() - prazoDate.getTime()) / 86_400_000) : null;
+          const tier = da === null ? 'sem_prazo' : da <= 0 ? 'no_prazo' : da <= 6 ? 'T1' : da <= 14 ? 'T2' : da <= 15 ? 'T3' : 'ultra_atrasado';
+          return {
+            id: t.id as number, chamado_id: t.chamado_id as number | null,
+            nome: t.nome as string | null, prazo: prazo ?? null, status: t.status ?? 'em_andamento',
+            tipo: 'em_aberto' as const, dias_atraso: da !== null ? Math.max(0, da) : null,
+            tier, credito: 0, updated_at: t.updated_at ?? null,
+          };
+        }),
+      ];
+
       const sireneRuntime: SireneSnapshot = {
-        atrasados:            topicosAtrasados,
-        abertos:              topicosAbertos.length,
-        venceHoje:            topicosVenceHoje,
-        futuras:              topicosFuturas,
-        relevantes:           sireneTotal,
-        concluidos:           topicosConcluidos.length,
-        semPrazo:             topicosSemPrazo,
-        score:                sireneScore,
-        concluidos_no_prazo:  sireneNp,
-        concluidos_t1:        sireneT1,
-        concluidos_t2:        sireneT2,
-        concluidos_t3:        sireneT3,
-        super_atrasados:      topicosUltraAtrasados,
+        score:          sireneScore,
+        cap_ativo:      topicosUltraAtrasados > 0,
+        relevantes:     sireneTotal,
+        concluidos:     topicosConcluidos.length,
+        atrasados:      topicosAtrasados,
+        venceHoje:      topicosVenceHoje,
+        futuras:        topicosFuturas,
+        semPrazo:       topicosSemPrazo,
+        super_atrasados: topicosUltraAtrasados,
+        topicos:        topicosDetalhe,
       };
-
-      // ── Engajamento (3 sub-scores independentes) ────────────────────────────────
-      // Fonte de verdade: APENAS responsavel_id (campo "Responsável do Card" na UI).
-      // Cards sem responsavel_id ficam com Ingrid (padrão). franqueado_id nunca é usado.
-      const engOrKanban = `responsavel_id.eq.${effectiveProfileId},responsaveis_ids.cs.{${effectiveProfileId}}`;
-
-      let engajamentoRuntime: EngajamentoSnapshot = {
-        atividades: { agendadas: 0, realizadas: 0, atrasadas: 0, score: null },
-        cards:      { comSLA: 0, emDia: 0, atrasados: 0, bloqueados: 0, score: null },
-        proximas:   { concluidos: 0, venceHoje: 0, atrasadas: 0, semProxima: 0, relevantes: 0, score: null },
-        score: null,
-      };
-
-      {
-        const [ganttRes, kanbanRes, proximasAbertosRes, proximasConcluidosRes] = await Promise.all([
-          supabase
-            .from('gantt_planejamento')
-            .select('id, data, data_conclusao_real')
-            .eq('profile_id', effectiveProfileId)
-            .gte('data', semanaInicioStr)
-            .lte('data', hojeStr)
-            .is('sirene_chamado_id', null)
-            .is('card_id', null)
-            .not('objetivo_id', 'is', null),   // exclui "Sem vínculo à meta"
-          supabase
-            .from('kanban_cards')
-            .select('id, created_at, entered_fase_at, sla_iniciado_em, sla_pausado_em, fase:kanban_fases!fase_id(sla_dias, sla_tipo, slug)')
-            .or(engOrKanban)
-            .eq('arquivado', false)
-            .eq('concluido', false),
-          supabase
-            .from('kanban_cards')
-            .select('id, prazo_atividade')
-            .or(engOrKanban)
-            .eq('arquivado', false)
-            .eq('concluido', false)
-            .not('prazo_atividade', 'is', null),
-          supabase
-            .from('kanban_cards')
-            .select('id, prazo_atividade')
-            .or(engOrKanban)
-            .eq('arquivado', false)
-            .eq('concluido', true)
-            .not('prazo_atividade', 'is', null)
-            .lte('prazo_atividade', hojeStr)
-            .gte('updated_at', semanaInicioStr),
-        ]);
-
-        // Sub-score 1: Atividades da Agenda — esta semana (gantt_planejamento)
-        type GanttRow = { id: string; data: string; data_conclusao_real: string | null };
-        const ganttArr = (ganttRes.data ?? []) as GanttRow[];
-        const atividadesAgendadas = ganttArr.length;
-        const atividadesRealizadas = ganttArr.filter(g => !!g.data_conclusao_real).length;
-        // Não concluída = agendada sem data_conclusao_real (inclui hoje — afeta score imediatamente)
-        const atividadesAtrasadas = ganttArr.filter(g => !g.data_conclusao_real).length;
-        const scoreAtividades = atividadesAgendadas === 0
-          ? 0
-          : Math.max(0, Math.round((atividadesRealizadas / atividadesAgendadas) * 100));
-
-        // Sub-score 2: Cards com SLA
-        const kanbanArr = (kanbanRes.data ?? []) as Array<{
-          id: string; created_at: string; entered_fase_at: string | null;
-          sla_iniciado_em: string | null;
-          sla_pausado_em: string | null;
-          fase: { sla_dias: number | null; sla_tipo: string | null; slug: string | null } | Array<{ sla_dias: number | null; sla_tipo: string | null; slug: string | null }> | null;
-        }>;
-        const cardsComSLA = kanbanArr.filter(c => {
-          const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
-          if (faseExcluidaDoAtrasoSla(fase?.slug)) return false;
-          return (fase?.sla_dias ?? null) !== null;
-        });
-        // Cards com trava ativa → bloqueados: excluídos do score (nem bônus, nem penalidade)
-        const cardsBloqueados = cardsComSLA.filter(c => Boolean(c.sla_pausado_em)).length;
-        const cardsNaoBloqueados = cardsComSLA.filter(c => !c.sla_pausado_em);
-        const cardsAtrasados = cardsNaoBloqueados.filter(c => {
-          const fase = Array.isArray(c.fase) ? c.fase[0] : c.fase;
-          return calcularSlaKanbanCard({
-            created_at:      c.created_at,
-            entered_fase_at: c.entered_fase_at,
-            sla_iniciado_em: c.sla_iniciado_em,
-            sla_pausado_em:  c.sla_pausado_em,
-            sla_dias:        fase?.sla_dias ?? null,
-            sla_tipo:        fase?.sla_tipo ?? null,
-            faseSlug:        fase?.slug     ?? null,
-          }).status === 'atrasado';
-        }).length;
-        const cardsEmDia = cardsNaoBloqueados.length - cardsAtrasados;
-        // Score: apenas sobre os cards sem trava ativa. Nenhum card ativo (todos bloqueados) = 100%.
-        const scoreCards = cardsComSLA.length === 0 || cardsNaoBloqueados.length === 0
-          ? 100
-          : Math.max(0, Math.round((cardsEmDia / cardsNaoBloqueados.length) * 100));
-
-        // Sub-score 3: Próximas Atividades (kanban_cards.prazo_atividade)
-        // Score B: concluidos / (concluidos + atrasados). Vence hoje = contexto, não penaliza.
-        type ProximaRow = { id: string; prazo_atividade: string | null };
-        const proximasAbertosArr  = (proximasAbertosRes.data  ?? []) as ProximaRow[];
-        const proximasConcluidosArr = (proximasConcluidosRes.data ?? []) as ProximaRow[];
-        const proxVenceHoje  = proximasAbertosArr.filter(c => c.prazo_atividade === hojeStr).length;
-        const proxAtrasadas  = proximasAbertosArr.filter(c => c.prazo_atividade && c.prazo_atividade < hojeStr).length;
-        const proxConcluidos = proximasConcluidosArr.length;
-        // Cards sem próxima atividade mapeada = penaliza (todo card ativo deveria ter uma)
-        const cardsSemProxima = kanbanArr.length - proximasAbertosArr.length;
-        // Denominador: concluídos + atrasadas + vence hoje + sem próxima mapeada.
-        // Cards com prazo futuro não entram na conta de hoje.
-        const proxDenominador = proxConcluidos + proxAtrasadas + proxVenceHoje + cardsSemProxima;
-        const scoreProximas = proxDenominador === 0
-          ? 100  // sem cards ou todos com próximas futuras = 100%
-          : Math.max(0, Math.round((proxConcluidos / proxDenominador) * 100));
-
-        // Score combinado = média dos sub-scores não-null
-        const subScores = [scoreAtividades, scoreCards, scoreProximas].filter((s): s is number => s !== null);
-        const engScore  = subScores.length === 0
-          ? null
-          : Math.round(subScores.reduce((s, v) => s + v, 0) / subScores.length);
-
-        engajamentoRuntime = {
-          atividades: { agendadas: atividadesAgendadas, realizadas: atividadesRealizadas, atrasadas: atividadesAtrasadas, score: scoreAtividades },
-          cards:      { comSLA: cardsComSLA.length, emDia: cardsEmDia, atrasados: cardsAtrasados, bloqueados: cardsBloqueados, score: scoreCards },
-          proximas:   { concluidos: proxConcluidos, venceHoje: proxVenceHoje, atrasadas: proxAtrasadas, semProxima: cardsSemProxima, relevantes: proxConcluidos + proxVenceHoje + proxAtrasadas + cardsSemProxima, score: scoreProximas },
-          score:      engScore,
-        };
-      }
 
       // ── Engajamento v2: Metas Filhas + Tier ─────────────────────────────────
-      // Substitui o score do Engajamento pelo score baseado em Metas Filhas.
-      // O snapshot (carometro_status_diario) mantém backward compat com os campos antigos.
-      let engFilhasDetalhe: Record<string, number | string | null> = {
-        filhas_total: 0, filhas_concluidas: 0, filhas_vencidas_abertas: 0, filhas_no_prazo: 0,
+      let engajamentoRuntime: EngajamentoSnapshot = {
+        score: null,
+        filhas: { total: 0, concluidas: 0, vencidas_abertas: 0, no_prazo: 0, detalhes: [] },
       };
       {
         const mesAtualEng = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
@@ -546,17 +428,6 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         type FilhaRow = { id: string; descricao: string; status: string; data_fim: string | null; atualizado_em: string | null };
         const filhasArr = (filhasData ?? []) as FilhaRow[];
 
-        function calcTierCreditFilha(dataFim: string | null, updatedAt: string | null): number {
-          if (!dataFim || !updatedAt) return 100;
-          const prazo = new Date(dataFim + 'T00:00:00');
-          const conc  = new Date(updatedAt.slice(0, 10) + 'T00:00:00');
-          const dias  = Math.floor((conc.getTime() - prazo.getTime()) / (1000 * 60 * 60 * 24));
-          if (dias <= 0)  return 100;
-          if (dias <= 6)  return 75;
-          if (dias <= 14) return 50;
-          return 20;
-        }
-
         const filhasConcluidas      = filhasArr.filter(f => f.status === 'concluido');
         const filhasVencidasAbertas = filhasArr.filter(f =>
           f.status !== 'concluido' && f.status !== 'arquivado' && f.status !== 'relancada' &&
@@ -568,37 +439,56 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         );
         const engRelevantes = filhasConcluidas.length + filhasVencidasAbertas.length;
 
-        let novoScoreEng: number | null = null;
+        let novoScoreEng: number;
         if (filhasArr.length === 0) {
-          // Sem filhas configuradas no mês → 0% (não assumiu as metas do mês)
           novoScoreEng = 0;
         } else if (engRelevantes === 0) {
-          // Tem filhas mas todas estão no prazo → 100% (sem penalidade ainda)
           novoScoreEng = 100;
         } else {
-          const totalCreditos = filhasConcluidas.reduce((sum, f) => sum + calcTierCreditFilha(f.data_fim, f.atualizado_em), 0);
+          const totalCreditos = filhasConcluidas.reduce(
+            (sum, f) => sum + tierFilha(f.data_fim, f.atualizado_em), 0
+          );
           novoScoreEng = Math.max(0, Math.round((totalCreditos / (engRelevantes * 100)) * 100));
         }
 
-        engajamentoRuntime = { ...engajamentoRuntime, score: novoScoreEng };
+        // Evidências por filha (para auditoria no banco)
+        const filhasDetalhes: FilhaDetalhe[] = filhasArr
+          .filter(f => f.status !== 'arquivado')
+          .map(f => {
+            let tier: string;
+            let credito: number;
+            let da: number | null = null;
+            if (f.status === 'concluido') {
+              credito = tierFilha(f.data_fim, f.atualizado_em);
+              if (f.data_fim && f.atualizado_em) {
+                da = Math.floor(
+                  (new Date(f.atualizado_em.slice(0, 10) + 'T00:00:00').getTime() -
+                   new Date(f.data_fim + 'T00:00:00').getTime()) / 86_400_000
+                );
+              }
+              tier = da === null ? 'no_prazo' : da <= 0 ? 'no_prazo' : da <= 6 ? 'T1' : da <= 14 ? 'T2' : 'T3';
+            } else if (f.data_fim && f.data_fim < hojeStr) {
+              da = Math.floor((hoje.getTime() - new Date(f.data_fim + 'T00:00:00').getTime()) / 86_400_000);
+              tier = 'vencida_aberta'; credito = 0;
+            } else {
+              tier = 'no_prazo_aberta'; credito = 0;
+            }
+            return {
+              id: f.id, descricao: f.descricao, data_fim: f.data_fim,
+              status: f.status, atualizado_em: f.atualizado_em,
+              dias_atraso: da, tier, credito,
+            };
+          });
 
-        // Contagem por tier para exibição no accordion
-        let engNp = 0, engT1 = 0, engT2 = 0, engT3 = 0;
-        for (const f of filhasConcluidas) {
-          const c = calcTierCreditFilha(f.data_fim, f.atualizado_em);
-          if (c === 100) engNp++; else if (c === 75) engT1++; else if (c === 50) engT2++; else engT3++;
-        }
-
-        engFilhasDetalhe = {
-          filhas_total:            filhasArr.length,
-          filhas_concluidas:       filhasConcluidas.length,
-          filhas_vencidas_abertas: filhasVencidasAbertas.length,
-          filhas_no_prazo:         filhasNoPrazo.length,
-          // Tier breakdown
-          filhas_np:               engNp,
-          filhas_t1:               engT1,
-          filhas_t2:               engT2,
-          filhas_t3:               engT3,
+        engajamentoRuntime = {
+          score: novoScoreEng,
+          filhas: {
+            total:            filhasArr.length,
+            concluidas:       filhasConcluidas.length,
+            vencidas_abertas: filhasVencidasAbertas.length,
+            no_prazo:         filhasNoPrazo.length,
+            detalhes:         filhasDetalhes,
+          },
         };
       }
 
@@ -640,24 +530,6 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       // Projeto: prazo = data_fim da meta.
       // Sem Meta Mãe assumida → 0%.
       {
-        /** Última sexta-feira do mês (ciclo Boné Day). mes = 1-indexed. */
-        function ultimaSextaUtilDoMes(ano: number, mes: number): Date {
-          const ultimo = new Date(ano, mes, 0); // day-0 trick: último dia do mês
-          const dow = ultimo.getDay();           // 0=Dom … 5=Sex … 6=Sáb
-          ultimo.setDate(ultimo.getDate() - (dow + 2) % 7); // recua até sexta
-          return ultimo;
-        }
-
-        /** Pontuação tier por dias de atraso em relação ao deadline. */
-        function tierPorAtraso(concluidoEm: string, deadline: Date): number {
-          const conc = new Date(concluidoEm.slice(0, 10) + 'T00:00:00');
-          const dias = Math.floor((conc.getTime() - deadline.getTime()) / 86_400_000);
-          if (dias <= 0)  return 100;
-          if (dias <= 6)  return 75;
-          if (dias <= 14) return 50;
-          return 20;
-        }
-
         const mesAtualInd = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
         // 1. Metas Mãe que o usuário assumiu
@@ -864,7 +736,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         abertos:    topicosAbertos.length,
         semPrazo:   topicosSemPrazo,
       }));
-      setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score, engFilhasDetalhe));
+      setDiasEngajamento(buildDias('engajamento', 'score', engajamentoRuntime.score));
       // Exibe apenas semanas que pertencem ao mês vigente (regra da quinta-feira)
       setSemanasIndicadores([
         ...(semAnteriorNaMes ? [{
