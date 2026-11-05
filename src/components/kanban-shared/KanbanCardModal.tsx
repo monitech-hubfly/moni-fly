@@ -92,7 +92,10 @@ import {
   consultarAberturaCreditoObraPendente,
   recusarAberturaCreditoObra,
 } from '@/lib/actions/credito-obra-abertura-automatica';
-import { garantirBastaoPassagemWayser } from '@/lib/actions/kanban-bastoes';
+import {
+  garantirBastaoJuridicoCtoParceriaLoteadores,
+  garantirBastaoPassagemWayser,
+} from '@/lib/actions/kanban-bastoes';
 import { CreditoObraAberturaAutorizacaoModal } from './CreditoObraAberturaAutorizacaoModal';
 import { isPortfolioKanbanRef, isLoteadoresKanbanRef } from '@/lib/kanban/portfolio-paralelas';
 import {
@@ -2298,6 +2301,12 @@ export function KanbanCardModal({
           slugAbertura === FASE_SLUGS.PASSAGEM_WAYSER
         ) {
           void garantirBastaoPassagemWayser(loaded.id);
+        }
+        if (
+          loaded.kanban_id === KANBAN_IDS.LOTEADORES &&
+          slugAbertura === FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA
+        ) {
+          void garantirBastaoJuridicoCtoParceriaLoteadores(loaded.id);
         }
       }
     } catch {

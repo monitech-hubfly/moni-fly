@@ -1159,6 +1159,62 @@ export async function garantirBastaoPassagemWaysersLoteadores(cardId: string): P
 }
 
 /**
+ * Garante atendimento de Cto de Parceria no Jurídico para o card Loteadores
+ * que já está em Jurídico Cto de Parceria. Idempotente — repara quem entrou
+ * na fase antes do bastão existir.
+ */
+export async function garantirBastaoJuridicoCtoParceriaLoteadores(cardId: string): Promise<boolean> {
+  const cid = String(cardId ?? '').trim();
+  if (!cid) return false;
+
+  let db: ReturnType<typeof createAdminClient>;
+  try {
+    db = createAdminClient();
+  } catch (e) {
+    console.error('[garantirBastaoJuridicoCtoParceriaLoteadores] admin client:', e);
+    return false;
+  }
+
+  const { data: cardRow, error: errCard } = await db
+    .from('kanban_cards')
+    .select('id, kanban_id, fase_id, arquivado, concluido')
+    .eq('id', cid)
+    .maybeSingle();
+
+  if (errCard || !cardRow?.id) return false;
+  if (String(cardRow.kanban_id ?? '') !== KANBAN_IDS.LOTEADORES) return false;
+  if (Boolean((cardRow as { arquivado?: boolean | null }).arquivado)) return false;
+  if (Boolean((cardRow as { concluido?: boolean | null }).concluido)) return false;
+
+  const { data: faseRow } = await db
+    .from('kanban_fases')
+    .select('slug')
+    .eq('id', String((cardRow as { fase_id?: string | null }).fase_id ?? ''))
+    .maybeSingle();
+
+  if (String((faseRow as { slug?: string | null } | null)?.slug ?? '') !== FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA) {
+    return false;
+  }
+
+  const { buscarAtendimentoJuridicoAberto } = await import('@/lib/kanban/juridico-atendimento-ciclo');
+  const aberto = await buscarAtendimentoJuridicoAberto(db, cid, 'parceria');
+  if (aberto?.id) return false;
+
+  await executarBastoes(cid, FASE_SLUGS.LOTEADORES_CONTRATO_PARCERIA);
+
+  const apos = await buscarAtendimentoJuridicoAberto(db, cid, 'parceria');
+  if (apos?.id) {
+    revalidatePath('/loteadores');
+    revalidatePath('/funil-moni-inc');
+    revalidatePath('/funil-juridico');
+    revalidatePath('/juridico');
+    revalidatePath('/');
+    return true;
+  }
+  return false;
+}
+
+/**
  * Passagem IMOB: sempre abre card no Funil IMOB.
  * Se o loteador tem intenção de Showroom, abre também no Funil Showroom (fase Hipótese).
  * Idempotente: filho ativo no destino não é duplicado.
