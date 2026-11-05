@@ -624,6 +624,31 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         }
       }
 
+      // ── Score semanal (Sirene + Engajamento): média dos dias Mon–hoje ────────
+      // A bolinha esquerda mostra a média da semana, não só o valor de hoje.
+      // Os pontos diários (dots Seg/Ter/…) continuam mostrando o valor do dia.
+      function buildSemanaScore(
+        snapKey: 'sirene' | 'engajamento',
+        todayLive: number | null,
+      ): number | null {
+        const semScores = diasSemana
+          .filter(d => d !== hojeStr)
+          .map(d => {
+            const snap = snapshotMap.get(d);
+            if (!snap) return null;
+            const blob = snap[snapKey] as Record<string, unknown> | null;
+            const v = blob?.score;
+            return typeof v === 'number' ? v : null;
+          })
+          .filter((v): v is number => v !== null);
+        if (todayLive !== null) semScores.push(todayLive);
+        if (semScores.length === 0) return null;
+        return Math.round(semScores.reduce((a, b) => a + b, 0) / semScores.length);
+      }
+
+      const sireneWeeklyScore  = buildSemanaScore('sirene',      sireneScore);
+      const engWeeklyScore     = buildSemanaScore('engajamento', engajamentoRuntime.score);
+
       // ── Dias da semana com scores (snapshot > runtime de hoje) ───────────────
       const buildDias = (
         snapKey: 'sirene' | 'engajamento' | 'indicadores',
@@ -697,34 +722,46 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
       function mediaScoresCiclo(
         key: 'sirene' | 'engajamento' | 'indicadores',
-        runtimeScore: number | null,
+        currentWeekScore: number | null,
       ): number | null {
-        // Exclui o registro de hoje do histórico salvo: o snapshot pode estar stale
-        // (salvo em visita anterior com valor diferente do atual). Sempre usa o
-        // runtimeScore ao vivo para hoje, garantindo que a bolinha direita reflita
-        // o estado atual sem precisar de dupla visita.
-        const scores = cicloRows
-          .filter(r => r.data !== hojeStr)
-          .map(r => {
-            const blob = r[key] as Record<string, unknown> | null;
-            return typeof blob?.score === 'number' ? (blob.score as number) : (typeof blob?.media === 'number' ? (blob.media as number) : null);
-          })
-          .filter((s): s is number => s !== null);
-        // Sempre inclui o score ao vivo de hoje
-        if (runtimeScore !== null) scores.push(runtimeScore);
-        if (scores.length === 0) return null;
-        return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+        // Agrupa dias históricos por semana ISO (exclui hoje — usa live currentWeekScore).
+        // A bolinha direita = média das SEMANAS, não dos dias individuais.
+        const semanaAtualISO = isoWeek(hoje);
+        const weekMap = new Map<number, number[]>();
+        for (const r of cicloRows) {
+          if (r.data === hojeStr) continue;
+          const weekNum = isoWeek(new Date(r.data + 'T12:00:00'));
+          if (weekNum === semanaAtualISO) continue; // semana atual via currentWeekScore
+          const blob = r[key] as Record<string, unknown> | null;
+          const v = typeof blob?.score === 'number'
+            ? (blob.score as number)
+            : (typeof blob?.media === 'number' ? (blob.media as number) : null);
+          if (v !== null) {
+            if (!weekMap.has(weekNum)) weekMap.set(weekNum, []);
+            weekMap.get(weekNum)!.push(v);
+          }
+        }
+        // Média de cada semana histórica
+        const weeklyAvgs: number[] = [];
+        for (const [, scores] of weekMap)
+          weeklyAvgs.push(Math.round(scores.reduce((a, b) => a + b, 0) / scores.length));
+        // Adiciona semana atual (running average)
+        if (currentWeekScore !== null) weeklyAvgs.push(currentWeekScore);
+        if (weeklyAvgs.length === 0) return null;
+        return Math.round(weeklyAvgs.reduce((a, b) => a + b, 0) / weeklyAvgs.length);
       }
 
       const indScore = semAnteriorNaMes ? indicadoresAnterior.media : indicadoresAtual.media;
       const cicloScores: CicloScores = {
-        sirene:      mediaScoresCiclo('sirene',      sireneScore),
-        engajamento: mediaScoresCiclo('engajamento', engajamentoRuntime.score),
+        sirene:      mediaScoresCiclo('sirene',      sireneWeeklyScore),
+        engajamento: mediaScoresCiclo('engajamento', engWeeklyScore),
         indicadores: mediaScoresCiclo('indicadores', indScore),
       };
 
-      setSirene(sireneRuntime);
-      setEngajamento(engajamentoRuntime);
+      // Bolinhas esquerdas: score SEMANAL (média Mon–hoje), não só o valor de hoje.
+      // O banco continua recebendo sireneRuntime/engajamentoRuntime com score diário.
+      setSirene({ ...sireneRuntime, score: sireneWeeklyScore });
+      setEngajamento({ ...engajamentoRuntime, score: engWeeklyScore });
       // Score principal: S-1 se pertence ao mês vigente; caso contrário, semana atual (primeira do mês)
       setIndicadores(semAnteriorNaMes ? indicadoresAnterior : indicadoresAtual);
       setCiclo(cicloScores);
