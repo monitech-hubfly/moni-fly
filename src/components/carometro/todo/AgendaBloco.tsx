@@ -728,9 +728,13 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
         .eq('profile_id', user.id).eq('data', dateStr);
       if (error) setAusencias(prev => new Set([...prev, dateStr]));
     } else {
+      // Usa insert (não upsert) para não exigir índice único no banco.
+      // Erro 23505 (linha já existe) é tratado como sucesso — sem revert.
       const { error } = await supabase.from('carometro_ausencias')
-        .upsert({ profile_id: user.id, data: dateStr }, { onConflict: 'profile_id,data' });
-      if (error) setAusencias(prev => { const n = new Set(prev); n.delete(dateStr); return n; });
+        .insert({ profile_id: user.id, data: dateStr });
+      if (error && error.code !== '23505') {
+        setAusencias(prev => { const n = new Set(prev); n.delete(dateStr); return n; });
+      }
     }
     setSalvandoAusencia(null);
   }, [ausencias, supabase]);
