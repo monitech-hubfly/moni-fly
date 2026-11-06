@@ -212,6 +212,9 @@ export function TabelaFluxo({
             <th className="whitespace-nowrap px-2 py-2 font-medium" style={celVisivel}>
               Saídas
             </th>
+            <th className="whitespace-nowrap px-2 py-2 font-medium" style={celVisivel}>
+              Caixa do cliente
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -267,6 +270,9 @@ export function TabelaFluxo({
               ) : null}
               <td className="whitespace-nowrap px-2 py-2" style={celVisivel}>
                 {formatarMoeda(l.saidas_total)}
+              </td>
+              <td className="whitespace-nowrap px-2 py-2" style={celVisivel}>
+                {formatarMoeda(l.caixa_cliente ?? 0)}
               </td>
             </tr>
           ))}

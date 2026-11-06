@@ -31,7 +31,9 @@ import {
   entradaAbaixoDoMinimo,
   entradaMinimaOferta,
   mensagemEntradaMinima,
+  mensagemPagamentoAMaior,
   mensagemParcelaUnicaMinima,
+  pagamentoAMaiorBloqueia,
   parcelaUnicaAbaixoDoMinimo,
   sugerirParcelaMensal,
   type OfertaConfig,
@@ -183,6 +185,7 @@ function montarSnapshotSimulacao(args: {
       entrada_cliente: linha.entrada_cliente,
       saidas_total: linha.saidas_total,
       saldo_lote: linha.saldo_lote,
+      caixa_cliente: linha.caixa_cliente,
     })),
   };
 }
@@ -804,6 +807,7 @@ function PassoSimulacao({
   onVerSimulacao,
   onRecalcular,
   minimoParcelaUnica,
+  avaliarPagamentoAMaior,
   salvando,
   erroSimulacao,
 }: {
@@ -819,6 +823,7 @@ function PassoSimulacao({
   onVerSimulacao: () => void;
   onRecalcular: (valores: ValoresConfirmadosOferta) => void;
   minimoParcelaUnica: (entrada: number, mensal: number) => number;
+  avaliarPagamentoAMaior: (valores: ValoresConfirmadosOferta) => number;
   salvando: boolean;
   erroSimulacao: string | null;
 }) {
@@ -934,6 +939,7 @@ function PassoSimulacao({
             recalcToken={recalcToken}
             onRecalcular={onRecalcular}
             minimoParcelaUnica={minimoParcelaUnica}
+            avaliarPagamentoAMaior={avaliarPagamentoAMaior}
             onVerMemorial={onAvancar}
           />
         </div>
@@ -1241,6 +1247,10 @@ export default function JornadaClient({
       taxaPercent: args.stateCalc.taxaJuros || 10,
       itens,
     });
+    if (pagamentoAMaiorBloqueia(args.calc.valor_pago_a_maior)) {
+      setErroSimulacao(mensagemPagamentoAMaior(args.calc.valor_pago_a_maior));
+      return;
+    }
     const chave = chaveSimulacaoGravada(snapshot);
     if (args.somenteSeMudou && ultimaSimulacaoRef.current === chave) return;
     const result = await gravarSimulacaoJornada({
@@ -1277,7 +1287,9 @@ export default function JornadaClient({
     if (result.ok) {
       ultimaSimulacaoRef.current = chave;
       setState({ simulacaoId: result.simulacaoId, prazoObraMeses: args.stateCalc.prazoObraMeses });
+      return;
     }
+    if (result.error) setErroSimulacao(result.error);
   }
 
   function handleVerSimulacao() {
@@ -1333,6 +1345,24 @@ export default function JornadaClient({
     });
   }
 
+  function avaliarPagamentoAMaiorJornada(valores: ValoresConfirmadosOferta): number {
+    try {
+      const oferta = {
+        ...montarOfertaJornada(state, empreendimento.template, empreendimento.customizacao_itens),
+        entrada_confirmada: valores.entrada,
+        mensal_confirmada: valores.mensal,
+        parcela_unica_confirmada: valores.unica,
+      };
+      return calcularOferta(
+        montarTemplateParaEngine(empreendimento.template),
+        oferta,
+        state.valorAcoplamento,
+      ).valor_pago_a_maior;
+    } catch {
+      return 0;
+    }
+  }
+
   function minimoParcelaUnicaJornada(entrada: number, mensal: number): number {
     return calcularParcelaUnicaMinimaConfirmada(
       montarTemplateParaEngine(empreendimento.template),
@@ -1379,6 +1409,10 @@ export default function JornadaClient({
         oferta,
         state.valorAcoplamento,
       );
+      if (pagamentoAMaiorBloqueia(calc.valor_pago_a_maior)) {
+        setErroSimulacao(mensagemPagamentoAMaior(calc.valor_pago_a_maior));
+        return;
+      }
       setValoresConfirmados(valores);
       setResultadoSimulacao(calc);
       setRecalcToken((n) => n + 1);
@@ -1465,6 +1499,7 @@ export default function JornadaClient({
             onVerSimulacao={handleVerSimulacao}
             onRecalcular={handleRecalcularSimulacao}
             minimoParcelaUnica={minimoParcelaUnicaJornada}
+            avaliarPagamentoAMaior={avaliarPagamentoAMaiorJornada}
             salvando={isPending}
             erroSimulacao={erroSimulacao}
           />

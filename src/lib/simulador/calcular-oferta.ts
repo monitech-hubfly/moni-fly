@@ -67,6 +67,8 @@ export interface LinhaFluxo {
   juros_obra_mes: number;
   saidas_total: number;
   pagamento_loteadora: number;
+  /** Saldo do caixa do cliente ao fim do mês. */
+  caixa_cliente: number;
 }
 
 export interface AlertaCalculo {
@@ -120,6 +122,10 @@ export interface ResultadoCalculo {
   };
   alertas: AlertaCalculo[];
   fluxo: LinhaFluxo[];
+  /** Caixa do cliente depois de pagar lucros e impostos. */
+  caixa_final: number;
+  /** Quanto as parcelas passam do valor total. Acima de R$ 1 bloqueia salvar. */
+  valor_pago_a_maior: number;
 }
 
 const DESEMBOLSO_BASE = [0.0221, 0.113, 0.2233, 0.2734, 0.1424, 0.1818, 0.044];
@@ -145,7 +151,13 @@ export function getDesembolso(N: number): number[] {
   return [primeiro, ...DESEMBOLSO_BASE.slice(numSomar)];
 }
 
-type DadosFase2 = { desembolso: number; saidas: number; juros: number; saldo: number };
+type DadosFase2 = {
+  desembolso: number;
+  saidas: number;
+  juros: number;
+  saldo: number;
+  caixa: number;
+};
 
 function montarTaxasPlataformaPorMes(restante: number, N_obra: number): number[] {
   const n = Math.max(1, N_obra);
@@ -179,9 +191,10 @@ function simularFase2(params: {
   taxas_plataforma_mes: number[];
   parcela_mensal: number;
   taxa_cp: number;
-  excedente_parcela_unica: number;
+  /** Caixa já acumulado (excedente da única + reserva da Fase 1). */
+  caixa_inicial: number;
   tipo_juros_cp: 'mes_a_mes' | 'total';
-}): { dados: DadosFase2[]; juros_obra_total: number } {
+}): { dados: DadosFase2[]; juros_obra_total: number; caixa_fim: number } {
   const n = Math.max(1, params.N_obra);
   const taxa = Math.max(0, params.taxa_cp ?? 0);
   const parcela = Math.max(0, params.parcela_mensal ?? 0);
@@ -200,26 +213,19 @@ function simularFase2(params: {
     desembolsoTotalMes.push(saidas);
   }
 
-  const cpSacado: number[] = [];
-  let excedente_restante = Math.max(0, params.excedente_parcela_unica ?? 0);
-  for (let i = 0; i < n; i += 1) {
-    const desembolso_total_mes = desembolsoTotalMes[i] ?? 0;
-    const entradas_cliente_mes = tipo === 'mes_a_mes' ? parcela : 0;
-    const cp_necessario_mes = Math.max(0, desembolso_total_mes - entradas_cliente_mes);
-    let cp_sacado_mes = 0;
-    if (excedente_restante >= cp_necessario_mes) {
-      excedente_restante -= cp_necessario_mes;
-      cp_sacado_mes = 0;
-    } else {
-      cp_sacado_mes = cp_necessario_mes - excedente_restante;
-      excedente_restante = 0;
-    }
-    cpSacado.push(cp_sacado_mes);
-  }
-
   const dados: DadosFase2[] = [];
 
   if (tipo === 'total') {
+    const cpSacado: number[] = [];
+    const caixaPorMes: number[] = [];
+    let caixa = Math.max(0, params.caixa_inicial ?? 0);
+    for (let i = 0; i < n; i += 1) {
+      const falta = desembolsoTotalMes[i] ?? 0;
+      const uso = Math.min(caixa, falta);
+      caixa -= uso;
+      cpSacado.push(falta - uso);
+      caixaPorMes.push(caixa);
+    }
     const total_cp_sacado = cpSacado.reduce((acc, v) => acc + v, 0);
     const base_juros = total_cp_sacado;
     const meses_juros = n + BUFFER_MESES_CP;
@@ -239,16 +245,28 @@ function simularFase2(params: {
         saidas: saidasMes[i] ?? 0,
         juros: juros_mes,
         saldo: Math.max(0, saldo_cp),
+        caixa: caixaPorMes[i] ?? 0,
       });
     }
-    return { dados, juros_obra_total: juros_total };
+    return { dados, juros_obra_total: juros_total, caixa_fim: caixa };
   }
 
   let saldo_cp = 0;
   let juros_obra_total = 0;
+  let caixa = Math.max(0, params.caixa_inicial ?? 0);
   for (let E = 1; E <= n; E += 1) {
     const i = E - 1;
-    const cp_sacado_mes = cpSacado[i] ?? 0;
+    const desembolso = desembolsoTotalMes[i] ?? 0;
+    let cp_sacado_mes = 0;
+    let sobra = 0;
+    if (parcela >= desembolso) {
+      sobra = parcela - desembolso;
+    } else {
+      const falta = desembolso - parcela;
+      const uso = Math.min(caixa, falta);
+      caixa -= uso;
+      cp_sacado_mes = falta - uso;
+    }
     let juros_mes = saldo_cp * taxa;
     saldo_cp = saldo_cp + cp_sacado_mes + juros_mes;
     if (E === n) {
@@ -256,16 +274,22 @@ function simularFase2(params: {
       juros_mes += juros_buffer;
       saldo_cp += juros_buffer;
     }
+    if (sobra > 0) {
+      const amort = Math.min(sobra, Math.max(0, saldo_cp));
+      saldo_cp -= amort;
+      caixa += sobra - amort;
+    }
     juros_obra_total += juros_mes;
     dados.push({
       desembolso: desembolsoObra[i] ?? 0,
       saidas: saidasMes[i] ?? 0,
       juros: juros_mes,
       saldo: Math.max(0, saldo_cp),
+      caixa,
     });
   }
 
-  return { dados, juros_obra_total };
+  return { dados, juros_obra_total, caixa_fim: caixa };
 }
 
 type DadosFase1 = {
@@ -275,6 +299,7 @@ type DadosFase1 = {
   min_quitar_lote: number;
   juros_last: number;
   reserva_caixa: number;
+  caixa_fim: number;
   fluxo: LinhaFluxo[];
 };
 
@@ -283,23 +308,23 @@ function simularFase1Lote(params: {
   prazo_meses: number;
   parcela_mensal: number;
   taxa_parcelado: number;
+  caixa_inicial?: number;
 }): DadosFase1 {
   let lot_balance = Math.max(0, params.lot_balance_inicio);
   const fluxo: LinhaFluxo[] = [];
   let juros_lote_total = 0;
   let reserva_caixa = 0;
+  let caixa = Math.max(0, params.caixa_inicial ?? 0);
 
   for (let M = 1; M <= params.prazo_meses - 1; M += 1) {
     const juros_mes = lot_balance * params.taxa_parcelado;
     juros_lote_total += juros_mes;
-    lot_balance = lot_balance * (1 + params.taxa_parcelado);
-    const loteQuitado = lot_balance <= 0;
-    if (loteQuitado) {
-      reserva_caixa += params.parcela_mensal;
-    } else {
-      lot_balance -= params.parcela_mensal;
-      if (lot_balance < 0) lot_balance = 0;
-    }
+    const saldoAntes = lot_balance * (1 + params.taxa_parcelado);
+    const pagLoteadora = Math.min(Math.max(0, saldoAntes), params.parcela_mensal);
+    const sobra = Math.max(0, params.parcela_mensal - pagLoteadora);
+    lot_balance = Math.max(0, saldoAntes - pagLoteadora);
+    reserva_caixa += sobra;
+    caixa += sobra;
     fluxo.push({
       mes: M,
       fase: 'fase1',
@@ -311,8 +336,9 @@ function simularFase1Lote(params: {
       desembolso_obra: 0,
       saldo_credito_ponte: 0,
       juros_obra_mes: 0,
-      saidas_total: r2(loteQuitado ? 0 : params.parcela_mensal),
-      pagamento_loteadora: r2(loteQuitado ? 0 : params.parcela_mensal),
+      saidas_total: r2(pagLoteadora),
+      pagamento_loteadora: r2(pagLoteadora),
+      caixa_cliente: r2(caixa),
     });
   }
 
@@ -330,6 +356,7 @@ function simularFase1Lote(params: {
     min_quitar_lote,
     juros_last,
     reserva_caixa,
+    caixa_fim: caixa,
     fluxo,
   };
 }
@@ -504,7 +531,7 @@ export function calcularOferta(
     const sim = simularFase2({
       ...paramsFase2,
       tipo_juros_cp,
-      excedente_parcela_unica: excedenteParcelaUnica(parcela_unica, min_quitar_lote),
+      caixa_inicial: excedenteParcelaUnica(parcela_unica, min_quitar_lote),
     });
     juros_obra_total = sim.juros_obra_total;
 
@@ -561,6 +588,7 @@ export function calcularOferta(
     parcela_mensal: mensal_fluxo,
     taxa_parcelado,
     lot_balance_inicio: lot_balance_fluxo_conf,
+    caixa_inicial: reserva_mes0,
   });
   const quitacao_real_fluxo = fase1Fluxo.min_quitar_lote;
   const parcela_unica_minima_display = temConfirmacaoUnica
@@ -573,18 +601,16 @@ export function calcularOferta(
       })
     : r2(parcela_unica);
   const falta_parcela_unica = Math.max(0, quitacao_real_fluxo - parcela_unica_fluxo);
-  const loteQuitadoUnica = fase1Fluxo.lot_balance_fim * (1 + taxa_parcelado) <= 0;
-  /**
-   * Regra de negócio confirmada: se o lote já está quitado antes do mês da parcela única,
-   * a mensal desse mês continua em Entradas do cliente, mas não vai para a loteadora nem
-   * sai do caixa — vai para a reserva e reduz o crédito-ponte, como nos meses da fase 1.
-   */
-  const mensal_unica_lote = loteQuitadoUnica ? 0 : mensal_fluxo;
-  const reserva_fase1 =
-    reserva_mes0 + fase1Fluxo.reserva_caixa + (loteQuitadoUnica ? mensal_fluxo : 0);
-  const pag_loteadora_unica = mensal_unica_lote + quitacao_real_fluxo;
-  /** Caixa do mês da parcela única = quitação real do lote (fluxo) + mensal (se for à loteadora) + ITBI. */
-  const saidas_unica = mensal_unica_lote + quitacao_real_fluxo + itbi_amount;
+  const saldoAntesUnica = Math.max(0, fase1Fluxo.lot_balance_fim * (1 + taxa_parcelado));
+  const pagMensalUnica = Math.min(saldoAntesUnica, mensal_fluxo);
+  const sobraMensalUnica = Math.max(0, mensal_fluxo - pagMensalUnica);
+  const pag_loteadora_unica = pagMensalUnica + quitacao_real_fluxo;
+  /** Saídas do mês: o que vai à loteadora (limitado ao saldo) + ITBI. O resto fica no caixa. */
+  const saidas_unica = pagMensalUnica + quitacao_real_fluxo + itbi_amount;
+  const caixaAntesObra =
+    fase1Fluxo.caixa_fim +
+    sobraMensalUnica +
+    excedenteParcelaUnica(parcela_unica_fluxo, quitacao_real_fluxo);
 
   /** Lucros + impostos no último mês de obra — só saidas_total da entrega, não entram no CP. */
   const liquidacao_entrega = lucros_cp + impostos_amount;
@@ -592,19 +618,15 @@ export function calcularOferta(
     ...paramsFase2,
     tipo_juros_cp,
     parcela_mensal: mensal_fluxo,
-    // Só o excesso vira crédito; a falta não é absorvida aqui — vira falta_parcela_unica + alerta.
-    excedente_parcela_unica:
-      excedenteParcelaUnica(parcela_unica_fluxo, quitacao_real_fluxo) +
-      Math.max(0, reserva_fase1 ?? 0),
+    caixa_inicial: caixaAntesObra,
   });
   const saldo_cp_final = fase2Fluxo.dados.length > 0 ? fase2Fluxo.dados[fase2Fluxo.dados.length - 1].saldo : 0;
-  const total_parcelas_mensais_fase2 = N_obra * mensal_fluxo;
-  const saldo_financiar = Math.max(
-    0,
-    tipo_juros_cp === 'total'
-      ? saldo_cp_final + lucros_cp + impostos_amount - total_parcelas_mensais_fase2
-      : saldo_cp_final + lucros_cp + impostos_amount,
-  );
+  const caixa_antes_liquidacao = fase2Fluxo.caixa_fim;
+  const parcelas_obra_descontadas = tipo_juros_cp === 'total' ? N_obra * mensal_fluxo : 0;
+  const caixa_disponivel = caixa_antes_liquidacao + parcelas_obra_descontadas;
+  const saldo_financiar = Math.max(0, saldo_cp_final + liquidacao_entrega - caixa_disponivel);
+  const valor_pago_a_maior = Math.max(0, caixa_disponivel - liquidacao_entrega - saldo_cp_final);
+  const caixa_final = valor_pago_a_maior;
 
   const n_parcelas = prazo_financiamento_anos * 12;
   const taxa_mensal = taxa_fin_anual > -1 ? (1 + taxa_fin_anual) ** (1 / 12) - 1 : 0;
@@ -628,6 +650,7 @@ export function calcularOferta(
           juros_obra_mes: 0,
           saidas_total: r2(ja_pago_loteadora),
           pagamento_loteadora: r2(ja_pago_loteadora),
+          caixa_cliente: 0,
         }
       : null;
   const fluxo: LinhaFluxo[] = [
@@ -647,6 +670,7 @@ export function calcularOferta(
       juros_obra_mes: 0,
       saidas_total: r2(saidas_mes0),
       pagamento_loteadora: r2(pag_lote_mes0),
+      caixa_cliente: r2(reserva_mes0),
     },
     ...fase1Fluxo.fluxo,
     {
@@ -662,6 +686,7 @@ export function calcularOferta(
       juros_obra_mes: 0,
       saidas_total: r2(saidas_unica),
       pagamento_loteadora: r2(pag_loteadora_unica),
+      caixa_cliente: r2(caixaAntesObra),
     },
   ];
 
@@ -670,6 +695,7 @@ export function calcularOferta(
     const ultimo = E === N_obra;
     const saidas_obra = et.saidas;
     const saidas_total = ultimo ? saidas_obra + liquidacao_entrega : saidas_obra;
+    const caixaLinha = ultimo ? valor_pago_a_maior : et.caixa;
     fluxo.push({
       mes: prazo_meses + E,
       fase: 'fase2',
@@ -684,6 +710,7 @@ export function calcularOferta(
       juros_obra_mes: r2(et.juros),
       saidas_total: r2(saidas_total),
       pagamento_loteadora: 0,
+      caixa_cliente: r2(caixaLinha),
     });
   });
 
@@ -755,6 +782,8 @@ export function calcularOferta(
     },
     alertas,
     fluxo,
+    caixa_final: r2(caixa_final),
+    valor_pago_a_maior: r2(valor_pago_a_maior),
   };
 }
 
@@ -802,5 +831,14 @@ export function mensagemEntradaMinima(minimo: number): string {
 
 export function mensagemParcelaUnicaMinima(minimo: number): string {
   return `A parcela única precisa ser de pelo menos ${formatarMoedaCentavos(minimo)} para quitar o lote.`;
+}
+
+/** Acima de R$ 1,00 as parcelas pagam mais que o valor total. */
+export function pagamentoAMaiorBloqueia(valor: number): boolean {
+  return n0(valor) > 1;
+}
+
+export function mensagemPagamentoAMaior(valor: number): string {
+  return `As parcelas somam ${formatarMoedaCentavos(valor)} a mais que o valor total. Reduza a parcela mensal, a entrada ou a parcela única.`;
 }
 

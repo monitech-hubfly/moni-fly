@@ -167,7 +167,11 @@ export function OfertaDetalheLeitura({ oferta, template }: Props) {
             style={{ fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-secondary)' }}
           >
             <p>Saldo a financiar final: {formatarMoeda(fluxoFinal.saldo_financiar)}</p>
-            <p>1ª SAC final: {formatarMoeda(fluxoFinal.parcela_sac_primeira)}</p>
+            <p>
+              {fluxoFinal.saldo_financiar <= 0
+                ? 'Sem saldo a financiar'
+                : `1ª SAC final: ${formatarMoeda(fluxoFinal.parcela_sac_primeira)}`}
+            </p>
           </div>
         </Secao>
       ) : (

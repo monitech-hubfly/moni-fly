@@ -2,11 +2,21 @@
 // src/lib/actions/jornada-cliente.ts
 
 import { createClient } from '@/lib/supabase/server';
+import { tryCreateAdminClient } from '@/lib/supabase/admin';
 import type {
   ItemCustomizacaoEscolhido,
   JornadaSessao,
 } from '@/app/empreendimento/[slug]/types';
 import { parseItensCustomizacaoEscolhidos } from '@/lib/empreendimento/customizacao-itens';
+import {
+  calcularOferta,
+  mensagemPagamentoAMaior,
+  pagamentoAMaiorBloqueia,
+  sugerirParcelaMensal,
+  type OfertaConfig,
+} from '@/lib/simulador/calcular-oferta';
+import { mapTemplateRow, parsePremissaJson } from '@/lib/loteamento-simulador-template';
+import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -34,6 +44,7 @@ export type SnapshotSimulacaoJornada = {
     entrada_cliente: number;
     saidas_total: number;
     saldo_lote: number;
+    caixa_cliente?: number;
   }[];
 };
 
@@ -253,9 +264,67 @@ type GravarSimulacaoResult =
   | { ok: true; simulacaoId: string }
   | { ok: false; error: string };
 
+function fracaoPremissa(raw: unknown): number {
+  const valor = parsePremissaJson(raw)?.valor;
+  if (valor == null || !Number.isFinite(valor) || valor < 0) return 0;
+  return valor >= 1 ? valor / 100 : valor;
+}
+
+/**
+ * Recalcula no servidor. A jornada anônima não lê o template; a service role lê.
+ * Recusa quando as parcelas passam do valor total.
+ */
+async function recusarPagamentoAMaiorJornada(
+  input: GravarSimulacaoInput,
+): Promise<string | null> {
+  const admin = tryCreateAdminClient();
+  const db = admin ?? (await createClient());
+  const { data, error } = await db
+    .from('loteamento_simulador_templates')
+    .select('*')
+    .eq('id', input.templateId)
+    .maybeSingle();
+  if (error || !data) return 'Não foi possível validar a simulação.';
+  const row = data as Record<string, unknown>;
+  const template = montarTemplateParaEngine(mapTemplateRow(row));
+  const prazoEntrega = Math.max(1, Math.round(input.prazoObraMeses || 12));
+  const nObra = Math.min(
+    7,
+    Math.max(3, Math.round(input.prazoObraMeses || template.prazo_obra_meses || 7)),
+  );
+  const prazoFase1 = prazoEntrega > nObra ? prazoEntrega - nObra : Math.max(1, prazoEntrega);
+  const percMensal = fracaoPremissa(row.premissa_entrada_lote_nao_pago);
+  const parcelaBase =
+    percMensal > 0 ? percMensal * input.valorLote : sugerirParcelaMensal(input.valorLote);
+  const oferta: OfertaConfig = {
+    valor_lote: input.valorLote,
+    valor_casa: input.valorCasa,
+    valor_customizacao: input.valorCustomizacao,
+    valor_acoplamento: input.valorAcoplamento,
+    valor_ja_pago: input.valorJaPago,
+    prazo_meses: prazoFase1,
+    parcela_mensal: parcelaBase,
+    renda_cliente: input.rendaCliente ?? 0,
+    prazo_financiamento_anos: Math.max(1, Math.round(input.prazoFinanciamentoAnos || 30)),
+    taxa_financiamento_anual: input.taxaFinanciamentoAnual / 100,
+    ...(input.personalizada
+      ? {
+          entrada_confirmada: input.entradaConfirmada ?? undefined,
+          mensal_confirmada: input.parcelaMensalConfirmada ?? undefined,
+          parcela_unica_confirmada: input.parcelaUnicaConfirmada ?? undefined,
+        }
+      : {}),
+  };
+  const calc = calcularOferta(template, oferta, input.valorAcoplamento);
+  if (!pagamentoAMaiorBloqueia(calc.valor_pago_a_maior)) return null;
+  return mensagemPagamentoAMaior(calc.valor_pago_a_maior);
+}
+
 export async function gravarSimulacaoJornada(
   input: GravarSimulacaoInput,
 ): Promise<GravarSimulacaoResult> {
+  const bloqueio = await recusarPagamentoAMaiorJornada(input);
+  if (bloqueio) return { ok: false, error: bloqueio };
   const supabase = await createClient();
   const {
     templateId, cardId, sessaoToken,
