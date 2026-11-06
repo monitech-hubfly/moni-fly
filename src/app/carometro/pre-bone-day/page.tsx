@@ -3163,8 +3163,8 @@ function PreBoneDayPageContent() {
         </div>
       ) : (
         <>
-          {/* ── Bloco 0: Metas Concluídas do mês ─────────────────────────────── */}
-          <section className="rounded-xl border border-green-200 bg-green-50 shadow-sm overflow-hidden">
+          {/* ── Bloco 0: Metas Concluídas do mês — visível apenas para admin ─── */}
+          {Boolean(isAdmin) && <section className="rounded-xl border border-green-200 bg-green-50 shadow-sm overflow-hidden">
             <button type="button"
               className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-green-100 transition-colors"
               onClick={() => setBloco0Open(v => !v)}>
@@ -3204,10 +3204,10 @@ function PreBoneDayPageContent() {
                 )}
               </div>
             )}
-          </section>
+          </section>}
 
-          {/* ── Bloco 1: Metas não concluídas ──────────────────────────────── */}
-          <section className="rounded-xl border border-amber-200 bg-amber-50 shadow-sm overflow-hidden">
+          {/* ── Bloco 1: Metas não concluídas — visível apenas para admin ───── */}
+          {Boolean(isAdmin) && <section className="rounded-xl border border-amber-200 bg-amber-50 shadow-sm overflow-hidden">
             <button type="button"
               className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-amber-100 transition-colors"
               onClick={() => setBloco1Open(v => !v)}>
@@ -3237,7 +3237,7 @@ function PreBoneDayPageContent() {
                 )}
               </div>
             )}
-          </section>
+          </section>}
 
           {/* ── Bloco 2: Metas & Indicadores ───────────────────────────────── */}
           <section className="rounded-xl border border-gray-200 bg-gray-50 shadow-sm overflow-hidden">
