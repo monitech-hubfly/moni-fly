@@ -34,7 +34,8 @@ function TipoBadge({ tipo }: { tipo: string | null }) {
 // ── Data curta DD/MM ──────────────────────────────────────────────────────────
 function formatarDataCurta(iso: string | null): string {
   if (!iso) return '';
-  const d = new Date(iso);
+  // Usa T12:00:00 para evitar deslocamento de 1 dia por fuso horário (UTC-3)
+  const d = new Date(iso + 'T12:00:00');
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
@@ -1580,7 +1581,7 @@ export function MetasIndicadoresBloco() {
       <MetaCard
         key={meta.id}
         meta={meta}
-        subMetas={localSubMetas.filter(s => s.objetivo_pai_id === meta.id)}
+        subMetas={localSubMetas.filter(s => s.objetivo_pai_id === meta.id && (!s.profile_id || s.profile_id === uid))}
         indicadores={indicadores.filter(i => i.objetivo_id === meta.id)}
         responsaveis={responsaveis}
         podeConcluirGlobal={false}

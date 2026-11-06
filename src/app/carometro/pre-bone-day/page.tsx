@@ -22,7 +22,8 @@ const LOG = (args: Record<string, unknown>) =>
 // ── Utilitários ───────────────────────────────────────────────────────────────
 function formatarDataCurta(iso: string | null): string {
   if (!iso) return '';
-  const d = new Date(iso);
+  // Usa T12:00:00 para evitar deslocamento de 1 dia por fuso horário (UTC-3)
+  const d = new Date(iso + 'T12:00:00');
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
