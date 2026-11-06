@@ -77,11 +77,11 @@ function HistoricoPrazo({ itens }: { itens: PrazoHistoricoItem[] }) {
       <button
         type="button"
         onClick={() => setAberto(v => !v)}
-        className="moni-tag-atencao"
-        style={{ minHeight: 44, cursor: 'pointer' }}
+        className="moni-tag-atencao flex-shrink-0"
+        style={{ fontSize: 9, padding: '2px 6px', cursor: 'pointer' }}
         aria-expanded={aberto}
       >
-        {edicoes.length} {edicoes.length === 1 ? 'alteração de prazo' : 'alterações de prazo'}
+        {edicoes.length} {edicoes.length === 1 ? 'alt. prazo' : 'alt. prazo'}
       </button>
       {aberto && (
         <div
@@ -95,7 +95,7 @@ function HistoricoPrazo({ itens }: { itens: PrazoHistoricoItem[] }) {
         >
           <div className="flex items-center justify-between gap-2">
             <span style={{ color: 'var(--moni-text-primary)', fontSize: 12, fontWeight: 600 }}>Histórico do prazo</span>
-            <button type="button" onClick={() => setAberto(false)} style={{ color: 'var(--moni-text-tertiary)', minHeight: 44, minWidth: 44 }}>Fechar</button>
+            <button type="button" onClick={() => setAberto(false)} className="text-[10px] text-gray-400 hover:text-gray-600">✕</button>
           </div>
           {base && (
             <div style={{ color: 'var(--moni-text-secondary)', fontSize: 12 }}>
@@ -1472,7 +1472,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
           const histMae = historicoPrazo.filter(h => h.objetivo_id === meta.id);
           if (!inicio && !fim && !histMae.some(h => h.tipo === 'alteracao')) return null;
           return (
-            <div className="flex items-center gap-1.5 flex-shrink-0 text-[11px] flex-wrap">
+            <div className="flex items-center gap-1.5 flex-shrink-0 text-[11px]">
               {inicio && (
                 <>
                   <span className="text-gray-400">Início</span>
@@ -1552,13 +1552,11 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
           )}
           {isAdmin && meta.status !== 'arquivado' && (
             <button type="button" onClick={() => setConfirmExcl(true)} title="Arquivar meta"
-              className="text-[13px] transition-colors"
-              style={{ color: 'var(--moni-text-tertiary)', minHeight: 44, minWidth: 44 }}>🗂</button>
+              className="text-amber-400 hover:text-amber-600 text-[13px] transition-colors">🗂</button>
           )}
           {isAdmin && meta.status === 'arquivado' && (
             <button type="button" onClick={() => void handleAbrirMeta()} title="Abrir meta"
-              className="text-[11px]"
-              style={{ color: 'var(--moni-text-primary)', minHeight: 44, padding: '0 8px' }}>Abrir</button>
+              className="text-[10px] text-blue-500 hover:text-blue-700 transition-colors">Abrir</button>
           )}
         </div>
       </div>
@@ -1718,23 +1716,21 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                   {podeEditarFilha && (
                     <>
                       <button type="button" onClick={() => handleEditarFilha(f)} title="Editar filha"
-                        className="text-[11px] flex-shrink-0 ml-1"
-                        style={{ color: 'var(--moni-text-tertiary)', minHeight: 44, minWidth: 44 }}>✎</button>
+                        className="text-[11px] text-blue-400 hover:text-blue-600 flex-shrink-0 ml-1">✎</button>
                       <button type="button" onClick={() => void handleArquivarFilha(f.id)} title="Arquivar filha"
-                        className="text-[12px] flex-shrink-0"
-                        style={{ color: 'var(--moni-text-tertiary)', minHeight: 44, minWidth: 44 }}>🗂</button>
+                        className="text-[12px] text-amber-400 hover:text-amber-600 flex-shrink-0">🗂</button>
                     </>
                   )}
                 </div>
               );
             })}
             {podeEditarFilha && filhasDaMeta.filter(f => f.status === 'arquivado').map(f => (
-              <div key={f.id} className="flex items-center gap-2 px-2 py-1 rounded text-[10px] flex-wrap"
-                style={{ background: 'var(--moni-surface-50)', border: 'var(--moni-border-width) solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}>
-                <span className="flex-1 min-w-[80px] line-through" style={{ color: 'var(--moni-text-tertiary)' }}>{f.descricao}</span>
-                <span className="moni-tag-arquivado">Arquivada</span>
+              <div key={f.id} className="flex items-center gap-2 px-2 py-1 rounded text-[10px] bg-gray-50 border border-gray-100">
+                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-gray-300" />
+                <span className="flex-1 min-w-[80px] line-through text-gray-400">{f.descricao}</span>
+                <span className="moni-tag-arquivado" style={{ fontSize: 9, padding: '1px 5px' }}>Arquivada</span>
                 <button type="button" onClick={() => void handleAbrirFilha(f.id)}
-                  style={{ minHeight: 44, padding: '0 8px', color: 'var(--moni-text-primary)', fontSize: 12 }}>
+                  className="text-[10px] text-blue-400 hover:text-blue-600 flex-shrink-0">
                   Abrir
                 </button>
               </div>
