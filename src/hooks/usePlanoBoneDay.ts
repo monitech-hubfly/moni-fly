@@ -91,6 +91,19 @@ export type MetaFilhaItem = {
   data_fim: string | null;    // YYYY-MM-DD
 };
 
+export type PrazoHistoricoItem = {
+  id: string;
+  objetivo_id: string;
+  tipo: 'definicao' | 'alteracao' | 'vigente';
+  data_inicio_anterior: string | null;
+  data_fim_anterior: string | null;
+  data_inicio_nova: string | null;
+  data_fim_nova: string | null;
+  profile_id: string | null;
+  autor_nome: string | null;
+  criado_em: string;
+};
+
 export type UsePlanoBoneDayResult = {
   metas: MetaItem[];
   metasConcluidas: MetaItem[];
@@ -104,6 +117,7 @@ export type UsePlanoBoneDayResult = {
   agendaMacro: AgendaMacroItem[];
   objetivoResponsaveis: ObjetivoResponsavel[];
   filhas: MetaFilhaItem[];
+  prazoHistorico: PrazoHistoricoItem[];
   mes: string;
   setMes: (m: string) => void;
   isLoading: boolean;
@@ -128,6 +142,7 @@ export function usePlanoBoneDay(
   const [agendaMacro,        setAgendaMacro]        = useState<AgendaMacroItem[]>([]);
   const [objetivoResponsaveis, setObjetivoResponsaveis] = useState<ObjetivoResponsavel[]>([]);
   const [filhas,             setFilhas]             = useState<MetaFilhaItem[]>([]);
+  const [prazoHistorico,     setPrazoHistorico]     = useState<PrazoHistoricoItem[]>([]);
   // Inicia com o mês atual (server-safe) e atualiza de localStorage após hidratação
   const [mes, setMesState] = useState(mesAtualStr);
   const setMes = useCallback((m: string) => {
@@ -155,6 +170,7 @@ export function usePlanoBoneDay(
       setIndicadores([]);
       setObjetivoResponsaveis([]);
       setFilhas([]);
+      setPrazoHistorico([]);
       setMetasRelancadas([]);
       setIsLoading(false);
       return;
@@ -462,11 +478,57 @@ export function usePlanoBoneDay(
         .eq('mes', mes)
         .not('objetivo_pai_id', 'is', null);
       type FilhaRow = { id: string; descricao: string; objetivo_pai_id: string; profile_id: string | null; status: string; data_inicio: string | null; data_fim: string | null };
-      setFilhas(((filhasData ?? []) as FilhaRow[]).map(f => ({
+      const filhaRows = ((filhasData ?? []) as FilhaRow[]).map(f => ({
         id: f.id, descricao: f.descricao, objetivo_pai_id: f.objetivo_pai_id,
         profile_id: f.profile_id ?? null, status: f.status,
         data_inicio: f.data_inicio ?? null, data_fim: f.data_fim ?? null,
-      })));
+      }));
+      setFilhas(filhaRows);
+
+      const historicoIds = [...new Set([
+        ...metasArr.map(m => m.id),
+        ...metasConclArr.map(m => m.id),
+        ...metasNaoConclArr.map(m => m.id),
+        ...(((relancadasData ?? []) as { id: string }[]).map(o => o.id)),
+        ...filhaRows.map(f => f.id),
+      ])];
+      if (historicoIds.length === 0) {
+        setPrazoHistorico([]);
+      } else {
+        try {
+          type HistRow = {
+            id: string; objetivo_id: string; tipo: PrazoHistoricoItem['tipo'];
+            data_inicio_anterior: string | null; data_fim_anterior: string | null;
+            data_inicio_nova: string | null; data_fim_nova: string | null;
+            profile_id: string | null; criado_em: string;
+          };
+          const histRows: HistRow[] = [];
+          for (let i = 0; i < historicoIds.length; i += 100) {
+            const slice = historicoIds.slice(i, i + 100);
+            const { data: histData, error: histErr } = await supabase
+              .from('objetivo_prazo_historico')
+              .select('id, objetivo_id, tipo, data_inicio_anterior, data_fim_anterior, data_inicio_nova, data_fim_nova, profile_id, criado_em')
+              .in('objetivo_id', slice);
+            if (histErr) throw histErr;
+            histRows.push(...((histData ?? []) as HistRow[]));
+          }
+          const autorIds = [...new Set(histRows.map(h => h.profile_id).filter((id): id is string => Boolean(id)))];
+          const nomePorId = new Map<string, string>();
+          if (autorIds.length > 0) {
+            const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', autorIds);
+            for (const p of (profs ?? []) as { id: string; full_name: string | null }[]) {
+              if (p.full_name) nomePorId.set(p.id, p.full_name);
+            }
+          }
+          setPrazoHistorico(histRows.map(h => ({
+            ...h,
+            autor_nome: h.profile_id ? (nomePorId.get(h.profile_id) ?? null) : null,
+          })));
+        } catch (histE) {
+          console.warn('[usePlanoBoneDay] histórico de prazo indisponível', histE);
+          setPrazoHistorico([]);
+        }
+      }
     } catch (e) {
       console.error('[usePlanoBoneDay]', e);
       setError(e instanceof Error ? e.message : JSON.stringify(e));
@@ -479,7 +541,7 @@ export function usePlanoBoneDay(
 
   return {
     metas, metasConcluidas, metasNaoConcluidas, metasRelancadas, indicadores, indicadoresResponsaveis,
-    responsaveis, comportamentos, agendaMacro, objetivoResponsaveis, filhas, mes, setMes,
+    responsaveis, comportamentos, agendaMacro, objetivoResponsaveis, filhas, prazoHistorico, mes, setMes,
     isLoading, error, recarregar: carregar,
     removerMetaNaoConcluida: (id: string) =>
       setMetasNaoConcluidas(prev => prev.filter(m => m.id !== id)),

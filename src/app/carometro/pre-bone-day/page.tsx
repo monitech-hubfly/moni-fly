@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffectiveUser } from '@/hooks/useEffectiveUser';
 import {
   usePlanoBoneDay, IndicadorBone, ComportamentoItem, AgendaMacroItem,
-  ObjetivoResponsavel, MetaFilhaItem, semanasDoMes, getMonthOptions,
+  ObjetivoResponsavel, MetaFilhaItem, PrazoHistoricoItem, semanasDoMes, getMonthOptions,
 } from '@/hooks/usePlanoBoneDay';
 import type { MetaItem, ResponsavelItem } from '@/hooks/useMetasIndicadores';
 import { SeletorUsuarioAdmin } from '@/components/carometro/todo/SeletorUsuarioAdmin';
@@ -20,26 +20,110 @@ const LOG = (args: Record<string, unknown>) =>
   void (registrarLog as unknown as (a: Record<string, unknown>) => Promise<void>)(args);
 
 // ── Utilitários ───────────────────────────────────────────────────────────────
+/** Data pura (YYYY-MM-DD) fica ao meio-dia para não voltar um dia no fuso. Timestamp completo é lido como está. */
+function parseDataFlexivel(iso: string): Date {
+  const s = iso.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(`${s}T12:00:00`);
+  return new Date(s);
+}
+
 function formatarDataCurta(iso: string | null): string {
   if (!iso) return '';
-  // Usa T12:00:00 para evitar deslocamento de 1 dia por fuso horário (UTC-3)
-  const d = new Date(iso + 'T12:00:00');
+  const d = parseDataFlexivel(iso);
+  if (Number.isNaN(d.getTime())) return '';
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatarDataHora(iso: string | null): string {
+  if (!iso) return '';
+  const d = parseDataFlexivel(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
 /** Retorna apenas o número da semana ISO: "S44" */
 function semanaISO(dataISO: string | null): string {
   if (!dataISO) return '';
-  return `S${isoWeek(new Date(dataISO + 'T12:00:00'))}`;
+  const d = parseDataFlexivel(dataISO);
+  if (Number.isNaN(d.getTime())) return '';
+  return `S${isoWeek(d)}`;
 }
 
 /** Formata data com dia, mês e semana ISO: "26/10 · S44" */
 function formatDataSemana(dataISO: string | null): string {
   if (!dataISO) return '';
-  const d = new Date(dataISO + 'T12:00:00');
+  const d = parseDataFlexivel(dataISO);
+  if (Number.isNaN(d.getTime())) return '';
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   return `${dd}/${mm} · S${isoWeek(d)}`;
+}
+
+function textoData(iso: string | null): string {
+  return formatarDataCurta(iso) || 'vazio';
+}
+
+function HistoricoPrazo({ itens }: { itens: PrazoHistoricoItem[] }) {
+  const [aberto, setAberto] = useState(false);
+  const edicoes = itens
+    .filter(i => i.tipo === 'alteracao')
+    .slice()
+    .sort((a, b) => a.criado_em.localeCompare(b.criado_em));
+  if (edicoes.length === 0) return null;
+  const base = itens.find(i => i.tipo === 'definicao') ?? itens.find(i => i.tipo === 'vigente') ?? null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setAberto(v => !v)}
+        className="moni-tag-atencao"
+        style={{ minHeight: 44, cursor: 'pointer' }}
+        aria-expanded={aberto}
+      >
+        {edicoes.length} {edicoes.length === 1 ? 'alteração de prazo' : 'alterações de prazo'}
+      </button>
+      {aberto && (
+        <div
+          className="basis-full mt-1 p-3 flex flex-col gap-2"
+          style={{
+            background: 'var(--moni-surface-50)',
+            border: 'var(--moni-border-width) solid var(--moni-border-default)',
+            borderRadius: 'var(--moni-radius-lg)',
+            fontFamily: 'var(--moni-font-sans)',
+          }}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span style={{ color: 'var(--moni-text-primary)', fontSize: 12, fontWeight: 600 }}>Histórico do prazo</span>
+            <button type="button" onClick={() => setAberto(false)} style={{ color: 'var(--moni-text-tertiary)', minHeight: 44, minWidth: 44 }}>Fechar</button>
+          </div>
+          {base && (
+            <div style={{ color: 'var(--moni-text-secondary)', fontSize: 12 }}>
+              <div style={{ color: 'var(--moni-text-primary)', fontWeight: 600 }}>
+                {base.tipo === 'definicao' ? 'Data inicial' : 'Prazo que já estava salvo quando o histórico começou'}
+              </div>
+              <div>Início {textoData(base.data_inicio_nova)} · Fim {textoData(base.data_fim_nova)}</div>
+              {base.tipo === 'definicao' && (
+                <div>{base.autor_nome || 'Usuário não identificado'} · {formatarDataHora(base.criado_em)}</div>
+              )}
+            </div>
+          )}
+          {edicoes.map((ed, idx) => (
+            <div key={ed.id} style={{ color: 'var(--moni-text-secondary)', fontSize: 12 }}>
+              <div style={{ color: 'var(--moni-text-primary)', fontWeight: 600 }}>Alteração {idx + 1}</div>
+              {ed.data_inicio_anterior !== ed.data_inicio_nova && (
+                <div>Início: {textoData(ed.data_inicio_anterior)} → {textoData(ed.data_inicio_nova)}</div>
+              )}
+              {ed.data_fim_anterior !== ed.data_fim_nova && (
+                <div>Fim: {textoData(ed.data_fim_anterior)} → {textoData(ed.data_fim_nova)}</div>
+              )}
+              <div>{ed.autor_nome || 'Usuário não identificado'} · {formatarDataHora(ed.criado_em)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
 }
 
 // ── Conta dias úteis (seg-sex) entre duas datas, inclusive ──────────────────
@@ -1171,7 +1255,7 @@ function FormNovoIndicadorMeta({ metaId, areaId, responsaveis, onSalvo }: {
   );
 }
 
-function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, mes, filhasDaMeta, onUpdate, onConcluir, onConcluirIndividual, onExcluir, objetivoResponsaveis, currentUserId, currentUserEmail, podeEditarMeta, onToggleResponsavel, onAssumirProjeto }: {
+function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, mes, filhasDaMeta, onUpdate, onConcluir, onConcluirIndividual, onExcluir, objetivoResponsaveis, currentUserId, currentUserEmail, podeEditarMeta, podeEditarFilha, historicoPrazo, onToggleResponsavel, onAssumirProjeto }: {
   meta: MetaItem; indicadores: IndicadorBone[]; responsaveis: ResponsavelItem[];
   isAdmin: boolean; areaId: string; mes: string; filhasDaMeta: MetaFilhaItem[];
   onUpdate: () => void;
@@ -1182,6 +1266,8 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
   currentUserId: string | null;
   currentUserEmail: string | null;
   podeEditarMeta: boolean;
+  podeEditarFilha: boolean;
+  historicoPrazo: PrazoHistoricoItem[];
   onToggleResponsavel: (objetivoId: string) => Promise<void>;
   onAssumirProjeto: (objetivoId: string, dataInicio: string, dataFim: string) => Promise<void>;
 }) {
@@ -1301,6 +1387,18 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
     onUpdate();
   };
 
+  const handleAbrirFilha = async (filhaId: string) => {
+    const { error } = await supabase.from('objetivos').update({ status: 'ativo' }).eq('id', filhaId);
+    if (error) { alert(`Erro ao abrir: ${error.message}`); return; }
+    onUpdate();
+  };
+
+  const handleAbrirMeta = async () => {
+    const { error } = await supabase.from('objetivos').update({ status: 'ativo' }).eq('id', meta.id);
+    if (error) { alert(`Erro ao abrir: ${error.message}`); return; }
+    onUpdate();
+  };
+
   // ── Projeto: calcular dias úteis ao mudar datas ──────────────────────────
   const calcularDiasUteis = async (inicio: string, fim: string) => {
     if (!inicio || !fim || fim < inicio) { setDiasPreview(null); return; }
@@ -1371,9 +1469,10 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
             : null;
           const inicio = respComDatas?.data_inicio ?? meta.data_inicio;
           const fim    = respComDatas?.data_fim    ?? meta.data_fim;
-          if (!inicio && !fim) return null;
+          const histMae = historicoPrazo.filter(h => h.objetivo_id === meta.id);
+          if (!inicio && !fim && !histMae.some(h => h.tipo === 'alteracao')) return null;
           return (
-            <div className="flex items-center gap-1.5 flex-shrink-0 text-[11px]">
+            <div className="flex items-center gap-1.5 flex-shrink-0 text-[11px] flex-wrap">
               {inicio && (
                 <>
                   <span className="text-gray-400">Início</span>
@@ -1391,6 +1490,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                   </span>
                 </>
               )}
+              <HistoricoPrazo itens={histMae} />
             </div>
           );
         })()}
@@ -1451,10 +1551,14 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
               className={`text-sm transition-colors ${editandoMeta ? 'text-blue-600' : 'text-blue-400 hover:text-blue-600'}`}>✎</button>
           )}
           {isAdmin && meta.status !== 'arquivado' && (
-            <>
-              <button type="button" onClick={() => setConfirmExcl(true)} title="Arquivar meta"
-                className="text-amber-400 hover:text-amber-600 text-[13px] transition-colors">🗂</button>
-            </>
+            <button type="button" onClick={() => setConfirmExcl(true)} title="Arquivar meta"
+              className="text-[13px] transition-colors"
+              style={{ color: 'var(--moni-text-tertiary)', minHeight: 44, minWidth: 44 }}>🗂</button>
+          )}
+          {isAdmin && meta.status === 'arquivado' && (
+            <button type="button" onClick={() => void handleAbrirMeta()} title="Abrir meta"
+              className="text-[11px]"
+              style={{ color: 'var(--moni-text-primary)', minHeight: 44, padding: '0 8px' }}>Abrir</button>
           )}
         </div>
       </div>
@@ -1529,7 +1633,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
       )}
 
       {/* Metas Filhas (sem linha de responsável) */}
-      {filhasDaMeta.filter(f => f.status !== 'arquivado').length > 0 && (
+      {filhasDaMeta.length > 0 && (
         <div className="px-3 py-2 border-b border-gray-100">
           <div className="flex flex-col gap-1">
             <span className="text-[9px] uppercase tracking-widest text-gray-400 font-semibold">Metas Filhas</span>
@@ -1594,6 +1698,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                   {foraRange && (
                     <span className="text-amber-600 font-medium text-[9px] flex-shrink-0">⚠ fora do período</span>
                   )}
+                  <HistoricoPrazo itens={historicoPrazo.filter(h => h.objetivo_id === f.id)} />
                   {/* Responsável pela filha: avatar + primeiro nome */}
                   {(() => {
                     if (!f.profile_id) return null;
@@ -1610,17 +1715,30 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
                       </span>
                     );
                   })()}
-                  {podeEditarMeta && (
+                  {podeEditarFilha && (
                     <>
                       <button type="button" onClick={() => handleEditarFilha(f)} title="Editar filha"
-                        className="text-[11px] text-blue-400 hover:text-blue-600 flex-shrink-0 ml-1">✎</button>
+                        className="text-[11px] flex-shrink-0 ml-1"
+                        style={{ color: 'var(--moni-text-tertiary)', minHeight: 44, minWidth: 44 }}>✎</button>
                       <button type="button" onClick={() => void handleArquivarFilha(f.id)} title="Arquivar filha"
-                        className="text-[12px] text-amber-400 hover:text-amber-600 flex-shrink-0">🗂</button>
+                        className="text-[12px] flex-shrink-0"
+                        style={{ color: 'var(--moni-text-tertiary)', minHeight: 44, minWidth: 44 }}>🗂</button>
                     </>
                   )}
                 </div>
               );
             })}
+            {podeEditarFilha && filhasDaMeta.filter(f => f.status === 'arquivado').map(f => (
+              <div key={f.id} className="flex items-center gap-2 px-2 py-1 rounded text-[10px] flex-wrap"
+                style={{ background: 'var(--moni-surface-50)', border: 'var(--moni-border-width) solid var(--moni-border-default)', borderRadius: 'var(--moni-radius-md)' }}>
+                <span className="flex-1 min-w-[80px] line-through" style={{ color: 'var(--moni-text-tertiary)' }}>{f.descricao}</span>
+                <span className="moni-tag-arquivado">Arquivada</span>
+                <button type="button" onClick={() => void handleAbrirFilha(f.id)}
+                  style={{ minHeight: 44, padding: '0 8px', color: 'var(--moni-text-primary)', fontSize: 12 }}>
+                  Abrir
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -1716,8 +1834,7 @@ function MetaComIndicadores({ meta, indicadores, responsaveis, isAdmin, areaId, 
 
       {/* + Adicionar meta filha — disponível para quem assumiu a meta */}
       {(() => {
-        const jaAssumiu = objetivoResponsaveis.some(r => r.objetivo_id === meta.id && r.profile_id === currentUserId);
-        if (!jaAssumiu && !isAdmin) return null;
+        if (!podeEditarFilha) return null;
         if (meta.status === 'arquivado' || meta.status === 'concluido') return null;
         return (
           <div className="px-3 py-2 border-t border-gray-100">
@@ -2704,6 +2821,7 @@ function PreBoneDayPageContent() {
   }, [areaId]);
 
   const [isAdmin,          setIsAdmin]          = useState<boolean | null>(null);
+  const [isTeam,           setIsTeam]           = useState(false);
   const [currentUserId,    setCurrentUserId]    = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [bloco0Open, setBloco0Open] = useState(true);
@@ -2716,7 +2834,7 @@ function PreBoneDayPageContent() {
   const {
     metas, metasConcluidas, metasNaoConcluidas, indicadores, indicadoresResponsaveis,
     responsaveis, comportamentos, agendaMacro,
-    objetivoResponsaveis, filhas, mes, setMes, isLoading, error, recarregar, removerMetaNaoConcluida,
+    objetivoResponsaveis, filhas, prazoHistorico, mes, setMes, isLoading, error, recarregar, removerMetaNaoConcluida,
   } = usePlanoBoneDay(areaId, effectiveProfileId);
 
   const monthOptions = useMemo(() => getMonthOptions(), []);
@@ -2727,11 +2845,13 @@ function PreBoneDayPageContent() {
   useEffect(() => {
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setIsAdmin(false); return; }
+      if (!user) { setIsAdmin(false); setIsTeam(false); return; }
       setCurrentUserId(user.id);
       setCurrentUserEmail(user.email ?? null);
       const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-      setIsAdmin((prof as { role?: string } | null)?.role === 'admin');
+      const role = (prof as { role?: string } | null)?.role ?? '';
+      setIsAdmin(role === 'admin');
+      setIsTeam(role === 'team');
     })();
   }, [supabase]);
 
@@ -3109,7 +3229,7 @@ function PreBoneDayPageContent() {
                   <div className="flex flex-col gap-2">
                     {metasNaoConcluidas.map(meta => (
                       <MetaNaoConcluida key={meta.id} meta={meta}
-                        podeRelançar={Boolean(isAdmin) || Boolean(currentUserId)}
+                        podeRelançar={Boolean(isAdmin)}
                         onRelançar={handleRelançar}
                         onArquivar={handleArquivarMeta} />
                     ))}
@@ -3155,6 +3275,8 @@ function PreBoneDayPageContent() {
                       currentUserId={currentUserId}
                       currentUserEmail={currentUserEmail}
                       podeEditarMeta={Boolean(isAdmin)}
+                      podeEditarFilha={Boolean(isAdmin) || isTeam}
+                      historicoPrazo={prazoHistorico}
                       onToggleResponsavel={handleToggleResponsavel}
                       onAssumirProjeto={handleAssumirProjeto}
                     />
@@ -3213,6 +3335,8 @@ function PreBoneDayPageContent() {
                             currentUserId={currentUserId}
                             currentUserEmail={currentUserEmail}
                             podeEditarMeta={Boolean(isAdmin)}
+                            podeEditarFilha={Boolean(isAdmin) || isTeam}
+                            historicoPrazo={prazoHistorico}
                             onToggleResponsavel={handleToggleResponsavel}
                             onAssumirProjeto={handleAssumirProjeto}
                           />
