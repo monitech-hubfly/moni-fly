@@ -705,18 +705,32 @@ export function AgendaBloco({ onAbrirModal, onAbrirParaEditar, refreshKey = 0 }:
   }, [diasDaSemana, supabase]);
 
   const toggleAusencia = useCallback(async (dateStr: string) => {
-    setSalvandoAusencia(dateStr);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSalvandoAusencia(null); return; }
     const isAusente = ausencias.has(dateStr);
+
+    // Atualiza o checkbox imediatamente; reverte só se o banco falhar
     if (isAusente) {
-      await supabase.from('carometro_ausencias').delete()
-        .eq('profile_id', user.id).eq('data', dateStr);
       setAusencias(prev => { const n = new Set(prev); n.delete(dateStr); return n; });
     } else {
-      await supabase.from('carometro_ausencias')
-        .upsert({ profile_id: user.id, data: dateStr }, { onConflict: 'profile_id,data' });
       setAusencias(prev => new Set([...prev, dateStr]));
+    }
+
+    setSalvandoAusencia(dateStr);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      if (isAusente) setAusencias(prev => new Set([...prev, dateStr]));
+      else setAusencias(prev => { const n = new Set(prev); n.delete(dateStr); return n; });
+      setSalvandoAusencia(null);
+      return;
+    }
+
+    if (isAusente) {
+      const { error } = await supabase.from('carometro_ausencias').delete()
+        .eq('profile_id', user.id).eq('data', dateStr);
+      if (error) setAusencias(prev => new Set([...prev, dateStr]));
+    } else {
+      const { error } = await supabase.from('carometro_ausencias')
+        .upsert({ profile_id: user.id, data: dateStr }, { onConflict: 'profile_id,data' });
+      if (error) setAusencias(prev => { const n = new Set(prev); n.delete(dateStr); return n; });
     }
     setSalvandoAusencia(null);
   }, [ausencias, supabase]);
