@@ -43,7 +43,9 @@ import {
   entradaAbaixoDoMinimo,
   entradaMinimaOferta,
   mensagemEntradaMinima,
+  mensagemPagamentoAMaior,
   mensagemParcelaUnicaMinima,
+  pagamentoAMaiorBloqueia,
   parcelaUnicaAbaixoDoMinimo,
   type OfertaConfig,
 } from '@/lib/simulador/calcular-oferta';
@@ -716,7 +718,6 @@ async function validarParcelaUnicaMinimaOferta(
     parcelaUnicaConfirmada: number | null;
   },
 ): Promise<Err | null> {
-  if (v.parcelaUnicaConfirmada == null && v.entradaConfirmada == null) return null;
   const { data, error } = await supabase.from(TABELA).select('*').eq('kanban_card_id', cardId).limit(1);
   const row = !error && Array.isArray(data) ? data[0] : null;
   if (!row) return null;
@@ -736,6 +737,16 @@ async function validarParcelaUnicaMinimaOferta(
     prazo_financiamento_anos: v.prazoFinanciamentoAnos ?? 30,
     taxa_financiamento_anual: v.taxaFinanciamentoAnual,
   };
+  const fluxoConfirmado = calcularOferta(template, {
+    ...oferta,
+    ...(v.entradaConfirmada != null ? { entrada_confirmada: v.entradaConfirmada } : {}),
+    ...(v.mensalConfirmada > 0 ? { mensal_confirmada: v.mensalConfirmada } : {}),
+    ...(v.parcelaUnicaConfirmada != null ? { parcela_unica_confirmada: v.parcelaUnicaConfirmada } : {}),
+  });
+  if (pagamentoAMaiorBloqueia(fluxoConfirmado.valor_pago_a_maior)) {
+    return { ok: false, error: mensagemPagamentoAMaior(fluxoConfirmado.valor_pago_a_maior) };
+  }
+  if (v.parcelaUnicaConfirmada == null && v.entradaConfirmada == null) return null;
   const sugerido = calcularOferta(template, oferta);
   const entradaMinima = entradaMinimaOferta(sugerido);
   if (v.entradaConfirmada != null && entradaAbaixoDoMinimo(v.entradaConfirmada, entradaMinima)) {

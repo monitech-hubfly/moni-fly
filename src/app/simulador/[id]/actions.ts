@@ -7,6 +7,8 @@ import {
   calcularOferta,
   calcularParcelaUnicaMinimaConfirmada,
   formatarMoedaCentavos,
+  mensagemPagamentoAMaior,
+  pagamentoAMaiorBloqueia,
   parcelaUnicaAbaixoDoMinimo,
   type OfertaConfig,
 } from '@/lib/simulador/calcular-oferta';
@@ -144,6 +146,9 @@ export async function salvarOfertaCorretor(
     }
   }
   const resultado = calcularOferta(view.config, oferta);
+  if (pagamentoAMaiorBloqueia(resultado.valor_pago_a_maior)) {
+    return { ok: false, error: mensagemPagamentoAMaior(resultado.valor_pago_a_maior) };
+  }
 
   const telefone = String(input.clienteTelefone ?? '').trim() || null;
   const email = String(input.clienteEmail ?? '').trim() || null;

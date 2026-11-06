@@ -43,7 +43,9 @@ import {
   entradaMinimaOferta,
   formatarMoeda,
   mensagemEntradaMinima,
+  mensagemPagamentoAMaior,
   mensagemParcelaUnicaMinima,
+  pagamentoAMaiorBloqueia,
   parcelaUnicaAbaixoDoMinimo,
   sugerirParcelaMensal,
   type OfertaConfig,
@@ -447,7 +449,24 @@ export function CalculadoraOferta({
     resultado != null && entradaAbaixoDoMinimo(entradaConf, entradaMinima);
   const erroEntrada = entradaAbaixoMinimo ? mensagemEntradaMinima(entradaMinima) : null;
   const erroUnica = unicaAbaixoMinimo ? mensagemParcelaUnicaMinima(parcelaUnicaMinimaHint) : null;
-  const errosMinimos = [erroEntrada, erroUnica].filter((m): m is string => m != null);
+  const resultadoConfirmado = useMemo(() => {
+    if (!resultado || !ultimaOferta) return null;
+    try {
+      return calcularOferta(template, {
+        ...ultimaOferta,
+        entrada_confirmada: entradaConf,
+        mensal_confirmada: parcelaMensalConf,
+        parcela_unica_confirmada: parcelaUnicaConf,
+      });
+    } catch {
+      return null;
+    }
+  }, [entradaConf, parcelaMensalConf, parcelaUnicaConf, resultado, template, ultimaOferta]);
+  const erroPagoAMaior =
+    resultadoConfirmado && pagamentoAMaiorBloqueia(resultadoConfirmado.valor_pago_a_maior)
+      ? mensagemPagamentoAMaior(resultadoConfirmado.valor_pago_a_maior)
+      : null;
+  const errosMinimos = [erroEntrada, erroUnica, erroPagoAMaior].filter((m): m is string => m != null);
   const erroTerreno =
     valorLote == null || !Number.isFinite(valorLote) || valorLote <= 0
       ? MENSAGEM_TERRENO_OBRIGATORIO_OFERTA
@@ -540,14 +559,18 @@ export function CalculadoraOferta({
         valor: `${formatarMoeda(resultado.parcela_unica_sugerida)} no mês ${resultado.mes_parcela_unica}`,
       },
       { label: 'Saldo a financiar estimado', valor: formatarMoeda(resultado.saldo_financiar) },
-      {
-        label: '1ª parcela SAC estimada',
-        valor: formatarMoeda(resultado.parcela_sac_primeira),
-      },
-      {
-        label: 'Última parcela SAC estimada',
-        valor: formatarMoeda(resultado.parcela_sac_ultima),
-      },
+      ...(resultado.saldo_financiar <= 0
+        ? [{ label: 'Financiamento após a entrega', valor: 'Sem saldo a financiar' }]
+        : [
+            {
+              label: '1ª parcela SAC estimada',
+              valor: formatarMoeda(resultado.parcela_sac_primeira),
+            },
+            {
+              label: 'Última parcela SAC estimada',
+              valor: formatarMoeda(resultado.parcela_sac_ultima),
+            },
+          ]),
     ];
   }, [resultado]);
 
@@ -794,16 +817,29 @@ export function CalculadoraOferta({
             </div>
           </div>
 
-          {resultado.alertas.map((a) => (
-            <div
-              key={a.tipo}
-              className="moni-tag-atrasado px-4 py-3 text-sm"
-              role="status"
-              style={{ borderRadius: 'var(--moni-radius-md)' }}
-            >
-              {a.mensagem}
-            </div>
-          ))}
+          {resultado.alertas.map((a) => {
+            const informativo = a.tipo === 'parcela_unica_zero';
+            return (
+              <div
+                key={a.tipo}
+                className={informativo ? 'px-4 py-3 text-sm' : 'moni-tag-atrasado px-4 py-3 text-sm'}
+                role="status"
+                style={
+                  informativo
+                    ? {
+                        borderRadius: 'var(--moni-radius-md)',
+                        background: 'var(--moni-surface-100)',
+                        border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                        color: 'var(--moni-text-secondary)',
+                        fontFamily: 'var(--moni-font-sans)',
+                      }
+                    : { borderRadius: 'var(--moni-radius-md)' }
+                }
+              >
+                {a.mensagem}
+              </div>
+            );
+          })}
 
           <div>
             <button
@@ -884,6 +920,7 @@ export function CalculadoraOferta({
                 valor={parcelaMensalConf}
                 onValorChange={onParcelaMensalConfirmada}
                 avisos={avisosSalvar.parcela}
+                erro={erroPagoAMaior}
               />
               <CampoMoedaConfirmado
                 label="Parcela única confirmada (R$)"
@@ -963,7 +1000,9 @@ export function CalculadoraOferta({
                     ) : null}
                   </p>
                   <p style={{ color: 'var(--moni-text-secondary)' }}>
-                    1ª SAC final: {formatarMoeda(fluxoFinalResultado.parcela_sac_primeira)}
+                    {fluxoFinalResultado.saldo_financiar <= 0
+                      ? 'Sem saldo a financiar'
+                      : `1ª SAC final: ${formatarMoeda(fluxoFinalResultado.parcela_sac_primeira)}`}
                   </p>
                 </div>
               </div>

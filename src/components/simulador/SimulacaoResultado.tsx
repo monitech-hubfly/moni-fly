@@ -8,7 +8,9 @@ import {
   entradaMinimaOferta,
   formatarMoeda,
   mensagemEntradaMinima,
+  mensagemPagamentoAMaior,
   mensagemParcelaUnicaMinima,
+  pagamentoAMaiorBloqueia,
   parcelaUnicaAbaixoDoMinimo,
   type LinhaFluxo,
   type ResultadoCalculo,
@@ -30,6 +32,8 @@ type Props = {
   onRecalcular: (valores: ValoresConfirmadosOferta) => void;
   /** Mínimo da parcela única recalculado pelo motor para a entrada/mensal informadas. */
   minimoParcelaUnica: (entrada: number, mensal: number) => number;
+  /** Quanto as parcelas passam do valor total, com os valores digitados. */
+  avaliarPagamentoAMaior?: (valores: ValoresConfirmadosOferta) => number;
   onVerMemorial: () => void;
 };
 
@@ -111,6 +115,7 @@ export function SimulacaoResultado({
   recalcToken = 0,
   onRecalcular,
   minimoParcelaUnica,
+  avaliarPagamentoAMaior,
   onVerMemorial,
 }: Props) {
   const [fluxoAberto, setFluxoAberto] = useState(false);
@@ -142,7 +147,15 @@ export function SimulacaoResultado({
   const entradaAbaixo = entradaAbaixoDoMinimo(entradaConf, entradaMinima);
   const erroEntrada = entradaAbaixo ? mensagemEntradaMinima(entradaMinima) : null;
   const erroUnica = unicaAbaixo ? mensagemParcelaUnicaMinima(unicaMinima) : null;
-  const errosMinimos = [erroEntrada, erroUnica].filter((m): m is string => m != null);
+  const pagoAMaior = avaliarPagamentoAMaior?.({
+    entrada: entradaConf,
+    mensal: mensalConf,
+    unica: unicaConf,
+  }) ?? 0;
+  const erroPagoAMaior = pagamentoAMaiorBloqueia(pagoAMaior)
+    ? mensagemPagamentoAMaior(pagoAMaior)
+    : null;
+  const errosMinimos = [erroEntrada, erroUnica, erroPagoAMaior].filter((m): m is string => m != null);
 
   const taxaPctLabel =
     taxaJurosPct != null ? String(taxaJurosPct).replace('.', ',') : null;
@@ -175,6 +188,8 @@ export function SimulacaoResultado({
     const v = valoresRef.current;
     if (entradaAbaixoDoMinimo(v.entrada, entradaMinima)) return;
     if (parcelaUnicaAbaixoDoMinimo(v.unica, minimoParcelaUnica(v.entrada, v.mensal))) return;
+    const maior = avaliarPagamentoAMaior?.(v) ?? 0;
+    if (pagamentoAMaiorBloqueia(maior)) return;
     onRecalcular(v);
   }
 
@@ -206,13 +221,19 @@ export function SimulacaoResultado({
           <Metrica label="Parcela única" valor={formatarMoeda(unicaCard)} />
         </div>
         <p className="jornadaSimCardHint">
-          Saldo a financiar {formatarMoeda(resultado.saldo_financiar)}
-          {prazoFinanciamentoAnos != null ? ` · ${prazoFinanciamentoAnos} anos` : ''}
-          {taxaPctLabel ? ` · ${taxaPctLabel}% aa` : ''}
-          {' · '}
-          1ª parcela do financiamento estimada{' '}
-          {formatarMoeda(resultado.parcela_sac_primeira)}
-          /mês*
+          {resultado.saldo_financiar <= 0 ? (
+            'Sem saldo a financiar'
+          ) : (
+            <>
+              Saldo a financiar {formatarMoeda(resultado.saldo_financiar)}
+              {prazoFinanciamentoAnos != null ? ` · ${prazoFinanciamentoAnos} anos` : ''}
+              {taxaPctLabel ? ` · ${taxaPctLabel}% aa` : ''}
+              {' · '}
+              1ª parcela do financiamento estimada{' '}
+              {formatarMoeda(resultado.parcela_sac_primeira)}
+              /mês*
+            </>
+          )}
         </p>
       </section>
 
@@ -271,9 +292,17 @@ export function SimulacaoResultado({
             <label htmlFor="jornada-mensal-conf">Parcela mensal confirmada (R$)</label>
             <CampoNumeroBr
               id="jornada-mensal-conf"
+              className={erroPagoAMaior ? 'is-erro' : undefined}
+              aria-invalid={erroPagoAMaior ? true : undefined}
+              aria-describedby={erroPagoAMaior ? 'jornada-mensal-erro' : undefined}
               valor={mensalConf}
               onChange={onMensalChange}
             />
+            {erroPagoAMaior ? (
+              <p id="jornada-mensal-erro" className="jornadaFieldErro" role="alert">
+                {erroPagoAMaior}
+              </p>
+            ) : null}
             <AvisoMinimo minimo={resultado.parcela_mensal_usada} atual={mensalConf} />
           </div>
           <div className="jornadaField">
