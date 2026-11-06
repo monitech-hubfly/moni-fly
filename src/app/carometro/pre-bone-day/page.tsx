@@ -3204,7 +3204,7 @@ function PreBoneDayPageContent() {
                             responsaveis={responsaveis}
                             isAdmin={Boolean(isAdmin)} areaId={areaId ?? ''}
                             mes={mes}
-                            filhasDaMeta={filhas.filter(f => f.objetivo_pai_id === meta.id)}
+                            filhasDaMeta={filhas.filter(f => f.objetivo_pai_id === meta.id && (!f.profile_id || ([effectiveProfileId, currentUserId].filter(Boolean) as string[]).includes(f.profile_id)))}
                             onUpdate={recarregar}
                             onConcluir={handleConcluirMeta}
                             onConcluirIndividual={handleConcluirMetaIndividual}
