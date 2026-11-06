@@ -367,6 +367,7 @@ export function ModalAgendamento({
   const [ocupados,   setOcupados]   = useState<Set<string>>(new Set());
   const [busySlots,  setBusySlots]  = useState<Map<string, { hora_inicio: string; hora_fim: string | null }[]>>(new Map());
   const [confirmarExcluir, setConfirmarExcluir] = useState(false);
+  const [partAusentes,     setPartAusentes]     = useState<Set<string>>(new Set());
   const [externEmail,      setExternEmail]      = useState('');
   const [gerandoMeet,      setGerandoMeet]      = useState(false);
   // ── Autocomplete de contatos externos ────────────────────────────────────
@@ -711,18 +712,32 @@ export function ModalAgendamento({
     if (!form.data || form.participantes.length === 0) {
       setOcupados(new Set());
       setBusySlots(new Map());
+      setPartAusentes(new Set());
       return;
     }
     void (async () => {
-      const { data } = await supabase
-        .from('gantt_planejamento')
-        .select('profile_id, hora_inicio, hora_fim')
-        .in('profile_id', form.participantes)
-        .eq('data', form.data)
-        .not('hora_inicio', 'is', null);
-      if (!data) return;
+      const [ganttRes, ausRes] = await Promise.all([
+        supabase
+          .from('gantt_planejamento')
+          .select('profile_id, hora_inicio, hora_fim')
+          .in('profile_id', form.participantes)
+          .eq('data', form.data)
+          .not('hora_inicio', 'is', null),
+        // Consulta ausências (férias/day off) dos participantes na data selecionada
+        supabase
+          .from('carometro_ausencias')
+          .select('profile_id')
+          .in('profile_id', form.participantes)
+          .eq('data', form.data),
+      ]);
+
+      // Ausências
+      type AusRow = { profile_id: string };
+      setPartAusentes(new Set(((ausRes.data ?? []) as AusRow[]).map(r => r.profile_id)));
+
+      if (!ganttRes.data) return;
       type BusyRow = { profile_id: string; hora_inicio: string; hora_fim: string | null };
-      const rows = data as BusyRow[];
+      const rows = ganttRes.data as BusyRow[];
       // Monta mapa de slots por participante
       const slotMap = new Map<string, { hora_inicio: string; hora_fim: string | null }[]>();
       for (const row of rows) {
@@ -900,6 +915,22 @@ export function ModalAgendamento({
   }
 
   const handleSalvar = () => {
+    // Bloquear se algum participante interno estiver de férias/day off na data
+    const ausNomes = form.participantes
+      .filter(pid => partAusentes.has(pid))
+      .map(pid => {
+        const p = pessoas.find(x => x.profile_id === pid);
+        return (p?.nomeCompleto ?? p?.nome ?? 'Participante').split(' ')[0];
+      });
+    if (ausNomes.length > 0) {
+      alert(
+        `⚠ ${ausNomes.join(', ')} ${ausNomes.length === 1 ? 'está' : 'estão'} ` +
+        `marcado${ausNomes.length === 1 ? '' : 's'} como férias/day off nesta data. ` +
+        'Remova da lista ou escolha outra data.'
+      );
+      return;
+    }
+
     const tipoTermino = recCfg.tipoTermino ?? (recCfg.ate ? 'data' : 'nunca');
     const recorrenciaInvalida = form.recorrente && !recCfg.frequencia
       ? true
@@ -1351,6 +1382,7 @@ export function ModalAgendamento({
                       }).map(p => {
                         const sel     = form.participantes.includes(p.profile_id);
                         const ocupado = sel && ocupados.has(p.profile_id);
+                        const ausente = sel && partAusentes.has(p.profile_id);
                         const slots   = sel ? (busySlots.get(p.profile_id) ?? []) : [];
                         const meta    = [p.area, p.email].filter(Boolean).join(' · ');
                         const ps = partStatus.get(p.profile_id);
@@ -1378,6 +1410,7 @@ export function ModalAgendamento({
                                         {statusBadge.icon}
                                       </span>
                                     )}
+                                    {ausente && <span className="text-[10px] text-amber-600 font-medium">🌴 férias/day off</span>}
                                     {ocupado && <span className="text-[10px] text-orange-600 font-medium">⚠ conflito</span>}
                                   </div>
                                 </div>
