@@ -783,13 +783,15 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         return Math.round(weeklyAvgs.reduce((a, b) => a + b, 0) / weeklyAvgs.length);
       }
 
-      // indScore para bolinha direita (Boné Day) usa score PRÉVIA (open metas = 0%)
-      const indPreviaScore = indicadoresPreviaLocal?.media ?? null;
+      // indScore para bolinha direita (Boné Day) usa score de TRACKING
+      // (100% enquanto no prazo, cai conforme deadlines passam sem conclusão).
+      // Converge com a Prévia (esquerda) ao final do ciclo quando todos os prazos chegam.
+      const indTrackingScore = semAnteriorNaMes ? indicadoresAnterior.media : indicadoresAtual.media;
       const cicloScores: CicloScores = {
         sirene:      mediaScoresCiclo('sirene',      sireneWeeklyScore),
         engajamento: mediaScoresCiclo('engajamento', engWeeklyScore),
-        // Indicadores: lê histórico de indicadores_previa + contribuição da semana atual
-        indicadores: mediaScoresCiclo('indicadores', indPreviaScore, 'indicadores_previa'),
+        // Indicadores: lê histórico de indicadores (tracking) + contribuição da semana atual
+        indicadores: mediaScoresCiclo('indicadores', indTrackingScore),
       };
 
       // Bolinhas esquerdas: score SEMANAL (média Mon–hoje), não só o valor de hoje.

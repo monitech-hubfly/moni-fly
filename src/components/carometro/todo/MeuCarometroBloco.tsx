@@ -77,7 +77,7 @@ export function MeuCarometroBloco() {
               titulo="📈 Indicadores"
               score={indicadoresPrevia?.media ?? null}
               scoreCiclo={ciclo.indicadores}
-              labelPrevia={lPrevia}
+              labelPrevia="Prévia hoje"
               labelCiclo={LABEL_CICLO}
               indicadoresPrevia={indicadoresPrevia?.porIndicador ?? []}
               indicadoresResultado={indicadores?.porIndicador ?? []}
