@@ -187,7 +187,7 @@ function SecaoToggle({ label, count, aberta, onToggle, children, cor }: {
 }
 
 // ── Formulário reutilizável (add/edit meta) ───────────────────────────────────
-type MetaFormState = { descricao: string; tipo: string; respId: string; metaUnidade: string };
+type MetaFormState = { descricao: string; tipo: string; respId: string; metaUnidade: string; dataInicio: string; dataFim: string };
 
 function MetaForm({ inicial, responsaveis, onSalvar, onCancelar, salvando, labelSalvar, isFilha }: {
   inicial: MetaFormState; responsaveis: ResponsavelItem[];
@@ -195,11 +195,18 @@ function MetaForm({ inicial, responsaveis, onSalvar, onCancelar, salvando, label
   salvando: boolean; labelSalvar: string; isFilha?: boolean;
 }) {
   const [f, setF] = useState<MetaFormState>(inicial);
-  const [erroResp, setErroResp] = useState(false);
+  const [erroResp,  setErroResp]  = useState(false);
+  const [erroDatas, setErroDatas] = useState<string | null>(null);
   const set = <K extends keyof MetaFormState>(k: K, v: MetaFormState[K]) => setF(p => ({ ...p, [k]: v }));
 
   const handleSalvar = () => {
     if (isFilha && !f.respId) { setErroResp(true); return; }
+    if (isFilha) {
+      if (!f.dataInicio) { setErroDatas('Informe a data de início.'); return; }
+      if (!f.dataFim)    { setErroDatas('Informe a data de fim.'); return; }
+      if (f.dataFim < f.dataInicio) { setErroDatas('Data de fim deve ser igual ou posterior ao início.'); return; }
+    }
+    setErroDatas(null);
     onSalvar(f);
   };
 
@@ -207,17 +214,36 @@ function MetaForm({ inicial, responsaveis, onSalvar, onCancelar, salvando, label
     <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
       <input className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
         placeholder="Descrição *" value={f.descricao} onChange={e => set('descricao', e.target.value)} autoFocus />
-      <div className={`grid gap-2 ${f.tipo === 'atingivel' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-        <select className="text-xs border border-gray-300 rounded px-2 py-1.5"
-          value={f.tipo} onChange={e => { set('tipo', e.target.value); set('metaUnidade', ''); }}>
-          <option value="atingivel">Atingível</option>
-          <option value="recorrente">Recorrente</option>
-        </select>
-        {f.tipo === 'atingivel' && (
-          <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
-            value={f.metaUnidade} onChange={e => set('metaUnidade', e.target.value)} />
-        )}
-      </div>
+
+      {isFilha ? (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] text-gray-500">Início *</label>
+            <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+              value={f.dataInicio} onChange={e => { set('dataInicio', e.target.value); setErroDatas(null); }} />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] text-gray-500">Fim *</label>
+            <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
+              value={f.dataFim} onChange={e => { set('dataFim', e.target.value); setErroDatas(null); }} />
+          </div>
+        </div>
+      ) : (
+        <div className={`grid gap-2 ${f.tipo === 'atingivel' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <select className="text-xs border border-gray-300 rounded px-2 py-1.5"
+            value={f.tipo} onChange={e => { set('tipo', e.target.value); set('metaUnidade', ''); }}>
+            <option value="atingivel">Atingível</option>
+            <option value="recorrente">Recorrente</option>
+          </select>
+          {f.tipo === 'atingivel' && (
+            <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5"
+              value={f.metaUnidade} onChange={e => set('metaUnidade', e.target.value)} />
+          )}
+        </div>
+      )}
+
+      {erroDatas && <p className="text-[10px] text-red-500">{erroDatas}</p>}
+
       {responsaveis.length > 0 && (
         <div>
           <select
@@ -799,7 +825,7 @@ function MetaCard({
   onConcluirFilha: (filhaId: string) => Promise<void>;
   onReabrirFilha:  (filhaId: string) => Promise<void>;
   onArquivarFilha: (filhaId: string) => Promise<void>;
-  onAddSubMeta: (metaPaiId: string, desc: string, tipo: string, respId: string | null) => Promise<void>;
+  onAddSubMeta: (metaPaiId: string, desc: string, tipo: string, respId: string | null, dataInicio: string, dataFim: string) => Promise<void>;
   onConcluirMeta: (metaId: string) => Promise<void>;
   onReabrirMeta: (metaId: string) => Promise<void>;
   onArquivarMeta: (metaId: string) => Promise<void>;
@@ -838,7 +864,7 @@ function MetaCard({
 
   const handleSalvarFilha = async (f: MetaFormState) => {
     setSalvandoFilha(true);
-    try { await onAddSubMeta(meta.id, f.descricao, f.tipo, f.respId || null); setAdicionandoFilha(false); }
+    try { await onAddSubMeta(meta.id, f.descricao, 'atingivel - projeto', f.respId || null, f.dataInicio, f.dataFim); setAdicionandoFilha(false); }
     finally { setSalvandoFilha(false); }
   };
 
@@ -1083,7 +1109,7 @@ function MetaCard({
         {/* Ações do rodapé — desabilitadas quando bloqueado por atraso */}
         {!precisaJustificar && (adicionandoFilha ? (
           <MetaForm
-            inicial={{ descricao: '', tipo: 'atingivel', respId: '', metaUnidade: '' }}
+            inicial={{ descricao: '', tipo: 'atingivel - projeto', respId: '', metaUnidade: '', dataInicio: '', dataFim: '' }}
             responsaveis={responsaveis} onSalvar={handleSalvarFilha}
             onCancelar={() => setAdicionandoFilha(false)} salvando={salvandoFilha}
             labelSalvar="Salvar meta filha" isFilha />
@@ -1241,6 +1267,61 @@ export function MetasIndicadoresBloco() {
   const [concluidasAberta,  setConcluidasAberta]   = useState(false);
   const [allBlockers,       setAllBlockers]        = useState<BlockerRow[]>([]);
   const [toastMsg,          setToastMsg]           = useState<string | null>(null);
+
+  // ── Sinergia: metas filhas de outras áreas onde o usuário é responsável ───
+  type SinergiaFilha = {
+    id: string;
+    descricao: string;
+    status: string;
+    data_fim: string | null;
+    area_nome: string;
+    mae_descricao: string;
+  };
+  const [sinergiaFilhas, setSinergiaFilhas] = useState<SinergiaFilha[]>([]);
+
+  useEffect(() => {
+    const uid = effectiveProfileId ?? currentUserId;
+    if (!uid || !areaId || !mes) return;
+    void (async () => {
+      try {
+        // Filhas em outras áreas onde o usuário é profile_id
+        const { data: sinData } = await supabase
+          .from('objetivos')
+          .select('id, descricao, status, data_fim, area_id, objetivo_pai_id')
+          .eq('profile_id', uid)
+          .neq('area_id', areaId)
+          .not('objetivo_pai_id', 'is', null)
+          .in('status', ['ativo', 'concluido'])
+          .eq('mes', mes);
+
+        if (!sinData || sinData.length === 0) { setSinergiaFilhas([]); return; }
+
+        type SinRow = { id: string; descricao: string; status: string; data_fim: string | null; area_id: string; objetivo_pai_id: string | null };
+        const rows = sinData as SinRow[];
+
+        // Busca nomes de áreas
+        const areaIds = [...new Set(rows.map(r => r.area_id))];
+        const { data: areasData } = await supabase.from('areas').select('id, nome').in('id', areaIds);
+        const areaNomeMap = new Map(((areasData ?? []) as { id: string; nome: string }[]).map(a => [a.id, a.nome]));
+
+        // Busca descrição da meta mãe
+        const maeIds = [...new Set(rows.map(r => r.objetivo_pai_id).filter((id): id is string => !!id))];
+        const { data: maeData } = await supabase.from('objetivos').select('id, descricao').in('id', maeIds);
+        const maeDescMap = new Map(((maeData ?? []) as { id: string; descricao: string }[]).map(m => [m.id, m.descricao]));
+
+        setSinergiaFilhas(rows.map(r => ({
+          id: r.id,
+          descricao: r.descricao,
+          status: r.status,
+          data_fim: r.data_fim,
+          area_nome: areaNomeMap.get(r.area_id) ?? r.area_id,
+          mae_descricao: r.objetivo_pai_id ? (maeDescMap.get(r.objetivo_pai_id) ?? '') : '',
+        })));
+      } catch {
+        // Falha silenciosa — não bloqueia o restante da UI
+      }
+    })();
+  }, [supabase, effectiveProfileId, currentUserId, areaId, mes]);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -1427,10 +1508,20 @@ export function MetasIndicadoresBloco() {
     recarregar();
   }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleAddSubMeta = useCallback(async (metaPaiId: string, descricao: string, tipo: string, profileId: string | null) => {
+  const handleAddSubMeta = useCallback(async (metaPaiId: string, descricao: string, tipo: string, profileId: string | null, dataInicio: string, dataFim: string) => {
     if (!areaId) return;
     const { data: ins, error: e } = await supabase.from('objetivos')
-      .insert({ area_id: areaId, descricao, tipo, objetivo_pai_id: metaPaiId, status: 'ativo', profile_id: profileId, mes })
+      .insert({
+        area_id: areaId,
+        descricao,
+        tipo,
+        objetivo_pai_id: metaPaiId,
+        status: 'ativo',
+        profile_id: profileId,
+        mes,
+        data_inicio: dataInicio || null,
+        data_fim: dataFim || null,
+      })
       .select('id').single();
     if (e) { console.error('[AddSubMeta]', e); return; }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT', descricao: `Nova meta filha: ${descricao}` });
@@ -1795,6 +1886,39 @@ export function MetasIndicadoresBloco() {
                       })}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ── 4. SINERGIA EM OUTRAS ÁREAS ── compacta, sempre no final ── */}
+              {sinergiaFilhas.length > 0 && (
+                <div className="mt-4 border-t border-indigo-100 pt-3">
+                  <h3 className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
+                    🔀 Sinergia em outras áreas ({sinergiaFilhas.length})
+                  </h3>
+                  <div className="flex flex-col gap-2">
+                    {sinergiaFilhas.map(s => (
+                      <div key={s.id} className="flex items-start gap-2 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-100">
+                        <span className={`flex-shrink-0 font-bold text-sm mt-px ${s.status === 'concluido' ? 'text-green-500' : 'text-indigo-400'}`}>
+                          {s.status === 'concluido' ? '✓' : '·'}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          {s.mae_descricao && (
+                            <p className="text-[10px] text-indigo-400 font-medium truncate leading-snug">{s.mae_descricao}</p>
+                          )}
+                          <p className={`text-xs leading-snug ${s.status === 'concluido' ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                            {s.descricao}
+                          </p>
+                          {s.data_fim && (
+                            <p className="text-[10px] text-gray-400 mt-0.5">Prazo: {formatarDataCurta(s.data_fim)}</p>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0"
+                          style={{ background: 'var(--moni-navy-800)', color: 'var(--moni-text-inverse)' }}>
+                          Sinergia · {s.area_nome}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
