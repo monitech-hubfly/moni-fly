@@ -1419,12 +1419,12 @@ export function MetasIndicadoresBloco() {
   const handleAddSubMeta = useCallback(async (metaPaiId: string, descricao: string, tipo: string, profileId: string | null) => {
     if (!areaId) return;
     const { data: ins, error: e } = await supabase.from('objetivos')
-      .insert({ area_id: areaId, descricao, tipo, objetivo_pai_id: metaPaiId, status: 'ativo', profile_id: profileId })
+      .insert({ area_id: areaId, descricao, tipo, objetivo_pai_id: metaPaiId, status: 'ativo', profile_id: profileId, mes })
       .select('id').single();
     if (e) { console.error('[AddSubMeta]', e); return; }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT', descricao: `Nova meta filha: ${descricao}` });
     recarregar();
-  }, [supabase, areaId, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [supabase, areaId, mes, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Lançar indicador ────────────────────────────────────────────────────────
   const handleLancarIndicador = useCallback(async (indId: string, valor: string, semana: number): Promise<boolean> => {
