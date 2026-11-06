@@ -44,12 +44,12 @@ export type GrupoRelatorio = {
   areas: AreaRelatorio[];
 };
 
-// ── Thresholds — idênticos ao sistema (MeuCarometroCard, fechamento-bone-day) ─
+// ── Thresholds — idênticos ao MeuCarometroCard (alinhados em nov/2026) ────────
 function calcularGrupo(indScore: number | null): GrupoId | 'sem-dados' {
   if (indScore === null) return 'sem-dados';
-  if (indScore >= 75) return 'verde-escuro';
-  if (indScore >= 60) return 'verde-claro';
-  if (indScore >= 30) return 'amarelo';
+  if (indScore >= 90) return 'verde-escuro';
+  if (indScore >= 70) return 'verde-claro';
+  if (indScore > 50) return 'amarelo';
   return 'vermelho';
 }
 
@@ -94,25 +94,25 @@ function ordenarPorIndicador(lista: AreaRelatorio[]): AreaRelatorio[] {
 export const GRUPOS_CONFIG: { id: GrupoId; label: string; corFundo: string; corTexto: string }[] = [
   {
     id: 'verde-escuro',
-    label: 'Verde Escuro — Indicadores ≥ 75%',
+    label: 'Verde Escuro — Indicadores ≥ 90%',
     corFundo: 'var(--moni-green-800)',
     corTexto: 'var(--moni-text-inverse)',
   },
   {
     id: 'verde-claro',
-    label: 'Verde Claro — Indicadores ≥ 60%',
+    label: 'Verde Claro — Indicadores ≥ 70%',
     corFundo: 'var(--moni-green-400)',
     corTexto: 'var(--moni-text-inverse)',
   },
   {
     id: 'amarelo',
-    label: 'Amarelo — Indicadores ≥ 30%',
+    label: 'Amarelo — Indicadores > 50%',
     corFundo: 'var(--moni-gold-400)',
     corTexto: 'var(--moni-earth-800)',
   },
   {
     id: 'vermelho',
-    label: 'Vermelho — Indicadores < 30%',
+    label: 'Vermelho — Indicadores ≤ 50%',
     corFundo: 'var(--moni-status-overdue-text)',
     corTexto: 'var(--moni-text-inverse)',
   },

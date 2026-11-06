@@ -2776,7 +2776,7 @@ function FormNovaMeta({ areaId, responsaveis, onSalvo, mes }: {
 // ── Página principal ──────────────────────────────────────────────────────────
 function PreBoneDayPageContent() {
   const supabase = useMemo(() => createClient(), []);
-  const { effectiveProfileId } = useEffectiveUser();
+  const { effectiveProfileId, areaId: homeAreaId } = useEffectiveUser();
 
   // Select de área independente (persistido em localStorage)
   const [areas,          setAreas]          = useState<{ id: string; nome: string }[]>([]);
@@ -3300,6 +3300,11 @@ function PreBoneDayPageContent() {
                 objetivoResponsaveis.some(or => or.objetivo_id === m.id && or.profile_id === id)
               );
             });
+            // Sinergia: o usuário está visualizando uma área diferente da sua área principal
+            const isSinergia = Boolean(homeAreaId && selectedAreaId && homeAreaId !== selectedAreaId);
+            const areaSinergiaLabel = isSinergia
+              ? (areas.find(a => a.id === selectedAreaId)?.nome ?? null)
+              : null;
             return (
               <section className="rounded-xl border border-indigo-200 bg-indigo-50 shadow-sm overflow-hidden">
                 <button type="button"
@@ -3310,6 +3315,12 @@ function PreBoneDayPageContent() {
                     <span className="text-xs text-indigo-700 bg-indigo-200 rounded-full px-2 py-0.5">
                       {minhasMetas.length}
                     </span>
+                    {isSinergia && areaSinergiaLabel && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                        style={{ background: 'var(--moni-navy-800)', color: 'var(--moni-text-inverse)', borderColor: 'var(--moni-navy-800)' }}>
+                        🔀 Sinergia · {areaSinergiaLabel}
+                      </span>
+                    )}
                   </div>
                   <span className="text-indigo-600 text-xs">{blocoMinhasOpen ? '▲' : '▼'}</span>
                 </button>

@@ -14,29 +14,29 @@ import {
 } from '@/hooks/useFechamentoBoneDayPorIndicadores';
 import type { AreaRelatorio, MetaSimples, BlockerSimples } from '@/hooks/useFechamentoBoneDayPorIndicadores';
 
-// ── Imagem da carinha por score — thresholds idênticos ao sistema ─────────────
+// ── Imagem da carinha por score — thresholds idênticos ao MeuCarometroCard ────
 function getCarinhaImg(score: number | null): string {
   if (score === null) return '/carometro/carometro-emoji-branco.png';
-  if (score >= 75) return '/carometro/carometro-emoji-verde-escuro.png';
-  if (score >= 60) return '/carometro/carometro-emoji-verde-claro.png';
-  if (score >= 30) return '/carometro/carometro-emoji-amarelo.png';
+  if (score >= 90) return '/carometro/carometro-emoji-verde-escuro.png';
+  if (score >= 70) return '/carometro/carometro-emoji-verde-claro.png';
+  if (score > 50) return '/carometro/carometro-emoji-amarelo.png';
   return '/carometro/carometro-emoji-vermelho.png';
 }
 
 function getScoreColor(score: number | null): string {
   if (score === null) return 'var(--moni-text-tertiary)';
-  if (score >= 75) return 'var(--moni-green-600)';
-  if (score >= 60) return 'var(--moni-green-400)';
-  if (score >= 30) return 'var(--moni-gold-600)';
+  if (score >= 90) return 'var(--moni-green-600)';
+  if (score >= 70) return 'var(--moni-green-400)';
+  if (score > 50) return 'var(--moni-gold-600)';
   return 'var(--moni-status-overdue-text)';
 }
 
 // ── Cartões de resumo no topo ─────────────────────────────────────────────────
 const GRUPOS_RESUMO = [
-  { id: 'verde-escuro', label: 'Verde Escuro',  sublabel: 'Indicadores ≥ 75%', corFundo: 'var(--moni-green-800)', corTexto: 'var(--moni-text-inverse)' },
-  { id: 'verde-claro',  label: 'Verde Claro',   sublabel: '60% – 74%',         corFundo: 'var(--moni-green-400)', corTexto: 'var(--moni-text-inverse)' },
-  { id: 'amarelo',      label: 'Amarelo',        sublabel: '30% – 59%',         corFundo: 'var(--moni-gold-400)',  corTexto: 'var(--moni-earth-800)' },
-  { id: 'vermelho',     label: 'Vermelho',       sublabel: 'Indicadores < 30%', corFundo: 'var(--moni-status-overdue-text)', corTexto: 'var(--moni-text-inverse)' },
+  { id: 'verde-escuro', label: 'Verde Escuro',  sublabel: 'Indicadores ≥ 90%', corFundo: 'var(--moni-green-800)', corTexto: 'var(--moni-text-inverse)' },
+  { id: 'verde-claro',  label: 'Verde Claro',   sublabel: '70% – 89%',         corFundo: 'var(--moni-green-400)', corTexto: 'var(--moni-text-inverse)' },
+  { id: 'amarelo',      label: 'Amarelo',        sublabel: '51% – 69%',         corFundo: 'var(--moni-gold-400)',  corTexto: 'var(--moni-earth-800)' },
+  { id: 'vermelho',     label: 'Vermelho',       sublabel: 'Indicadores ≤ 50%', corFundo: 'var(--moni-status-overdue-text)', corTexto: 'var(--moni-text-inverse)' },
 ] as const;
 
 function CartoesResumo({ grupos }: { grupos: { id: string; areas: AreaRelatorio[] }[] }) {
