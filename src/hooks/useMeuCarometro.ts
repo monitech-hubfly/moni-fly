@@ -572,54 +572,75 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             const anoAtualInd  = hoje.getFullYear();
             const mesNumInd    = hoje.getMonth() + 1; // 1-indexed
 
-            const scores: number[]     = [];
-            const porIndicador: IndicadorItem[] = [];
+            // Deadline máximo do ciclo — nenhuma meta pode ultrapassar a última sexta útil
+            const deadlineMaxCiclo = ultimaSextaUtilDoMes(anoAtualInd, mesNumInd);
+
+            const scoresTracking: number[] = []; // bolinha esquerda: 100% enquanto no prazo
+            const scoresPrevia:   number[] = []; // bolinha direita:  0% para toda aberta
+            const porIndicadorTracking: IndicadorItem[] = [];
+            const porIndicadorPrevia:   IndicadorItem[] = [];
 
             for (const meta of metas) {
               const resp = objRespMap.get(meta.id);
               const tipo = (meta.tipo ?? '').toLowerCase();
 
-              // Calcular deadline conforme tipo
+              // Calcular deadline conforme tipo, sempre capado na última sexta útil do ciclo
               let deadline: Date;
               if (tipo === 'recorrente') {
-                deadline = ultimaSextaUtilDoMes(anoAtualInd, mesNumInd);
+                deadline = deadlineMaxCiclo;
               } else {
-                // Atingível-Projeto: usa data_fim da meta
+                // Atingível-Projeto: usa data_fim da meta, mas nunca além do Boné Day
                 if (!meta.data_fim) {
-                  // Sem prazo definido → 100% (ainda não penaliza)
-                  scores.push(100);
-                  porIndicador.push({ nome: meta.descricao, valor: 0, meta: 0, percentual: 100 });
+                  // Sem prazo definido → 100% tracking / 0% prévia (aberta)
+                  scoresTracking.push(100);
+                  scoresPrevia.push(0);
+                  const item = { nome: meta.descricao, valor: 0, meta: 0, percentual: 100 };
+                  porIndicadorTracking.push(item);
+                  porIndicadorPrevia.push({ ...item, percentual: 0 });
                   continue;
                 }
-                deadline = new Date(meta.data_fim + 'T23:59:59');
+                const dataFimDate = new Date(meta.data_fim + 'T23:59:59');
+                // Trava: deadline não pode ultrapassar o último dia útil do ciclo
+                deadline = dataFimDate > deadlineMaxCiclo ? deadlineMaxCiclo : dataFimDate;
               }
 
               // Fallback: cobre dados históricos onde apenas objetivos.status foi atualizado
               const isConcluido = resp?.concluido === true || meta.status === 'concluido';
               const concluidoEm = resp?.concluido_em ?? null;
 
-              let score: number;
+              let scoreTracking: number;
+              let scorePrevia: number;
+
               if (isConcluido && concluidoEm) {
-                // Meta concluída: aplica tier por atraso
-                score = tierPorAtraso(concluidoEm, deadline);
+                // Meta concluída: mesmo tier para ambos (entrega real avaliada)
+                scoreTracking = tierPorAtraso(concluidoEm, deadline);
+                scorePrevia   = scoreTracking;
               } else {
-                // Meta ainda aberta: penaliza só se passou do prazo
-                score = hoje <= deadline ? 100 : 0;
+                // Meta aberta:
+                // tracking = 100% se ainda no prazo, 0% se vencida
+                scoreTracking = hoje <= deadline ? 100 : 0;
+                // prévia = sempre 0% (não entregou = não pontua no Boné Day)
+                scorePrevia = 0;
               }
 
-              scores.push(score);
-              porIndicador.push({ nome: meta.descricao, valor: 0, meta: 0, percentual: score });
+              scoresTracking.push(scoreTracking);
+              scoresPrevia.push(scorePrevia);
+              porIndicadorTracking.push({ nome: meta.descricao, valor: 0, meta: 0, percentual: scoreTracking });
+              porIndicadorPrevia.push({ nome: meta.descricao, valor: 0, meta: 0, percentual: scorePrevia });
             }
 
-            const media = scores.length > 0
-              ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-              : 0;
+            const avg = (arr: number[]) => arr.length > 0
+              ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+
+            const mediaTracking = avg(scoresTracking);
+            const mediaPrevia   = avg(scoresPrevia);
 
             // Sem distinção semanal neste modelo — anterior = atual
-            indicadoresAtual    = { porIndicador, media };
-            indicadoresAnterior = { porIndicador, media };
-            indicadoresPreviaLocal = { porIndicador, media };
-            setIndicadoresPrevia({ porIndicador, media });
+            indicadoresAtual    = { porIndicador: porIndicadorTracking, media: mediaTracking };
+            indicadoresAnterior = { porIndicador: porIndicadorTracking, media: mediaTracking };
+            // Prévia (bolinha direita): open metas = 0%
+            indicadoresPreviaLocal = { porIndicador: porIndicadorPrevia, media: mediaPrevia };
+            setIndicadoresPrevia({ porIndicador: porIndicadorPrevia, media: mediaPrevia });
           }
         }
       }
@@ -708,12 +729,18 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const cicloInicio = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`;
       const { data: cicloSnaps } = await supabase
         .from('carometro_status_diario')
-        .select('data, sirene, engajamento, indicadores')
+        .select('data, sirene, engajamento, indicadores, indicadores_previa')
         .eq('profile_id', effectiveProfileId)
         .gte('data', cicloInicio)
         .lte('data', hojeStr);
 
-      type SnapCicloRow = { data: string; sirene: unknown; engajamento: unknown; indicadores: unknown };
+      type SnapCicloRow = {
+        data: string;
+        sirene: unknown;
+        engajamento: unknown;
+        indicadores: unknown;
+        indicadores_previa: unknown;
+      };
       const cicloRows = (cicloSnaps ?? []) as SnapCicloRow[];
 
       // hasTodaySnap mantido para compatibilidade (não mais usado no cálculo do ciclo)
@@ -723,6 +750,8 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       function mediaScoresCiclo(
         key: 'sirene' | 'engajamento' | 'indicadores',
         currentWeekScore: number | null,
+        // Para indicadores: lê da coluna indicadores_previa (score real "se fechasse hoje")
+        altKey?: 'indicadores_previa',
       ): number | null {
         // Agrupa dias históricos por semana ISO (exclui hoje — usa live currentWeekScore).
         // A bolinha direita = média das SEMANAS, não dos dias individuais.
@@ -732,7 +761,10 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           if (r.data === hojeStr) continue;
           const weekNum = isoWeek(new Date(r.data + 'T12:00:00'));
           if (weekNum === semanaAtualISO) continue; // semana atual via currentWeekScore
-          const blob = r[key] as Record<string, unknown> | null;
+          // Para indicadores: prefere indicadores_previa; fallback em indicadores (dados antigos)
+          const blob = altKey
+            ? ((r[altKey] as Record<string, unknown> | null) ?? (r[key] as Record<string, unknown> | null))
+            : (r[key] as Record<string, unknown> | null);
           const v = typeof blob?.score === 'number'
             ? (blob.score as number)
             : (typeof blob?.media === 'number' ? (blob.media as number) : null);
@@ -751,11 +783,13 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         return Math.round(weeklyAvgs.reduce((a, b) => a + b, 0) / weeklyAvgs.length);
       }
 
-      const indScore = semAnteriorNaMes ? indicadoresAnterior.media : indicadoresAtual.media;
+      // indScore para bolinha direita (Boné Day) usa score PRÉVIA (open metas = 0%)
+      const indPreviaScore = indicadoresPreviaLocal?.media ?? null;
       const cicloScores: CicloScores = {
         sirene:      mediaScoresCiclo('sirene',      sireneWeeklyScore),
         engajamento: mediaScoresCiclo('engajamento', engWeeklyScore),
-        indicadores: mediaScoresCiclo('indicadores', indScore),
+        // Indicadores: lê histórico de indicadores_previa + contribuição da semana atual
+        indicadores: mediaScoresCiclo('indicadores', indPreviaScore, 'indicadores_previa'),
       };
 
       // Bolinhas esquerdas: score SEMANAL (média Mon–hoje), não só o valor de hoje.

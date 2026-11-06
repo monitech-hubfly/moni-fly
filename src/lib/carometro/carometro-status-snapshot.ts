@@ -244,7 +244,8 @@ export async function gerarSnapshotCarometro(
   };
 
   // ── Indicadores v3: scoring baseado na conclusão da Meta Mãe ─────────────
-  let indicadoresData: { media: number; porIndicador: IndicadorDetalhe[] } = { media: 0, porIndicador: [] };
+  let indicadoresData:      { media: number; porIndicador: IndicadorDetalhe[] } = { media: 0, porIndicador: [] };
+  let indicadoresPreviaData: { media: number; porIndicador: IndicadorDetalhe[] } = { media: 0, porIndicador: [] };
 
   {
     const mesAtualInd = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
@@ -276,8 +277,14 @@ export async function gerarSnapshotCarometro(
 
       if (metas.length > 0) {
         const objRespMap = new Map(objRespRows.map(r => [r.objetivo_id, r]));
-        const scores: number[] = [];
-        const porIndicador: IndicadorDetalhe[] = [];
+
+        // Deadline máximo do ciclo — nenhuma meta pode ultrapassar a última sexta útil
+        const deadlineMaxCiclo = ultimaSextaUtilDoMes(anoAtualInd, mesNumInd);
+
+        const scoresTracking: number[] = []; // tracking: 100% enquanto no prazo
+        const scoresPrevia:   number[] = []; // prévia:   0% para toda aberta
+        const porIndicadorTracking: IndicadorDetalhe[] = [];
+        const porIndicadorPrevia:   IndicadorDetalhe[] = [];
 
         for (const meta of metas) {
           const resp = objRespMap.get(meta.id);
@@ -286,54 +293,67 @@ export async function gerarSnapshotCarometro(
           let deadline: Date;
           let deadlineStr: string;
           if (tipo === 'recorrente') {
-            deadline    = ultimaSextaUtilDoMes(anoAtualInd, mesNumInd);
+            deadline    = deadlineMaxCiclo;
             deadlineStr = deadline.toISOString().slice(0, 10);
           } else {
             if (!meta.data_fim) {
-              scores.push(100);
-              porIndicador.push({
+              // Sem prazo definido → 100% tracking / 0% prévia (aberta)
+              scoresTracking.push(100);
+              scoresPrevia.push(0);
+              const baseItem: IndicadorDetalhe = {
                 id: meta.id, nome: meta.descricao, tipo,
                 deadline_calculada: null, status: meta.status,
                 isConcluido: false, concluido_em: null,
                 dias_atraso: null, tier: 'sem_prazo', percentual: 100,
-              });
+              };
+              porIndicadorTracking.push(baseItem);
+              porIndicadorPrevia.push({ ...baseItem, percentual: 0 });
               continue;
             }
-            deadline    = new Date(meta.data_fim + 'T23:59:59');
-            deadlineStr = meta.data_fim;
+            const dataFimDate = new Date(meta.data_fim + 'T23:59:59');
+            // Trava: deadline não pode ultrapassar o último dia útil do ciclo
+            deadline    = dataFimDate > deadlineMaxCiclo ? deadlineMaxCiclo : dataFimDate;
+            deadlineStr = deadline.toISOString().slice(0, 10);
           }
 
           const isConcluido = resp?.concluido === true || meta.status === 'concluido';
           const concluidoEm = resp?.concluido_em ?? null;
 
-          let score: number;
+          let scoreTracking: number;
+          let scorePrevia: number;
           let tier: string;
           let da: number | null = null;
 
           if (isConcluido && concluidoEm) {
-            score = tierPorAtraso(concluidoEm, deadline);
+            scoreTracking = tierPorAtraso(concluidoEm, deadline);
+            scorePrevia   = scoreTracking; // concluída: mesmo valor nos dois
             da = Math.floor(
               (new Date(concluidoEm.slice(0, 10) + 'T00:00:00').getTime() - deadline.getTime()) / 86_400_000
             );
             tier = da <= 0 ? 'no_prazo' : da <= 6 ? 'T1' : da <= 14 ? 'T2' : 'T3';
           } else {
-            score = hoje <= deadline ? 100 : 0;
-            tier  = hoje <= deadline ? 'em_aberto_no_prazo' : 'em_aberto_vencido';
+            scoreTracking = hoje <= deadline ? 100 : 0;
+            scorePrevia   = 0; // aberta = sempre 0 na prévia
+            tier = hoje <= deadline ? 'em_aberto_no_prazo' : 'em_aberto_vencido';
           }
 
-          scores.push(score);
-          porIndicador.push({
+          scoresTracking.push(scoreTracking);
+          scoresPrevia.push(scorePrevia);
+          const itemTracking: IndicadorDetalhe = {
             id: meta.id, nome: meta.descricao, tipo,
             deadline_calculada: deadlineStr, status: meta.status,
             isConcluido, concluido_em: concluidoEm,
-            dias_atraso: da, tier, percentual: score,
-          });
+            dias_atraso: da, tier, percentual: scoreTracking,
+          };
+          porIndicadorTracking.push(itemTracking);
+          porIndicadorPrevia.push({ ...itemTracking, percentual: scorePrevia });
         }
 
-        const media = scores.length > 0
-          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-          : 0;
-        indicadoresData = { media, porIndicador };
+        const avg = (arr: number[]) => arr.length > 0
+          ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+
+        indicadoresData      = { media: avg(scoresTracking), porIndicador: porIndicadorTracking };
+        indicadoresPreviaData = { media: avg(scoresPrevia),   porIndicador: porIndicadorPrevia };
       }
     }
   }
@@ -346,7 +366,8 @@ export async function gerarSnapshotCarometro(
       data:       hojeStr,
       sirene:     sireneData,
       engajamento: engajamentoData,
-      indicadores: indicadoresData,
+      indicadores:         indicadoresData,
+      indicadores_previa:  indicadoresPreviaData,
     },
     { onConflict: 'area_id,profile_id,data' },
   );
