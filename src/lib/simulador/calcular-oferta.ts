@@ -566,23 +566,15 @@ export function calcularOferta(
     n0(entrada_fluxo) - comissao_amount - taxa_plataforma_entrada,
   );
   const saldo_lote_antes_mes0 = Math.max(0, valor_lote - ja_pago_loteadora);
-  const loteQuitadoMes0 = saldo_lote_antes_mes0 <= 0;
   /**
-   * Mês 0 com lote quitado: pagamento_loteadora = min(saldo, entrada) = 0.
-   * O que seria entrada do lote (excedente sobre a sugerida) vai para reserva
-   * e reduz o CP, como as mensais da Fase 1. Comissão permanece como saída.
-   * Lote com saldo: Mês 0 inalterado.
+   * Mês 0: comissão e plataforma já saíram em entrada_do_lote_fluxo.
+   * A loteadora recebe no máximo o saldo do lote. O que passar vai para o caixa
+   * e quita o lote antes de reduzir a parcela única. Vale no sugerido e no confirmado.
    */
-  const pag_lote_mes0 = loteQuitadoMes0
-    ? Math.min(saldo_lote_antes_mes0, n0(entrada_fluxo))
-    : entrada_do_lote_fluxo;
-  const reserva_mes0 = loteQuitadoMes0 ? entrada_do_lote_fluxo : 0;
-  const lot_balance_fluxo_conf = loteQuitadoMes0
-    ? 0
-    : Math.max(0, valor_lote - ja_pago_loteadora - entrada_do_lote_fluxo);
-  const saidas_mes0 = loteQuitadoMes0
-    ? Math.max(0, n0(entrada_fluxo) - reserva_mes0)
-    : n0(entrada_fluxo);
+  const pag_lote_mes0 = Math.min(saldo_lote_antes_mes0, entrada_do_lote_fluxo);
+  const reserva_mes0 = Math.max(0, entrada_do_lote_fluxo - pag_lote_mes0);
+  const lot_balance_fluxo_conf = Math.max(0, saldo_lote_antes_mes0 - pag_lote_mes0);
+  const saidas_mes0 = Math.max(0, n0(entrada_fluxo) - reserva_mes0);
   const fase1Fluxo = simularFase1Lote({
     prazo_meses,
     parcela_mensal: mensal_fluxo,
