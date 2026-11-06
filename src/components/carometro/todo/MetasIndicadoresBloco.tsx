@@ -1336,11 +1336,21 @@ export function MetasIndicadoresBloco() {
       .update({ concluido: true, concluido_em: agora })
       .eq('objetivo_id', metaId).eq('profile_id', uid);
     if (e1) { console.error('[ConcluirMeta OR]', e1); return; }
-    // concluido_em em objetivos é integer (semana ISO) — não sobrescrever
-    const { error: e2 } = await supabase.from('objetivos')
-      .update({ status: 'concluido' })
-      .eq('id', metaId);
-    if (e2) { console.error('[ConcluirMeta Global]', e2); return; }
+
+    // Só marca objetivos.status = 'concluido' quando TODOS os responsáveis concluíram.
+    // Isso evita que a conclusão de um usuário remova a meta da lista de outros.
+    const { data: todosOR, error: orErr } = await (supabase.from('objetivo_responsaveis') as any)
+      .select('profile_id, concluido')
+      .eq('objetivo_id', metaId);
+    if (orErr) { console.error('[ConcluirMeta OR check]', orErr); }
+    const todosConcluiduiram = Array.isArray(todosOR) && todosOR.length > 0 && todosOR.every((r: { concluido: boolean }) => r.concluido);
+    if (todosConcluiduiram) {
+      const { error: e2 } = await supabase.from('objetivos')
+        .update({ status: 'concluido' })
+        .eq('id', metaId);
+      if (e2) { console.error('[ConcluirMeta Global]', e2); return; }
+    }
+
     // Auto-fill 100% nos indicadores ativos da meta ao concluir
     const semana = isoWeek(new Date());
     const anoAtual = new Date().getFullYear();
