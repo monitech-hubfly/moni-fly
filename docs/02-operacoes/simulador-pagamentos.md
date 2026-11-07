@@ -235,7 +235,26 @@ Esse saldo vive **fora** do loop e é consumido mês a mês. Enquanto cobre o `c
 
 ---
 
-## 11. Relação com outros docs
+## 11. Regras do fluxo (R1–R14)
+
+Valem para o sugerido e para valores confirmados. Qualquer mudança em `calcular-oferta.ts` precisa rodar `npx --yes tsx scripts/testar-motor-simulador.ts` antes do merge.
+
+R1. A soma paga à loteadora (já pago, pré-contrato, mês 0, Fase 1 e mês da parcela única) não passa de valor do lote + juros do lote. Quando o lote termina quitado, a soma é exatamente isso.
+R2. Já pago + pagamento à loteadora no mês 0 cobre a entrada mínima do template. Entrada confirmada abaixo do mínimo continua bloqueada pela trava existente.
+R3. No mês 0 saem, nesta ordem, comissão, a parte da plataforma na entrada e a entrada mínima do lote já descontado o já pago. O que sobrar abate o saldo do lote até quitá-lo, respeitando R1. O restante vai para o caixa. O ITBI não é pago na entrada.
+R4. Na Fase 1 a mensal vai inteira para a loteadora, juros do lote incluídos, até quitar o lote. No mês da quitação a sobra vai para o caixa. Depois de quitado, a mensal vai inteira para o caixa.
+R5. No mês da parcela única, a única quita o saldo do lote e o excedente vai para o caixa. O ITBI é pago nesse mês e não vai para a loteadora. Entradas = única + mensal + ITBI. Pagamento à loteadora = quitação real + mensal, respeitando R1. Saídas = quitação real + mensal + ITBI.
+R6. Enquanto o lote não está quitado, o caixa não recebe nada na Fase 1.
+R7. No método mês a mês, a mensal de cada mês de obra paga o desembolso (construção + gestão + plataforma). Se faltar, usa o caixa; se ainda faltar, saca crédito-ponte.
+R8. Sobra num mês de obra amortiza saldo de crédito-ponte, se houver; senão vai para o caixa.
+R9. Nos meses de obra que não são o último, as saídas são o desembolso do mês mais a amortização de crédito-ponte.
+R10. No último mês de obra, o dinheiro disponível (mensal do mês + caixa) paga, nesta ordem: desembolso do mês, saldo do crédito-ponte com principal e juros, impostos e lucros.
+R11. O buffer de 3 meses incide só sobre o saldo de crédito-ponte que continuar em aberto depois de R10 passo 2. Se esse saldo foi quitado, não há buffer.
+R12. Saldo a financiar é o que ficou sem pagar depois de R10 e R11. Saldo a financiar e caixa final não ficam os dois maiores que zero.
+R13. Caixa final acima de R$ 1,00 ativa a trava de pagamento a maior.
+R14. O método `total` mantém a fórmula de juros atual. R7 a R11 não cabem nele: a mensal não paga o desembolso mês a mês, e o buffer de 3 meses incide sobre todo o crédito-ponte sacado, não sobre o saldo que sobra no fim.
+
+## 12. Relação com outros docs
 
 - Briefing antigo (set/2026, customizador): `BRIEFING-simulador-pagamentos-para-ingrid.md` — ainda útil para IMOB/card, desatualizado no engine (gestão fixo, plataforma na entrada, tipo de juros CP, jornada pública).
 - Funil Loteadores no Kanban: `docs/02-operacoes/motor-01-loteadores.md` (esteira ≠ este simulador).

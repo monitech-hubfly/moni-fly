@@ -69,6 +69,8 @@ export interface LinhaFluxo {
   pagamento_loteadora: number;
   /** Saldo do caixa do cliente ao fim do mês. */
   caixa_cliente: number;
+  /** Parte da mensal que abateu saldo de crédito-ponte neste mês. */
+  amortizacao_cp: number;
 }
 
 export interface AlertaCalculo {
@@ -157,6 +159,7 @@ type DadosFase2 = {
   juros: number;
   saldo: number;
   caixa: number;
+  amortizacao: number;
 };
 
 function montarTaxasPlataformaPorMes(restante: number, N_obra: number): number[] {
@@ -246,6 +249,7 @@ function simularFase2(params: {
         juros: juros_mes,
         saldo: Math.max(0, saldo_cp),
         caixa: caixaPorMes[i] ?? 0,
+        amortizacao: 0,
       });
     }
     return { dados, juros_obra_total: juros_total, caixa_fim: caixa };
@@ -269,13 +273,21 @@ function simularFase2(params: {
     }
     let juros_mes = saldo_cp * taxa;
     saldo_cp = saldo_cp + cp_sacado_mes + juros_mes;
+    let amort = 0;
     if (E === n) {
-      const juros_buffer = Math.max(0, saldo_cp) * ((1 + taxa) ** BUFFER_MESES_CP - 1);
-      juros_mes += juros_buffer;
-      saldo_cp += juros_buffer;
-    }
-    if (sobra > 0) {
-      const amort = Math.min(sobra, Math.max(0, saldo_cp));
+      const disponivel = sobra + caixa;
+      if (disponivel > 0) {
+        amort = Math.min(disponivel, Math.max(0, saldo_cp));
+        saldo_cp -= amort;
+        caixa = disponivel - amort;
+      }
+      if (saldo_cp > 0) {
+        const juros_buffer = saldo_cp * ((1 + taxa) ** BUFFER_MESES_CP - 1);
+        juros_mes += juros_buffer;
+        saldo_cp += juros_buffer;
+      }
+    } else if (sobra > 0) {
+      amort = Math.min(sobra, Math.max(0, saldo_cp));
       saldo_cp -= amort;
       caixa += sobra - amort;
     }
@@ -286,6 +298,7 @@ function simularFase2(params: {
       juros: juros_mes,
       saldo: Math.max(0, saldo_cp),
       caixa,
+      amortizacao: amort,
     });
   }
 
@@ -339,6 +352,7 @@ function simularFase1Lote(params: {
       saidas_total: r2(pagLoteadora),
       pagamento_loteadora: r2(pagLoteadora),
       caixa_cliente: r2(caixa),
+      amortizacao_cp: 0,
     });
   }
 
@@ -643,6 +657,7 @@ export function calcularOferta(
           saidas_total: r2(ja_pago_loteadora),
           pagamento_loteadora: r2(ja_pago_loteadora),
           caixa_cliente: 0,
+          amortizacao_cp: 0,
         }
       : null;
   const fluxo: LinhaFluxo[] = [
@@ -663,6 +678,7 @@ export function calcularOferta(
       saidas_total: r2(saidas_mes0),
       pagamento_loteadora: r2(pag_lote_mes0),
       caixa_cliente: r2(reserva_mes0),
+      amortizacao_cp: 0,
     },
     ...fase1Fluxo.fluxo,
     {
@@ -679,6 +695,7 @@ export function calcularOferta(
       saidas_total: r2(saidas_unica),
       pagamento_loteadora: r2(pag_loteadora_unica),
       caixa_cliente: r2(caixaAntesObra),
+      amortizacao_cp: 0,
     },
   ];
 
@@ -686,7 +703,8 @@ export function calcularOferta(
     const E = idx + 1;
     const ultimo = E === N_obra;
     const saidas_obra = et.saidas;
-    const saidas_total = ultimo ? saidas_obra + liquidacao_entrega : saidas_obra;
+    const amort = et.amortizacao;
+    const saidas_total = ultimo ? saidas_obra + liquidacao_entrega : saidas_obra + amort;
     const caixaLinha = ultimo ? valor_pago_a_maior : et.caixa;
     fluxo.push({
       mes: prazo_meses + E,
@@ -703,6 +721,7 @@ export function calcularOferta(
       saidas_total: r2(saidas_total),
       pagamento_loteadora: 0,
       caixa_cliente: r2(caixaLinha),
+      amortizacao_cp: r2(amort),
     });
   });
 
