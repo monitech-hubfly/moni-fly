@@ -10,6 +10,8 @@ import type {
 import { parseItensCustomizacaoEscolhidos } from '@/lib/empreendimento/customizacao-itens';
 import {
   calcularOferta,
+  jaPagoAcimaDoLote,
+  mensagemJaPagoAcimaDoLote,
   mensagemPagamentoAMaior,
   pagamentoAMaiorBloqueia,
   sugerirParcelaMensal,
@@ -277,6 +279,9 @@ function fracaoPremissa(raw: unknown): number {
 async function recusarPagamentoAMaiorJornada(
   input: GravarSimulacaoInput,
 ): Promise<string | null> {
+  if (jaPagoAcimaDoLote(input.valorJaPago, input.valorLote)) {
+    return mensagemJaPagoAcimaDoLote();
+  }
   const admin = tryCreateAdminClient();
   const db = admin ?? (await createClient());
   const { data, error } = await db

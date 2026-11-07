@@ -375,6 +375,66 @@ function simularFase1Lote(params: {
   };
 }
 
+/** Mês 0, Fase 1 e caixa que entra na obra. O resumo e o fluxo chamam esta função. */
+function montarAntesObra(params: {
+  valor_lote: number;
+  ja_pago_loteadora: number;
+  comissao_amount: number;
+  taxa_plataforma_entrada: number;
+  itbi_amount: number;
+  entrada: number;
+  mensal: number;
+  parcela_unica: number;
+  prazo_meses: number;
+  taxa_parcelado: number;
+}): {
+  pag_lote_mes0: number;
+  reserva_mes0: number;
+  saidas_mes0: number;
+  fase1: DadosFase1;
+  quitacao_real: number;
+  pagMensalUnica: number;
+  pag_loteadora_unica: number;
+  saidas_unica: number;
+  caixaAntesObra: number;
+  falta_parcela_unica: number;
+} {
+  const entrada_do_lote_fluxo = Math.max(
+    0,
+    n0(params.entrada) - params.comissao_amount - params.taxa_plataforma_entrada,
+  );
+  const saldo_lote_antes_mes0 = Math.max(0, params.valor_lote - params.ja_pago_loteadora);
+  const pag_lote_mes0 = Math.min(saldo_lote_antes_mes0, entrada_do_lote_fluxo);
+  const reserva_mes0 = Math.max(0, entrada_do_lote_fluxo - pag_lote_mes0);
+  const fase1 = simularFase1Lote({
+    prazo_meses: params.prazo_meses,
+    parcela_mensal: params.mensal,
+    taxa_parcelado: params.taxa_parcelado,
+    lot_balance_inicio: Math.max(0, saldo_lote_antes_mes0 - pag_lote_mes0),
+    caixa_inicial: reserva_mes0,
+  });
+  const quitacao_real = fase1.min_quitar_lote;
+  const saldoAntesUnica = Math.max(0, fase1.lot_balance_fim * (1 + params.taxa_parcelado));
+  const pagMensalUnica = Math.min(saldoAntesUnica, params.mensal);
+  const pag_loteadora_unica = pagMensalUnica + quitacao_real;
+  const caixaAntesObra =
+    fase1.caixa_fim +
+    Math.max(0, params.mensal - pagMensalUnica) +
+    excedenteParcelaUnica(params.parcela_unica, quitacao_real);
+  return {
+    pag_lote_mes0,
+    reserva_mes0,
+    saidas_mes0: Math.max(0, n0(params.entrada) - reserva_mes0),
+    fase1,
+    quitacao_real,
+    pagMensalUnica,
+    pag_loteadora_unica,
+    saidas_unica: pagMensalUnica + quitacao_real + params.itbi_amount,
+    caixaAntesObra,
+    falta_parcela_unica: Math.max(0, quitacao_real - params.parcela_unica),
+  };
+}
+
 /** Residual para completar 30% do VTE na Fase 1, sem recálculo de VTE/CP. */
 export function calcularParcelaUnicaMinimaDisplay(params: {
   vte: number;
@@ -490,22 +550,8 @@ export function calcularOferta(
    * e conta nos 30% do VTE.
    */
   const amortizado_lote = Math.max(entrada_do_lote_definida, ja_pago_loteadora);
-  const lot_balance_preco = Math.max(0, valor_lote - amortizado_lote);
   const entrada_mes0_fluxo = entrada_do_lote + comissao_amount + taxa_plataforma_entrada;
   const entrada_total = comissao_amount + amortizado_lote + taxa_plataforma_entrada;
-
-  const paramsFase1 = {
-    prazo_meses,
-    parcela_mensal,
-    taxa_parcelado,
-  };
-  const fase1Preco = simularFase1Lote({
-    ...paramsFase1,
-    lot_balance_inicio: lot_balance_preco,
-  });
-  const juros_lote_total = fase1Preco.juros_lote_total;
-  const min_quitar_lote = fase1Preco.min_quitar_lote;
-  const parcela_unica_necessaria = min_quitar_lote;
 
   const desembolhos = getDesembolso(N_obra);
   const taxa_gestao_mes = taxa_gestao_amount / N_obra;
@@ -526,28 +572,52 @@ export function calcularOferta(
   };
 
   /**
-   * Fase 2 e VTE são circulares: impostos entram na base do CP, juros entram no VTP
-   * e o VTP define impostos. Itera até os juros estabilizarem (tol. R$1).
+   * VTE e a parcela única se encontram: a única entra no caixa, o caixa muda os juros,
+   * os juros mudam o VTE. O caixa é o mesmo de montarAntesObra. Para em R$ 1.
    */
+  const antesBase = {
+    valor_lote,
+    ja_pago_loteadora,
+    comissao_amount,
+    taxa_plataforma_entrada,
+    itbi_amount,
+    prazo_meses,
+    taxa_parcelado,
+  };
   let juros_obra_total = 0;
+  let juros_lote_total = 0;
   let VTP = VTP_base;
   let impostos_amount = 0;
   let VTE = VTP_base + comissao_amount;
   let total_pago_ate_aqui = 0;
   let min_atingir_30pct = 0;
-  let parcela_unica = parcela_unica_necessaria;
+  let parcela_unica = montarAntesObra({
+    ...antesBase,
+    entrada: entrada_mes0_fluxo,
+    mensal: parcela_mensal,
+    parcela_unica: 0,
+  }).quitacao_real;
+  let quitacao_sugerida = parcela_unica;
 
   const MAX_ITERS_F2 = 8;
   const TOL_JUROS = 1;
 
   for (let i = 0; i < MAX_ITERS_F2; i += 1) {
     const jurosAnterior = juros_obra_total;
+    const antes = montarAntesObra({
+      ...antesBase,
+      entrada: entrada_mes0_fluxo,
+      mensal: parcela_mensal,
+      parcela_unica,
+    });
+    quitacao_sugerida = antes.quitacao_real;
     const sim = simularFase2({
       ...paramsFase2,
       tipo_juros_cp,
-      caixa_inicial: excedenteParcelaUnica(parcela_unica, min_quitar_lote),
+      caixa_inicial: antes.caixaAntesObra,
     });
     juros_obra_total = sim.juros_obra_total;
+    juros_lote_total = antes.fase1.juros_lote_total;
 
     VTP = VTP_base + juros_obra_total + juros_lote_total;
     impostos_amount = n0(template.percentual_impostos) * VTP;
@@ -555,7 +625,7 @@ export function calcularOferta(
 
     total_pago_ate_aqui = entrada_total + prazo_meses * parcela_mensal;
     min_atingir_30pct = Math.max(0, 0.3 * VTE - total_pago_ate_aqui);
-    parcela_unica = Math.max(min_quitar_lote, min_atingir_30pct);
+    parcela_unica = Math.max(quitacao_sugerida, min_atingir_30pct);
 
     if (i > 0 && Math.abs(juros_obra_total - jurosAnterior) < TOL_JUROS) {
       break;
@@ -565,39 +635,56 @@ export function calcularOferta(
   const vte_avista =
     VTP_base *
     (1 + n0(template.percentual_impostos) + n0(template.percentual_comissao_corretor));
-  const pct_vte_antes_obra = VTE > 0 ? (total_pago_ate_aqui + parcela_unica) / VTE : 0;
 
   const entrada_fluxo = oferta.entrada_confirmada ?? oferta.entrada_total_override ?? entrada_mes0_fluxo;
   const mensal_fluxo = oferta.mensal_confirmada ?? parcela_mensal;
   const parcela_unica_fluxo =
     oferta.parcela_unica_confirmada ?? oferta.parcela_unica_override ?? parcela_unica;
 
-  const temConfirmacaoUnica =
+  const temConfirmacao =
     oferta.entrada_confirmada != null || oferta.mensal_confirmada != null;
 
-  const entrada_do_lote_fluxo = Math.max(
-    0,
-    n0(entrada_fluxo) - comissao_amount - taxa_plataforma_entrada,
-  );
-  const saldo_lote_antes_mes0 = Math.max(0, valor_lote - ja_pago_loteadora);
-  /**
-   * Mês 0: comissão e plataforma já saíram em entrada_do_lote_fluxo.
-   * A loteadora recebe no máximo o saldo do lote. O que passar vai para o caixa
-   * e quita o lote antes de reduzir a parcela única. Vale no sugerido e no confirmado.
-   */
-  const pag_lote_mes0 = Math.min(saldo_lote_antes_mes0, entrada_do_lote_fluxo);
-  const reserva_mes0 = Math.max(0, entrada_do_lote_fluxo - pag_lote_mes0);
-  const lot_balance_fluxo_conf = Math.max(0, saldo_lote_antes_mes0 - pag_lote_mes0);
-  const saidas_mes0 = Math.max(0, n0(entrada_fluxo) - reserva_mes0);
-  const fase1Fluxo = simularFase1Lote({
-    prazo_meses,
-    parcela_mensal: mensal_fluxo,
-    taxa_parcelado,
-    lot_balance_inicio: lot_balance_fluxo_conf,
-    caixa_inicial: reserva_mes0,
+  const antesFluxo = montarAntesObra({
+    ...antesBase,
+    entrada: entrada_fluxo,
+    mensal: mensal_fluxo,
+    parcela_unica: parcela_unica_fluxo,
   });
-  const quitacao_real_fluxo = fase1Fluxo.min_quitar_lote;
-  const parcela_unica_minima_display = temConfirmacaoUnica
+  const {
+    pag_lote_mes0,
+    reserva_mes0,
+    saidas_mes0,
+    fase1: fase1Fluxo,
+    quitacao_real: quitacao_real_fluxo,
+    pag_loteadora_unica,
+    saidas_unica,
+    caixaAntesObra,
+    falta_parcela_unica,
+  } = antesFluxo;
+
+  const fase2Fluxo = simularFase2({
+    ...paramsFase2,
+    tipo_juros_cp,
+    parcela_mensal: mensal_fluxo,
+    caixa_inicial: caixaAntesObra,
+  });
+  juros_obra_total = fase2Fluxo.juros_obra_total;
+  juros_lote_total = fase1Fluxo.juros_lote_total;
+  VTP = VTP_base + juros_obra_total + juros_lote_total;
+  impostos_amount = n0(template.percentual_impostos) * VTP;
+  VTE = VTP + impostos_amount + comissao_amount;
+  const pct_vte_antes_obra = VTE > 0 ? (total_pago_ate_aqui + parcela_unica) / VTE : 0;
+
+  /** Lucros + impostos no último mês de obra — só saidas_total da entrega, não entram no CP. */
+  const liquidacao_entrega = lucros_cp + impostos_amount;
+  const saldo_cp_final = fase2Fluxo.dados.length > 0 ? fase2Fluxo.dados[fase2Fluxo.dados.length - 1].saldo : 0;
+  const caixa_antes_liquidacao = fase2Fluxo.caixa_fim;
+  const parcelas_obra_descontadas = tipo_juros_cp === 'total' ? N_obra * mensal_fluxo : 0;
+  const caixa_disponivel = caixa_antes_liquidacao + parcelas_obra_descontadas;
+  const saldo_financiar = Math.max(0, saldo_cp_final + liquidacao_entrega - caixa_disponivel);
+  const valor_pago_a_maior = Math.max(0, caixa_disponivel - liquidacao_entrega - saldo_cp_final);
+  const caixa_final = valor_pago_a_maior;
+  const parcela_unica_minima_display = temConfirmacao
     ? calcularParcelaUnicaMinimaDisplay({
         vte: VTE,
         min_quitar_lote: quitacao_real_fluxo,
@@ -606,33 +693,6 @@ export function calcularOferta(
         n_meses_fase1: prazo_meses,
       })
     : r2(parcela_unica);
-  const falta_parcela_unica = Math.max(0, quitacao_real_fluxo - parcela_unica_fluxo);
-  const saldoAntesUnica = Math.max(0, fase1Fluxo.lot_balance_fim * (1 + taxa_parcelado));
-  const pagMensalUnica = Math.min(saldoAntesUnica, mensal_fluxo);
-  const sobraMensalUnica = Math.max(0, mensal_fluxo - pagMensalUnica);
-  const pag_loteadora_unica = pagMensalUnica + quitacao_real_fluxo;
-  /** Saídas do mês: o que vai à loteadora (limitado ao saldo) + ITBI. O resto fica no caixa. */
-  const saidas_unica = pagMensalUnica + quitacao_real_fluxo + itbi_amount;
-  const caixaAntesObra =
-    fase1Fluxo.caixa_fim +
-    sobraMensalUnica +
-    excedenteParcelaUnica(parcela_unica_fluxo, quitacao_real_fluxo);
-
-  /** Lucros + impostos no último mês de obra — só saidas_total da entrega, não entram no CP. */
-  const liquidacao_entrega = lucros_cp + impostos_amount;
-  const fase2Fluxo = simularFase2({
-    ...paramsFase2,
-    tipo_juros_cp,
-    parcela_mensal: mensal_fluxo,
-    caixa_inicial: caixaAntesObra,
-  });
-  const saldo_cp_final = fase2Fluxo.dados.length > 0 ? fase2Fluxo.dados[fase2Fluxo.dados.length - 1].saldo : 0;
-  const caixa_antes_liquidacao = fase2Fluxo.caixa_fim;
-  const parcelas_obra_descontadas = tipo_juros_cp === 'total' ? N_obra * mensal_fluxo : 0;
-  const caixa_disponivel = caixa_antes_liquidacao + parcelas_obra_descontadas;
-  const saldo_financiar = Math.max(0, saldo_cp_final + liquidacao_entrega - caixa_disponivel);
-  const valor_pago_a_maior = Math.max(0, caixa_disponivel - liquidacao_entrega - saldo_cp_final);
-  const caixa_final = valor_pago_a_maior;
 
   const n_parcelas = prazo_financiamento_anos * 12;
   const taxa_mensal = taxa_fin_anual > -1 ? (1 + taxa_fin_anual) ** (1 / 12) - 1 : 0;
@@ -787,7 +847,7 @@ export function calcularOferta(
     parcela_sac_primeira: r2(parcela_sac_primeira),
     parcela_sac_ultima: r2(parcela_sac_ultima),
     parcela_unica_detalhe: {
-      min_quitar_lote: r2(min_quitar_lote),
+      min_quitar_lote: r2(quitacao_sugerida),
       min_atingir_30pct: r2(min_atingir_30pct),
       pct_vte_antes_obra: r2(pct_vte_antes_obra * 100),
     },
@@ -851,5 +911,14 @@ export function pagamentoAMaiorBloqueia(valor: number): boolean {
 
 export function mensagemPagamentoAMaior(valor: number): string {
   return `As parcelas somam ${formatarMoedaCentavos(valor)} a mais que o valor total. Reduza a parcela mensal, a entrada ou a parcela única.`;
+}
+
+/** Igual ao lote continua permitido: o lote está quitado. */
+export function jaPagoAcimaDoLote(jaPago: number, valorLote: number): boolean {
+  return n0(jaPago) > n0(valorLote) + 0.005;
+}
+
+export function mensagemJaPagoAcimaDoLote(): string {
+  return 'O valor já pago não pode ser maior que o valor do lote.';
 }
 

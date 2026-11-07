@@ -252,7 +252,9 @@ R10. No último mês de obra, o dinheiro disponível (mensal do mês + caixa) pa
 R11. O buffer de 3 meses incide só sobre o saldo de crédito-ponte que continuar em aberto depois de R10 passo 2. Se esse saldo foi quitado, não há buffer.
 R12. Saldo a financiar é o que ficou sem pagar depois de R10 e R11. Saldo a financiar e caixa final não ficam os dois maiores que zero.
 R13. Caixa final acima de R$ 1,00 ativa a trava de pagamento a maior.
-R14. O método `total` mantém a fórmula de juros atual. R7 a R11 não cabem nele: a mensal não paga o desembolso mês a mês, e o buffer de 3 meses incide sobre todo o crédito-ponte sacado, não sobre o saldo que sobra no fim.
+R14. O método `total` mantém a fórmula de juros atual. R7 a R11 não cabem nele: a mensal não paga o desembolso mês a mês, e o buffer de 3 meses incide sobre todo o crédito-ponte sacado, não sobre o saldo que sobra no fim. O caixa usado nessa conta é o mesmo caixa do fluxo.
+
+O resumo de preço (juros da obra, VTP, impostos e VTE a prazo) usa os juros de crédito-ponte e os juros do lote cobrados nesse fluxo, no sugerido e nos valores confirmados.
 
 ## 12. Relação com outros docs
 

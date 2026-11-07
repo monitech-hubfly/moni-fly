@@ -5,6 +5,7 @@
 import {
   calcularOferta,
   calcularParcelaUnicaMinimaConfirmada,
+  jaPagoAcimaDoLote,
   pagamentoAMaiorBloqueia,
   type OfertaConfig,
   type ResultadoCalculo,
@@ -97,7 +98,7 @@ function soma(valores: number[]): number {
   return valores.reduce((a, b) => a + b, 0);
 }
 
-function verificar(r: ResultadoCalculo, oferta: OfertaConfig, tpl: TemplateConfig, confirmar: boolean) {
+function verificar(r: ResultadoCalculo, oferta: OfertaConfig, tpl: TemplateConfig) {
   const entrada = {
     lote: oferta.valor_lote,
     casa: oferta.valor_casa,
@@ -209,11 +210,8 @@ function verificar(r: ResultadoCalculo, oferta: OfertaConfig, tpl: TemplateConfi
     }
   });
 
-  if (!confirmar) {
-    const fluxoTotal = entradas + r.saldo_financiar - r.valor_pago_a_maior;
-    if (!perto(fluxoTotal, r.vte)) {
-      registrar('V9', entrada, `fluxo ${r2(fluxoTotal)} ≠ resumo ${r2(r.vte)}`);
-    }
+  if (!perto(esquerda, r.vte)) {
+    registrar('V9', entrada, `fluxo ${r2(esquerda)} ≠ resumo ${r2(r.vte)}`);
   }
   return { entradas, loteadora, jurosCp };
 }
@@ -222,9 +220,9 @@ function exigir(nome: string, ok: boolean, detalhe: string) {
   if (!ok) registrar(nome, nome, detalhe);
 }
 
-function casoFixo(nome: string, tpl: TemplateConfig, oferta: OfertaConfig, confirmar = false) {
+function casoFixo(nome: string, tpl: TemplateConfig, oferta: OfertaConfig) {
   const r = calcularOferta(tpl, oferta, oferta.valor_acoplamento);
-  verificar(r, oferta, tpl, confirmar);
+  verificar(r, oferta, tpl);
   const entradas = r2(soma(r.fluxo.map((l) => l.entrada_cliente)));
   const saidas = r2(soma(r.fluxo.map((l) => l.saidas_total)));
   console.log(
@@ -254,9 +252,6 @@ const rand = mulberry32(SEMENTE);
 const entre = (min: number, max: number) => min + rand() * (max - min);
 const inteiro = (min: number, max: number) => min + Math.floor(rand() * (max - min + 1));
 const escolha = <T,>(itens: T[]): T => itens[Math.floor(rand() * itens.length)]!;
-
-let pendencia = 0;
-let maiorPendencia = 0;
 
 for (let i = 0; i < COMBINACOES; i += 1) {
   const obra = inteiro(3, 7);
@@ -292,7 +287,7 @@ for (let i = 0; i < COMBINACOES; i += 1) {
     prazo_financiamento_anos: 30,
   };
   let r = calcularOferta(tpl, oferta, oferta.valor_acoplamento);
-  verificar(r, oferta, tpl, false);
+  verificar(r, oferta, tpl);
 
   if (rand() < 0.55) {
     const mensal = Math.round(r.parcela_mensal_usada * entre(0.2, 2.5));
@@ -306,13 +301,7 @@ for (let i = 0; i < COMBINACOES; i += 1) {
       parcela_unica_confirmada: unica,
     };
     r = calcularOferta(tpl, confirmada, confirmada.valor_acoplamento);
-    verificar(r, confirmada, tpl, true);
-    const entradas = soma(r.fluxo.map((l) => l.entrada_cliente));
-    const diff = Math.abs(entradas + r.saldo_financiar - r.valor_pago_a_maior - r.vte);
-    if (diff > TOL) {
-      pendencia += 1;
-      if (diff > maiorPendencia) maiorPendencia = diff;
-    }
+    verificar(r, confirmada, tpl);
   }
 }
 
@@ -362,21 +351,20 @@ const f = casoFixo(
   'f',
   tpl,
   ofertaBase({ parcela_mensal: 15_000, parcela_unica_confirmada: 1_085_000 }),
-  true,
 );
-igual('f.saldo', f.saldo_financiar, 1_600_997.59);
+igual('f.saldo', f.saldo_financiar, 1_598_325.71);
 
-const g = casoFixo('g', tpl, ofertaReal, true);
+const g = casoFixo('g', tpl, ofertaReal);
 igual('g.saldo', g.saldo_financiar, 0);
 igual('g.maior', g.valor_pago_a_maior, 56_440);
 igual('g.m0', g.fluxo.find((l) => l.fase === 'mes0')?.pagamento_loteadora ?? -1, 100_000);
 igual('g.caixa0', g.fluxo.find((l) => l.fase === 'mes0')?.caixa_cliente ?? -1, 175_220);
 
-const h = casoFixo('h', tpl, { ...ofertaReal, mensal_confirmada: 100_000 }, true);
+const h = casoFixo('h', tpl, { ...ofertaReal, mensal_confirmada: 100_000 });
 igual('h.saldo', h.saldo_financiar, 183_560);
 igual('h.cp', Math.max(...h.fluxo.map((l) => l.saldo_credito_ponte)), 0);
 
-const j = casoFixo('j', tpl, ofertaBase({ parcela_mensal: 15_000, entrada_confirmada: 600_000 }), true);
+const j = casoFixo('j', tpl, ofertaBase({ parcela_mensal: 15_000, entrada_confirmada: 600_000 }));
 igual('j.m0', j.fluxo.find((l) => l.fase === 'mes0')?.pagamento_loteadora ?? -1, 380_640);
 igual('j.minima', j.parcela_unica_minima_display, 744_360);
 
@@ -411,6 +399,31 @@ const m = casoFixo('m', tplJuros, ofertaBase({ parcela_mensal: 15_000 }));
 const pagoM = soma(m.fluxo.map((l) => l.pagamento_loteadora));
 igual('m.loteadora', pagoM, 1_200_000 + m.juros_lote_total);
 
+const ofertaN = ofertaBase({
+  valor_lote: 100_000,
+  valor_casa: 1_000_000,
+  valor_acoplamento: 200_000,
+  parcela_mensal: 130_000,
+});
+const n = casoFixo('n', tpl, ofertaN);
+igual('n.juros', n.juros_obra_total, 0);
+igual('n.impostos', n.impostos_amount, 96_780);
+igual('n.vte', n.vte, 1_806_560);
+igual('n.saldo', n.saldo_financiar, 78_780);
+exigir('n.cp', Math.max(...n.fluxo.filter((l) => l.fase === 'fase2').map((l) => l.saldo_credito_ponte)) <= TOL, 'crédito-ponte no fluxo');
+
+const o = casoFixo('o', tpl, {
+  ...ofertaN,
+  entrada_confirmada: 248_010,
+  mensal_confirmada: 130_000,
+  parcela_unica_confirmada: 0,
+});
+igual('o.m0', o.fluxo.find((l) => l.fase === 'mes0')?.pagamento_loteadora ?? -1, 100_000);
+igual('o.caixa0', o.fluxo.find((l) => l.fase === 'mes0')?.caixa_cliente ?? -1, 3_230);
+igual('o.entradas', soma(o.fluxo.map((l) => l.entrada_cliente)), 1_811_010);
+igual('o.maior', o.valor_pago_a_maior, 4_450);
+exigir('o.trava', pagamentoAMaiorBloqueia(o.valor_pago_a_maior), 'trava inativa');
+
 console.log('\nLimites');
 casoFixo('lote quitado', tpl, ofertaBase({ parcela_mensal: 15_000, valor_ja_pago: 1_200_000 }));
 const entradaMin = calcularOferta(tpl, ofertaBase({ parcela_mensal: 15_000 }), 200_000);
@@ -423,7 +436,6 @@ casoFixo(
     mensal_confirmada: 15_000,
     parcela_unica_confirmada: entradaMin.parcela_unica_sugerida,
   }),
-  true,
 );
 casoFixo('mensal zero', tpl, ofertaBase({ parcela_mensal: 0 }));
 casoFixo('obra 3', templateDe(baseFonte({ prazo_obra_meses: 3 })), ofertaBase({ parcela_mensal: 15_000, prazo_meses: 1 }));
@@ -434,16 +446,16 @@ const pagMaior = soma(jaPagoMaior.fluxo.map((l) => l.pagamento_loteadora));
 console.log('\nJá pago maior que o lote');
 console.log(
   JSON.stringify({
-    bloqueia: jaPagoMaior.alertas.some((a) => a.tipo !== 'capacidade_pagamento' && a.tipo !== 'parcela_unica_zero'),
-    alertas: jaPagoMaior.alertas.map((a) => a.tipo),
+    trava: jaPagoAcimaDoLote(2_000_000, 1_200_000),
+    igualAoLoteBloqueado: jaPagoAcimaDoLote(1_200_000, 1_200_000),
     pagoALoteadora: r2(pagMaior),
     preContrato: jaPagoMaior.fluxo.find((l) => l.fase === 'pre_contrato')?.pagamento_loteadora ?? 0,
   }),
 );
+exigir('jaPago.trava', jaPagoAcimaDoLote(2_000_000, 1_200_000), 'já pago acima do lote não bloqueia');
+exigir('jaPago.igual', !jaPagoAcimaDoLote(1_200_000, 1_200_000), 'já pago igual ao lote foi bloqueado');
 
-console.log(`\nCombinações com valores confirmados em que o resumo difere do fluxo: ${pendencia}`);
-console.log(`Maior diferença: ${r2(maiorPendencia)}`);
-console.log(`Falhas: ${falhas.length}`);
+console.log(`\nFalhas: ${falhas.length}`);
 for (const [check, itens] of exemplos) {
   console.log(`\n${check} (${itens.length} exemplo(s) de até 3)`);
   for (const item of itens) console.log(item.detalhe, JSON.stringify(item.entrada));

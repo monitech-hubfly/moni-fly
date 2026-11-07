@@ -42,7 +42,9 @@ import {
   entradaAbaixoDoMinimo,
   entradaMinimaOferta,
   formatarMoeda,
+  jaPagoAcimaDoLote,
   mensagemEntradaMinima,
+  mensagemJaPagoAcimaDoLote,
   mensagemPagamentoAMaior,
   mensagemParcelaUnicaMinima,
   pagamentoAMaiorBloqueia,
@@ -244,6 +246,10 @@ export function CalculadoraOferta({
     const custom = valorCustomizacao ?? 0;
     const acoplamento = valorAcoplamento ?? 0;
     const jaPago = valorJaPago ?? 0;
+    if (jaPagoAcimaDoLote(jaPago, lote)) {
+      setErro(mensagemJaPagoAcimaDoLote());
+      return;
+    }
     const prazoTotalInformado = prazoTotal;
     if (prazoTotalInformado == null || prazoTotalInformado < 1) {
       setErro('Informe o prazo total do contrato (meses).');
@@ -467,6 +473,8 @@ export function CalculadoraOferta({
       ? mensagemPagamentoAMaior(resultadoConfirmado.valor_pago_a_maior)
       : null;
   const errosMinimos = [erroEntrada, erroUnica, erroPagoAMaior].filter((m): m is string => m != null);
+  const erroJaPago =
+    jaPagoAcimaDoLote(valorJaPago ?? 0, valorLote ?? 0) ? mensagemJaPagoAcimaDoLote() : null;
   const erroTerreno =
     valorLote == null || !Number.isFinite(valorLote) || valorLote <= 0
       ? MENSAGEM_TERRENO_OBRIGATORIO_OFERTA
@@ -708,6 +716,7 @@ export function CalculadoraOferta({
               setResultado(null);
             }}
             placeholder="0"
+            erro={erroJaPago}
           />
           <label className="block" htmlFor="prazo_total_contrato">
             <span className={labelCls} style={labelStyle}>
@@ -795,7 +804,8 @@ export function CalculadoraOferta({
         </div>
         <button
           type="submit"
-          className="mt-6 min-h-[44px] rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white"
+          disabled={erroJaPago != null}
+          className="mt-6 min-h-[44px] rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           style={{ background: 'var(--moni-navy-800)' }}
         >
           Calcular
@@ -1009,7 +1019,7 @@ export function CalculadoraOferta({
             ) : null}
             <button
               type="button"
-              disabled={salvando || errosMinimos.length > 0 || erroTerreno != null}
+              disabled={salvando || errosMinimos.length > 0 || erroTerreno != null || erroJaPago != null}
               onClick={() => void onSalvar()}
               className="min-h-[44px] self-start rounded-[var(--moni-radius-md)] px-5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: 'var(--moni-navy-800)' }}

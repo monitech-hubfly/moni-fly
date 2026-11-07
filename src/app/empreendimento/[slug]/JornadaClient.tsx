@@ -30,7 +30,9 @@ import {
   calcularParcelaUnicaMinimaConfirmada,
   entradaAbaixoDoMinimo,
   entradaMinimaOferta,
+  jaPagoAcimaDoLote,
   mensagemEntradaMinima,
+  mensagemJaPagoAcimaDoLote,
   mensagemPagamentoAMaior,
   mensagemParcelaUnicaMinima,
   pagamentoAMaiorBloqueia,
@@ -513,6 +515,7 @@ function PassoTerreno({
 }) {
   const lotesVenda = lotes.filter((l) => l.disponivel);
   const lotesOcupados = lotes.filter((l) => !l.disponivel);
+  const jaPagoAcima = jaPagoAcimaDoLote(state.valorJaPago, state.valorLote);
   const podeAvancar =
     state.modoTerreno === 'disponivel'
       ? Boolean(state.loteSelecionado?.disponivel)
@@ -522,7 +525,8 @@ function PassoTerreno({
           Number.isFinite(state.valorLote) &&
           state.valorLote > 0 &&
           Number.isFinite(state.valorJaPago) &&
-          state.valorJaPago >= 0
+          state.valorJaPago >= 0 &&
+          !jaPagoAcima
         : false;
 
   function escolherModo(modo: ModoTerrenoJornada) {
@@ -623,11 +627,19 @@ function PassoTerreno({
             <label htmlFor="valor-ja-pago-terreno">Valor já pago (R$)</label>
             <CampoNumeroBr
               id="valor-ja-pago-terreno"
+              className={jaPagoAcima ? 'is-erro' : undefined}
               valor={state.valorJaPago}
               onChange={(n) => setState({ valorJaPago: n ?? 0 })}
               inteiro
               placeholder="0"
+              aria-invalid={jaPagoAcima ? true : undefined}
+              aria-describedby={jaPagoAcima ? 'valor-ja-pago-erro' : undefined}
             />
+            {jaPagoAcima ? (
+              <p id="valor-ja-pago-erro" className="jornadaFieldErro" role="alert">
+                {mensagemJaPagoAcimaDoLote()}
+              </p>
+            ) : null}
           </div>
         </>
       ) : null}

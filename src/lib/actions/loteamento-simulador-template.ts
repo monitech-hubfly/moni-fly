@@ -42,7 +42,9 @@ import {
   calcularParcelaUnicaMinimaConfirmada,
   entradaAbaixoDoMinimo,
   entradaMinimaOferta,
+  jaPagoAcimaDoLote,
   mensagemEntradaMinima,
+  mensagemJaPagoAcimaDoLote,
   mensagemPagamentoAMaior,
   mensagemParcelaUnicaMinima,
   pagamentoAMaiorBloqueia,
@@ -718,6 +720,9 @@ async function validarParcelaUnicaMinimaOferta(
     parcelaUnicaConfirmada: number | null;
   },
 ): Promise<Err | null> {
+  if (jaPagoAcimaDoLote(v.valorJaPago, v.valorLote)) {
+    return { ok: false, error: mensagemJaPagoAcimaDoLote() };
+  }
   const { data, error } = await supabase.from(TABELA).select('*').eq('kanban_card_id', cardId).limit(1);
   const row = !error && Array.isArray(data) ? data[0] : null;
   if (!row) return null;
