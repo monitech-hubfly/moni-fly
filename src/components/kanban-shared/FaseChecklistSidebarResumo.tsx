@@ -395,24 +395,24 @@ export function FaseChecklistSidebarResumo({
   const preenchidos = grupos.reduce((acc, g) => acc + g.linhas.filter((l) => l.preenchido).length, 0);
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       <p className="text-[10px] text-stone-500">
         Checklist deste funil · {preenchidos}/{totalItens} preenchidos
       </p>
       {grupos.map((grupo) => (
-        <div key={grupo.faseId} className="rounded border border-stone-100 bg-stone-50/60 p-2">
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-stone-600">
+        <div key={grupo.faseId} className="min-w-0 rounded border border-stone-100 bg-stone-50/60 p-2">
+          <p className="mb-1 break-words text-[10px] font-semibold uppercase tracking-wide text-stone-600 [overflow-wrap:anywhere]">
             {grupo.faseNome}
             {grupo.atual ? ' · fase atual' : ''}
           </p>
-          <ul className="space-y-1">
+          <ul className="min-w-0 space-y-1">
             {grupo.linhas.map((linha) => (
-              <li key={linha.itemId} className="text-[10px] leading-snug">
+              <li key={linha.itemId} className="min-w-0 break-words text-[10px] leading-snug [overflow-wrap:anywhere]">
                 <span className="font-medium text-stone-700">{linha.label}</span>
                 <span className="text-stone-400"> · </span>
                 <span className={linha.preenchido ? 'text-stone-600' : 'text-amber-700'}>{linha.valorExibicao}</span>
                 {linha.subLinhas?.length ? (
-                  <ul className="ml-2 mt-0.5 space-y-0.5 border-l border-stone-200 pl-2">
+                  <ul className="ml-2 mt-0.5 min-w-0 space-y-0.5 break-words border-l border-stone-200 pl-2 [overflow-wrap:anywhere]">
                     {linha.subLinhas.map((sub) => (
                       <li key={sub.prefixo}>
                         <span className="text-stone-500">{sub.prefixo}: </span>

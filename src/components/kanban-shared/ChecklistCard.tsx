@@ -104,7 +104,7 @@ export function ChecklistCard({
 
   return (
     <div
-      className="mb-2 overflow-hidden rounded-lg bg-white"
+      className="mb-2 min-w-0 overflow-hidden rounded-lg bg-white"
       style={{ border: '0.5px solid var(--moni-border-default)', boxShadow: 'var(--moni-shadow-sm)' }}
     >
       <button
@@ -122,7 +122,7 @@ export function ChecklistCard({
       </button>
 
       {aberto && (
-        <div className="border-t px-2 pb-2 pt-1.5" style={{ borderColor: 'var(--moni-border-subtle)' }}>
+        <div className="min-w-0 border-t px-2 pb-2 pt-1.5" style={{ borderColor: 'var(--moni-border-subtle)' }}>
           {fases && faseAtualId ? (
             <div className="mb-3">
               <FaseChecklistSidebarResumo
@@ -162,7 +162,7 @@ export function ChecklistCard({
                     )}
                   </button>
                   <span
-                    className={`flex-1 text-xs leading-snug ${item.feito ? 'text-stone-400 line-through' : 'text-stone-800'}`}
+                    className={`min-w-0 flex-1 break-words text-xs leading-snug [overflow-wrap:anywhere] ${item.feito ? 'text-stone-400 line-through' : 'text-stone-800'}`}
                   >
                     {item.texto}
                   </span>

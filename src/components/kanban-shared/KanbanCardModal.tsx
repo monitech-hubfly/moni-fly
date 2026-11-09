@@ -7652,7 +7652,7 @@ export function KanbanCardModal({
 
           {/* Esquerda — dados colapsáveis (mobile: por último) */}
           <div
-            className={`moni-card-modal-left order-3 h-full w-full overflow-y-auto border-t p-4 text-xs sm:order-1 sm:min-w-0 sm:shrink-0 sm:border-r sm:border-t-0 sm:p-5 ${
+            className={`moni-card-modal-left order-3 h-full w-full overflow-y-auto border-t p-4 text-xs [scrollbar-gutter:stable] sm:order-1 sm:min-w-0 sm:shrink-0 sm:border-r sm:border-t-0 sm:p-5 ${
               jornadaVclOcultaCentro
                 ? 'sm:w-auto sm:max-w-none sm:flex-1'
                 : 'sm:w-[min(45%,20rem)]'
