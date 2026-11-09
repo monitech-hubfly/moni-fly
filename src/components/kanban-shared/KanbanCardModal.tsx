@@ -808,6 +808,8 @@ export function KanbanCardModal({
   const [subFormInteracaoId, setSubFormInteracaoId] = useState<string | null>(null);
   const [subNovaDraft, setSubNovaDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   const [salvandoSub, setSalvandoSub] = useState(false);
+  // Responsáveis da nova sub-atividade de chamado existente ausentes hoje (férias/day off)
+  const [ausSubNova, setAusSubNova] = useState<Set<string>>(new Set());
   const [editingSubId, setEditingSubId] = useState<string | null>(null);
   const [editSubDraft, setEditSubDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   const [salvandoEditSub, setSalvandoEditSub] = useState(false);
@@ -1198,6 +1200,27 @@ export function KanbanCardModal({
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [novaInteracao.atividade.responsaveisIds.join(',')]);
+
+  // ── Ausências dos responsáveis da sub-atividade nova (hoje) ───────────────
+  useEffect(() => {
+    const ids = subNovaDraft.responsaveisIds;
+    if (ids.length === 0) {
+      setAusSubNova(new Set());
+      return;
+    }
+    const hoje = new Date();
+    const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+    const supabase = createClient();
+    void supabase
+      .from('carometro_ausencias')
+      .select('profile_id')
+      .in('profile_id', ids)
+      .eq('data', hojeStr)
+      .then(({ data }) => {
+        setAusSubNova(new Set(((data ?? []) as { profile_id: string }[]).map((r) => r.profile_id)));
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subNovaDraft.responsaveisIds.join(',')]);
 
   useEffect(() => {
     const id = String(cardId ?? '').trim();
@@ -2619,6 +2642,33 @@ export function KanbanCardModal({
     if (!podeCriarChamados) {
       alert('Sem permissão para criar chamados.');
       return;
+    }
+    // ── Bloquear se responsável está ausente HOJE (férias/day off) ───────────
+    if (ausSubNova.size > 0) {
+      alert(
+        '⚠ O responsável selecionado está marcado como férias/day off hoje. ' +
+        'Escolha outro responsável ou aguarde o retorno.',
+      );
+      return;
+    }
+    // ── Bloquear prazo em dia de ausência do responsável ────────────────────
+    if (subNovaDraft.data.trim() && subNovaDraft.responsaveisIds.length > 0) {
+      const hoje = new Date();
+      const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+      if (subNovaDraft.data.trim() !== hojeStr) {
+        const { data: ausRows } = await createClient()
+          .from('carometro_ausencias')
+          .select('profile_id')
+          .in('profile_id', subNovaDraft.responsaveisIds)
+          .eq('data', subNovaDraft.data.trim());
+        if (ausRows && ausRows.length > 0) {
+          alert(
+            `⚠ O responsável está marcado como ausente em ${subNovaDraft.data.trim()}. ` +
+            'Escolha outro prazo ou negocie diretamente.',
+          );
+          return;
+        }
+      }
     }
     setSalvandoSub(true);
     try {
@@ -6197,6 +6247,7 @@ export function KanbanCardModal({
                                       sessionUserId={modalSessao.userId}
                                       compact
                                       idPrefix={`nova-${it.id}`}
+                                      ausentesHoje={ausSubNova}
                                       onDelete={() => {
                                         setSubFormInteracaoId(null);
                                         setSubNovaDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });

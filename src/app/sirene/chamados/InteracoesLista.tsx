@@ -415,6 +415,10 @@ export function InteracoesLista({
   const [salvandoSirene, setSalvandoSirene] = useState(false);
   const [detalheRow, setDetalheRow] = useState<InteracaoSireneRow | null>(null);
   const [novaAtivDraft, setNovaAtivDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+  // Responsáveis da nova atividade ausentes hoje (férias/day off)
+  const [ausNovaAtiv, setAusNovaAtiv] = useState<Set<string>>(new Set());
+  // Trava ref síncrona contra duplo-clique em "Adicionar atividade"
+  const isSalvandoAtivRef = useRef(false);
   const [topicosPorAlvo, setTopicosPorAlvo] = useState<Record<string, TopicoChamadoLinha[]>>({});
   const [topicosLoading, setTopicosLoading] = useState<Record<string, boolean>>({});
   const [salvandoTopico, setSalvandoTopico] = useState<Record<string, boolean>>({});
@@ -880,6 +884,26 @@ export function InteracoesLista({
     setEditSireneDraft(null);
   }
 
+  // ── Ausências dos responsáveis da nova atividade para hoje ───────────────
+  useEffect(() => {
+    const ids = novaAtivDraft.responsaveisIds;
+    if (ids.length === 0) {
+      setAusNovaAtiv(new Set());
+      return;
+    }
+    const hoje = new Date();
+    const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+    void createClient()
+      .from('carometro_ausencias')
+      .select('profile_id')
+      .in('profile_id', ids)
+      .eq('data', hojeStr)
+      .then(({ data }) => {
+        setAusNovaAtiv(new Set(((data ?? []) as { profile_id: string }[]).map((r) => r.profile_id)));
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [novaAtivDraft.responsaveisIds.join(',')]);
+
   async function carregarTopicosSeNecessario(row: InteracaoSireneRow, force = false) {
     const key = topicosAlvoKey(row);
     if (!force && topicosPorAlvo[key] != null && !topicosLoading[key]) return;
@@ -915,6 +939,9 @@ export function InteracoesLista({
   }
 
   async function handleAdicionarAtividadeModal(row: InteracaoSireneRow) {
+    // ── Trava síncrona contra duplo-clique ────────────────────────────────
+    if (isSalvandoAtivRef.current) return;
+
     if (!chamadoEditavelNaSirene(row)) {
       setMsgErro('Este chamado só pode ser alterado no card vinculado.');
       return;
@@ -932,29 +959,62 @@ export function InteracoesLista({
       setMsgErro('Selecione ao menos um responsável.');
       return;
     }
+    // ── Bloquear se responsável está ausente HOJE (férias/day off) ─────────
+    if (ausNovaAtiv.size > 0) {
+      setMsgErro(
+        '⚠ O responsável está marcado como férias/day off hoje. ' +
+        'Escolha outro responsável ou aguarde o retorno.',
+      );
+      return;
+    }
+    // ── Bloquear prazo em dia de ausência do responsável ──────────────────
+    if (d.data.trim() && d.responsaveisIds.length > 0) {
+      const hoje = new Date();
+      const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+      if (d.data.trim() !== hojeStr) {
+        const { data: ausRows } = await createClient()
+          .from('carometro_ausencias')
+          .select('profile_id')
+          .in('profile_id', d.responsaveisIds)
+          .eq('data', d.data.trim());
+        if (ausRows && ausRows.length > 0) {
+          setMsgErro(
+            `⚠ O responsável está marcado como ausente em ${d.data.trim()}. ` +
+            'Escolha outro prazo ou negocie diretamente.',
+          );
+          return;
+        }
+      }
+    }
+
+    isSalvandoAtivRef.current = true;
     const alvoKey = topicosAlvoKey(row);
     setSalvandoTopico((s) => ({ ...s, [alvoKey]: true }));
     setMsgErro(null);
-    const res = await criarSubInteracao({
-      interacao_id: row.id,
-      sirene_chamado_id: row.sirene_chamado_id ?? null,
-      nome: d.nome.trim(),
-      descricao_detalhe: d.descricaoDetalhe.trim() || null,
-      times_ids: d.timesIds,
-      responsaveis_ids: d.responsaveisIds,
-      data_fim: d.data.trim() || null,
-      status: 'nao_iniciado',
-      pastel: d.pastel,
-      basePath: '/sirene/chamados',
-      viaSirene: true,
-    });
-    setSalvandoTopico((s) => ({ ...s, [alvoKey]: false }));
-    if (!res.ok) {
-      setMsgErro(res.error);
-      return;
+    try {
+      const res = await criarSubInteracao({
+        interacao_id: row.id,
+        sirene_chamado_id: row.sirene_chamado_id ?? null,
+        nome: d.nome.trim(),
+        descricao_detalhe: d.descricaoDetalhe.trim() || null,
+        times_ids: d.timesIds,
+        responsaveis_ids: d.responsaveisIds,
+        data_fim: d.data.trim() || null,
+        status: 'nao_iniciado',
+        pastel: d.pastel,
+        basePath: '/sirene/chamados',
+        viaSirene: true,
+      });
+      if (!res.ok) {
+        setMsgErro(res.error);
+        return;
+      }
+      setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
+      void carregarTopicosSeNecessario(row, true);
+    } finally {
+      setSalvandoTopico((s) => ({ ...s, [alvoKey]: false }));
+      isSalvandoAtivRef.current = false;
     }
-    setNovaAtivDraft({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
-    void carregarTopicosSeNecessario(row, true);
   }
 
   async function salvarEdicao(atividadeId: string) {
@@ -2097,6 +2157,7 @@ export function InteracoesLista({
           onCancelarEdicao={cancelarEdicao}
           novaAtivDraft={novaAtivDraft}
           setNovaAtivDraft={setNovaAtivDraft}
+          ausentesHoje={ausNovaAtiv}
           onAdicionarAtividade={() => void handleAdicionarAtividadeModal(detalheRowEff)}
           salvandoNovaAtividade={Boolean(salvandoTopico[topicosAlvoKey(detalheRowEff)])}
           erroNovaAtividade={msgErro}

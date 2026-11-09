@@ -93,6 +93,8 @@ type Props = {
   onCancelarEdicao?: () => void;
   novaAtivDraft: AtividadeFormDraft;
   setNovaAtivDraft: React.Dispatch<React.SetStateAction<AtividadeFormDraft>>;
+  /** IDs de responsáveis ausentes hoje — exibe badge âmbar no seletor */
+  ausentesHoje?: Set<string>;
   onAdicionarAtividade: () => void;
   salvandoNovaAtividade: boolean;
   erroNovaAtividade?: string | null;
@@ -188,6 +190,7 @@ export function SireneChamadoDetalheModal({
   onCancelarEdicao,
   novaAtivDraft,
   setNovaAtivDraft,
+  ausentesHoje,
   onAdicionarAtividade,
   salvandoNovaAtividade,
   erroNovaAtividade,
@@ -895,6 +898,7 @@ export function SireneChamadoDetalheModal({
                 idPrefix="sirene-modal-nova-ativ"
                 showAnexosDraft={false}
                 maxResponsaveis={1}
+                ausentesHoje={ausentesHoje}
               />
               <button
                 type="button"
