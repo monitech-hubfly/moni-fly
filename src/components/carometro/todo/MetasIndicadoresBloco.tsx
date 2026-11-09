@@ -9,6 +9,7 @@ import {
 } from '@/hooks/useMetasIndicadores';
 import { registrarLog } from '@/hooks/useAuditLog';
 import { getMonthOptions } from '@/hooks/usePlanoBoneDay';
+import DatePickerComSemanas from '@/components/DatePickerComSemanas';
 import { statusSemaforoPorValor } from '@/utils/semaforoFaixas';
 import { isoWeek } from '@/utils/periodos';
 
@@ -189,22 +190,24 @@ function SecaoToggle({ label, count, aberta, onToggle, children, cor }: {
 // ── Formulário reutilizável (add/edit meta) ───────────────────────────────────
 type MetaFormState = { descricao: string; tipo: string; respId: string; metaUnidade: string; dataInicio: string; dataFim: string };
 
-function MetaForm({ inicial, responsaveis, onSalvar, onCancelar, salvando, labelSalvar, isFilha }: {
+function MetaForm({ inicial, responsaveis, onSalvar, onCancelar, salvando, labelSalvar, isFilha, maeFim, maeInicio }: {
   inicial: MetaFormState; responsaveis: ResponsavelItem[];
   onSalvar: (d: MetaFormState) => void; onCancelar: () => void;
   salvando: boolean; labelSalvar: string; isFilha?: boolean;
+  maeFim?: string | null; maeInicio?: string | null;
 }) {
   const [f, setF] = useState<MetaFormState>(inicial);
-  const [erroResp,  setErroResp]  = useState(false);
   const [erroDatas, setErroDatas] = useState<string | null>(null);
+  const [erroResp,  setErroResp]  = useState(false);
   const set = <K extends keyof MetaFormState>(k: K, v: MetaFormState[K]) => setF(p => ({ ...p, [k]: v }));
 
   const handleSalvar = () => {
-    if (isFilha && !f.respId) { setErroResp(true); return; }
     if (isFilha) {
       if (!f.dataInicio) { setErroDatas('Informe a data de início.'); return; }
       if (!f.dataFim)    { setErroDatas('Informe a data de fim.'); return; }
       if (f.dataFim < f.dataInicio) { setErroDatas('Data de fim deve ser igual ou posterior ao início.'); return; }
+    } else {
+      if (!f.respId) { setErroResp(true); return; }
     }
     setErroDatas(null);
     onSalvar(f);
@@ -213,21 +216,44 @@ function MetaForm({ inicial, responsaveis, onSalvar, onCancelar, salvando, label
   return (
     <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
       <input className="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
-        placeholder="Descrição *" value={f.descricao} onChange={e => set('descricao', e.target.value)} autoFocus />
+        placeholder={isFilha ? 'Descrição da meta filha *' : 'Descrição *'}
+        value={f.descricao} onChange={e => set('descricao', e.target.value)} autoFocus />
 
       {isFilha ? (
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] text-gray-500">Início *</label>
-            <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
-              value={f.dataInicio} onChange={e => { set('dataInicio', e.target.value); setErroDatas(null); }} />
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] text-gray-500">Início *</label>
+              <DatePickerComSemanas
+                value={f.dataInicio}
+                onChange={(v: string) => { set('dataInicio', v); setErroDatas(null); }}
+                placeholder="Início" />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <label className="text-[10px] text-gray-500">Fim *</label>
+              <DatePickerComSemanas
+                value={f.dataFim}
+                onChange={(v: string) => { set('dataFim', v); setErroDatas(null); }}
+                placeholder="Fim" />
+            </div>
           </div>
-          <div className="flex flex-col gap-0.5">
-            <label className="text-[10px] text-gray-500">Fim *</label>
-            <input type="date" className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-300"
-              value={f.dataFim} onChange={e => { set('dataFim', e.target.value); setErroDatas(null); }} />
-          </div>
-        </div>
+          {/* Aviso se datas da filha estão fora do período da mãe */}
+          {(() => {
+            const fimFora    = maeFim    && f.dataFim    && f.dataFim    > maeFim;
+            const inicioFora = maeInicio && f.dataInicio && f.dataInicio < maeInicio;
+            if (!fimFora && !inicioFora) return null;
+            return (
+              <div className="flex items-start gap-1.5 px-2 py-1.5 rounded bg-amber-50 border border-amber-300">
+                <span className="text-amber-600 text-[10px] flex-shrink-0">⚠</span>
+                <p className="text-[10px] text-amber-700">
+                  {fimFora    && 'Fim ultrapassa o prazo da meta mãe. '}
+                  {inicioFora && 'Início é anterior ao início da meta mãe. '}
+                  A meta filha pode ser salva assim mesmo.
+                </p>
+              </div>
+            );
+          })()}
+        </>
       ) : (
         <div className={`grid gap-2 ${f.tipo === 'atingivel' ? 'grid-cols-2' : 'grid-cols-1'}`}>
           <select className="text-xs border border-gray-300 rounded px-2 py-1.5"
@@ -244,12 +270,12 @@ function MetaForm({ inicial, responsaveis, onSalvar, onCancelar, salvando, label
 
       {erroDatas && <p className="text-[10px] text-red-500">{erroDatas}</p>}
 
-      {responsaveis.length > 0 && (
+      {!isFilha && responsaveis.length > 0 && (
         <div>
           <select
             className={`w-full text-xs border rounded px-2 py-1.5 ${erroResp ? 'border-red-400' : 'border-gray-300'}`}
             value={f.respId} onChange={e => { set('respId', e.target.value); setErroResp(false); }}>
-            <option value="">{isFilha ? '— Responsável * —' : '— Responsável (opcional) —'}</option>
+            <option value="">— Responsável (opcional) —</option>
             {responsaveis.map(r => <option key={r.profile_id} value={r.profile_id}>{r.nome}</option>)}
           </select>
           {erroResp && <p className="text-[10px] text-red-500 mt-0.5">Responsável obrigatório</p>}
@@ -864,7 +890,7 @@ function MetaCard({
 
   const handleSalvarFilha = async (f: MetaFormState) => {
     setSalvandoFilha(true);
-    try { await onAddSubMeta(meta.id, f.descricao, 'atingivel - projeto', f.respId || null, f.dataInicio, f.dataFim); setAdicionandoFilha(false); }
+    try { await onAddSubMeta(meta.id, f.descricao, 'atingivel - projeto', currentUserId, f.dataInicio, f.dataFim); setAdicionandoFilha(false); }
     finally { setSalvandoFilha(false); }
   };
 
@@ -1112,7 +1138,9 @@ function MetaCard({
             inicial={{ descricao: '', tipo: 'atingivel - projeto', respId: '', metaUnidade: '', dataInicio: '', dataFim: '' }}
             responsaveis={responsaveis} onSalvar={handleSalvarFilha}
             onCancelar={() => setAdicionandoFilha(false)} salvando={salvandoFilha}
-            labelSalvar="Salvar meta filha" isFilha />
+            labelSalvar="Salvar meta filha" isFilha
+            maeFim={projetoOr?.data_fim ?? null}
+            maeInicio={projetoOr?.data_inicio ?? null} />
         ) : !adicionandoBlocker ? (
           <div className="border-t border-gray-100 pt-1.5 flex items-center gap-4">
             <button type="button" onClick={() => setAdicionandoFilha(true)}

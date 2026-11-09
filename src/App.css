@@ -8103,6 +8103,18 @@ button.responsaveis-multi-option:focus-visible {
 .calendario-com-semanas {
   margin-top: 1rem;
 }
+/* Dentro do popover do DatePickerComSemanas: sem margem extra, cabeçalho visível */
+.datepicker-cal.calendario-com-semanas {
+  margin-top: 0;
+}
+.datepicker-cal .calendario-mes thead th {
+  background: var(--moni-verde-escuro);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 0.45rem 0.4rem;
+  letter-spacing: 0.01em;
+}
 .calendario-header {
   display: flex;
   align-items: center;

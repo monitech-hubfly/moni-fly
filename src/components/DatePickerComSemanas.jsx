@@ -107,6 +107,7 @@ export default function DatePickerComSemanas({
             border: '0.5px solid #e5e7eb',
             borderRadius: 12,
             boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            padding: '8px',
           }}
           onClick={e => e.stopPropagation()}
         >
@@ -115,6 +116,7 @@ export default function DatePickerComSemanas({
             mesInicial={mesInicial}
             selectedDate={value || null}
             onSelectDate={handleSelectDate}
+            className="datepicker-cal"
           />
         </div>
       )}
