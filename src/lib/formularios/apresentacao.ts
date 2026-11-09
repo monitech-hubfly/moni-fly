@@ -116,7 +116,7 @@ export function linhasDoGrupo(
       atual.itens.push({
         label: rotuloGrupo(def),
         valor: texto || '—',
-        largo: rotuloGrupo(def).length > 42,
+        largo: def.tipo === 'texto_longo' || rotuloGrupo(def).length > 42,
       });
     }
     if (atual.titulo || atual.itens.length > 0) blocos.push(atual);
@@ -130,7 +130,7 @@ export function linhasDoGrupo(
           itens.push({
             label: rotuloGrupo(def),
             valor: texto || '—',
-            largo: rotuloGrupo(def).length > 42,
+            largo: def.tipo === 'texto_longo' || rotuloGrupo(def).length > 42,
           });
         }
         blocos.push({

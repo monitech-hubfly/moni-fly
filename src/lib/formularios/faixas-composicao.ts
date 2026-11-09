@@ -65,10 +65,18 @@ function ehFaixa(def: FormularioCampoGrupoDef): boolean {
   return def.tipo === 'faixa_moeda' || def.key === 'faixa_preco';
 }
 
+function camposDoCondominio(defs: FormularioCampoGrupoDef[]): FormularioCampoGrupoDef[] {
+  const inicio = defs.findIndex(ehTemaComposicao);
+  const base = inicio < 0 ? defs : defs.slice(0, inicio);
+  return base.filter((def) => def.key !== 'nome' && def.key !== 'linha_id' && !ehFaixa(def) && !ehTemaComposicao(def));
+}
+
 export function condominioCompleto(linha: Record<string, unknown>, defs: FormularioCampoGrupoDef[]): boolean {
   const campos = camposDaComposicao(defs);
   if (campos.length === 0) return false;
   if (!String(linha.nome ?? '').trim()) return false;
+  const extras = camposDoCondominio(defs).filter((def) => def.obrigatorio);
+  if (extras.some((def) => !String(linha[def.key] ?? '').trim())) return false;
   const faixa = defs.find(ehFaixa);
   if (!faixa) return false;
   const de = String(linha[`${faixa.key}_de`] ?? linha[faixa.key] ?? '');
@@ -98,6 +106,10 @@ export function pendenciaDoCondominio(linha: Record<string, unknown>, defs: Form
   if (status.tipo === 'invertida') return 'O valor final da faixa de preço precisa ser maior que o inicial.';
   if (status.tipo === 'ampla') return 'A faixa de preço é ampla demais. Informe um intervalo menor.';
   if (status.tipo !== 'ok') return `Preencha: ${faixa.label}`;
+  for (const def of camposDoCondominio(defs)) {
+    if (!def.obrigatorio) continue;
+    if (!String(linha[def.key] ?? '').trim()) return `Preencha: ${def.label}`;
+  }
   const comps = Array.isArray(linha.composicoes) ? linha.composicoes : [];
   for (let index = 0; index < status.faixas.length; index += 1) {
     const comp = comps[index];
