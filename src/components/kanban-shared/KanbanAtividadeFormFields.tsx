@@ -49,6 +49,8 @@ type Props = {
   showAnexosDraft?: boolean;
   /** Limita a N responsáveis; quando 1, usa radio buttons (single-select). */
   maxResponsaveis?: number;
+  /** IDs de responsáveis ausentes hoje (férias/day off) — exibe badge âmbar ao lado do nome. */
+  ausentesHoje?: Set<string>;
 };
 
 const listBoxClass =
@@ -68,6 +70,7 @@ export function KanbanAtividadeFormFields({
   anexosSubchamado,
   showAnexosDraft = true,
   maxResponsaveis = 0,
+  ausentesHoje,
 }: Props) {
   const timesNomes = draft.timesIds
     .map((id) => kanbanTimes.find((t) => t.id === id)?.nome?.trim())
@@ -204,6 +207,7 @@ export function KanbanAtividadeFormFields({
               {responsaveisOpcoes.map((p) => {
                 const on = draft.responsaveisIds.includes(p.id);
                 const isSingle = maxResponsaveis === 1;
+                const ausente = ausentesHoje?.has(p.id) ?? false;
                 return (
                   <label
                     key={p.id}
@@ -226,7 +230,19 @@ export function KanbanAtividadeFormFields({
                             }));
                           }}
                     />
-                    {p.nome}
+                    <span className="truncate">{p.nome}</span>
+                    {ausente && (
+                      <span
+                        className="ml-auto shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                        style={{
+                          background: 'var(--moni-status-attention-bg, #fffbeb)',
+                          color: 'var(--moni-gold-400, #D4AD68)',
+                          border: '0.5px solid var(--moni-gold-400, #D4AD68)',
+                        }}
+                      >
+                        férias
+                      </span>
+                    )}
                   </label>
                 );
               })}

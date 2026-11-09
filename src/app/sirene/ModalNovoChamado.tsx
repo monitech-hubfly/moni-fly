@@ -63,6 +63,8 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
   const [uploaderNome, setUploaderNome] = useState('Usuário');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ── Ausências dos responsáveis da primeira atividade para hoje ─────────────
+  const [ausentesHoje, setAusentesHoje] = useState<Set<string>>(new Set());
 
   // Vinculo card — funil-first
   const [funisList, setFunisList] = useState<SireneFunilItem[]>([]);
@@ -123,6 +125,27 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
       setCardOpcoes(r.ok ? r.items : []);
     });
   }, [funilSelecionado]);
+
+  // ── Carrega ausências dos responsáveis da 1ª atividade para hoje ──────────
+  const primeiraAtivRespIds = atividades[0]?.responsaveisIds ?? [];
+  useEffect(() => {
+    if (primeiraAtivRespIds.length === 0) {
+      setAusentesHoje(new Set());
+      return;
+    }
+    const hoje = new Date();
+    const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+    const supabase = createClient();
+    void supabase
+      .from('carometro_ausencias')
+      .select('profile_id')
+      .in('profile_id', primeiraAtivRespIds)
+      .eq('data', hojeStr)
+      .then(({ data }) => {
+        setAusentesHoje(new Set(((data ?? []) as { profile_id: string }[]).map((r) => r.profile_id)));
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primeiraAtivRespIds.join(',')]);
 
   const timesChips = useMemo(() => timesOpcoesReceberChamado(kanbanTimes), [kanbanTimes]);
   const responsaveisFiltrados = useMemo(
@@ -199,21 +222,40 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
     try {
       const primeiraAtiv = atividades[0]!;
 
-      // ── Bloquear prazo em dia de ausência do responsável ───────────────────
-      if (primeiraAtiv.data.trim() && primeiraAtiv.responsaveisIds.length > 0) {
+      // ── Bloquear se responsável está ausente HOJE (férias/day off) ─────────
+      if (ausentesHoje.size > 0) {
+        const nomeAusente =
+          responsaveisOpcoes.find((r) => ausentesHoje.has(r.id))?.nome ??
+          'O responsável selecionado';
+        setError(
+          `⚠ ${nomeAusente} está marcado como férias/day off hoje. ` +
+          'Escolha outro responsável ou aguarde o retorno.',
+        );
+        setLoading(false);
+        return;
+      }
+
+      // ── Bloquear prazo em dia de ausência do responsável (todas atividades) ─
+      {
+        const hoje = new Date();
+        const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
         const supabaseAus = createClient();
-        const { data: ausRows } = await supabaseAus
-          .from('carometro_ausencias')
-          .select('profile_id, data')
-          .in('profile_id', primeiraAtiv.responsaveisIds)
-          .eq('data', primeiraAtiv.data.trim());
-        if (ausRows && ausRows.length > 0) {
-          setError(
-            `⚠ O responsável está marcado como ausente em ${primeiraAtiv.data.trim()}. ` +
-            'Escolha outro prazo ou negocie diretamente com quem abriu o chamado.'
-          );
-          setLoading(false);
-          return;
+        for (const ativ of atividades) {
+          if (!ativ.data.trim() || ativ.responsaveisIds.length === 0) continue;
+          if (ativ.data.trim() === hojeStr) continue; // já tratado acima
+          const { data: ausRows } = await supabaseAus
+            .from('carometro_ausencias')
+            .select('profile_id')
+            .in('profile_id', ativ.responsaveisIds)
+            .eq('data', ativ.data.trim());
+          if (ausRows && ausRows.length > 0) {
+            setError(
+              `⚠ O responsável está marcado como ausente em ${ativ.data.trim()}. ` +
+              'Escolha outro prazo ou negocie diretamente com quem abriu o chamado.',
+            );
+            setLoading(false);
+            return;
+          }
         }
       }
 
@@ -506,6 +548,7 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
                       idPrefix={`sirene-nova-${i}`}
                       showPastel={false}
                       maxResponsaveis={1}
+                      ausentesHoje={i === 0 ? ausentesHoje : undefined}
                     />
                   </div>
                 );
