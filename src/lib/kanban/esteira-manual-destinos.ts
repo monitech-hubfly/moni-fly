@@ -20,6 +20,7 @@ export type DestinoEsteiraManualKey =
   | 'moni_capital'
   | 'motor01'
   | 'pre_obra_obra'
+  | 'portfolio'
   | 'projeto_legal'
   | 'projetos_legais'
   | 'projetos_locais';
@@ -87,6 +88,11 @@ export const DESTINOS_ESTEIRA_MANUAL: Record<
     label: 'Pré Obra e Obra',
     kanbanDestinoId: KANBAN_IDS.OPERACOES,
     faseDestinoSlug: 'planialtimetrico',
+  },
+  portfolio: {
+    label: 'Portfólio',
+    kanbanDestinoId: KANBAN_IDS.PORTFOLIO,
+    faseDestinoSlug: 'step_2',
   },
   projeto_legal: {
     label: 'Projeto Legal',
@@ -194,6 +200,23 @@ export function kanbanPermiteDispararEsteiraManual(
   return destinosEsteiraManualParaKanban(kanbanId, kanbanNome).length > 0;
 }
 
+/** Qualquer funil pode abrir card filho em Pré Obra e Obra e em Portfólio. */
+const DESTINOS_VINCULO_TODOS_KANBANS: DestinoEsteiraManualKey[] = [
+  'pre_obra_obra',
+  'portfolio',
+];
+
+function garantirVinculoPreObraEPortfolio(
+  kanbanOrigemId: string,
+  destinos: DestinoEsteiraManualKey[],
+): DestinoEsteiraManualKey[] {
+  const extras = DESTINOS_VINCULO_TODOS_KANBANS.filter((key) => {
+    if (destinos.includes(key)) return false;
+    return DESTINOS_ESTEIRA_MANUAL[key].kanbanDestinoId !== kanbanOrigemId;
+  });
+  return extras.length > 0 ? [...destinos, ...extras] : destinos;
+}
+
 /** Step One / Loteadores: garante Pré Obra e Obra e coloca no topo. */
 function garantirPreObraObraParaLoteadoresStepOne(
   kanbanOrigemId: string,
@@ -263,6 +286,6 @@ export function destinosEsteiraManualParaKanban(
   }
 
   destinos = aplicarRestricaoJuridico(id, destinos);
-
-  return garantirPreObraObraParaLoteadoresStepOne(id, destinos, kanbanNome, basePath);
+  destinos = garantirPreObraObraParaLoteadoresStepOne(id, destinos, kanbanNome, basePath);
+  return garantirVinculoPreObraEPortfolio(id, destinos);
 }

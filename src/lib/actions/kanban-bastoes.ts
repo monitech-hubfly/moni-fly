@@ -2531,6 +2531,9 @@ export async function dispararEsteiraManualDoCard(
     if (destino.kanbanDestinoId === KANBAN_IDS.OPERACOES) {
       revalidatePath('/operacoes');
     }
+    if (destino.kanbanDestinoId === KANBAN_IDS.PORTFOLIO) {
+      revalidatePath('/portfolio');
+    }
     if (destino.kanbanDestinoId === KANBAN_IDS.JURIDICO) {
       revalidatePath('/funil-juridico');
     }
