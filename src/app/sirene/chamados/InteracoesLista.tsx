@@ -394,6 +394,12 @@ function nomesTimesDeIds(ids: string[], catalog: TimeOpt[]): unknown {
   return ids.map((id) => m.get(id) ?? '').filter(Boolean);
 }
 
+/** Formata 'YYYY-MM-DD' como 'DD/MM/YYYY'. */
+function formatarDataBR(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 export function InteracoesLista({
   interacoes,
   times,
@@ -417,6 +423,8 @@ export function InteracoesLista({
   const [novaAtivDraft, setNovaAtivDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   // Responsáveis da nova atividade ausentes hoje (férias/day off)
   const [ausNovaAtiv, setAusNovaAtiv] = useState<Set<string>>(new Set());
+  // Popup de aviso de férias/day off
+  const [ausenciaPopup, setAusenciaPopup] = useState<{ nome: string; periodo: string } | null>(null);
   // Trava ref síncrona contra duplo-clique em "Adicionar atividade"
   const isSalvandoAtivRef = useRef(false);
   const [topicosPorAlvo, setTopicosPorAlvo] = useState<Record<string, TopicoChamadoLinha[]>>({});
@@ -959,12 +967,31 @@ export function InteracoesLista({
       setMsgErro('Selecione ao menos um responsável.');
       return;
     }
+    // ── Helper: busca período de ausência e exibe popup ──────────────────
+    async function mostrarPopupAus(responsavelId: string, nomeResponsavel: string) {
+      const hoje = new Date();
+      const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+      const em45Dias = new Date(hoje.getTime() + 45 * 24 * 60 * 60 * 1000);
+      const em45Str = `${em45Dias.getFullYear()}-${String(em45Dias.getMonth() + 1).padStart(2, '0')}-${String(em45Dias.getDate()).padStart(2, '0')}`;
+      const { data: diasAus } = await createClient()
+        .from('carometro_ausencias')
+        .select('data')
+        .eq('profile_id', responsavelId)
+        .gte('data', hojeStr)
+        .lte('data', em45Str)
+        .order('data');
+      const datas = ((diasAus ?? []) as { data: string }[]).map((r) => r.data);
+      let periodo = 'neste período';
+      if (datas.length === 1) periodo = formatarDataBR(datas[0]!);
+      else if (datas.length > 1) periodo = `${formatarDataBR(datas[0]!)} – ${formatarDataBR(datas[datas.length - 1]!)}`;
+      setAusenciaPopup({ nome: nomeResponsavel, periodo });
+    }
+
     // ── Bloquear se responsável está ausente HOJE (férias/day off) ─────────
     if (ausNovaAtiv.size > 0) {
-      setMsgErro(
-        '⚠ O responsável está marcado como férias/day off hoje. ' +
-        'Escolha outro responsável ou aguarde o retorno.',
-      );
+      const ausenteId = [...ausNovaAtiv][0]!;
+      const nomeAusente = responsaveis.find((p) => p.id === ausenteId)?.nome ?? 'O responsável';
+      await mostrarPopupAus(ausenteId, nomeAusente);
       return;
     }
     // ── Bloquear prazo em dia de ausência do responsável ──────────────────
@@ -978,10 +1005,8 @@ export function InteracoesLista({
           .in('profile_id', d.responsaveisIds)
           .eq('data', d.data.trim());
         if (ausRows && ausRows.length > 0) {
-          setMsgErro(
-            `⚠ O responsável está marcado como ausente em ${d.data.trim()}. ` +
-            'Escolha outro prazo ou negocie diretamente.',
-          );
+          const ausenteId = (ausRows[0] as { profile_id: string }).profile_id;
+          await mostrarPopupAus(ausenteId, 'O responsável');
           return;
         }
       }
@@ -2158,6 +2183,8 @@ export function InteracoesLista({
           novaAtivDraft={novaAtivDraft}
           setNovaAtivDraft={setNovaAtivDraft}
           ausentesHoje={ausNovaAtiv}
+          ausenciaPopup={ausenciaPopup}
+          onFecharAusenciaPopup={() => setAusenciaPopup(null)}
           onAdicionarAtividade={() => void handleAdicionarAtividadeModal(detalheRowEff)}
           salvandoNovaAtividade={Boolean(salvandoTopico[topicosAlvoKey(detalheRowEff)])}
           erroNovaAtividade={msgErro}

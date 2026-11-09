@@ -801,6 +801,8 @@ export function KanbanCardModal({
   const [modalNovoChamadoAberto, setModalNovoChamadoAberto] = useState(false);
   // Responsáveis da nova atividade do chamado que estão ausentes hoje (férias/day off)
   const [ausNovaInteracao, setAusNovaInteracao] = useState<Set<string>>(new Set());
+  // Popup de aviso de férias/day off
+  const [ausenciaPopup, setAusenciaPopup] = useState<{ nome: string; periodo: string } | null>(null);
   const [novaAtividadeAberta, setNovaAtividadeAberta] = useState(false);
   const [subInteracoesPorPai, setSubInteracoesPorPai] = useState<Record<string, SubInteracaoModal[]>>({});
   const [subExpandida, setSubExpandida] = useState<Record<string, boolean>>({});
@@ -2395,6 +2397,27 @@ export function KanbanCardModal({
     }
   }, [deepLinkTopicoId, subInteracoesPorPai]);
 
+  // ── Helper: popup de férias/day off (Kanban) ─────────────────────────────
+  async function mostrarPopupAusenciaKanban(responsavelId: string, nomeResponsavel: string) {
+    const hoje = new Date();
+    const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+    const em45Dias = new Date(hoje.getTime() + 45 * 24 * 60 * 60 * 1000);
+    const em45Str = `${em45Dias.getFullYear()}-${String(em45Dias.getMonth() + 1).padStart(2, '0')}-${String(em45Dias.getDate()).padStart(2, '0')}`;
+    const { data: diasAus } = await createClient()
+      .from('carometro_ausencias')
+      .select('data')
+      .eq('profile_id', responsavelId)
+      .gte('data', hojeStr)
+      .lte('data', em45Str)
+      .order('data');
+    const datas = ((diasAus ?? []) as { data: string }[]).map((r) => r.data);
+    const fmt = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
+    let periodo = 'neste período';
+    if (datas.length === 1) periodo = fmt(datas[0]!);
+    else if (datas.length > 1) periodo = `${fmt(datas[0]!)} – ${fmt(datas[datas.length - 1]!)}`;
+    setAusenciaPopup({ nome: nomeResponsavel, periodo });
+  }
+
   async function handleAdicionarInteracao() {
     if (!card || !novaInteracao.titulo.trim()) return;
     const ativ = novaInteracao.atividade;
@@ -2417,10 +2440,9 @@ export function KanbanCardModal({
     }
     // ── Bloquear se responsável está ausente HOJE (férias/day off) ───────────
     if (ausNovaInteracao.size > 0) {
-      alert(
-        '⚠ O responsável selecionado está marcado como férias/day off hoje. ' +
-        'Escolha outro responsável ou aguarde o retorno.',
-      );
+      const ausenteId = [...ausNovaInteracao][0]!;
+      const nomeAus = responsaveisOpcoes.find((r) => r.id === ausenteId)?.nome ?? 'O responsável';
+      await mostrarPopupAusenciaKanban(ausenteId, nomeAus);
       return;
     }
     // ── Bloquear prazo em dia de ausência do responsável ────────────────────
@@ -2435,10 +2457,9 @@ export function KanbanCardModal({
           .in('profile_id', ativ.responsaveisIds)
           .eq('data', ativ.data.trim());
         if (ausRows && ausRows.length > 0) {
-          alert(
-            `⚠ O responsável está marcado como ausente em ${ativ.data.trim()}. ` +
-            'Escolha outro prazo ou negocie diretamente com quem abriu o chamado.',
-          );
+          const ausenteId = (ausRows[0] as { profile_id: string }).profile_id;
+          const nomeAus = responsaveisOpcoes.find((r) => r.id === ausenteId)?.nome ?? 'O responsável';
+          await mostrarPopupAusenciaKanban(ausenteId, nomeAus);
           return;
         }
       }
@@ -2645,10 +2666,9 @@ export function KanbanCardModal({
     }
     // ── Bloquear se responsável está ausente HOJE (férias/day off) ───────────
     if (ausSubNova.size > 0) {
-      alert(
-        '⚠ O responsável selecionado está marcado como férias/day off hoje. ' +
-        'Escolha outro responsável ou aguarde o retorno.',
-      );
+      const ausenteId = [...ausSubNova][0]!;
+      const nomeAus = responsaveisOpcoes.find((r) => r.id === ausenteId)?.nome ?? 'O responsável';
+      await mostrarPopupAusenciaKanban(ausenteId, nomeAus);
       return;
     }
     // ── Bloquear prazo em dia de ausência do responsável ────────────────────
@@ -2662,10 +2682,9 @@ export function KanbanCardModal({
           .in('profile_id', subNovaDraft.responsaveisIds)
           .eq('data', subNovaDraft.data.trim());
         if (ausRows && ausRows.length > 0) {
-          alert(
-            `⚠ O responsável está marcado como ausente em ${subNovaDraft.data.trim()}. ` +
-            'Escolha outro prazo ou negocie diretamente.',
-          );
+          const ausenteId = (ausRows[0] as { profile_id: string }).profile_id;
+          const nomeAus = responsaveisOpcoes.find((r) => r.id === ausenteId)?.nome ?? 'O responsável';
+          await mostrarPopupAusenciaKanban(ausenteId, nomeAus);
           return;
         }
       }
@@ -9201,6 +9220,52 @@ export function KanbanCardModal({
         }
       />
     )}
+
+    {/* ── Popup de férias/day off ──────────────────────────────────────── */}
+    {ausenciaPopup ? (
+      <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/50" onClick={() => setAusenciaPopup(null)} />
+        <div
+          className="relative w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl"
+          style={{ borderRadius: 'var(--moni-radius-lg)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3
+            className="mb-3 text-base font-semibold"
+            style={{ fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-primary)' }}
+          >
+            Responsável indisponível
+          </h3>
+          <p className="mb-2 text-sm text-stone-600">
+            <span className="font-semibold">{ausenciaPopup.nome}</span> está marcado como
+            férias / day off no período:
+          </p>
+          <p
+            className="mb-4 inline-block rounded px-2 py-1 text-sm font-semibold"
+            style={{
+              background: 'var(--moni-status-attention-bg, #fffbeb)',
+              color: 'var(--moni-gold-400, #D4AD68)',
+              border: '0.5px solid var(--moni-gold-400, #D4AD68)',
+            }}
+          >
+            {ausenciaPopup.periodo}
+          </p>
+          <p className="mb-5 text-sm text-stone-500">
+            Escolha outro responsável ou aguarde o retorno.
+          </p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setAusenciaPopup(null)}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+              style={{ background: 'var(--moni-navy-800)', borderRadius: 'var(--moni-radius-md)' }}
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
     </>
   );
 }
