@@ -19,7 +19,11 @@ function textoEntradaMinima(entrada: TemplateConfig['entrada_minima_loteadora'])
 export function QuadroPremissasTemplate({ template }: { template: TemplateConfig }) {
   const linhas: Array<{ label: string; valor: string }> = [
     { label: 'ITBI', valor: pctLabel(template.percentual_itbi) },
-    { label: 'Impostos', valor: pctLabel(template.percentual_impostos) },
+    { label: 'Impostos para incorporação em nuvem', valor: pctLabel(template.percentual_impostos) },
+    {
+      label: 'Impostos para pagamento com recursos próprios',
+      valor: pctLabel(template.percentual_impostos_recursos_proprios),
+    },
     { label: 'Taxa de plataforma', valor: pctLabel(template.percentual_taxa_plataforma) },
     {
       label: 'Taxa de gestão',

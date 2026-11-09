@@ -8,6 +8,7 @@ export type TemplateFonteEngine = {
   pct_itbi?: number | null;
   itbi_percentual?: number | null;
   pct_impostos?: number | null;
+  pct_impostos_recursos_proprios?: number | null;
   pct_taxa_plataforma?: number | null;
   pct_taxa_gestao?: number | null;
   tipo_taxa_gestao?: string | null;
@@ -87,6 +88,7 @@ export function montarTemplateParaEngine(
     return {
       percentual_itbi: 0,
       percentual_impostos: 0,
+      percentual_impostos_recursos_proprios: 0,
       percentual_taxa_plataforma: 0,
       percentual_taxa_gestao: 0,
       tipo_taxa_gestao: 'percentual',
@@ -108,6 +110,7 @@ export function montarTemplateParaEngine(
   return {
     percentual_itbi: fracaoOuZero(tpl.pct_itbi ?? tpl.itbi_percentual),
     percentual_impostos: fracaoOuZero(tpl.pct_impostos),
+    percentual_impostos_recursos_proprios: fracaoOuZero(tpl.pct_impostos_recursos_proprios),
     percentual_taxa_plataforma: fracaoOuZero(tpl.pct_taxa_plataforma),
     percentual_taxa_gestao:
       tipoGestao === 'fixo'

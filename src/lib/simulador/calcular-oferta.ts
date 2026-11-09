@@ -3,6 +3,8 @@
 export interface TemplateConfig {
   percentual_itbi: number;
   percentual_impostos: number;
+  /** Fração sobre o custo da obra. Só entra no modo recursos próprios. 0 é válido. */
+  percentual_impostos_recursos_proprios: number;
   percentual_taxa_plataforma: number;
   percentual_taxa_gestao: number;
   /** `fixo`: percentual_taxa_gestao é R$. Default percentual. */
@@ -51,6 +53,11 @@ export interface OfertaConfig {
   mensal_confirmada?: number;
   /** Parcela única confirmada — usada no fluxo, não na precificação (VTE/VTP). */
   parcela_unica_confirmada?: number;
+  /**
+   * Ausente ou `financiamento` mantém o cálculo atual.
+   * `recursos_proprios` não usa crédito-ponte, juros de obra, SAC nem os 30% do VTE.
+   */
+  modalidade?: 'financiamento' | 'recursos_proprios';
 }
 
 export interface LinhaFluxo {
@@ -71,6 +78,10 @@ export interface LinhaFluxo {
   caixa_cliente: number;
   /** Parte da mensal que abateu saldo de crédito-ponte neste mês. */
   amortizacao_cp: number;
+  /** Parcela de lucros + impostos neste mês. Só no modo recursos próprios. */
+  parcela_lucros_impostos?: number;
+  /** Caixa no início do mês ÷ meses de obra que ainda faltam, contando o atual. */
+  cota_caixa?: number;
 }
 
 export interface AlertaCalculo {
@@ -476,11 +487,267 @@ export function formatarMoedaCentavos(v: number): string {
   });
 }
 
+/**
+ * 20% no primeiro mês de obra; os 80% restantes em partes iguais nos demais.
+ * O centavo que sobra do arredondamento fica no último mês.
+ */
+function parcelasLucrosImpostos(total: number, nObra: number): number[] {
+  const n = Math.max(1, nObra);
+  const alvo = r2(Math.max(0, total));
+  if (n === 1) return [alvo];
+  const primeiro = r2(alvo * 0.2);
+  const restante = r2(alvo - primeiro);
+  const demais = n - 1;
+  const parte = r2(restante / demais);
+  const out: number[] = [primeiro];
+  let acc = primeiro;
+  for (let i = 1; i < n - 1; i += 1) {
+    out.push(parte);
+    acc = r2(acc + parte);
+  }
+  out.push(r2(alvo - acc));
+  return out;
+}
+
+/**
+ * Pagamento com recursos próprios. Não chama o fluxo de financiamento.
+ * ITBI, crédito-ponte, juros de obra, SAC e a regra dos 30% do VTE ficam de fora.
+ */
+function calcularOfertaRecursosProprios(
+  template: TemplateConfig,
+  oferta: OfertaConfig,
+  valorAcoplamento = 0,
+): ResultadoCalculo {
+  const valor_lote = Math.max(0, n0(oferta.valor_lote));
+  const valor_casa = Math.max(0, n0(oferta.valor_casa));
+  const valor_customizacao = Math.max(0, n0(oferta.valor_customizacao));
+  const valor_acoplamento = Math.max(0, n0(oferta.valor_acoplamento ?? valorAcoplamento));
+  const valor_ja_pago = Math.max(0, n0(oferta.valor_ja_pago));
+  const prazo_meses = Math.max(1, Math.round(n0(oferta.prazo_meses)));
+  const parcela_mensal = Math.max(0, n0(oferta.parcela_mensal));
+  const N_obra = Math.min(7, Math.max(3, Math.round(n0(template.prazo_obra_meses) || 7)));
+  const taxa_parcelado = Math.max(0, n0(template.taxa_juros_parcelado_mes));
+
+  const custo_obra = valor_casa + valor_acoplamento + valor_customizacao;
+  const base_calc = valor_lote + custo_obra;
+  const itbi_amount = 0;
+  const taxa_plataforma_amount = n0(template.percentual_taxa_plataforma) * custo_obra;
+  const taxa_gestao_amount =
+    template.tipo_taxa_gestao === 'fixo'
+      ? Math.max(0, n0(template.percentual_taxa_gestao))
+      : n0(template.percentual_taxa_gestao) * custo_obra;
+  const fracPlatEntrada = Math.min(1, Math.max(0, n0(template.percentual_plataforma_entrada)));
+  const usaPlatEntrada = fracPlatEntrada > 0;
+  const taxa_plataforma_entrada = usaPlatEntrada ? r2(taxa_plataforma_amount * fracPlatEntrada) : 0;
+  const taxa_plataforma_restante = r2(taxa_plataforma_amount - taxa_plataforma_entrada);
+  const lucro_loteadora_amount = n0(template.percentual_lucro_loteadora) * base_calc;
+  const lucro_moni_amount = n0(template.percentual_lucro_moni) * base_calc;
+  const lucro_franqueado_amount = n0(template.percentual_lucro_franqueado) * base_calc;
+  const lucros =
+    lucro_loteadora_amount + lucro_moni_amount + lucro_franqueado_amount;
+  const VTP_base =
+    base_calc + taxa_plataforma_amount + taxa_gestao_amount + lucros;
+  const comissao_amount = n0(template.percentual_comissao_corretor) * VTP_base;
+  const impostos_amount = n0(template.percentual_impostos_recursos_proprios) * custo_obra;
+
+  let entrada_do_lote = 0;
+  if (!template.entrada_minima_loteadora) {
+    entrada_do_lote = 0;
+  } else if (template.entrada_minima_loteadora.tipo === 'percentual') {
+    entrada_do_lote = Math.max(0, template.entrada_minima_loteadora.valor * valor_lote);
+  } else {
+    entrada_do_lote = Math.max(0, template.entrada_minima_loteadora.valor);
+  }
+  const entrada_do_lote_definida = entrada_do_lote;
+  const ja_pago_loteadora = Math.min(valor_ja_pago, valor_lote);
+  entrada_do_lote = Math.max(0, entrada_do_lote_definida - ja_pago_loteadora);
+  const entrada_mes0_fluxo = entrada_do_lote + comissao_amount + taxa_plataforma_entrada;
+
+  const antes = montarAntesObra({
+    valor_lote,
+    ja_pago_loteadora,
+    comissao_amount,
+    taxa_plataforma_entrada,
+    itbi_amount: 0,
+    entrada: entrada_mes0_fluxo,
+    mensal: parcela_mensal,
+    parcela_unica: 0,
+    prazo_meses,
+    taxa_parcelado,
+  });
+  const parcela_unica = Math.max(0, antes.quitacao_real);
+  const juros_lote_total = antes.fase1.juros_lote_total;
+  const valor_total =
+    VTP_base + juros_lote_total + impostos_amount + comissao_amount;
+
+  const desembolsos = getDesembolso(N_obra);
+  const taxas_plataforma_mes = montarTaxasPlataformaPorMes(taxa_plataforma_restante, N_obra);
+  const gestao_mes = taxa_gestao_amount / N_obra;
+  const lucrosImpostosMes = parcelasLucrosImpostos(lucros + impostos_amount, N_obra);
+
+  const obra: LinhaFluxo[] = [];
+  let caixa = Math.max(0, antes.caixaAntesObra);
+  for (let i = 0; i < N_obra; i += 1) {
+    const ultimo = i === N_obra - 1;
+    const mesesRestantes = N_obra - i;
+    const cota = mesesRestantes > 0 ? caixa / mesesRestantes : 0;
+    const construcao = Math.max(0, custo_obra) * (desembolsos[i] ?? 0);
+    const plataforma = taxas_plataforma_mes[i] ?? 0;
+    const parcelaLi = lucrosImpostosMes[i] ?? 0;
+    const desembolso = construcao + gestao_mes + plataforma + parcelaLi;
+    const parcelaCliente = ultimo
+      ? Math.max(0, desembolso - caixa)
+      : Math.max(parcela_mensal, desembolso - cota, 0);
+    const caixaFim = Math.max(0, caixa + parcelaCliente - desembolso);
+    obra.push({
+      mes: prazo_meses + i + 1,
+      fase: 'fase2',
+      etapa_obra: i + 1,
+      descricao: ultimo
+        ? `Obra — etapa ${i + 1}/${N_obra} (entrega)`
+        : `Obra — etapa ${i + 1}/${N_obra}`,
+      entrada_cliente: r2(parcelaCliente),
+      saidas_obra: r2(construcao + gestao_mes + plataforma),
+      saldo_lote: 0,
+      juros_lote_mes: 0,
+      desembolso_obra: r2(construcao),
+      saldo_credito_ponte: 0,
+      juros_obra_mes: 0,
+      saidas_total: r2(desembolso),
+      pagamento_loteadora: 0,
+      caixa_cliente: r2(caixaFim),
+      amortizacao_cp: 0,
+      parcela_lucros_impostos: r2(parcelaLi),
+      cota_caixa: r2(cota),
+    });
+    caixa = caixaFim;
+  }
+
+  const caixa_final = obra.length > 0 ? obra[obra.length - 1].caixa_cliente : r2(caixa);
+  const valor_pago_a_maior = caixa_final;
+
+  const linhaPreContrato: LinhaFluxo | null =
+    ja_pago_loteadora > 0
+      ? {
+          mes: 0,
+          fase: 'pre_contrato',
+          descricao: 'Pré-contrato (já pago à loteadora)',
+          entrada_cliente: r2(ja_pago_loteadora),
+          saidas_obra: 0,
+          saldo_lote: r2(valor_lote - ja_pago_loteadora),
+          juros_lote_mes: 0,
+          desembolso_obra: 0,
+          saldo_credito_ponte: 0,
+          juros_obra_mes: 0,
+          saidas_total: r2(ja_pago_loteadora),
+          pagamento_loteadora: r2(ja_pago_loteadora),
+          caixa_cliente: 0,
+          amortizacao_cp: 0,
+        }
+      : null;
+
+  const fluxo: LinhaFluxo[] = [
+    ...(linhaPreContrato ? [linhaPreContrato] : []),
+    {
+      mes: 0,
+      fase: 'mes0',
+      descricao: usaPlatEntrada
+        ? 'Entrada (comissão + entrada do lote + plataforma)'
+        : 'Entrada (comissão + entrada do lote)',
+      entrada_cliente: r2(entrada_mes0_fluxo),
+      saidas_obra: 0,
+      saldo_lote: r2(antes.fase1.lot_balance_inicio),
+      juros_lote_mes: 0,
+      desembolso_obra: 0,
+      saldo_credito_ponte: 0,
+      juros_obra_mes: 0,
+      saidas_total: r2(antes.saidas_mes0),
+      pagamento_loteadora: r2(antes.pag_lote_mes0),
+      caixa_cliente: r2(antes.reserva_mes0),
+      amortizacao_cp: 0,
+    },
+    ...antes.fase1.fluxo,
+    {
+      mes: prazo_meses,
+      fase: 'parcela_unica',
+      descricao: 'Parcela mensal + parcela única',
+      entrada_cliente: r2(parcela_mensal + parcela_unica),
+      saidas_obra: 0,
+      saldo_lote: 0,
+      juros_lote_mes: r2(antes.fase1.juros_last),
+      desembolso_obra: 0,
+      saldo_credito_ponte: 0,
+      juros_obra_mes: 0,
+      saidas_total: r2(antes.pagMensalUnica + parcela_unica),
+      pagamento_loteadora: r2(antes.pagMensalUnica + parcela_unica),
+      caixa_cliente: r2(antes.caixaAntesObra + Math.max(0, parcela_unica - antes.quitacao_real)),
+      amortizacao_cp: 0,
+    },
+    ...obra,
+  ];
+
+  const alertas: AlertaCalculo[] = [];
+  if (
+    parcela_mensal < antes.fase1.lot_balance_inicio * taxa_parcelado &&
+    taxa_parcelado > 0
+  ) {
+    alertas.push({
+      tipo: 'parcela_mensal_baixa',
+      mensagem:
+        'Parcela mensal abaixo dos juros mensais do saldo do lote — o saldo devedor vai crescer em vez de diminuir.',
+    });
+  }
+
+  return {
+    valor_casa: r2(valor_casa),
+    valor_customizacao: r2(valor_customizacao),
+    valor_acoplamento: r2(valor_acoplamento),
+    base_calc: r2(base_calc),
+    itbi_amount: 0,
+    taxa_plataforma_amount: r2(taxa_plataforma_amount),
+    taxa_gestao_amount: r2(taxa_gestao_amount),
+    lucro_loteadora_amount: r2(lucro_loteadora_amount),
+    lucro_moni_amount: r2(lucro_moni_amount),
+    lucro_franqueado_amount: r2(lucro_franqueado_amount),
+    juros_obra_total: 0,
+    juros_lote_total: r2(juros_lote_total),
+    vtp: r2(VTP_base + juros_lote_total),
+    impostos_amount: r2(impostos_amount),
+    comissao_amount: r2(comissao_amount),
+    vte: r2(valor_total),
+    vte_avista: r2(VTP_base + impostos_amount + comissao_amount),
+    entrada_sugerida: r2(entrada_mes0_fluxo),
+    entrada_do_lote: r2(entrada_do_lote),
+    comissao_sugerida: r2(comissao_amount),
+    parcela_mensal_usada: r2(parcela_mensal),
+    quantidade_parcelas_total: prazo_meses + N_obra,
+    parcela_unica_sugerida: r2(parcela_unica),
+    parcela_unica_minima_display: r2(parcela_unica),
+    falta_parcela_unica: 0,
+    mes_parcela_unica: prazo_meses,
+    saldo_financiar: 0,
+    parcela_sac_primeira: 0,
+    parcela_sac_ultima: 0,
+    parcela_unica_detalhe: {
+      min_quitar_lote: r2(antes.quitacao_real),
+      min_atingir_30pct: 0,
+      pct_vte_antes_obra: 0,
+    },
+    alertas,
+    fluxo,
+    caixa_final: r2(caixa_final),
+    valor_pago_a_maior: r2(valor_pago_a_maior),
+  };
+}
+
 export function calcularOferta(
   template: TemplateConfig,
   oferta: OfertaConfig,
   valorAcoplamento = 0,
 ): ResultadoCalculo {
+  if ((oferta.modalidade ?? 'financiamento') === 'recursos_proprios') {
+    return calcularOfertaRecursosProprios(template, oferta, valorAcoplamento);
+  }
   const valor_lote = Math.max(0, n0(oferta.valor_lote));
   const valor_casa = Math.max(0, n0(oferta.valor_casa));
   const valor_customizacao = Math.max(0, n0(oferta.valor_customizacao));
@@ -911,6 +1178,10 @@ export function pagamentoAMaiorBloqueia(valor: number): boolean {
 
 export function mensagemPagamentoAMaior(valor: number): string {
   return `As parcelas somam ${formatarMoedaCentavos(valor)} a mais que o valor total. Reduza a parcela mensal, a entrada ou a parcela única.`;
+}
+
+export function mensagemPagamentoAMaiorRecursosProprios(valor: number): string {
+  return `As parcelas somam ${formatarMoedaCentavos(valor)} a mais que o necessário. Reduza a parcela mensal.`;
 }
 
 /** Igual ao lote continua permitido: o lote está quitado. */

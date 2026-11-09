@@ -23,6 +23,7 @@ type SimulacaoColuna = {
 const SEM_CORRETOR = 'Sem corretor — site Moní';
 
 const LINHAS: { id: string; label: string }[] = [
+  { id: 'modalidade', label: 'Modalidade' },
   { id: 'oferta', label: 'Oferta / modelo' },
   { id: 'lote', label: 'Lote' },
   { id: 'terreno', label: 'Valor do terreno' },
@@ -119,6 +120,10 @@ function montarColuna(row: Record<string, unknown>): SimulacaoColuna {
   const prazoObra = numero(snapshot.prazo_obra_meses ?? inputs.prazo_obra_meses ?? row.prazo_meses);
   const financiamento =
     anos == null && taxa === '—' ? '—' : `${anos != null ? `${anos} anos` : '—'} · ${taxa}`;
+  const modalidade =
+    String(snapshot.modalidade ?? inputs.modalidade ?? '') === 'recursos_proprios'
+      ? 'Recursos próprios'
+      : 'Financiamento';
   const itensFonte = Array.isArray(snapshot.customizacao_itens)
     ? snapshot.customizacao_itens
     : row.customizacao_itens;
@@ -126,6 +131,7 @@ function montarColuna(row: Record<string, unknown>): SimulacaoColuna {
     id: String(row.id),
     quando: quando(row.created_at),
     valores: {
+      modalidade,
       oferta: texto(snapshot.oferta_nome ?? inputs.oferta_nome),
       lote: texto(snapshot.lote ?? inputs.lote_rotulo ?? inputs.lote_codigo),
       terreno: moeda(snapshot.valor_terreno ?? row.valor_lote),
@@ -140,7 +146,10 @@ function montarColuna(row: Record<string, unknown>): SimulacaoColuna {
         snapshot.parcela_mensal ?? inputs.parcela_mensal ?? row.parcela_mensal_confirmada ?? row.parcela_mensal,
       ),
       unica: moeda(snapshot.parcela_unica ?? inputs.parcela_unica ?? row.parcela_unica_confirmada),
-      saldo: moeda(snapshot.saldo_a_financiar ?? inputs.saldo_a_financiar),
+      saldo:
+        modalidade === 'Recursos próprios'
+          ? '—'
+          : moeda(snapshot.saldo_a_financiar ?? inputs.saldo_a_financiar),
     },
     itens: lerItens(itensFonte),
     fluxo: lerFluxo(snapshot.fluxo),

@@ -467,6 +467,7 @@ function draftParaRow(
       pct_lucro_moni: percentualUiParaFracao(draft.pct_lucro_moni),
       pct_lucro_franqueado: percentualUiParaFracao(draft.pct_lucro_franqueado),
       pct_impostos: percentualUiParaFracao(draft.pct_impostos),
+      pct_impostos_recursos_proprios: percentualUiParaFracao(draft.pct_impostos_recursos_proprios),
       pct_comissao_corretor: percentualUiParaFracao(draft.pct_comissao_corretor),
       taxa_juros_credito_ponte:
         draft.taxa_juros_credito_ponte.trim() === ''

@@ -26,6 +26,7 @@ export const TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_FRACAO = 0.1;
 export const TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI = '10';
 export const PCT_ITBI_PADRAO_UI = '3';
 export const PCT_IMPOSTOS_PADRAO_UI = '6';
+export const PCT_IMPOSTOS_RECURSOS_PROPRIOS_PADRAO_UI = '15';
 export const PCT_TAXA_PLATAFORMA_PADRAO_UI = '8';
 export const PCT_TAXA_GESTAO_PADRAO_UI = '7';
 export const VALOR_TAXA_GESTAO_FIXO_PADRAO_UI = '90000';
@@ -67,6 +68,7 @@ export type LoteamentoSimuladorTemplateRow = {
   pct_lucro_moni: number;
   pct_lucro_franqueado: number;
   pct_impostos: number;
+  pct_impostos_recursos_proprios: number;
   pct_comissao_corretor: number;
   taxa_juros_credito_ponte: number;
   tipo_juros_cp: TipoJurosCp;
@@ -88,6 +90,7 @@ export type LoteamentoSimuladorTemplateDraft = {
   nome: string;
   pct_itbi: string;
   pct_impostos: string;
+  pct_impostos_recursos_proprios: string;
   taxa_juros_credito_ponte: string;
   tipo_juros_cp: TipoJurosCp;
   taxa_juros_financiamento_anual: string;
@@ -111,6 +114,7 @@ type SimuladorPctField = {
     LoteamentoSimuladorTemplateDraft,
     | 'pct_itbi'
     | 'pct_impostos'
+    | 'pct_impostos_recursos_proprios'
     | 'taxa_juros_credito_ponte'
     | 'taxa_juros_financiamento_anual'
     | 'pct_taxa_plataforma'
@@ -129,9 +133,15 @@ export const PCT_FIELDS: readonly SimuladorPctField[] = [
   { key: 'pct_itbi', label: 'ITBI', hint: 'Sobre o valor do lote, pago na quitação.', placeholder: PCT_ITBI_PADRAO_UI },
   {
     key: 'pct_impostos',
-    label: 'Impostos',
+    label: 'Impostos para incorporação em nuvem',
     hint: 'Sobre o VTP (exceto corretagem); pago no último mês.',
     placeholder: PCT_IMPOSTOS_PADRAO_UI,
+  },
+  {
+    key: 'pct_impostos_recursos_proprios',
+    label: 'Impostos para pagamento com recursos próprios',
+    hint: 'Sobre o custo da obra (casa, acoplamento e customização).',
+    placeholder: PCT_IMPOSTOS_RECURSOS_PROPRIOS_PADRAO_UI,
   },
   {
     key: 'taxa_juros_credito_ponte',
@@ -180,6 +190,7 @@ export function emptySimuladorTemplateDraft(): LoteamentoSimuladorTemplateDraft 
     nome: '',
     pct_itbi: PCT_ITBI_PADRAO_UI,
     pct_impostos: PCT_IMPOSTOS_PADRAO_UI,
+    pct_impostos_recursos_proprios: PCT_IMPOSTOS_RECURSOS_PROPRIOS_PADRAO_UI,
     taxa_juros_credito_ponte: JUROS_CREDITO_PONTE_PADRAO_UI,
     tipo_juros_cp: 'mes_a_mes',
     taxa_juros_financiamento_anual: TAXA_JUROS_FINANCIAMENTO_ANUAL_PADRAO_UI,
@@ -306,6 +317,10 @@ export function rowToSimuladorTemplateDraft(
     nome: row.nome ?? '',
     pct_itbi: percentualUiOuSugestao(row.pct_itbi, PCT_ITBI_PADRAO_UI),
     pct_impostos: percentualUiOuSugestao(row.pct_impostos, PCT_IMPOSTOS_PADRAO_UI),
+    pct_impostos_recursos_proprios: percentualUiOuSugestao(
+      row.pct_impostos_recursos_proprios,
+      PCT_IMPOSTOS_RECURSOS_PROPRIOS_PADRAO_UI,
+    ),
     taxa_juros_credito_ponte: percentualUiOuSugestao(jurosFracao, JUROS_CREDITO_PONTE_PADRAO_UI),
     tipo_juros_cp: parseTipoJurosCp(row.tipo_juros_cp),
     taxa_juros_financiamento_anual:
@@ -366,6 +381,7 @@ export function mapTemplateRow(raw: Record<string, unknown>): LoteamentoSimulado
     pct_lucro_moni: Number(raw.pct_lucro_moni ?? 0),
     pct_lucro_franqueado: Number(raw.pct_lucro_franqueado ?? 0),
     pct_impostos: Number(raw.pct_impostos ?? 0),
+    pct_impostos_recursos_proprios: Number(raw.pct_impostos_recursos_proprios ?? 0),
     pct_comissao_corretor: Number(raw.pct_comissao_corretor ?? 0),
     taxa_juros_credito_ponte: Number(raw.taxa_juros_credito_ponte ?? 0),
     tipo_juros_cp: parseTipoJurosCp(raw.tipo_juros_cp),

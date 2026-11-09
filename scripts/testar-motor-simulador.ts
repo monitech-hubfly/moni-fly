@@ -216,6 +216,97 @@ function verificar(r: ResultadoCalculo, oferta: OfertaConfig, tpl: TemplateConfi
   return { entradas, loteadora, jurosCp };
 }
 
+function verificarRecursosProprios(
+  r: ResultadoCalculo,
+  oferta: OfertaConfig,
+  tpl: TemplateConfig,
+) {
+  const entrada = {
+    lote: oferta.valor_lote,
+    casa: oferta.valor_casa,
+    acoplamento: oferta.valor_acoplamento ?? 0,
+    customizacao: oferta.valor_customizacao,
+    jaPago: oferta.valor_ja_pago,
+    prazoFase1: oferta.prazo_meses,
+    obra: tpl.prazo_obra_meses,
+    mensal: oferta.parcela_mensal,
+    impostosRp: tpl.percentual_impostos_recursos_proprios,
+  };
+  const custo =
+    oferta.valor_casa + (oferta.valor_acoplamento ?? 0) + oferta.valor_customizacao;
+  const entradas = soma(r.fluxo.map((l) => l.entrada_cliente));
+  const trava = pagamentoAMaiorBloqueia(r.valor_pago_a_maior);
+  if (!trava && !perto(entradas, r.vte)) {
+    registrar('RP1', entrada, `pago ${r2(entradas)} ≠ total ${r2(r.vte)}`);
+  }
+  if (!perto(r.itbi_amount, 0)) {
+    registrar('RP2', entrada, `ITBI ${r.itbi_amount}`);
+  }
+  const impostosEsp = tpl.percentual_impostos_recursos_proprios * custo;
+  if (!perto(r.impostos_amount, impostosEsp)) {
+    registrar('RP2', entrada, `impostos ${r.impostos_amount} ≠ ${r2(impostosEsp)}`);
+  }
+  if (!perto(r.juros_obra_total, 0) || !perto(r.saldo_financiar, 0)) {
+    registrar('RP3', entrada, `juros obra ${r.juros_obra_total} saldo ${r.saldo_financiar}`);
+  }
+  for (const linha of r.fluxo) {
+    if (Math.abs(linha.saldo_credito_ponte) > TOL || Math.abs(linha.juros_obra_mes) > TOL) {
+      registrar('RP3', entrada, `mês ${linha.mes} ${linha.fase} tem crédito-ponte ou juros de obra`);
+    }
+    if (linha.caixa_cliente < -TOL || linha.entrada_cliente < -TOL) {
+      registrar('RP4', entrada, `mês ${linha.mes} ${linha.fase} caixa ou parcela negativa`);
+    }
+  }
+  const loteadora = soma(r.fluxo.map((l) => l.pagamento_loteadora));
+  const jurosLote = soma(r.fluxo.map((l) => l.juros_lote_mes));
+  if (loteadora > oferta.valor_lote + jurosLote + TOL) {
+    registrar('RP5', entrada, `loteadora ${r2(loteadora)} > lote + juros ${r2(oferta.valor_lote + jurosLote)}`);
+  }
+  const antesDaUnica = [...r.fluxo]
+    .reverse()
+    .find((l) => l.fase === 'fase1' || l.fase === 'mes0');
+  if ((antesDaUnica?.saldo_lote ?? 0) <= TOL && !perto(r.parcela_unica_sugerida, 0)) {
+    registrar('RP6', entrada, `única ${r.parcela_unica_sugerida} com lote já quitado`);
+  }
+  if (trava !== r.valor_pago_a_maior > TOL || !perto(r.caixa_final, r.valor_pago_a_maior)) {
+    registrar(
+      'RP7',
+      entrada,
+      `trava ${trava} caixa ${r.caixa_final} a maior ${r.valor_pago_a_maior}`,
+    );
+  }
+  const obra = r.fluxo.filter((l) => l.fase === 'fase2');
+  obra.forEach((linha, i) => {
+    if (i < obra.length - 1 && linha.entrada_cliente + TOL < oferta.parcela_mensal) {
+      registrar(
+        'RP8',
+        entrada,
+        `mês ${linha.mes} parcela ${linha.entrada_cliente} < desejada ${oferta.parcela_mensal}`,
+      );
+    }
+  });
+  const lucrosImpostos =
+    r.lucro_loteadora_amount +
+    r.lucro_moni_amount +
+    r.lucro_franqueado_amount +
+    r.impostos_amount;
+  const partes = obra.map((l) => l.parcela_lucros_impostos ?? 0);
+  if (partes.length > 0 && !perto(partes[0] ?? 0, lucrosImpostos * 0.2)) {
+    registrar('RP9', entrada, `primeiro mês ${partes[0]} ≠ 20% de ${r2(lucrosImpostos)}`);
+  }
+  if (partes.length > 2) {
+    const igual = partes[1] ?? 0;
+    for (let i = 2; i < partes.length - 1; i += 1) {
+      if (Math.abs((partes[i] ?? 0) - igual) > 0.001) {
+        registrar('RP9', entrada, `mês de obra ${i + 1} ${partes[i]} ≠ ${igual}`);
+      }
+    }
+  }
+  if (!perto(soma(partes), lucrosImpostos)) {
+    registrar('RP9', entrada, `soma ${r2(soma(partes))} ≠ ${r2(lucrosImpostos)}`);
+  }
+}
+
 function exigir(nome: string, ok: boolean, detalhe: string) {
   if (!ok) registrar(nome, nome, detalhe);
 }
@@ -303,6 +394,15 @@ for (let i = 0; i < COMBINACOES; i += 1) {
     r = calcularOferta(tpl, confirmada, confirmada.valor_acoplamento);
     verificar(r, confirmada, tpl);
   }
+
+  const pctRp = rand() < 0.1 ? 0 : entre(0, 0.25);
+  const tplRp = templateDe({ ...fonte, pct_impostos_recursos_proprios: pctRp });
+  const ofertaRp: OfertaConfig = { ...oferta, modalidade: 'recursos_proprios' };
+  verificarRecursosProprios(
+    calcularOferta(tplRp, ofertaRp, ofertaRp.valor_acoplamento),
+    ofertaRp,
+    tplRp,
+  );
 }
 
 const tpl = templateDe(baseFonte());
@@ -455,10 +555,117 @@ console.log(
 exigir('jaPago.trava', jaPagoAcimaDoLote(2_000_000, 1_200_000), 'já pago acima do lote não bloqueia');
 exigir('jaPago.igual', !jaPagoAcimaDoLote(1_200_000, 1_200_000), 'já pago igual ao lote foi bloqueado');
 
+function imprimirRecursosProprios(nome: string, r: ResultadoCalculo) {
+  console.log(
+    `\n${nome} preço`,
+    JSON.stringify({
+      itbi: r.itbi_amount,
+      impostos: r.impostos_amount,
+      plataforma: r.taxa_plataforma_amount,
+      gestao: r.taxa_gestao_amount,
+      lucroLoteadora: r.lucro_loteadora_amount,
+      lucroMoni: r.lucro_moni_amount,
+      lucroFranqueado: r.lucro_franqueado_amount,
+      comissao: r.comissao_amount,
+      jurosLote: r.juros_lote_total,
+      jurosObra: r.juros_obra_total,
+      vtp: r.vtp,
+      valorTotal: r.vte,
+      entrada: r.entrada_sugerida,
+      mensalDesejada: r.parcela_mensal_usada,
+      unica: r.parcela_unica_sugerida,
+      saldo: r.saldo_financiar,
+      sacPrimeira: r.parcela_sac_primeira,
+      caixa: r.caixa_final,
+      maior: r.valor_pago_a_maior,
+      trava: pagamentoAMaiorBloqueia(r.valor_pago_a_maior),
+    }),
+  );
+  console.log(`${nome} fluxo`);
+  for (const linha of r.fluxo) {
+    console.log(
+      JSON.stringify({
+        mes: linha.mes,
+        fase: linha.fase,
+        entrada: linha.entrada_cliente,
+        loteadora: linha.pagamento_loteadora,
+        desembolsoObra: linha.desembolso_obra,
+        lucrosImpostos: linha.parcela_lucros_impostos ?? 0,
+        saidas: linha.saidas_total,
+        caixa: linha.caixa_cliente,
+        cota: linha.cota_caixa ?? 0,
+      }),
+    );
+  }
+}
+
+console.log(
+  '\nRecursos próprios — prazo 12 de entrega vira fase 1 de 5 meses, com obra de 7 no template',
+);
+const tplRp = templateDe(baseFonte({ pct_impostos_recursos_proprios: 0.15 }));
+const ofertaRpA: OfertaConfig = {
+  valor_lote: 100_000,
+  valor_casa: 1_000_000,
+  valor_customizacao: 0,
+  valor_acoplamento: 200_000,
+  valor_ja_pago: 0,
+  prazo_meses: 5,
+  parcela_mensal: 50_000,
+  renda_cliente: 0,
+  prazo_financiamento_anos: 30,
+  modalidade: 'recursos_proprios',
+};
+const rpA = calcularOferta(tplRp, ofertaRpA, ofertaRpA.valor_acoplamento);
+verificarRecursosProprios(rpA, ofertaRpA, tplRp);
+imprimirRecursosProprios('RP-a', rpA);
+exigir('RP-a.trava', !pagamentoAMaiorBloqueia(rpA.valor_pago_a_maior), 'RP-a disparou a trava');
+
+const ofertaRpB: OfertaConfig = { ...ofertaRpA, parcela_mensal: 7_000 };
+const rpB = calcularOferta(tplRp, ofertaRpB, ofertaRpB.valor_acoplamento);
+verificarRecursosProprios(rpB, ofertaRpB, tplRp);
+imprimirRecursosProprios('RP-b', rpB);
+exigir('RP-b.trava', !pagamentoAMaiorBloqueia(rpB.valor_pago_a_maior), 'RP-b disparou a trava');
+
+const ofertaRpC: OfertaConfig = { ...ofertaRpA, valor_lote: 1_200_000, parcela_mensal: 15_000 };
+const rpC = calcularOferta(tplRp, ofertaRpC, ofertaRpC.valor_acoplamento);
+verificarRecursosProprios(rpC, ofertaRpC, tplRp);
+imprimirRecursosProprios('RP-c', rpC);
+exigir('RP-c.unica', rpC.parcela_unica_sugerida > TOL, 'RP-c quitou o lote sem parcela única');
+exigir('RP-c.trava', !pagamentoAMaiorBloqueia(rpC.valor_pago_a_maior), 'RP-c disparou a trava');
+
+const ofertaRpD: OfertaConfig = { ...ofertaRpA, parcela_mensal: 500_000 };
+const rpD = calcularOferta(tplRp, ofertaRpD, ofertaRpD.valor_acoplamento);
+verificarRecursosProprios(rpD, ofertaRpD, tplRp);
+imprimirRecursosProprios('RP-d', rpD);
+exigir('RP-d.trava', pagamentoAMaiorBloqueia(rpD.valor_pago_a_maior), 'RP-d não disparou a trava');
+
+const { modalidade: _modalidadeRp, ...ofertaRpE } = ofertaRpA;
+void _modalidadeRp;
+const rpE = calcularOferta(tplRp, ofertaRpE, ofertaRpE.valor_acoplamento);
+const rpEMarcado = calcularOferta(
+  tplRp,
+  { ...ofertaRpE, modalidade: 'financiamento' },
+  ofertaRpE.valor_acoplamento,
+);
+verificar(rpE, ofertaRpE, tplRp);
+imprimirRecursosProprios('RP-e', rpE);
+const rpEHoje = calcularOferta(
+  templateDe(baseFonte()),
+  ofertaRpE,
+  ofertaRpE.valor_acoplamento,
+);
+exigir(
+  'RP-e',
+  JSON.stringify(rpE) === JSON.stringify(rpEMarcado) && JSON.stringify(rpE) === JSON.stringify(rpEHoje),
+  'modo financiamento divergiu do cálculo atual',
+);
+
 console.log(`\nFalhas: ${falhas.length}`);
 for (const [check, itens] of exemplos) {
   console.log(`\n${check} (${itens.length} exemplo(s) de até 3)`);
   for (const item of itens) console.log(item.detalhe, JSON.stringify(item.entrada));
 }
 if (falhas.length > 0) process.exit(1);
-console.log(`\n${COMBINACOES} combinações aleatórias mais os casos fixos passaram nas verificações V1–V9.`);
+console.log(
+  `\n${COMBINACOES} combinações aleatórias mais os casos fixos passaram nas verificações V1–V9 e, no modo recursos próprios, em RP1–RP9.`,
+);

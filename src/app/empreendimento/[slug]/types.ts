@@ -88,6 +88,7 @@ export type TemplateConfigPublico = {
   percentual_plataforma_entrada?: number | null;
   pct_plataforma_entrada?: number | null;
   pct_impostos?: number | null;
+  pct_impostos_recursos_proprios?: number | null;
   pct_comissao_corretor?: number | null;
   pct_lucro_loteadora?: number | null;
   pct_lucro_moni?: number | null;
@@ -172,4 +173,8 @@ export type JornadaLocal = {
   prazoObraMeses: number;
   prazoFinanciamento: number;
   taxaJuros: number;
+  /** Começa em sim. Não altera o fluxo de financiamento. */
+  precisaFinanciamento: boolean;
+  /** Null usa a sugestão por faixa. Zero é valor digitado. */
+  parcelaMensalDesejada: number | null;
 };

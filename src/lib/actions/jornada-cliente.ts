@@ -13,6 +13,7 @@ import {
   jaPagoAcimaDoLote,
   mensagemJaPagoAcimaDoLote,
   mensagemPagamentoAMaior,
+  mensagemPagamentoAMaiorRecursosProprios,
   pagamentoAMaiorBloqueia,
   sugerirParcelaMensal,
   type OfertaConfig,
@@ -38,6 +39,7 @@ export type SnapshotSimulacaoJornada = {
   parcela_mensal: number;
   parcela_unica: number;
   saldo_a_financiar: number;
+  modalidade?: 'financiamento' | 'recursos_proprios';
   customizacao_itens: ItemCustomizacaoEscolhido[];
   fluxo: {
     mes: number;
@@ -301,28 +303,45 @@ async function recusarPagamentoAMaiorJornada(
   const percMensal = fracaoPremissa(row.premissa_entrada_lote_nao_pago);
   const parcelaBase =
     percMensal > 0 ? percMensal * input.valorLote : sugerirParcelaMensal(input.valorLote);
-  const oferta: OfertaConfig = {
-    valor_lote: input.valorLote,
-    valor_casa: input.valorCasa,
-    valor_customizacao: input.valorCustomizacao,
-    valor_acoplamento: input.valorAcoplamento,
-    valor_ja_pago: input.valorJaPago,
-    prazo_meses: prazoFase1,
-    parcela_mensal: parcelaBase,
-    renda_cliente: input.rendaCliente ?? 0,
-    prazo_financiamento_anos: Math.max(1, Math.round(input.prazoFinanciamentoAnos || 30)),
-    taxa_financiamento_anual: input.taxaFinanciamentoAnual / 100,
-    ...(input.personalizada
-      ? {
-          entrada_confirmada: input.entradaConfirmada ?? undefined,
-          mensal_confirmada: input.parcelaMensalConfirmada ?? undefined,
-          parcela_unica_confirmada: input.parcelaUnicaConfirmada ?? undefined,
-        }
-      : {}),
-  };
+  const recursosProprios = input.snapshot.modalidade === 'recursos_proprios';
+  const oferta: OfertaConfig = recursosProprios
+    ? {
+        valor_lote: input.valorLote,
+        valor_casa: input.valorCasa,
+        valor_customizacao: input.valorCustomizacao,
+        valor_acoplamento: input.valorAcoplamento,
+        valor_ja_pago: input.valorJaPago,
+        prazo_meses: prazoFase1,
+        parcela_mensal: Math.max(0, Number(input.snapshot.parcela_mensal ?? 0)),
+        renda_cliente: input.rendaCliente ?? 0,
+        prazo_financiamento_anos: Math.max(1, Math.round(input.prazoFinanciamentoAnos || 30)),
+        taxa_financiamento_anual: input.taxaFinanciamentoAnual / 100,
+        modalidade: 'recursos_proprios',
+      }
+    : {
+        valor_lote: input.valorLote,
+        valor_casa: input.valorCasa,
+        valor_customizacao: input.valorCustomizacao,
+        valor_acoplamento: input.valorAcoplamento,
+        valor_ja_pago: input.valorJaPago,
+        prazo_meses: prazoFase1,
+        parcela_mensal: parcelaBase,
+        renda_cliente: input.rendaCliente ?? 0,
+        prazo_financiamento_anos: Math.max(1, Math.round(input.prazoFinanciamentoAnos || 30)),
+        taxa_financiamento_anual: input.taxaFinanciamentoAnual / 100,
+        ...(input.personalizada
+          ? {
+              entrada_confirmada: input.entradaConfirmada ?? undefined,
+              mensal_confirmada: input.parcelaMensalConfirmada ?? undefined,
+              parcela_unica_confirmada: input.parcelaUnicaConfirmada ?? undefined,
+            }
+          : {}),
+      };
   const calc = calcularOferta(template, oferta, input.valorAcoplamento);
   if (!pagamentoAMaiorBloqueia(calc.valor_pago_a_maior)) return null;
-  return mensagemPagamentoAMaior(calc.valor_pago_a_maior);
+  return recursosProprios
+    ? mensagemPagamentoAMaiorRecursosProprios(calc.valor_pago_a_maior)
+    : mensagemPagamentoAMaior(calc.valor_pago_a_maior);
 }
 
 export async function gravarSimulacaoJornada(

@@ -34,6 +34,7 @@ type Props = {
   minimoParcelaUnica: (entrada: number, mensal: number) => number;
   /** Quanto as parcelas passam do valor total, com os valores digitados. */
   avaliarPagamentoAMaior?: (valores: ValoresConfirmadosOferta) => number;
+  modalidade?: 'financiamento' | 'recursos_proprios';
   onVerMemorial: () => void;
 };
 
@@ -116,6 +117,7 @@ export function SimulacaoResultado({
   onRecalcular,
   minimoParcelaUnica,
   avaliarPagamentoAMaior,
+  modalidade = 'financiamento',
   onVerMemorial,
 }: Props) {
   const [fluxoAberto, setFluxoAberto] = useState(false);
@@ -157,6 +159,7 @@ export function SimulacaoResultado({
     : null;
   const errosMinimos = [erroEntrada, erroUnica, erroPagoAMaior].filter((m): m is string => m != null);
 
+  const recursosProprios = modalidade === 'recursos_proprios';
   const taxaPctLabel =
     taxaJurosPct != null ? String(taxaJurosPct).replace('.', ',') : null;
 
@@ -204,43 +207,67 @@ export function SimulacaoResultado({
             Simulação atualizada com os valores personalizados.
           </p>
         ) : null}
-        <div className="jornadaSimHero">
-          <p className="jornadaSimHeroLabel">Valor total à vista</p>
-          <p className="jornadaSimHeroValor">{formatarMoeda(resultado.vte_avista)}</p>
-        </div>
-        <div className="jornadaSimMetricas">
-          <Metrica
-            label={aplicado ? 'Entrada' : 'Entrada sugerida'}
-            valor={formatarMoeda(entradaCard)}
-          />
-          <Metrica
-            label="Parcela mensal"
-            valor={formatarMoeda(mensalCard)}
-            sub={`${resultado.quantidade_parcelas_total} parcelas`}
-          />
-          <Metrica label="Parcela única" valor={formatarMoeda(unicaCard)} />
-        </div>
-        <p className="jornadaSimCardHint">
-          {resultado.saldo_financiar <= 0 ? (
-            'Sem saldo a financiar'
-          ) : (
-            <>
-              Saldo a financiar {formatarMoeda(resultado.saldo_financiar)}
-              {prazoFinanciamentoAnos != null ? ` · ${prazoFinanciamentoAnos} anos` : ''}
-              {taxaPctLabel ? ` · ${taxaPctLabel}% aa` : ''}
-              {' · '}
-              1ª parcela do financiamento estimada{' '}
-              {formatarMoeda(resultado.parcela_sac_primeira)}
-              /mês*
-            </>
-          )}
-        </p>
+        {recursosProprios ? (
+          <>
+            <div className="jornadaSimHero">
+              <p className="jornadaSimHeroLabel">Valor total</p>
+              <p className="jornadaSimHeroValor">{formatarMoeda(resultado.vte)}</p>
+            </div>
+            <div className="jornadaSimMetricas">
+              <Metrica label="Entrada" valor={formatarMoeda(resultado.entrada_sugerida)} />
+              <Metrica
+                label="Parcela mensal desejada"
+                valor={formatarMoeda(resultado.parcela_mensal_usada)}
+              />
+              <Metrica label="Parcela única" valor={formatarMoeda(resultado.parcela_unica_sugerida)} />
+            </div>
+            <p className="jornadaSimCardHint">
+              Pagamento com recursos próprios — sem financiamento
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="jornadaSimHero">
+              <p className="jornadaSimHeroLabel">Valor total à vista</p>
+              <p className="jornadaSimHeroValor">{formatarMoeda(resultado.vte_avista)}</p>
+            </div>
+            <div className="jornadaSimMetricas">
+              <Metrica
+                label={aplicado ? 'Entrada' : 'Entrada sugerida'}
+                valor={formatarMoeda(entradaCard)}
+              />
+              <Metrica
+                label="Parcela mensal"
+                valor={formatarMoeda(mensalCard)}
+                sub={`${resultado.quantidade_parcelas_total} parcelas`}
+              />
+              <Metrica label="Parcela única" valor={formatarMoeda(unicaCard)} />
+            </div>
+            <p className="jornadaSimCardHint">
+              {resultado.saldo_financiar <= 0 ? (
+                'Sem saldo a financiar'
+              ) : (
+                <>
+                  Saldo a financiar {formatarMoeda(resultado.saldo_financiar)}
+                  {prazoFinanciamentoAnos != null ? ` · ${prazoFinanciamentoAnos} anos` : ''}
+                  {taxaPctLabel ? ` · ${taxaPctLabel}% aa` : ''}
+                  {' · '}
+                  1ª parcela do financiamento estimada{' '}
+                  {formatarMoeda(resultado.parcela_sac_primeira)}
+                  /mês*
+                </>
+              )}
+            </p>
+          </>
+        )}
       </section>
 
-      <p className="jornadaSimNotaAsterisco">
-        * Estimativa baseada nos dados informados. Condições reais sujeitas à análise
-        de crédito e às taxas vigentes na data do financiamento.
-      </p>
+      {recursosProprios ? null : (
+        <p className="jornadaSimNotaAsterisco">
+          * Estimativa baseada nos dados informados. Condições reais sujeitas à análise
+          de crédito e às taxas vigentes na data do financiamento.
+        </p>
+      )}
 
       {resultado.alertas.map((a) => (
         <p key={a.tipo} className="jornadaSimAlerta" role="status">
@@ -248,17 +275,19 @@ export function SimulacaoResultado({
         </p>
       ))}
 
-      <button
-        type="button"
-        className="jornadaSimLinkPersonalizar"
-        onClick={() => setPersonalizarAberto((v) => !v)}
-      >
-        {personalizarAberto
-          ? 'Fechar personalização'
-          : 'Deseja personalizar o valor das parcelas?'}
-      </button>
+      {recursosProprios ? null : (
+        <button
+          type="button"
+          className="jornadaSimLinkPersonalizar"
+          onClick={() => setPersonalizarAberto((v) => !v)}
+        >
+          {personalizarAberto
+            ? 'Fechar personalização'
+            : 'Deseja personalizar o valor das parcelas?'}
+        </button>
+      )}
 
-      {personalizarAberto ? (
+      {!recursosProprios && personalizarAberto ? (
         <form
           className="jornadaPersonalizar"
           onSubmit={(e) => {

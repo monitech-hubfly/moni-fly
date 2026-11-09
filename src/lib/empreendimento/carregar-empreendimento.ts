@@ -136,6 +136,8 @@ function parseTemplate(raw: unknown): TemplateConfigPublico | null {
     pct_plataforma_entrada:
       r.pct_plataforma_entrada != null ? Number(r.pct_plataforma_entrada) : null,
     pct_impostos: r.pct_impostos != null ? Number(r.pct_impostos) : null,
+    pct_impostos_recursos_proprios:
+      r.pct_impostos_recursos_proprios != null ? Number(r.pct_impostos_recursos_proprios) : null,
     pct_comissao_corretor: r.pct_comissao_corretor != null ? Number(r.pct_comissao_corretor) : null,
     pct_lucro_loteadora: r.pct_lucro_loteadora != null ? Number(r.pct_lucro_loteadora) : null,
     pct_lucro_moni: r.pct_lucro_moni != null ? Number(r.pct_lucro_moni) : null,
@@ -345,6 +347,8 @@ async function enriquecerOfertasETemplate(
           ...parsed,
           ...rpcPreenchido,
           pct_impostos: template.pct_impostos ?? parsed.pct_impostos,
+          pct_impostos_recursos_proprios:
+            template.pct_impostos_recursos_proprios ?? parsed.pct_impostos_recursos_proprios,
           pct_comissao_corretor: template.pct_comissao_corretor ?? parsed.pct_comissao_corretor,
           pct_lucro_loteadora: template.pct_lucro_loteadora ?? parsed.pct_lucro_loteadora,
           pct_lucro_moni: template.pct_lucro_moni ?? parsed.pct_lucro_moni,

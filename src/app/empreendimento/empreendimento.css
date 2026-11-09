@@ -1258,3 +1258,47 @@
   .jornadaModelosGrid { grid-template-columns: 1fr 1fr; }
   .jornadaStepLabel { font-size: 10px; }
 }
+
+.jornadaFinanciamentoSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--moni-text-primary);
+  font-family: var(--moni-font-sans);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jornadaFinanciamentoSwitchTrilho {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  border-radius: var(--moni-radius-md);
+  border: var(--moni-border-width) solid var(--moni-border-default);
+  background: var(--moni-surface-100);
+}
+
+.jornadaFinanciamentoSwitch[aria-checked='true'] .jornadaFinanciamentoSwitchTrilho {
+  background: var(--moni-navy-800);
+  border-color: var(--moni-navy-800);
+}
+
+.jornadaFinanciamentoSwitchKnob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--moni-radius-md);
+  background: var(--moni-surface-0);
+}
+
+.jornadaFinanciamentoSwitch[aria-checked='true'] .jornadaFinanciamentoSwitchKnob {
+  left: 27px;
+}

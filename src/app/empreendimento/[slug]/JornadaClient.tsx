@@ -34,6 +34,7 @@ import {
   mensagemEntradaMinima,
   mensagemJaPagoAcimaDoLote,
   mensagemPagamentoAMaior,
+  mensagemPagamentoAMaiorRecursosProprios,
   mensagemParcelaUnicaMinima,
   pagamentoAMaiorBloqueia,
   parcelaUnicaAbaixoDoMinimo,
@@ -147,6 +148,7 @@ function chaveSimulacaoGravada(s: SnapshotSimulacaoJornada): string {
     mensal: centavosSimulacao(s.parcela_mensal),
     unica: centavosSimulacao(s.parcela_unica),
     saldo: centavosSimulacao(s.saldo_a_financiar),
+    modalidade: s.modalidade ?? 'financiamento',
     itens: s.customizacao_itens.map((item) => `${item.id}:${centavosSimulacao(item.valor)}`).join('|'),
   });
 }
@@ -179,6 +181,7 @@ function montarSnapshotSimulacao(args: {
     parcela_mensal: args.valores?.mensal ?? args.calc.parcela_mensal_usada,
     parcela_unica: args.valores?.unica ?? args.calc.parcela_unica_sugerida,
     saldo_a_financiar: args.calc.saldo_financiar,
+    modalidade: args.oferta.modalidade === 'recursos_proprios' ? 'recursos_proprios' : 'financiamento',
     customizacao_itens: args.itens,
     fluxo: args.calc.fluxo.map((linha) => ({
       mes: linha.mes,
@@ -250,7 +253,7 @@ function montarOfertaJornada(
     state.acabamentosArquiteto,
   );
 
-  return {
+  const base: OfertaConfig = {
     valor_lote: valorLote,
     valor_casa: calcs.valorCasa,
     valor_customizacao: calcs.valorCustomizacao,
@@ -261,6 +264,13 @@ function montarOfertaJornada(
     renda_cliente: state.rendaMensal ?? 0,
     prazo_financiamento_anos: Math.max(1, Math.round(state.prazoFinanciamento || 30)),
     taxa_financiamento_anual: (state.taxaJuros || 10) / 100,
+  };
+  if (state.precisaFinanciamento !== false) return base;
+  const desejada = state.parcelaMensalDesejada ?? sugerirParcelaMensal(valorLote);
+  return {
+    ...base,
+    modalidade: 'recursos_proprios',
+    parcela_mensal: Math.max(0, desejada),
   };
 }
 
@@ -294,6 +304,8 @@ function estadoInicial(_empreendimento?: EmpreendimentoPublico): JornadaLocal {
     prazoObraMeses: 12,
     prazoFinanciamento: 30,
     taxaJuros: 10,
+    precisaFinanciamento: true,
+    parcelaMensalDesejada: null,
   };
 }
 
@@ -886,6 +898,22 @@ function PassoSimulacao({
       <div className="jornadaSimOferta">
         <h3>Outras informações</h3>
         <div className="jornadaField">
+          <span id="sim-precisa-financiamento">Precisa de financiamento?</span>
+          <button
+            type="button"
+            className="jornadaFinanciamentoSwitch"
+            role="switch"
+            aria-checked={state.precisaFinanciamento}
+            aria-labelledby="sim-precisa-financiamento"
+            onClick={() => setState({ precisaFinanciamento: !state.precisaFinanciamento })}
+          >
+            <span className="jornadaFinanciamentoSwitchTrilho" aria-hidden>
+              <span className="jornadaFinanciamentoSwitchKnob" />
+            </span>
+            <span>{state.precisaFinanciamento ? 'Sim' : 'Não'}</span>
+          </button>
+        </div>
+        <div className="jornadaField">
           <label htmlFor="sim-prazo-obra">Prazo de entrega da obra (meses)</label>
           <CampoNumeroBr
             id="sim-prazo-obra"
@@ -895,35 +923,49 @@ function PassoSimulacao({
             placeholder="12"
           />
         </div>
-        <div className="jornadaField">
-          <label htmlFor="sim-renda-mensal">Renda mensal (R$/mês)</label>
-          <CampoNumeroBr
-            id="sim-renda-mensal"
-            valor={state.rendaMensal}
-            onChange={(n) => setState({ rendaMensal: n })}
-            inteiro
-            placeholder="0"
-          />
-        </div>
-        <div className="jornadaField">
-          <label htmlFor="sim-prazo-financiamento">Prazo do financiamento (anos)</label>
-          <CampoNumeroBr
-            id="sim-prazo-financiamento"
-            valor={state.prazoFinanciamento}
-            onChange={(n) => setState({ prazoFinanciamento: n != null && n > 0 ? Math.round(n) : 30 })}
-            inteiro
-            placeholder="30"
-          />
-        </div>
-        <div className="jornadaField">
-          <label htmlFor="sim-taxa-juros">Taxa de juros estimada para financiamento pós entrega da casa (% aa)</label>
-          <CampoNumeroBr
-            id="sim-taxa-juros"
-            valor={state.taxaJuros}
-            onChange={(n) => setState({ taxaJuros: n ?? 10 })}
-            placeholder="10"
-          />
-        </div>
+        {state.precisaFinanciamento ? (
+          <>
+            <div className="jornadaField">
+              <label htmlFor="sim-renda-mensal">Renda mensal (R$/mês)</label>
+              <CampoNumeroBr
+                id="sim-renda-mensal"
+                valor={state.rendaMensal}
+                onChange={(n) => setState({ rendaMensal: n })}
+                inteiro
+                placeholder="0"
+              />
+            </div>
+            <div className="jornadaField">
+              <label htmlFor="sim-prazo-financiamento">Prazo do financiamento (anos)</label>
+              <CampoNumeroBr
+                id="sim-prazo-financiamento"
+                valor={state.prazoFinanciamento}
+                onChange={(n) => setState({ prazoFinanciamento: n != null && n > 0 ? Math.round(n) : 30 })}
+                inteiro
+                placeholder="30"
+              />
+            </div>
+            <div className="jornadaField">
+              <label htmlFor="sim-taxa-juros">Taxa de juros estimada para financiamento pós entrega da casa (% aa)</label>
+              <CampoNumeroBr
+                id="sim-taxa-juros"
+                valor={state.taxaJuros}
+                onChange={(n) => setState({ taxaJuros: n ?? 10 })}
+                placeholder="10"
+              />
+            </div>
+          </>
+        ) : (
+          <div className="jornadaField">
+            <label htmlFor="sim-parcela-desejada">Parcela mensal desejada</label>
+            <CampoNumeroBr
+              id="sim-parcela-desejada"
+              valor={state.parcelaMensalDesejada ?? sugerirParcelaMensal(valorLoteParaCalculo(state))}
+              onChange={(n) => setState({ parcelaMensalDesejada: n ?? 0 })}
+              inteiro
+            />
+          </div>
+        )}
         {erroSimulacao && <p className="jornadaSimNota">{erroSimulacao}</p>}
         <div className="jornadaBtnRow">
           <button type="button" className="jornadaBtn jornadaBtnSecondary" onClick={onVoltar}>
@@ -952,6 +994,7 @@ function PassoSimulacao({
             onRecalcular={onRecalcular}
             minimoParcelaUnica={minimoParcelaUnica}
             avaliarPagamentoAMaior={avaliarPagamentoAMaior}
+            modalidade={state.precisaFinanciamento ? 'financiamento' : 'recursos_proprios'}
             onVerMemorial={onAvancar}
           />
         </div>
@@ -1260,7 +1303,11 @@ export default function JornadaClient({
       itens,
     });
     if (pagamentoAMaiorBloqueia(args.calc.valor_pago_a_maior)) {
-      setErroSimulacao(mensagemPagamentoAMaior(args.calc.valor_pago_a_maior));
+      setErroSimulacao(
+        args.oferta.modalidade === 'recursos_proprios'
+          ? mensagemPagamentoAMaiorRecursosProprios(args.calc.valor_pago_a_maior)
+          : mensagemPagamentoAMaior(args.calc.valor_pago_a_maior),
+      );
       return;
     }
     const chave = chaveSimulacaoGravada(snapshot);
@@ -1340,6 +1387,14 @@ export default function JornadaClient({
       );
     } catch {
       setErroSimulacao('Não foi possível calcular a simulação.');
+      return;
+    }
+    if (
+      oferta.modalidade === 'recursos_proprios' &&
+      pagamentoAMaiorBloqueia(calc.valor_pago_a_maior)
+    ) {
+      setResultadoSimulacao(null);
+      setErroSimulacao(mensagemPagamentoAMaiorRecursosProprios(calc.valor_pago_a_maior));
       return;
     }
     setResultadoSimulacao(calc);
