@@ -655,6 +655,10 @@ export function KanbanCardModal({
     () => new Map(),
   );
   const [faseAtual, setFaseAtual] = useState<KanbanFase | null>(null);
+  const [faseListaId, setFaseListaId] = useState('');
+  useEffect(() => {
+    setFaseListaId(faseAtual?.id ?? '');
+  }, [faseAtual?.id]);
   const [fonteDadosLaterais, setFonteDadosLaterais] = useState<FonteDadosLaterais | null>(null);
   const [secaoAberta, setSecaoAberta] = useState<Record<SecaoEsquerdaId, boolean>>({
     calculadora: false,
@@ -2851,6 +2855,10 @@ export function KanbanCardModal({
     });
   }
 
+  function reverterFaseLista() {
+    setFaseListaId(faseAtual?.id ?? '');
+  }
+
   async function executarAvancarFase(
     proximaFase: KanbanFase,
     opts?: {
@@ -2858,8 +2866,8 @@ export function KanbanCardModal({
       justificativaSlaQuebra?: string;
       intencaoShowroom?: boolean;
     },
-  ) {
-    if (!card || !faseAtual) return;
+  ): Promise<boolean> {
+    if (!card || !faseAtual) return false;
     if (
       opts?.intencaoShowroom === undefined &&
       origem !== 'legado' &&
@@ -2870,7 +2878,7 @@ export function KanbanCardModal({
       })
     ) {
       setModalIntencaoShowroom({ destinoFase: proximaFase, direcao: 'avancar', opts });
-      return;
+      return true;
     }
     setMovendoFase(true);
     try {
@@ -2879,7 +2887,7 @@ export function KanbanCardModal({
         const slug = proximaFase.slug?.trim();
         if (!slug) {
           alert('Esta fase não tem slug cadastrado; não é possível avançar o processo por aqui.');
-          return;
+          return false;
         }
         const fromSlug = faseAtual.slug?.trim();
         const { error } = await supabase.from('processo_step_one').update({ etapa_painel: slug }).eq('id', card.id);
@@ -2900,20 +2908,22 @@ export function KanbanCardModal({
           const msg = res.error ?? 'Erro ao avançar fase.';
           if (msg === ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB) {
             setModalIntencaoShowroom({ destinoFase: proximaFase, direcao: 'avancar', opts });
-            return;
+            return true;
           }
           const destinoStep5 =
             String(proximaFase.slug ?? '').trim() === FASE_SLUGS.STEP_5 &&
             isPortfolioKanbanRef(null, typeof kanbanNome === 'string' ? kanbanNome : String(kanbanNome));
           if (destinoStep5) setGateStep5Toast(msg);
           else alert(msg);
-          return;
+          return false;
         }
       }
       await loadCard({ silencioso: true });
       router.refresh();
+      return true;
     } catch {
       alert('Erro ao avançar fase.');
+      return false;
     } finally {
       setMovendoFase(false);
     }
@@ -2922,8 +2932,8 @@ export function KanbanCardModal({
   async function executarRetrocederFase(
     destinoFase: KanbanFase,
     opts?: { intencaoShowroom?: boolean },
-  ) {
-    if (!card || !faseAtual) return;
+  ): Promise<boolean> {
+    if (!card || !faseAtual) return false;
     const entraPassagemImob =
       origem !== 'legado' &&
       devePerguntarIntencaoShowroomPassagem({
@@ -2933,7 +2943,7 @@ export function KanbanCardModal({
       });
     if (entraPassagemImob && opts?.intencaoShowroom === undefined) {
       setModalIntencaoShowroom({ destinoFase, direcao: 'retroceder' });
-      return;
+      return true;
     }
     setMovendoFase(true);
     try {
@@ -2942,7 +2952,7 @@ export function KanbanCardModal({
         const slug = destinoFase.slug?.trim();
         if (!slug) {
           alert('Esta fase não tem slug cadastrado; não é possível retroceder o processo por aqui.');
-          return;
+          return false;
         }
         const fromSlug = faseAtual.slug?.trim();
         const { error } = await supabase.from('processo_step_one').update({ etapa_painel: slug }).eq('id', card.id);
@@ -2960,10 +2970,10 @@ export function KanbanCardModal({
         if (!res.ok) {
           if (res.error === ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB) {
             setModalIntencaoShowroom({ destinoFase, direcao: 'retroceder' });
-            return;
+            return true;
           }
           alert(res.error ?? 'Erro ao retroceder fase.');
-          return;
+          return false;
         }
       } else {
         const { error } = await supabase.from('kanban_cards').update({ fase_id: destinoFase.id }).eq('id', card.id);
@@ -2971,8 +2981,10 @@ export function KanbanCardModal({
       }
       await loadCard({ silencioso: true });
       router.refresh();
+      return true;
     } catch {
       alert('Erro ao retroceder fase.');
+      return false;
     } finally {
       setMovendoFase(false);
     }
@@ -3009,7 +3021,7 @@ export function KanbanCardModal({
     destinoFase: KanbanFase,
     direcao: 'avancar' | 'retroceder',
     opts?: { motivoReprovacaoAcoplamento?: string; justificativaSlaQuebra?: string },
-  ) {
+  ): Promise<boolean> {
     const confirmacaoSaida = tipoConfirmacaoSaidaAtual();
     if (confirmacaoSaida) {
       setModalJustificativaSla(null);
@@ -3017,7 +3029,7 @@ export function KanbanCardModal({
       setModalReprovacaoAcoplamento(null);
       setMotivoReprovacaoDraft('');
       setModalConfirmacaoPortfolio({ ...confirmacaoSaida, destinoFase, direcao, opts });
-      return;
+      return true;
     }
     if (direcao === 'avancar' && card) {
       const confirmacaoEntrada = deveConfirmarEntradaFaseOperacoes({
@@ -3038,11 +3050,11 @@ export function KanbanCardModal({
           direcao,
           opts,
         });
-        return;
+        return true;
       }
     }
-    if (direcao === 'avancar') await executarAvancarFase(destinoFase, opts);
-    else await executarRetrocederFase(destinoFase);
+    if (direcao === 'avancar') return executarAvancarFase(destinoFase, opts);
+    return executarRetrocederFase(destinoFase);
   }
 
   async function concluirConfirmacaoPortfolio(confirmou: boolean) {
@@ -3093,19 +3105,22 @@ export function KanbanCardModal({
         }
       }
 
-      if (modal.direcao === 'avancar') await executarAvancarFase(modal.destinoFase, modal.opts);
-      else await executarRetrocederFase(modal.destinoFase);
+      const seguiu =
+        modal.direcao === 'avancar'
+          ? await executarAvancarFase(modal.destinoFase, modal.opts)
+          : await executarRetrocederFase(modal.destinoFase);
+      if (!seguiu) reverterFaseLista();
       setModalConfirmacaoPortfolio(null);
     } finally {
       setSalvandoConfirmacaoPortfolio(false);
     }
   }
 
-  async function handleAvancarFase(destinoExplicito?: KanbanFase) {
-    if (!card || !faseAtual) return;
+  async function handleAvancarFase(destinoExplicito?: KanbanFase): Promise<boolean> {
+    if (!card || !faseAtual) return false;
     if (!podeMoverFaseCard) {
       alert('Sem permissão para mover de fase.');
-      return;
+      return false;
     }
     const idxAtual = fases.findIndex((f) => f.id === faseAtual.id);
     const proximaSequencial =
@@ -3113,17 +3128,16 @@ export function KanbanCardModal({
     const proximaFase = destinoExplicito ?? proximaSequencial;
     if (!proximaFase) {
       alert(destinoExplicito ? 'Fase indisponível.' : 'Esta é a última fase do funil.');
-      return;
+      return false;
     }
-    if (proximaFase.id === faseAtual.id) return;
+    if (proximaFase.id === faseAtual.id) return false;
 
     const idxDestino = fases.findIndex((f) => f.id === proximaFase.id);
     const ordemAtual = faseAtual.ordem ?? (idxAtual >= 0 ? idxAtual : 0);
     const ordemDestino = proximaFase.ordem ?? (idxDestino >= 0 ? idxDestino : ordemAtual);
     if (destinoExplicito && ordemDestino < ordemAtual) {
-      if (!confirm(`Enviar o card para a fase "${proximaFase.nome}"?`)) return;
-      await iniciarMovimentoFasePortfolio(proximaFase, 'retroceder');
-      return;
+      if (!confirm(`Enviar o card para a fase "${proximaFase.nome}"?`)) return false;
+      return iniciarMovimentoFasePortfolio(proximaFase, 'retroceder');
     }
     if (
       (isPortfolioKanbanRef(null, String(kanbanNome)) || isLoteadoresKanbanRef(card.kanban_id, String(kanbanNome))) &&
@@ -3132,7 +3146,7 @@ export function KanbanCardModal({
       const gate = await verificarGateComiteLoteadores(card.id, proximaFase.id);
       if (!gate.ok) {
         setGateStep5Toast(gate.error ?? 'Não é possível avançar para o Comitê.');
-        return;
+        return false;
       }
       setGateStep5Toast(null);
     }
@@ -3145,7 +3159,7 @@ export function KanbanCardModal({
       const gateLegal = await verificarGateChecklistLegalPortfolio(card.id, proximaFase.id);
       if (!gateLegal.ok) {
         alert(gateLegal.error ?? 'Conclua o Checklist Legal antes de avançar.');
-        return;
+        return false;
       }
     }
 
@@ -3158,7 +3172,7 @@ export function KanbanCardModal({
       const gateBook = await verificarGateBookFaseCredito(card.id, proximaFase.id);
       if (!gateBook.ok) {
         alert(gateBook.error);
-        return;
+        return false;
       }
     }
     const slugFaseAcoplamento = (faseAtual.slug ?? '').trim();
@@ -3172,7 +3186,7 @@ export function KanbanCardModal({
       const gateAcop = await verificarGateAcoplamentoModelagemCasa(card.id, proximaFase.id);
       if (!gateAcop.ok) {
         setAcoplamentoGateToast(gateAcop.error);
-        return;
+        return false;
       }
     }
 
@@ -3184,7 +3198,7 @@ export function KanbanCardModal({
     ) {
       setMotivoReprovacaoDraft('');
       setModalReprovacaoAcoplamento(proximaFase);
-      return;
+      return true;
     }
 
     if (
@@ -3203,20 +3217,20 @@ export function KanbanCardModal({
         justificativaExistente,
         obrigatoria: justificativaSlaObrigatoria(justificativaExistente),
       });
-      return;
+      return true;
     }
 
     const pergunta = destinoExplicito
       ? `Enviar o card para a fase "${proximaFase.nome}"?`
       : `Avançar para a fase "${proximaFase.nome}"?`;
-    if (!confirm(pergunta)) return;
+    if (!confirm(pergunta)) return false;
 
     const checklist = await verificarChecklistParaFase(card.id);
     if (checklist.bloqueado) {
       setModalAprovacaoFase({ fase: proximaFase, direcao: 'avancar', itensPendentes: checklist.itens_pendentes });
-      return;
+      return true;
     }
-    await iniciarMovimentoFasePortfolio(proximaFase, 'avancar');
+    return iniciarMovimentoFasePortfolio(proximaFase, 'avancar');
   }
 
   async function handleRetrocederFase() {
@@ -7619,16 +7633,17 @@ export function KanbanCardModal({
                     <select
                       id="movimentacao-fase-kanban"
                       className="moni-card-modal-movimentacao-fase-select"
-                      value={faseAtual?.id ?? ''}
+                      value={faseListaId || faseAtual?.id || ''}
                       disabled={movendoFase || !podeMoverFaseCard || fases.length === 0}
                       onChange={(e) => {
-                        const select = e.currentTarget;
-                        const destino = fases.find((f) => f.id === select.value);
-                        select.value = faseAtual?.id ?? '';
+                        const destino = fases.find((f) => f.id === e.target.value);
                         if (!destino || destino.id === faseAtual?.id) return;
+                        setFaseListaId(destino.id);
                         // O menu nativo do select cancela um confirm() aberto no mesmo evento.
                         window.setTimeout(() => {
-                          void handleAvancarFase(destino);
+                          void handleAvancarFase(destino).then((seguiu) => {
+                            if (!seguiu) reverterFaseLista();
+                          });
                         }, 50);
                       }}
                     >
@@ -7697,7 +7712,10 @@ export function KanbanCardModal({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setModalAprovacaoFase(null)}
+                      onClick={() => {
+                        setModalAprovacaoFase(null);
+                        reverterFaseLista();
+                      }}
                       disabled={solicitandoAprovacaoFase}
                       className="w-full rounded border border-stone-300 bg-white px-2 py-1 text-[10px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50"
                     >
@@ -8924,6 +8942,7 @@ export function KanbanCardModal({
         onCancel={() => {
           setModalJustificativaSla(null);
           setSlaJustificativaDraft('');
+          reverterFaseLista();
         }}
         onConfirm={() => {
           const { destino, justificativaExistente, obrigatoria } = modalJustificativaSla;
@@ -8941,7 +8960,8 @@ export function KanbanCardModal({
           void iniciarMovimentoFasePortfolio(destino, 'avancar', {
             justificativaSlaQuebra: textoFinal,
           })
-            .then(() => {
+            .then((seguiu) => {
+              if (!seguiu) reverterFaseLista();
               setModalJustificativaSla(null);
               setSlaJustificativaDraft('');
             })
@@ -8983,6 +9003,7 @@ export function KanbanCardModal({
               onClick={() => {
                 setModalReprovacaoAcoplamento(null);
                 setMotivoReprovacaoDraft('');
+                reverterFaseLista();
               }}
               className="rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700"
             >
@@ -9000,7 +9021,8 @@ export function KanbanCardModal({
                 const fase = modalReprovacaoAcoplamento;
                 setSalvandoReprovacaoAcoplamento(true);
                 void iniciarMovimentoFasePortfolio(fase, 'avancar', { motivoReprovacaoAcoplamento: motivo })
-                  .then(() => {
+                  .then((seguiu) => {
+                    if (!seguiu) reverterFaseLista();
                     setModalReprovacaoAcoplamento(null);
                     setMotivoReprovacaoDraft('');
                   })
@@ -9021,15 +9043,20 @@ export function KanbanCardModal({
       onCancelar={() => {
         if (movendoFase) return;
         setModalIntencaoShowroom(null);
+        reverterFaseLista();
       }}
       onResponder={(intencaoShowroom) => {
         const pendente = modalIntencaoShowroom;
         if (!pendente) return;
         setModalIntencaoShowroom(null);
         if (pendente.direcao === 'avancar') {
-          void executarAvancarFase(pendente.destinoFase, { ...pendente.opts, intencaoShowroom });
+          void executarAvancarFase(pendente.destinoFase, { ...pendente.opts, intencaoShowroom }).then((seguiu) => {
+            if (!seguiu) reverterFaseLista();
+          });
         } else {
-          void executarRetrocederFase(pendente.destinoFase, { intencaoShowroom });
+          void executarRetrocederFase(pendente.destinoFase, { intencaoShowroom }).then((seguiu) => {
+            if (!seguiu) reverterFaseLista();
+          });
         }
       }}
     />
