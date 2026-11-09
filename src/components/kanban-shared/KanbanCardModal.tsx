@@ -2398,24 +2398,23 @@ export function KanbanCardModal({
   }, [deepLinkTopicoId, subInteracoesPorPai]);
 
   // ── Helper: popup de férias/day off (Kanban) ─────────────────────────────
-  async function mostrarPopupAusenciaKanban(responsavelId: string, nomeResponsavel: string) {
+  async function mostrarPopupAusenciaKanban(responsavelId: string) {
+    const sb = createClient();
     const hoje = new Date();
     const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
     const em45Dias = new Date(hoje.getTime() + 45 * 24 * 60 * 60 * 1000);
     const em45Str = `${em45Dias.getFullYear()}-${String(em45Dias.getMonth() + 1).padStart(2, '0')}-${String(em45Dias.getDate()).padStart(2, '0')}`;
-    const { data: diasAus } = await createClient()
-      .from('carometro_ausencias')
-      .select('data')
-      .eq('profile_id', responsavelId)
-      .gte('data', hojeStr)
-      .lte('data', em45Str)
-      .order('data');
-    const datas = ((diasAus ?? []) as { data: string }[]).map((r) => r.data);
+    const [profResult, ausResult] = await Promise.all([
+      sb.from('profiles').select('full_name, email').eq('id', responsavelId).single(),
+      sb.from('carometro_ausencias').select('data').eq('profile_id', responsavelId).gte('data', hojeStr).lte('data', em45Str).order('data'),
+    ]);
+    const nome = String((profResult.data as { full_name?: string; email?: string } | null)?.full_name ?? (profResult.data as { email?: string } | null)?.email ?? 'O responsável').trim();
+    const datas = ((ausResult.data ?? []) as { data: string }[]).map((r) => r.data);
     const fmt = (iso: string) => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; };
     let periodo = 'neste período';
     if (datas.length === 1) periodo = fmt(datas[0]!);
     else if (datas.length > 1) periodo = `${fmt(datas[0]!)} – ${fmt(datas[datas.length - 1]!)}`;
-    setAusenciaPopup({ nome: nomeResponsavel, periodo });
+    setAusenciaPopup({ nome, periodo });
   }
 
   async function handleAdicionarInteracao() {
@@ -2441,8 +2440,7 @@ export function KanbanCardModal({
     // ── Bloquear se responsável está ausente HOJE (férias/day off) ───────────
     if (ausNovaInteracao.size > 0) {
       const ausenteId = [...ausNovaInteracao][0]!;
-      const nomeAus = responsaveisOpcoes.find((r) => r.id === ausenteId)?.nome ?? 'O responsável';
-      await mostrarPopupAusenciaKanban(ausenteId, nomeAus);
+      await mostrarPopupAusenciaKanban(ausenteId);
       return;
     }
     // ── Bloquear prazo em dia de ausência do responsável ────────────────────
@@ -2458,8 +2456,7 @@ export function KanbanCardModal({
           .eq('data', ativ.data.trim());
         if (ausRows && ausRows.length > 0) {
           const ausenteId = (ausRows[0] as { profile_id: string }).profile_id;
-          const nomeAus = responsaveisOpcoes.find((r) => r.id === ausenteId)?.nome ?? 'O responsável';
-          await mostrarPopupAusenciaKanban(ausenteId, nomeAus);
+          await mostrarPopupAusenciaKanban(ausenteId);
           return;
         }
       }
@@ -2667,8 +2664,7 @@ export function KanbanCardModal({
     // ── Bloquear se responsável está ausente HOJE (férias/day off) ───────────
     if (ausSubNova.size > 0) {
       const ausenteId = [...ausSubNova][0]!;
-      const nomeAus = responsaveisOpcoes.find((r) => r.id === ausenteId)?.nome ?? 'O responsável';
-      await mostrarPopupAusenciaKanban(ausenteId, nomeAus);
+      await mostrarPopupAusenciaKanban(ausenteId);
       return;
     }
     // ── Bloquear prazo em dia de ausência do responsável ────────────────────
@@ -2683,8 +2679,7 @@ export function KanbanCardModal({
           .eq('data', subNovaDraft.data.trim());
         if (ausRows && ausRows.length > 0) {
           const ausenteId = (ausRows[0] as { profile_id: string }).profile_id;
-          const nomeAus = responsaveisOpcoes.find((r) => r.id === ausenteId)?.nome ?? 'O responsável';
-          await mostrarPopupAusenciaKanban(ausenteId, nomeAus);
+          await mostrarPopupAusenciaKanban(ausenteId);
           return;
         }
       }

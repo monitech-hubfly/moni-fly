@@ -230,35 +230,30 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
     try {
       const primeiraAtiv = atividades[0]!;
 
-      // ── Helper: busca período de ausência e exibe popup ──────────────────
-      async function mostrarPopupAusencia(responsavelId: string, nomeResponsavel: string) {
+      // ── Helper: busca nome no banco + período de ausência e exibe popup ─────
+      async function mostrarPopupAusencia(responsavelId: string) {
+        const sb = createClient();
         const hoje = new Date();
         const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
         const em45Dias = new Date(hoje.getTime() + 45 * 24 * 60 * 60 * 1000);
         const em45Str = `${em45Dias.getFullYear()}-${String(em45Dias.getMonth() + 1).padStart(2, '0')}-${String(em45Dias.getDate()).padStart(2, '0')}`;
-        const { data: diasAus } = await createClient()
-          .from('carometro_ausencias')
-          .select('data')
-          .eq('profile_id', responsavelId)
-          .gte('data', hojeStr)
-          .lte('data', em45Str)
-          .order('data');
-        const datas = ((diasAus ?? []) as { data: string }[]).map((r) => r.data);
+        const [profResult, ausResult] = await Promise.all([
+          sb.from('profiles').select('full_name, email').eq('id', responsavelId).single(),
+          sb.from('carometro_ausencias').select('data').eq('profile_id', responsavelId).gte('data', hojeStr).lte('data', em45Str).order('data'),
+        ]);
+        const nome = String((profResult.data as { full_name?: string; email?: string } | null)?.full_name ?? (profResult.data as { email?: string } | null)?.email ?? 'O responsável').trim();
+        const datas = ((ausResult.data ?? []) as { data: string }[]).map((r) => r.data);
         let periodo = 'neste período';
-        if (datas.length === 1) {
-          periodo = formatarData(datas[0]!);
-        } else if (datas.length > 1) {
-          periodo = `${formatarData(datas[0]!)} – ${formatarData(datas[datas.length - 1]!)}`;
-        }
-        setAusenciaPopup({ nome: nomeResponsavel, periodo });
+        if (datas.length === 1) periodo = formatarData(datas[0]!);
+        else if (datas.length > 1) periodo = `${formatarData(datas[0]!)} – ${formatarData(datas[datas.length - 1]!)}`;
+        setAusenciaPopup({ nome, periodo });
       }
 
       // ── Bloquear se responsável está ausente HOJE (férias/day off) ─────────
       if (ausentesHoje.size > 0) {
         const ausenteId = [...ausentesHoje][0]!;
-        const nomeAusente = responsaveisOpcoes.find((r) => r.id === ausenteId)?.nome ?? 'O responsável';
         setLoading(false);
-        await mostrarPopupAusencia(ausenteId, nomeAusente);
+        await mostrarPopupAusencia(ausenteId);
         return;
       }
 
@@ -277,9 +272,8 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
             .eq('data', ativ.data.trim());
           if (ausRows && ausRows.length > 0) {
             const ausenteId = (ausRows[0] as { profile_id: string }).profile_id;
-            const nomeAusente = responsaveisOpcoes.find((r) => r.id === ausenteId)?.nome ?? 'O responsável';
             setLoading(false);
-            await mostrarPopupAusencia(ausenteId, nomeAusente);
+            await mostrarPopupAusencia(ausenteId);
             return;
           }
         }
