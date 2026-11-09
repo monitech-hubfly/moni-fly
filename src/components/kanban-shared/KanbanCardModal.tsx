@@ -3050,16 +3050,28 @@ export function KanbanCardModal({
     }
   }
 
-  async function handleAvancarFase() {
+  async function handleAvancarFase(destinoExplicito?: KanbanFase) {
     if (!card || !faseAtual) return;
     if (!podeMoverFaseCard) {
       alert('Sem permissão para mover de fase.');
       return;
     }
     const idxAtual = fases.findIndex((f) => f.id === faseAtual.id);
-    const proximaFase = idxAtual >= 0 && idxAtual < fases.length - 1 ? fases[idxAtual + 1] : undefined;
+    const proximaSequencial =
+      idxAtual >= 0 && idxAtual < fases.length - 1 ? fases[idxAtual + 1] : undefined;
+    const proximaFase = destinoExplicito ?? proximaSequencial;
     if (!proximaFase) {
-      alert('Esta é a última fase do funil.');
+      alert(destinoExplicito ? 'Fase indisponível.' : 'Esta é a última fase do funil.');
+      return;
+    }
+    if (proximaFase.id === faseAtual.id) return;
+
+    const idxDestino = fases.findIndex((f) => f.id === proximaFase.id);
+    const ordemAtual = faseAtual.ordem ?? (idxAtual >= 0 ? idxAtual : 0);
+    const ordemDestino = proximaFase.ordem ?? (idxDestino >= 0 ? idxDestino : ordemAtual);
+    if (destinoExplicito && ordemDestino < ordemAtual) {
+      if (!confirm(`Enviar o card para a fase "${proximaFase.nome}"?`)) return;
+      await iniciarMovimentoFasePortfolio(proximaFase, 'retroceder');
       return;
     }
     if (
@@ -3143,7 +3155,10 @@ export function KanbanCardModal({
       return;
     }
 
-    if (!confirm(`Avançar para a fase "${proximaFase.nome}"?`)) return;
+    const pergunta = destinoExplicito
+      ? `Enviar o card para a fase "${proximaFase.nome}"?`
+      : `Avançar para a fase "${proximaFase.nome}"?`;
+    if (!confirm(pergunta)) return;
 
     const checklist = await verificarChecklistParaFase(card.id);
     if (checklist.bloqueado) {
@@ -7541,6 +7556,42 @@ export function KanbanCardModal({
                   </div>
                 ) : !modalAprovacaoFase ? (
                   <div className="moni-kanban-drawer-footer">
+                  <div className="moni-card-modal-movimentacao-stack">
+                  <div className="moni-card-modal-movimentacao-fase-select-wrap">
+                    <label
+                      className="moni-card-modal-movimentacao-fase-select-label"
+                      htmlFor="movimentacao-fase-kanban"
+                    >
+                      Ir para a fase
+                    </label>
+                    <select
+                      id="movimentacao-fase-kanban"
+                      className="moni-card-modal-movimentacao-fase-select"
+                      value={faseAtual?.id ?? ''}
+                      disabled={movendoFase || !podeMoverFaseCard || fases.length === 0}
+                      onChange={(e) => {
+                        const select = e.currentTarget;
+                        const destino = fases.find((f) => f.id === select.value);
+                        select.value = faseAtual?.id ?? '';
+                        if (!destino || destino.id === faseAtual?.id) return;
+                        // O menu nativo do select cancela um confirm() aberto no mesmo evento.
+                        window.setTimeout(() => {
+                          void handleAvancarFase(destino);
+                        }, 50);
+                      }}
+                    >
+                      {faseAtual && !fases.some((f) => f.id === faseAtual.id) ? (
+                        <option value={faseAtual.id}>{faseAtual.nome}</option>
+                      ) : null}
+                      {[...fases]
+                        .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+                        .map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.nome}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                   <div className="moni-card-modal-movimentacao-grid">
                     <button
                       type="button"
@@ -7572,6 +7623,7 @@ export function KanbanCardModal({
                       </span>
                       <ChevronRight className="moni-card-modal-movimentacao-btn-icon" aria-hidden />
                     </button>
+                  </div>
                   </div>
                   </div>
                 ) : (
