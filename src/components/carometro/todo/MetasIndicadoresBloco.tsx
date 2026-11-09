@@ -1268,60 +1268,163 @@ export function MetasIndicadoresBloco() {
   const [allBlockers,       setAllBlockers]        = useState<BlockerRow[]>([]);
   const [toastMsg,          setToastMsg]           = useState<string | null>(null);
 
-  // ── Sinergia: metas filhas de outras áreas onde o usuário é responsável ───
-  type SinergiaFilha = {
-    id: string;
-    descricao: string;
-    status: string;
-    data_fim: string | null;
-    area_nome: string;
-    mae_descricao: string;
-  };
-  const [sinergiaFilhas, setSinergiaFilhas] = useState<SinergiaFilha[]>([]);
+  // ── Sinergia: state completo (mesma estrutura que metas normais) ──────────
+  const [sinergiaMetaItems,   setSinergiaMetaItems]   = useState<MetaItem[]>([]);
+  const [sinergiaOR,          setSinergiaOR]          = useState<ObjetivoResponsavel[]>([]);
+  const [sinergiaSubMetas,    setSinergiaSubMetas]    = useState<SubMetaItem[]>([]);
+  const [sinergiaIndicadores, setSinergiaIndicadores] = useState<IndicadorItemMeta[]>([]);
+  // metaId → { areaId, areaNome } para agrupamento visual
+  const [sinergiaAreaInfo,    setSinergiaAreaInfo]    = useState<Record<string, { areaId: string; areaNome: string }>>({});
+  // areaId → responsáveis da área estrangeira
+  const [sinergiaRespPorArea, setSinergiaRespPorArea] = useState<Record<string, ResponsavelItem[]>>({});
 
-  useEffect(() => {
+  const carregarSinergia = useCallback(async () => {
     const uid = effectiveProfileId ?? currentUserId;
     if (!uid || !areaId || !mes) return;
-    void (async () => {
-      try {
-        // Filhas em outras áreas onde o usuário é profile_id
-        const { data: sinData } = await supabase
-          .from('objetivos')
-          .select('id, descricao, status, data_fim, area_id, objetivo_pai_id')
-          .eq('profile_id', uid)
-          .neq('area_id', areaId)
-          .not('objetivo_pai_id', 'is', null)
-          .in('status', ['ativo', 'concluido'])
-          .eq('mes', mes);
+    try {
+      type SinRow = {
+        id: string; descricao: string; tipo: string | null;
+        is_chave: boolean | null; meta_valor: string | null;
+        meta_unidade: string | null; criado_em: string | null;
+        status: string; ordem: number | null;
+        profile_id: string | null; data_inicio: string | null;
+        data_fim: string | null; area_id: string; objetivo_pai_id: string | null;
+      };
 
-        if (!sinData || sinData.length === 0) { setSinergiaFilhas([]); return; }
+      // 1. Filhas em outras áreas onde o usuário é profile_id
+      const { data: sinData } = await supabase
+        .from('objetivos')
+        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id, data_inicio, data_fim, area_id, objetivo_pai_id')
+        .eq('profile_id', uid)
+        .neq('area_id', areaId)
+        .not('objetivo_pai_id', 'is', null)
+        .in('status', ['ativo', 'concluido'])
+        .eq('mes', mes);
 
-        type SinRow = { id: string; descricao: string; status: string; data_fim: string | null; area_id: string; objetivo_pai_id: string | null };
-        const rows = sinData as SinRow[];
-
-        // Busca nomes de áreas
-        const areaIds = [...new Set(rows.map(r => r.area_id))];
-        const { data: areasData } = await supabase.from('areas').select('id, nome').in('id', areaIds);
-        const areaNomeMap = new Map(((areasData ?? []) as { id: string; nome: string }[]).map(a => [a.id, a.nome]));
-
-        // Busca descrição da meta mãe
-        const maeIds = [...new Set(rows.map(r => r.objetivo_pai_id).filter((id): id is string => !!id))];
-        const { data: maeData } = await supabase.from('objetivos').select('id, descricao').in('id', maeIds);
-        const maeDescMap = new Map(((maeData ?? []) as { id: string; descricao: string }[]).map(m => [m.id, m.descricao]));
-
-        setSinergiaFilhas(rows.map(r => ({
-          id: r.id,
-          descricao: r.descricao,
-          status: r.status,
-          data_fim: r.data_fim,
-          area_nome: areaNomeMap.get(r.area_id) ?? r.area_id,
-          mae_descricao: r.objetivo_pai_id ? (maeDescMap.get(r.objetivo_pai_id) ?? '') : '',
-        })));
-      } catch {
-        // Falha silenciosa — não bloqueia o restante da UI
+      if (!sinData || sinData.length === 0) {
+        setSinergiaMetaItems([]);
+        setSinergiaOR([]);
+        setSinergiaSubMetas([]);
+        setSinergiaIndicadores([]);
+        setSinergiaAreaInfo({});
+        setSinergiaRespPorArea({});
+        return;
       }
-    })();
-  }, [supabase, effectiveProfileId, currentUserId, areaId, mes]);
+
+      const rows = sinData as SinRow[];
+      const sinIds = rows.map(r => r.id);
+      const foreignAreaIds = [...new Set(rows.map(r => r.area_id))];
+
+      // 2. Queries paralelas: áreas, OR, sub-metas, indicadores, comments, pessoas
+      const [areasRes, orRes, subRes, indRes, comRes, pessoasRes] = await Promise.all([
+        supabase.from('areas').select('id, nome').in('id', foreignAreaIds),
+        supabase.from('objetivo_responsaveis')
+          .select('objetivo_id, profile_id, concluido, concluido_em, data_inicio, data_fim, dias_uteis')
+          .in('objetivo_id', sinIds),
+        supabase.from('objetivos')
+          .select('id, descricao, tipo, is_chave, objetivo_pai_id, profile_id, status, data_inicio, data_fim')
+          .in('objetivo_pai_id', sinIds)
+          .in('status', ['ativo', 'concluido']),
+        supabase.from('indicadores')
+          .select('id, nome, indicador_chave, semaforo_faixas, tipo, objetivo_id, profile_id')
+          .in('objetivo_id', sinIds),
+        sinIds.length > 0
+          ? supabase.from('audit_log').select('entidade_id')
+              .eq('entidade', 'objetivos').eq('operacao', 'COMMENT').in('entidade_id', sinIds)
+          : Promise.resolve({ data: [] as { entidade_id: string }[], error: null }),
+        supabase.from('area_pessoas').select('profile_id, nome, area_id')
+          .in('area_id', foreignAreaIds).eq('ativo', true),
+      ]);
+
+      const areaNomeMap = new Map(((areasRes.data ?? []) as { id: string; nome: string }[]).map(a => [a.id, a.nome]));
+
+      const comCountMap = new Map<string, number>();
+      ((comRes.data ?? []) as { entidade_id: string }[]).forEach(r => {
+        comCountMap.set(r.entidade_id, (comCountMap.get(r.entidade_id) ?? 0) + 1);
+      });
+
+      // Constrói MetaItem[] tratando cada filha como meta completa
+      const metaItems: MetaItem[] = rows.map(r => ({
+        id: r.id, descricao: r.descricao, tipo: r.tipo,
+        is_chave: Boolean(r.is_chave), meta_valor: r.meta_valor,
+        meta_unidade: r.meta_unidade, criado_em: r.criado_em ?? null,
+        status: r.status, ordem: r.ordem, profile_id: r.profile_id,
+        responsavel_nome: null,
+        comentariosCount: comCountMap.get(r.id) ?? 0,
+        data_inicio: r.data_inicio ?? null,
+        data_fim: r.data_fim ?? null,
+      }));
+
+      type SubRow = {
+        id: string; descricao: string; tipo: string | null; is_chave: boolean | null;
+        objetivo_pai_id: string; profile_id: string | null; status: string;
+        data_inicio: string | null; data_fim: string | null;
+      };
+      const subItems: SubMetaItem[] = ((subRes.data ?? []) as SubRow[]).map(s => ({
+        id: s.id, descricao: s.descricao, tipo: s.tipo,
+        is_chave: Boolean(s.is_chave),
+        objetivo_pai_id: s.objetivo_pai_id,
+        profile_id: s.profile_id,
+        is_minha: s.profile_id === uid,
+        status: s.status,
+        data_inicio: s.data_inicio ?? null,
+        data_fim: s.data_fim ?? null,
+      }));
+
+      type IndRow2 = {
+        id: string; nome: string; indicador_chave: boolean | null;
+        semaforo_faixas: unknown; tipo: string | null;
+        objetivo_id: string | null; profile_id: string | null;
+      };
+      const indItems: IndicadorItemMeta[] = ((indRes.data ?? []) as IndRow2[]).map(ind => ({
+        id: ind.id, nome: ind.nome,
+        indicador_chave: Boolean(ind.indicador_chave),
+        semaforo_faixas: ind.semaforo_faixas, tipo: ind.tipo,
+        objetivo_id: ind.objetivo_id, profile_id: ind.profile_id,
+        valorAtual: null, valorAnterior: null,
+        corSemaforo: null, corHex: '#d1d5db', percentual: null,
+      }));
+
+      type ORRow2 = {
+        objetivo_id: string; profile_id: string;
+        concluido: boolean | null; concluido_em: string | null;
+        data_inicio: string | null; data_fim: string | null; dias_uteis: number | null;
+      };
+      const orRows = (orRes.data ?? []) as ORRow2[];
+
+      // sinergiaAreaInfo: metaId → { areaId, areaNome }
+      const areaInfoRec: Record<string, { areaId: string; areaNome: string }> = {};
+      for (const r of rows) {
+        areaInfoRec[r.id] = { areaId: r.area_id, areaNome: areaNomeMap.get(r.area_id) ?? r.area_id };
+      }
+
+      // sinergiaRespPorArea: areaId → ResponsavelItem[]
+      type PessoaRow = { profile_id: string; nome: string; area_id: string };
+      const pessoasRows = (pessoasRes.data ?? []) as PessoaRow[];
+      const respPorArea: Record<string, ResponsavelItem[]> = {};
+      for (const p of pessoasRows) {
+        const list = respPorArea[p.area_id] ?? [];
+        list.push({ profile_id: p.profile_id, nome: p.nome });
+        respPorArea[p.area_id] = list;
+      }
+
+      setSinergiaMetaItems(metaItems);
+      setSinergiaOR(orRows.map(r => ({
+        objetivo_id: r.objetivo_id, profile_id: r.profile_id,
+        concluido: Boolean(r.concluido), concluido_em: r.concluido_em ?? null,
+        data_inicio: r.data_inicio ?? null, data_fim: r.data_fim ?? null,
+        dias_uteis: r.dias_uteis ?? null,
+      })));
+      setSinergiaSubMetas(subItems);
+      setSinergiaIndicadores(indItems);
+      setSinergiaAreaInfo(areaInfoRec);
+      setSinergiaRespPorArea(respPorArea);
+    } catch (e) {
+      console.error('[carregarSinergia]', e);
+    }
+  }, [supabase, effectiveProfileId, currentUserId, areaId, mes]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { void carregarSinergia(); }, [carregarSinergia]);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -1598,6 +1701,65 @@ export function MetasIndicadoresBloco() {
     await supabase.from('blockers').update({ resolvido: true, resolvido_em: new Date().toISOString() }).eq('id', blockerId);
     setAllBlockers(prev => prev.filter(b => b.id !== blockerId));
   }, [supabase]);
+
+  // ── Handlers especializados para sinergia ─────────────────────────────────
+  // (usam carregarSinergia em vez de recarregar, e atualizam objetivos.status diretamente)
+
+  const handleConcluirSinergia = useCallback(async (metaId: string) => {
+    const { error } = await supabase.from('objetivos').update({ status: 'concluido' }).eq('id', metaId);
+    if (error) { console.error('[ConcluirSinergia]', error); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta sinergia concluída' });
+    void carregarSinergia();
+  }, [supabase, carregarSinergia]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleReabrirSinergia = useCallback(async (metaId: string) => {
+    const { error } = await supabase.from('objetivos').update({ status: 'ativo' }).eq('id', metaId);
+    if (error) { console.error('[ReabrirSinergia]', error); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta sinergia reaberta' });
+    void carregarSinergia();
+  }, [supabase, carregarSinergia]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleArquivarSinergia = useCallback(async (metaId: string) => {
+    const { error } = await supabase.from('objetivos').update({ status: 'arquivado' }).eq('id', metaId);
+    if (error) { console.error('[ArquivarSinergia]', error); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: metaId, operacao: 'UPDATE', descricao: 'Meta sinergia arquivada' });
+    void carregarSinergia();
+  }, [supabase, carregarSinergia]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleConcluirFilhaSinergia = useCallback(async (filhaId: string) => {
+    const { error } = await supabase.from('objetivos').update({ status: 'concluido' }).eq('id', filhaId);
+    if (error) { console.error('[ConcluirFilhaSinergia]', error); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: filhaId, operacao: 'UPDATE', descricao: 'Meta filha sinergia concluída' });
+    void carregarSinergia();
+  }, [supabase, carregarSinergia]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleReabrirFilhaSinergia = useCallback(async (filhaId: string) => {
+    const { error } = await supabase.from('objetivos').update({ status: 'ativo' }).eq('id', filhaId);
+    if (error) { console.error('[ReabrirFilhaSinergia]', error); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: filhaId, operacao: 'UPDATE', descricao: 'Meta filha sinergia reaberta' });
+    void carregarSinergia();
+  }, [supabase, carregarSinergia]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleArquivarFilhaSinergia = useCallback(async (filhaId: string) => {
+    const { error } = await supabase.from('objetivos').update({ status: 'arquivado' }).eq('id', filhaId);
+    if (error) { console.error('[ArquivarFilhaSinergia]', error); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: filhaId, operacao: 'UPDATE', descricao: 'Meta filha sinergia arquivada' });
+    void carregarSinergia();
+  }, [supabase, carregarSinergia]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleEditarSubMetaSinergia = useCallback(async (id: string, desc: string) => {
+    const { error } = await supabase.from('objetivos').update({ descricao: desc }).eq('id', id);
+    if (error) { console.error('[EditarSubMetaSinergia]', error); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id, operacao: 'UPDATE', campo: 'descricao', valor_novo: desc });
+    setSinergiaSubMetas(prev => prev.map(s => s.id === id ? { ...s, descricao: desc } : s));
+  }, [supabase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleExcluirSubMetaSinergia = useCallback(async (id: string) => {
+    const { error } = await supabase.from('objetivos').delete().eq('id', id);
+    if (error) { console.error('[ExcluirSubMetaSinergia]', error); return; }
+    log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: id, operacao: 'DELETE' });
+    setSinergiaSubMetas(prev => prev.filter(s => s.id !== id));
+  }, [supabase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Computed ─────────────────────────────────────────────────────────────────
   const uid = effectiveProfileId ?? currentUserId;
@@ -1889,36 +2051,92 @@ export function MetasIndicadoresBloco() {
                 </div>
               )}
 
-              {/* ── 4. SINERGIA EM OUTRAS ÁREAS ── compacta, sempre no final ── */}
-              {sinergiaFilhas.length > 0 && (
+              {/* ── 4. SINERGIA EM OUTRAS ÁREAS ── MetaCard completo, agrupado por área ── */}
+              {sinergiaMetaItems.length > 0 && (
                 <div className="mt-4 border-t border-indigo-100 pt-3">
-                  <h3 className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
-                    🔀 Sinergia em outras áreas ({sinergiaFilhas.length})
+                  <h3 className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-3">
+                    🔀 Sinergia em outras áreas ({sinergiaMetaItems.length})
                   </h3>
-                  <div className="flex flex-col gap-2">
-                    {sinergiaFilhas.map(s => (
-                      <div key={s.id} className="flex items-start gap-2 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-100">
-                        <span className={`flex-shrink-0 font-bold text-sm mt-px ${s.status === 'concluido' ? 'text-green-500' : 'text-indigo-400'}`}>
-                          {s.status === 'concluido' ? '✓' : '·'}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          {s.mae_descricao && (
-                            <p className="text-[10px] text-indigo-400 font-medium truncate leading-snug">{s.mae_descricao}</p>
-                          )}
-                          <p className={`text-xs leading-snug ${s.status === 'concluido' ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                            {s.descricao}
-                          </p>
-                          {s.data_fim && (
-                            <p className="text-[10px] text-gray-400 mt-0.5">Prazo: {formatarDataCurta(s.data_fim)}</p>
-                          )}
+                  {(() => {
+                    // Agrupa por área preservando ordem de chegada
+                    const grupos: Record<string, { areaNome: string; areaId: string; metas: MetaItem[] }> = {};
+                    for (const meta of sinergiaMetaItems) {
+                      const info = sinergiaAreaInfo[meta.id];
+                      if (!info) continue;
+                      if (!grupos[info.areaNome]) grupos[info.areaNome] = { areaNome: info.areaNome, areaId: info.areaId, metas: [] };
+                      grupos[info.areaNome]!.metas.push(meta);
+                    }
+                    return Object.values(grupos).map(grupo => (
+                      <div key={grupo.areaNome} className="mb-4">
+                        <p className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wide mb-2">
+                          🔀 {grupo.areaNome}
+                        </p>
+                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                          {grupo.metas.map(meta => {
+                            const sinORRows = sinergiaOR.filter(r => r.objetivo_id === meta.id);
+                            const euConcluiu = meta.status === 'concluido' || sinORRows.some(r => r.profile_id === uid && r.concluido);
+                            const sinResps: ResponsavelItem[] = sinergiaRespPorArea[grupo.areaId] ?? [];
+                            const foreignAreaId = grupo.areaId;
+
+                            const addSubMetaSin = async (
+                              metaPaiId: string, desc: string, tipo: string,
+                              respId: string | null, dataInicio: string, dataFim: string,
+                            ): Promise<void> => {
+                              const { data: ins, error: e } = await supabase.from('objetivos')
+                                .insert({
+                                  area_id: foreignAreaId, descricao: desc, tipo,
+                                  objetivo_pai_id: metaPaiId, status: 'ativo',
+                                  profile_id: respId, mes,
+                                  data_inicio: dataInicio || null, data_fim: dataFim || null,
+                                }).select('id').single();
+                              if (e) { console.error('[AddSubMetaSinergia]', e); return; }
+                              log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: String((ins as { id: unknown }).id), operacao: 'INSERT', descricao: `Nova meta filha sinergia: ${desc}` });
+                              void carregarSinergia();
+                            };
+
+                            return (
+                              <MetaCard
+                                key={meta.id}
+                                meta={meta}
+                                subMetas={sinergiaSubMetas.filter(s => s.objetivo_pai_id === meta.id)}
+                                indicadores={sinergiaIndicadores.filter(i => i.objetivo_id === meta.id)}
+                                responsaveis={sinResps}
+                                podeConcluirGlobal={false}
+                                effectiveProfileId={effectiveProfileId}
+                                currentUserId={currentUserId}
+                                assumiu={true}
+                                concluiuMeta={euConcluiu}
+                                totalResponsaveis={sinORRows.length || 1}
+                                concluiuCount={sinORRows.filter(r => r.concluido).length}
+                                semanaAtual={semanaRelativa}
+                                semanaAnterior={semanaAnterior}
+                                anoRelativo={anoRelativo}
+                                blockers={[]}
+                                onAdicionarBlocker={async () => {}}
+                                onResolverBlocker={handleResolverBlocker}
+                                onEditarSubMeta={handleEditarSubMetaSinergia}
+                                onExcluirSubMeta={handleExcluirSubMetaSinergia}
+                                onConcluirFilha={handleConcluirFilhaSinergia}
+                                onReabrirFilha={handleReabrirFilhaSinergia}
+                                onArquivarFilha={handleArquivarFilhaSinergia}
+                                onAddSubMeta={addSubMetaSin}
+                                onConcluirMeta={handleConcluirSinergia}
+                                onReabrirMeta={handleReabrirSinergia}
+                                onArquivarMeta={handleArquivarSinergia}
+                                onLancarIndicador={handleLancarIndicador}
+                                onAssumirIndicador={handleAssumirIndicador}
+                                onToggleResponsavel={async () => {}}
+                                onAssumirProjeto={async () => {}}
+                                projetoOr={null}
+                                onToast={showToast}
+                                isAdmin={isAdmin}
+                              />
+                            );
+                          })}
                         </div>
-                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0"
-                          style={{ background: 'var(--moni-navy-800)', color: 'var(--moni-text-inverse)' }}>
-                          Sinergia · {s.area_nome}
-                        </span>
                       </div>
-                    ))}
-                  </div>
+                    ));
+                  })()}
                 </div>
               )}
 
