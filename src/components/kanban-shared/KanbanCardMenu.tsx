@@ -6,12 +6,12 @@ import { useRouter } from 'next/navigation';
 import { Archive, ArrowLeft, ArrowRight, MoreHorizontal, RotateCcw, TrendingDown, TrendingUp } from 'lucide-react';
 import {
   arquivarCard,
+  desarquivarCard,
   moverCardParaFase,
   registrarConfirmacaoFaseLoteadores,
   registrarPerda,
   registrarGanho,
   buscarMotivosPerda,
-  reativarPerdaCard,
 } from '@/lib/actions/card-actions';
 import {
   MOTIVOS_ARQUIVAMENTO_CATEGORIAS,
@@ -420,12 +420,12 @@ export function KanbanCardMenu({
     });
   }
 
-  function handleReativarPerda() {
+  function handleDesarquivar() {
     setErro(null);
-    if (!window.confirm('Reativar este card? Ele voltará ao funil como ativo.')) return;
+    if (!window.confirm('Desarquivar este card? Ele voltará a aparecer no kanban.')) return;
     startTransition(async () => {
-      const res = await reativarPerdaCard({ cardId, basePath });
-      if (!res.ok) { setErro(res.error ?? 'Erro ao reativar o card.'); return; }
+      const res = await desarquivarCard({ cardId, basePath, origem });
+      if (!res.ok) { setErro(res.error ?? 'Não foi possível desarquivar o card.'); return; }
       setAberto(false);
       router.refresh();
     });
@@ -444,17 +444,17 @@ export function KanbanCardMenu({
     >
       {vista === 'menu' && (
         <>
-          {cardPerdaArquivada ? (
+          {cardArquivado ? (
             <button
               type="button"
               role="menuitem"
               className="moni-kanban-card-menu-item"
               style={{ color: 'var(--moni-status-ok-text)' }}
               disabled={pending}
-              onClick={handleReativarPerda}
+              onClick={handleDesarquivar}
             >
               <RotateCcw className="h-4 w-4 shrink-0" aria-hidden />
-              <span>Reativar</span>
+              <span>{cardPerdaArquivada ? 'Reativar' : 'Desarquivar'}</span>
             </button>
           ) : (
             <>

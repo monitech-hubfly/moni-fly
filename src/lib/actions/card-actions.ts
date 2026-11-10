@@ -1659,6 +1659,10 @@ export async function desarquivarCard(input: DesarquivarCardInput): Promise<Acti
       arquivado_em: null,
       arquivado_por: null,
       motivo_arquivamento: null,
+      resultado: null,
+      motivo_perda_id: null,
+      justificativa_perda: null,
+      justificativa_ganho: null,
     } as never)
     .eq('id', cardId)
     .select('id');

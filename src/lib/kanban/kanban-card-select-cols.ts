@@ -72,6 +72,8 @@ export const KANBAN_CARD_SELECT_BOARD_FAST = `
       franqueado_id,
       ordem_coluna,
       arquivado,
+      motivo_arquivamento,
+      resultado,
       concluido,
       concluido_em,
       rede_franqueado_id,
@@ -104,6 +106,7 @@ export const KANBAN_CARD_SELECT_BOARD_FAST_WITH_SLA = `${KANBAN_CARD_SELECT_BOAR
  */
 const KANBAN_CARD_SELECT_OPTIONAL = [
   'resultado',
+  'motivo_arquivamento',
   'telefone_lead',
   'email_lead',
   'mensagem_lead',

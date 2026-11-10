@@ -111,6 +111,8 @@ function mapNativoFastRow(c: Record<string, unknown>, kanbanIdStr: string): Kanb
     kanban_id: kanbanIdStr,
     projeto_id: (c as { projeto_id?: string | null }).projeto_id ?? null,
     arquivado: Boolean((c as { arquivado?: boolean | null }).arquivado),
+    motivo_arquivamento: (c as { motivo_arquivamento?: string | null }).motivo_arquivamento ?? null,
+    resultado: ((c as { resultado?: string | null }).resultado ?? null) as 'perda' | 'ganho' | null,
     concluido: Boolean((c as { concluido?: boolean | null }).concluido),
     concluido_em:
       (c as { concluido_em?: string | null }).concluido_em != null
@@ -892,7 +894,10 @@ export async function fetchKanbanBoardSnapshot(
 
   const deferEnrichments = options?.deferBoardEnrichments === true;
   const forceSkipLegadoView = options?.forceSkipLegadoView === true;
-  const useFastPaint = deferEnrichments && isFastPaintKanban(kanbanNomeDb) && wantAtivos;
+  /** Arquivados/concluídos de qualquer funil: consulta curta. O snapshot completo esvazia ou estoura o tempo do filtro. */
+  const useFastStatusPool = snapshotMode === 'arquivados' || snapshotMode === 'concluidos';
+  const useFastPaint =
+    (deferEnrichments && isFastPaintKanban(kanbanNomeDb) && wantAtivos) || useFastStatusPool;
   const skipCalculadora =
     options?.skipCalculadoraSlaEnrich === true || deferEnrichments;
   const timer = createKanbanSnapshotTimer(kanbanNomeDb, useFastPaint ? 'fast' : snapshotMode);
@@ -908,9 +913,16 @@ export async function fetchKanbanBoardSnapshot(
         .eq('kanban_id', kanban.id)
         .eq('status', 'ativo')
         .order('ordem_coluna', { ascending: true })
-        .order('created_at', { ascending: false })
-        .or('concluido.eq.false,concluido.is.null')
-        .or('arquivado.eq.false,arquivado.is.null');
+        .order('created_at', { ascending: false });
+      if (snapshotMode === 'arquivados') {
+        q = q.eq('arquivado', true).or('concluido.eq.false,concluido.is.null');
+      } else if (snapshotMode === 'concluidos') {
+        q = q.eq('concluido', true).or('arquivado.eq.false,arquivado.is.null');
+      } else {
+        q = q
+          .or('concluido.eq.false,concluido.is.null')
+          .or('arquivado.eq.false,arquivado.is.null');
+      }
       if (userId && !veTodosCards) q = q.eq('franqueado_id', userId);
       const { data, error } = await q;
       return {
@@ -929,8 +941,12 @@ export async function fetchKanbanBoardSnapshot(
       console.error(
         '[kanban-board] select fast falhou — board sem cards:',
         kanbanNomeDb,
+        snapshotMode,
         cardsRes.error.message,
       );
+      if (useFastStatusPool) {
+        throw new Error(cardsRes.error.message);
+      }
     }
 
     const cardsNativoRaw = ((cardsRes.data ?? []) as KanbanCardRow[]).map((c) =>
@@ -952,6 +968,8 @@ export async function fetchKanbanBoardSnapshot(
     ]);
     const cardsComTags = aplicarTagsKanbanCards(cardsNativo, tagsByCardId);
     timer.mark('tags+franqueado-fast');
+    const cardsFast = snapshotMode === 'concluidos' ? [] : cardsComTags;
+    const cardsConcluidosFast = snapshotMode === 'concluidos' ? cardsComTags : [];
     const faseIdsOrfas = cardsComTags.map((c) => c.fase_id);
     const fasesComOrfas = await augmentKanbanFasesComFasesDosCards(
       supabase,
@@ -965,8 +983,8 @@ export async function fetchKanbanBoardSnapshot(
     return {
       kanban: { id: kanbanIdStr },
       fases: fasesComOrfas,
-      cards: cardsComTags,
-      cardsConcluidos: [],
+      cards: cardsFast,
+      cardsConcluidos: cardsConcluidosFast,
       role,
       isAdmin,
       snapshotMode,

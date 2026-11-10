@@ -7563,7 +7563,7 @@ export function KanbanCardModal({
               </PainelLateralSecao>
             ) : null}
 
-            {podeMoverFaseCard || exibirBlocoArquivar ? (
+            {podeMoverFaseCard || exibirBlocoArquivar || exibirBlocoDesarquivar ? (
               <PainelLateralSecao titulo="Movimentação">
                 {gateStep5Toast ? (
                   <p
@@ -7738,11 +7738,32 @@ export function KanbanCardModal({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setArquivamentoAberto(true)}
-                      disabled={loading || !exibirBlocoArquivar}
+                      onClick={() => {
+                        if (exibirBlocoDesarquivar) void handleConfirmarDesarquivar();
+                        else setArquivamentoAberto(true);
+                      }}
+                      disabled={loading || (!exibirBlocoArquivar && !exibirBlocoDesarquivar)}
                       className="moni-card-modal-movimentacao-btn"
+                      style={
+                        exibirBlocoDesarquivar
+                          ? {
+                              background: 'var(--moni-navy-800)',
+                              color: 'white',
+                              borderColor: 'var(--moni-navy-800)',
+                            }
+                          : undefined
+                      }
                     >
-                      <span className="moni-card-modal-movimentacao-btn-label">Arquivar</span>
+                      <span
+                        className="moni-card-modal-movimentacao-btn-label"
+                        style={
+                          exibirBlocoDesarquivar
+                            ? { whiteSpace: 'normal', overflow: 'visible', textOverflow: 'clip' }
+                            : undefined
+                        }
+                      >
+                        {exibirBlocoDesarquivar ? (loading ? '…' : 'Desarquivar') : 'Arquivar'}
+                      </span>
                     </button>
                     <button
                       type="button"

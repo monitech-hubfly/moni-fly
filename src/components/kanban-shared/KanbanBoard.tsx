@@ -129,9 +129,8 @@ export function KanbanBoard({
 
   const nomeDbParaLazy = String(kanbanNomeDb ?? kanbanNome ?? '').trim();
   const showPerdaGanhoFiltros = nomeDbParaLazy === 'Funding' || kanbanNome === 'Funding';
-  const leanAtivo =
-    snapshotLean ??
-    (!cards.some(cardEhArquivadoNativo) && cardsConcluidos.length === 0);
+  const precisaLazyArquivados = snapshotLean ?? !cards.some(cardEhArquivadoNativo);
+  const precisaLazyConcluidos = snapshotLean ?? cardsConcluidos.length === 0;
 
   /** Pools carregados sob demanda (STATUS arquivados / concluídos). */
   const [lazyArquivados, setLazyArquivados] = useState<KanbanCardBrief[] | null>(null);
@@ -279,17 +278,19 @@ export function KanbanBoard({
   }, [cardIdsParaContagem]);
 
   useEffect(() => {
-    if (!leanAtivo || !nomeDbParaLazy) return;
+    if (!nomeDbParaLazy) return;
     const status = filtros.status;
-    if (!statusPrecisaPoolArquivados(status) && status !== 'concluidos') {
+    const querArquivados = statusPrecisaPoolArquivados(status);
+    const querConcluidos = status === 'concluidos';
+    if (!querArquivados && !querConcluidos) {
       setStatusPoolLoading(false);
       return;
     }
-    if (statusPrecisaPoolArquivados(status) && lazyArquivados != null) {
+    if (querArquivados && (!precisaLazyArquivados || lazyArquivados != null)) {
       setStatusPoolLoading(false);
       return;
     }
-    if (status === 'concluidos' && lazyConcluidos != null) {
+    if (querConcluidos && (!precisaLazyConcluidos || lazyConcluidos != null)) {
       setStatusPoolLoading(false);
       return;
     }
@@ -319,7 +320,8 @@ export function KanbanBoard({
       cancelled = true;
     };
   }, [
-    leanAtivo,
+    precisaLazyArquivados,
+    precisaLazyConcluidos,
     nomeDbParaLazy,
     filtros.status,
     lazyArquivados,
