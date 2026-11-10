@@ -995,6 +995,7 @@ function PassoSimulacao({
             minimoParcelaUnica={minimoParcelaUnica}
             avaliarPagamentoAMaior={avaliarPagamentoAMaior}
             modalidade={state.precisaFinanciamento ? 'financiamento' : 'recursos_proprios'}
+            valorJaPago={state.valorJaPago}
             onVerMemorial={onAvancar}
           />
         </div>
