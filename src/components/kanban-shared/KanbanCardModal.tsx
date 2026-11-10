@@ -115,6 +115,7 @@ import {
 } from '@/lib/kanban/operacoes-confirmacao-fase';
 import {
   deveExibirModalJustificativaSla,
+  isErroGateJustificativaSla,
   justificativaSlaObrigatoria,
 } from '@/lib/kanban/kanban-sla-justificativa';
 import { obterJustificativaSlaFase } from '@/lib/actions/kanban-sla-justificativa';
@@ -1746,6 +1747,10 @@ export function KanbanCardModal({
         concluido_em: loaded.concluido_em ?? null,
         arquivado: loaded.arquivado ?? false,
         projeto_id: loaded.projeto_id ?? null,
+        sla_iniciado_em: loaded.sla_iniciado_em ?? null,
+        entered_fase_at: loaded.entered_fase_at ?? null,
+        alvara_url: loaded.alvara_url ?? null,
+        docs_terreno_url: loaded.docs_terreno_url ?? null,
         acoplamento_concluido: loaded.acoplamento_concluido,
         acoplamento_filho_fase_nome: loaded.acoplamento_filho_fase_nome ?? null,
         acoplamento_filho_fase_slug: loaded.acoplamento_filho_fase_slug ?? null,
@@ -1988,6 +1993,7 @@ export function KanbanCardModal({
             nome: f.nome,
             ordem: f.ordem,
             sla_dias: f.sla_dias,
+            sla_tipo: f.sla_tipo ?? null,
             slug: f.slug ?? null,
             instrucoes: f.instrucoes ?? null,
             materiais: f.materiais as unknown,
@@ -2970,6 +2976,17 @@ export function KanbanCardModal({
         });
         if (!res.ok) {
           const msg = res.error ?? 'Erro ao avançar fase.';
+          if (isErroGateJustificativaSla(msg)) {
+            const resJust = await obterJustificativaSlaFase(card.id, faseAtual.id);
+            const justificativaExistente = resJust.ok ? resJust.justificativa : null;
+            setSlaJustificativaDraft('');
+            setModalJustificativaSla({
+              destino: proximaFase,
+              justificativaExistente,
+              obrigatoria: justificativaSlaObrigatoria(justificativaExistente),
+            });
+            return true;
+          }
           if (msg === ERRO_INTENCAO_SHOWROOM_PASSAGEM_IMOB) {
             setModalIntencaoShowroom({ destinoFase: proximaFase, direcao: 'avancar', opts });
             return true;
