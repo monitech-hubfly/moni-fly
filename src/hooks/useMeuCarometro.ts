@@ -698,7 +698,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
       const sireneWeeklyScore  = buildSemanaScore('sirene',      sireneScore);
       const engWeeklyScore     = buildSemanaScore('engajamento', engajamentoRuntime.score);
 
-      // ── Dias da semana com scores (snapshot > runtime de hoje) ───────────────
+      // ── Dias da semana com scores (hoje = runtime ao vivo; demais = snapshot) ──
       const buildDias = (
         snapKey: 'sirene' | 'engajamento' | 'indicadores',
         scoreField: string,
@@ -706,6 +706,9 @@ export function useMeuCarometro(): UseMeuCarometroResult {
         runtimeDetalhe?: Record<string, number | string | null>,
       ): DiaStatus[] =>
         diasSemana.map(data => {
+          // Hoje sempre usa o score ao vivo — o snapshot pode estar desatualizado
+          // na mesma sessão (snapshotMap é carregado antes do upsert corrente).
+          if (data === hojeStr) return { data, score: runtimeScore, detalhe: runtimeDetalhe };
           const snap = snapshotMap.get(data);
           if (snap?.[snapKey]) {
             const s = snap[snapKey] as Record<string, unknown>;
@@ -725,7 +728,6 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             }
             return { data, score, detalhe };
           }
-          if (data === hojeStr) return { data, score: runtimeScore, detalhe: runtimeDetalhe };
           return { data, score: null };
         });
 
