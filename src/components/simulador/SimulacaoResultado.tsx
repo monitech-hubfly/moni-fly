@@ -35,8 +35,6 @@ type Props = {
   /** Quanto as parcelas passam do valor total, com os valores digitados. */
   avaliarPagamentoAMaior?: (valores: ValoresConfirmadosOferta) => number;
   modalidade?: 'financiamento' | 'recursos_proprios';
-  /** Valor já pago informado pelo cliente. 0 não altera o painel. */
-  valorJaPago?: number;
   onVerMemorial: () => void;
 };
 
@@ -77,15 +75,6 @@ function AvisoMinimo({ minimo, atual }: { minimo: number; atual: number }) {
   );
 }
 
-function LinhaJaPago({ total, valorJaPago }: { total: number; valorJaPago: number }) {
-  if (!(valorJaPago > 0)) return null;
-  return (
-    <p className="jornadaSimJaPago">
-      Já pago: {formatarMoeda(valorJaPago)} · A pagar: {formatarMoeda(total - valorJaPago)}
-    </p>
-  );
-}
-
 function Metrica({ label, valor, sub }: { label: string; valor: string; sub?: string }) {
   return (
     <div className="jornadaSimMetrica">
@@ -107,18 +96,12 @@ function TabelaFluxoCliente({ fluxo }: { fluxo: LinhaFluxo[] }) {
           </tr>
         </thead>
         <tbody>
-          {fluxo.map((l) => {
-            const preContrato = l.fase === 'pre_contrato';
-            return (
-              <tr
-                key={`${l.mes}-${l.fase}-${l.etapa_obra ?? ''}`}
-                className={preContrato ? 'jornadaFluxoPreContrato' : undefined}
-              >
-                <td>{preContrato ? 'Já pago (antes do contrato)' : l.mes}</td>
-                <td>{formatarMoeda(l.entrada_cliente)}</td>
-              </tr>
-            );
-          })}
+          {fluxo.map((l) => (
+            <tr key={`${l.mes}-${l.fase}-${l.etapa_obra ?? ''}`}>
+              <td>{l.fase === 'pre_contrato' ? 'Já pago' : l.mes}</td>
+              <td>{formatarMoeda(l.entrada_cliente)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -135,7 +118,6 @@ export function SimulacaoResultado({
   minimoParcelaUnica,
   avaliarPagamentoAMaior,
   modalidade = 'financiamento',
-  valorJaPago = 0,
   onVerMemorial,
 }: Props) {
   const [fluxoAberto, setFluxoAberto] = useState(false);
@@ -231,7 +213,6 @@ export function SimulacaoResultado({
               <p className="jornadaSimHeroLabel">Valor total</p>
               <p className="jornadaSimHeroValor">{formatarMoeda(resultado.vte)}</p>
             </div>
-            <LinhaJaPago total={resultado.vte} valorJaPago={valorJaPago} />
             <div className="jornadaSimMetricas">
               <Metrica label="Entrada" valor={formatarMoeda(resultado.entrada_sugerida)} />
               <Metrica
@@ -250,7 +231,6 @@ export function SimulacaoResultado({
               <p className="jornadaSimHeroLabel">Valor total à vista</p>
               <p className="jornadaSimHeroValor">{formatarMoeda(resultado.vte_avista)}</p>
             </div>
-            <LinhaJaPago total={resultado.vte_avista} valorJaPago={valorJaPago} />
             <div className="jornadaSimMetricas">
               <Metrica
                 label={aplicado ? 'Entrada' : 'Entrada sugerida'}

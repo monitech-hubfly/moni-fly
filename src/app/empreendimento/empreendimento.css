@@ -952,17 +952,6 @@
   font-weight: 600;
 }
 
-.jornadaSimJaPago {
-  margin: 0;
-  padding: 10px 16px;
-  text-align: center;
-  font-family: var(--moni-font-sans);
-  font-size: 0.8125rem;
-  line-height: 1.45;
-  color: var(--moni-text-secondary);
-  border-top: var(--moni-border-width) solid var(--moni-border-default);
-}
-
 .jornadaSimMetricas {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1051,11 +1040,6 @@
 .jornadaFluxoCliente td {
   width: 50%;
   text-align: center;
-}
-
-.jornadaFluxoCliente tr.jornadaFluxoPreContrato td {
-  color: var(--moni-text-secondary);
-  font-family: var(--moni-font-sans);
 }
 
 .jornadaSimAcoes {

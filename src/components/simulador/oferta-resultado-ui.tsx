@@ -138,10 +138,13 @@ export function TabelaFluxo({
   fluxo,
   detalheAberto,
   onToggleDetalhe,
+  rotuloMesPreContrato = '—',
 }: {
   fluxo: LinhaFluxo[];
   detalheAberto: boolean;
   onToggleDetalhe?: () => void;
+  /** Texto da coluna Mês na linha de pré-contrato. O padrão permanece "—". */
+  rotuloMesPreContrato?: string;
 }) {
   const celVisivel = { background: 'var(--moni-surface-50)' } as const;
   const celDetalhe = { background: 'var(--moni-surface-0)' } as const;
@@ -227,7 +230,7 @@ export function TabelaFluxo({
               }}
             >
               <td className="px-2 py-2" style={celVisivel}>
-                {l.fase === 'pre_contrato' ? '—' : l.mes}
+                {l.fase === 'pre_contrato' ? rotuloMesPreContrato : l.mes}
               </td>
               <td className="whitespace-nowrap px-2 py-2" style={celVisivel}>
                 {FASE_LABEL[l.fase] ?? l.fase}

@@ -881,6 +881,7 @@ export function CalculadoraOferta({
                   fluxo={resultado.fluxo}
                   detalheAberto={detalheAberto}
                   onToggleDetalhe={() => setDetalheAberto((v) => !v)}
+                  rotuloMesPreContrato="Já pago"
                 />
               </Secao>
               <Secao titulo="Detalhamento da parcela única">
@@ -989,6 +990,7 @@ export function CalculadoraOferta({
                   fluxo={fluxoFinalResultado.fluxo}
                   detalheAberto={detalheFinalAberto}
                   onToggleDetalhe={() => setDetalheFinalAberto((v) => !v)}
+                  rotuloMesPreContrato="Já pago"
                 />
                 <div className="mt-4 flex flex-col gap-1 text-sm" style={{ fontFamily: 'var(--moni-font-sans)' }}>
                   <p
