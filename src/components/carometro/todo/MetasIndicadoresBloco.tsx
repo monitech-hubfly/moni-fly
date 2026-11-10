@@ -1340,26 +1340,37 @@ export function MetasIndicadoresBloco() {
       }
 
       const rows = sinData as SinRow[];
-      const sinIds = rows.map(r => r.id);
       const foreignAreaIds = [...new Set(rows.map(r => r.area_id))];
+      // IDs das meta MÃES (containers de sinergia — um card por mãe)
+      const maeIds = [...new Set(rows.map(r => r.objetivo_pai_id).filter((id): id is string => !!id))];
 
-      // 2. Queries paralelas: áreas, OR, sub-metas, indicadores, comments, pessoas
-      const [areasRes, orRes, subRes, indRes, comRes, pessoasRes] = await Promise.all([
+      // 2. Queries paralelas: áreas, meta mães, OR das mães, indicadores das mães, comments das mães, pessoas
+      const [areasRes, maesRes, orRes, indRes, comRes, pessoasRes] = await Promise.all([
         supabase.from('areas').select('id, nome').in('id', foreignAreaIds),
-        supabase.from('objetivo_responsaveis')
-          .select('objetivo_id, profile_id, concluido, concluido_em, data_inicio, data_fim, dias_uteis')
-          .in('objetivo_id', sinIds),
-        supabase.from('objetivos')
-          .select('id, descricao, tipo, is_chave, objetivo_pai_id, profile_id, status, data_inicio, data_fim')
-          .in('objetivo_pai_id', sinIds)
-          .in('status', ['ativo', 'concluido']),
-        supabase.from('indicadores')
-          .select('id, nome, indicador_chave, semaforo_faixas, tipo, objetivo_id, profile_id')
-          .in('objetivo_id', sinIds),
-        sinIds.length > 0
+        // Meta mães — card container de sinergia
+        maeIds.length > 0
+          ? supabase.from('objetivos')
+              .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id, data_inicio, data_fim')
+              .in('id', maeIds)
+          : Promise.resolve({ data: [] as unknown[], error: null }),
+        // objetivo_responsaveis das meta mães
+        maeIds.length > 0
+          ? supabase.from('objetivo_responsaveis')
+              .select('objetivo_id, profile_id, concluido, concluido_em, data_inicio, data_fim, dias_uteis')
+              .in('objetivo_id', maeIds)
+          : Promise.resolve({ data: [] as unknown[], error: null }),
+        // Indicadores das meta mães
+        maeIds.length > 0
+          ? supabase.from('indicadores')
+              .select('id, nome, indicador_chave, semaforo_faixas, tipo, objetivo_id, profile_id')
+              .in('objetivo_id', maeIds)
+          : Promise.resolve({ data: [] as unknown[], error: null }),
+        // Contagem de comentários das meta mães
+        maeIds.length > 0
           ? supabase.from('audit_log').select('entidade_id')
-              .eq('entidade', 'objetivos').eq('operacao', 'COMMENT').in('entidade_id', sinIds)
+              .eq('entidade', 'objetivos').eq('operacao', 'COMMENT').in('entidade_id', maeIds)
           : Promise.resolve({ data: [] as { entidade_id: string }[], error: null }),
+        // Responsáveis das áreas estrangeiras
         supabase.from('area_pessoas').select('profile_id, nome, area_id')
           .in('area_id', foreignAreaIds).eq('ativo', true),
       ]);
@@ -1371,32 +1382,36 @@ export function MetasIndicadoresBloco() {
         comCountMap.set(r.entidade_id, (comCountMap.get(r.entidade_id) ?? 0) + 1);
       });
 
-      // Constrói MetaItem[] tratando cada filha como meta completa
-      const metaItems: MetaItem[] = rows.map(r => ({
-        id: r.id, descricao: r.descricao, tipo: r.tipo,
-        is_chave: Boolean(r.is_chave), meta_valor: r.meta_valor,
-        meta_unidade: r.meta_unidade, criado_em: r.criado_em ?? null,
-        status: r.status, ordem: r.ordem, profile_id: r.profile_id,
+      // Constrói MetaItem[] a partir das META MÃES (card container)
+      type MaeRow = {
+        id: string; descricao: string; tipo: string | null;
+        is_chave: boolean | null; meta_valor: string | null;
+        meta_unidade: string | null; criado_em: string | null;
+        status: string; ordem: number | null;
+        profile_id: string | null; data_inicio: string | null; data_fim: string | null;
+      };
+      const maesArr = (maesRes.data ?? []) as MaeRow[];
+      const metaItems: MetaItem[] = maesArr.map(m => ({
+        id: m.id, descricao: m.descricao, tipo: m.tipo,
+        is_chave: Boolean(m.is_chave), meta_valor: m.meta_valor,
+        meta_unidade: m.meta_unidade, criado_em: m.criado_em ?? null,
+        status: m.status, ordem: m.ordem, profile_id: m.profile_id,
         responsavel_nome: null,
-        comentariosCount: comCountMap.get(r.id) ?? 0,
-        data_inicio: r.data_inicio ?? null,
-        data_fim: r.data_fim ?? null,
+        comentariosCount: comCountMap.get(m.id) ?? 0,
+        data_inicio: m.data_inicio ?? null,
+        data_fim: m.data_fim ?? null,
       }));
 
-      type SubRow = {
-        id: string; descricao: string; tipo: string | null; is_chave: boolean | null;
-        objetivo_pai_id: string; profile_id: string | null; status: string;
-        data_inicio: string | null; data_fim: string | null;
-      };
-      const subItems: SubMetaItem[] = ((subRes.data ?? []) as SubRow[]).map(s => ({
-        id: s.id, descricao: s.descricao, tipo: s.tipo,
-        is_chave: Boolean(s.is_chave),
-        objetivo_pai_id: s.objetivo_pai_id,
-        profile_id: s.profile_id,
-        is_minha: s.profile_id === uid,
-        status: s.status,
-        data_inicio: s.data_inicio ?? null,
-        data_fim: s.data_fim ?? null,
+      // As FILHAS do usuário viram SubMetaItem dentro do card da meta mãe
+      const subItems: SubMetaItem[] = rows.map(r => ({
+        id: r.id, descricao: r.descricao, tipo: r.tipo,
+        is_chave: Boolean(r.is_chave),
+        objetivo_pai_id: r.objetivo_pai_id!,
+        profile_id: r.profile_id,
+        is_minha: true, // sempre true — filhas filtradas por profile_id = uid
+        status: r.status,
+        data_inicio: r.data_inicio ?? null,
+        data_fim: r.data_fim ?? null,
       }));
 
       type IndRow2 = {
@@ -1420,10 +1435,12 @@ export function MetasIndicadoresBloco() {
       };
       const orRows = (orRes.data ?? []) as ORRow2[];
 
-      // sinergiaAreaInfo: metaId → { areaId, areaNome }
+      // sinergiaAreaInfo: maeId → { areaId, areaNome } (via área das filhas — mesma área da mãe)
       const areaInfoRec: Record<string, { areaId: string; areaNome: string }> = {};
       for (const r of rows) {
-        areaInfoRec[r.id] = { areaId: r.area_id, areaNome: areaNomeMap.get(r.area_id) ?? r.area_id };
+        if (r.objetivo_pai_id && !areaInfoRec[r.objetivo_pai_id]) {
+          areaInfoRec[r.objetivo_pai_id] = { areaId: r.area_id, areaNome: areaNomeMap.get(r.area_id) ?? r.area_id };
+        }
       }
 
       // sinergiaRespPorArea: areaId → ResponsavelItem[]
@@ -2079,11 +2096,11 @@ export function MetasIndicadoresBloco() {
                 </div>
               )}
 
-              {/* ── 4. SINERGIA EM OUTRAS ÁREAS ── MetaCard completo, agrupado por área ── */}
+              {/* ── 4. SINERGIA EM OUTRAS ÁREAS ── meta mãe como card, filhas do usuário dentro ── */}
               {sinergiaMetaItems.length > 0 && (
                 <div className="mt-4 border-t border-indigo-100 pt-3">
                   <h3 className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-3">
-                    🔀 Sinergia em outras áreas ({sinergiaMetaItems.length})
+                    🔀 Sinergia em outras áreas ({sinergiaSubMetas.length})
                   </h3>
                   {(() => {
                     // Agrupa por área preservando ordem de chegada
@@ -2102,7 +2119,6 @@ export function MetasIndicadoresBloco() {
                         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                           {grupo.metas.map(meta => {
                             const sinORRows = sinergiaOR.filter(r => r.objetivo_id === meta.id);
-                            const euConcluiu = meta.status === 'concluido' || sinORRows.some(r => r.profile_id === uid && r.concluido);
                             const sinResps: ResponsavelItem[] = sinergiaRespPorArea[grupo.areaId] ?? [];
                             const foreignAreaId = grupo.areaId;
 
@@ -2133,7 +2149,7 @@ export function MetasIndicadoresBloco() {
                                 effectiveProfileId={effectiveProfileId}
                                 currentUserId={currentUserId}
                                 assumiu={true}
-                                concluiuMeta={euConcluiu}
+                                concluiuMeta={false}
                                 totalResponsaveis={sinORRows.length || 1}
                                 concluiuCount={sinORRows.filter(r => r.concluido).length}
                                 semanaAtual={semanaRelativa}
@@ -2148,9 +2164,9 @@ export function MetasIndicadoresBloco() {
                                 onReabrirFilha={handleReabrirFilhaSinergia}
                                 onArquivarFilha={handleArquivarFilhaSinergia}
                                 onAddSubMeta={addSubMetaSin}
-                                onConcluirMeta={handleConcluirSinergia}
-                                onReabrirMeta={handleReabrirSinergia}
-                                onArquivarMeta={handleArquivarSinergia}
+                                onConcluirMeta={async () => {}}
+                                onReabrirMeta={async () => {}}
+                                onArquivarMeta={async () => {}}
                                 onLancarIndicador={handleLancarIndicador}
                                 onAssumirIndicador={handleAssumirIndicador}
                                 onToggleResponsavel={async () => {}}

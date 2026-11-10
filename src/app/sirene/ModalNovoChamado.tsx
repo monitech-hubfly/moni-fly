@@ -50,6 +50,12 @@ function grupoDoFunil(nome: string): string {
 
 type Props = { onClose: () => void; onSuccess?: () => void; initialCard?: SireneVinculoCardBuscaItem };
 
+/** Formata 'YYYY-MM-DD' como 'DD/MM/YYYY'. */
+function formatarData(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
   const [titulo, setTitulo] = useState('');
   const [categoria, setCategoria] = useState<'chamado' | 'melhoria'>('chamado');
@@ -65,6 +71,8 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
   const [error, setError] = useState<string | null>(null);
   // ── Ausências dos responsáveis da primeira atividade para hoje ─────────────
   const [ausentesHoje, setAusentesHoje] = useState<Set<string>>(new Set());
+  // ── Popup de aviso de férias/day off ──────────────────────────────────────
+  const [ausenciaPopup, setAusenciaPopup] = useState<{ nome: string; periodo: string } | null>(null);
 
   // Vinculo card — funil-first
   const [funisList, setFunisList] = useState<SireneFunilItem[]>([]);
@@ -222,16 +230,30 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
     try {
       const primeiraAtiv = atividades[0]!;
 
+      // ── Helper: busca nome no banco + período de ausência e exibe popup ─────
+      async function mostrarPopupAusencia(responsavelId: string) {
+        const sb = createClient();
+        const hoje = new Date();
+        const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+        const em45Dias = new Date(hoje.getTime() + 45 * 24 * 60 * 60 * 1000);
+        const em45Str = `${em45Dias.getFullYear()}-${String(em45Dias.getMonth() + 1).padStart(2, '0')}-${String(em45Dias.getDate()).padStart(2, '0')}`;
+        const [profResult, ausResult] = await Promise.all([
+          sb.from('profiles').select('full_name, email').eq('id', responsavelId).single(),
+          sb.from('carometro_ausencias').select('data').eq('profile_id', responsavelId).gte('data', hojeStr).lte('data', em45Str).order('data'),
+        ]);
+        const nome = String((profResult.data as { full_name?: string; email?: string } | null)?.full_name ?? (profResult.data as { email?: string } | null)?.email ?? 'O responsável').trim();
+        const datas = ((ausResult.data ?? []) as { data: string }[]).map((r) => r.data);
+        let periodo = 'neste período';
+        if (datas.length === 1) periodo = formatarData(datas[0]!);
+        else if (datas.length > 1) periodo = `${formatarData(datas[0]!)} – ${formatarData(datas[datas.length - 1]!)}`;
+        setAusenciaPopup({ nome, periodo });
+      }
+
       // ── Bloquear se responsável está ausente HOJE (férias/day off) ─────────
       if (ausentesHoje.size > 0) {
-        const nomeAusente =
-          responsaveisOpcoes.find((r) => ausentesHoje.has(r.id))?.nome ??
-          'O responsável selecionado';
-        setError(
-          `⚠ ${nomeAusente} está marcado como férias/day off hoje. ` +
-          'Escolha outro responsável ou aguarde o retorno.',
-        );
+        const ausenteId = [...ausentesHoje][0]!;
         setLoading(false);
+        await mostrarPopupAusencia(ausenteId);
         return;
       }
 
@@ -249,11 +271,9 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
             .in('profile_id', ativ.responsaveisIds)
             .eq('data', ativ.data.trim());
           if (ausRows && ausRows.length > 0) {
-            setError(
-              `⚠ O responsável está marcado como ausente em ${ativ.data.trim()}. ` +
-              'Escolha outro prazo ou negocie diretamente com quem abriu o chamado.',
-            );
+            const ausenteId = (ausRows[0] as { profile_id: string }).profile_id;
             setLoading(false);
+            await mostrarPopupAusencia(ausenteId);
             return;
           }
         }
@@ -349,6 +369,7 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
   const temRascunho = titulo.trim() || cardVinculo || atividades.length > 0;
 
   return (
+    <>
     <div className="fixed inset-0 z-[220] flex items-center justify-center bg-black/50 p-4">
       <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-xl">
         <div className="sticky top-0 flex items-center justify-between gap-2 border-b border-stone-200 bg-white px-4 py-3">
@@ -582,5 +603,52 @@ export function ModalNovoChamado({ onClose, onSuccess, initialCard }: Props) {
         </form>
       </div>
     </div>
+
+    {/* ── Popup de férias/day off ──────────────────────────────────────── */}
+    {ausenciaPopup ? (
+      <div className="fixed inset-0 z-[230] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/50" onClick={() => setAusenciaPopup(null)} />
+        <div
+          className="relative w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl"
+          style={{ borderRadius: 'var(--moni-radius-lg)' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3
+            className="mb-3 text-base font-semibold"
+            style={{ fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-primary)' }}
+          >
+            Responsável indisponível
+          </h3>
+          <p className="mb-2 text-sm text-stone-600">
+            <span className="font-semibold">{ausenciaPopup.nome}</span> está marcado como
+            férias / day off no período:
+          </p>
+          <p
+            className="mb-4 inline-block rounded px-2 py-1 text-sm font-semibold"
+            style={{
+              background: 'var(--moni-status-attention-bg, #fffbeb)',
+              color: 'var(--moni-gold-400, #D4AD68)',
+              border: '0.5px solid var(--moni-gold-400, #D4AD68)',
+            }}
+          >
+            {ausenciaPopup.periodo}
+          </p>
+          <p className="mb-5 text-sm text-stone-500">
+            Escolha outro responsável ou aguarde o retorno.
+          </p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setAusenciaPopup(null)}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+              style={{ background: 'var(--moni-navy-800)', borderRadius: 'var(--moni-radius-md)' }}
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

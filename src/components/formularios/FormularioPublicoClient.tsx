@@ -861,6 +861,16 @@ function EntradaGrupo({
       </select>
     );
   }
+  if (def.tipo === 'texto_longo') {
+    return (
+      <textarea
+        rows={4}
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ ...campoStyle, minHeight: 96, resize: 'vertical' }}
+      />
+    );
+  }
   if (def.tipo === 'moeda' || def.key === 'preco_medio_venda') {
     return (
       <input
@@ -1140,6 +1150,17 @@ function GrupoRepetivelCampo({
                     </option>
                   ))}
                 </select>
+              ) : def.tipo === 'texto_longo' ? (
+                <textarea
+                  rows={4}
+                  value={String(linha[def.key] ?? '')}
+                  onChange={(e) => {
+                    const valor = e.target.value;
+                    const next = linhas.map((item, i) => (i === index ? { ...item, [def.key]: valor } : item));
+                    gravar(next);
+                  }}
+                  style={{ ...campoStyle, minHeight: 96, resize: 'vertical' }}
+                />
               ) : def.tipo === 'moeda' || def.key === 'preco_medio_venda' ? (
                 <input
                   type="text"

@@ -100,7 +100,19 @@ export default function CalendarioComSemanas({
           <tr>
             <th className="calendario-col-semana">Semana</th>
             {DIAS.map(d => (
-              <th key={d}>{d}</th>
+              <th
+                key={d}
+                style={{
+                  background: 'var(--moni-verde-escuro, #1D2F25)',
+                  color: 'var(--moni-branco, #fff)',
+                  fontWeight: 700,
+                  fontSize: '0.78rem',
+                  padding: '0.45rem 0.35rem',
+                  textAlign: 'center',
+                }}
+              >
+                {d}
+              </th>
             ))}
           </tr>
         </thead>

@@ -394,6 +394,12 @@ function nomesTimesDeIds(ids: string[], catalog: TimeOpt[]): unknown {
   return ids.map((id) => m.get(id) ?? '').filter(Boolean);
 }
 
+/** Formata 'YYYY-MM-DD' como 'DD/MM/YYYY'. */
+function formatarDataBR(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
 export function InteracoesLista({
   interacoes,
   times,
@@ -417,6 +423,8 @@ export function InteracoesLista({
   const [novaAtivDraft, setNovaAtivDraft] = useState<AtividadeFormDraft>({ ...ATIVIDADE_FORM_DRAFT_VAZIO });
   // Responsáveis da nova atividade ausentes hoje (férias/day off)
   const [ausNovaAtiv, setAusNovaAtiv] = useState<Set<string>>(new Set());
+  // Popup de aviso de férias/day off
+  const [ausenciaPopup, setAusenciaPopup] = useState<{ nome: string; periodo: string } | null>(null);
   // Trava ref síncrona contra duplo-clique em "Adicionar atividade"
   const isSalvandoAtivRef = useRef(false);
   const [topicosPorAlvo, setTopicosPorAlvo] = useState<Record<string, TopicoChamadoLinha[]>>({});
@@ -959,12 +967,29 @@ export function InteracoesLista({
       setMsgErro('Selecione ao menos um responsável.');
       return;
     }
+    // ── Helper: busca nome no banco + período de ausência e exibe popup ─────
+    async function mostrarPopupAus(responsavelId: string) {
+      const sb = createClient();
+      const hoje = new Date();
+      const hojeStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+      const em45Dias = new Date(hoje.getTime() + 45 * 24 * 60 * 60 * 1000);
+      const em45Str = `${em45Dias.getFullYear()}-${String(em45Dias.getMonth() + 1).padStart(2, '0')}-${String(em45Dias.getDate()).padStart(2, '0')}`;
+      const [profResult, ausResult] = await Promise.all([
+        sb.from('profiles').select('full_name, email').eq('id', responsavelId).single(),
+        sb.from('carometro_ausencias').select('data').eq('profile_id', responsavelId).gte('data', hojeStr).lte('data', em45Str).order('data'),
+      ]);
+      const nome = String((profResult.data as { full_name?: string; email?: string } | null)?.full_name ?? (profResult.data as { email?: string } | null)?.email ?? 'O responsável').trim();
+      const datas = ((ausResult.data ?? []) as { data: string }[]).map((r) => r.data);
+      let periodo = 'neste período';
+      if (datas.length === 1) periodo = formatarDataBR(datas[0]!);
+      else if (datas.length > 1) periodo = `${formatarDataBR(datas[0]!)} – ${formatarDataBR(datas[datas.length - 1]!)}`;
+      setAusenciaPopup({ nome, periodo });
+    }
+
     // ── Bloquear se responsável está ausente HOJE (férias/day off) ─────────
     if (ausNovaAtiv.size > 0) {
-      setMsgErro(
-        '⚠ O responsável está marcado como férias/day off hoje. ' +
-        'Escolha outro responsável ou aguarde o retorno.',
-      );
+      const ausenteId = [...ausNovaAtiv][0]!;
+      await mostrarPopupAus(ausenteId);
       return;
     }
     // ── Bloquear prazo em dia de ausência do responsável ──────────────────
@@ -978,10 +1003,8 @@ export function InteracoesLista({
           .in('profile_id', d.responsaveisIds)
           .eq('data', d.data.trim());
         if (ausRows && ausRows.length > 0) {
-          setMsgErro(
-            `⚠ O responsável está marcado como ausente em ${d.data.trim()}. ` +
-            'Escolha outro prazo ou negocie diretamente.',
-          );
+          const ausenteId = (ausRows[0] as { profile_id: string }).profile_id;
+          await mostrarPopupAus(ausenteId);
           return;
         }
       }
@@ -2158,6 +2181,8 @@ export function InteracoesLista({
           novaAtivDraft={novaAtivDraft}
           setNovaAtivDraft={setNovaAtivDraft}
           ausentesHoje={ausNovaAtiv}
+          ausenciaPopup={ausenciaPopup}
+          onFecharAusenciaPopup={() => setAusenciaPopup(null)}
           onAdicionarAtividade={() => void handleAdicionarAtividadeModal(detalheRowEff)}
           salvandoNovaAtividade={Boolean(salvandoTopico[topicosAlvoKey(detalheRowEff)])}
           erroNovaAtividade={msgErro}
