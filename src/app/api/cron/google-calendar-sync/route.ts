@@ -113,7 +113,7 @@ async function syncUser(
   credentials: ServiceAccountKey,
   userId: string,
   userEmail: string,
-): Promise<{ synced: number; removed: number }> {
+): Promise<{ synced: number; removed: number; orphansDeleted: number }> {
   const token = await getAccessToken(credentials, userEmail);
 
   const now    = new Date();
@@ -251,7 +251,34 @@ async function syncUser(
     removed = toDelete.length;
   }
 
-  return { synced: events.length, removed };
+  // ── Limpeza de eventos [HUB-FLY] órfãos no Google Calendar ──────────────
+  // Detecta eventos GCal com prefixo [HUB-FLY] que não existem mais no banco
+  // (deletados via HUB-FLY com bug de race condition ou por qualquer outro motivo).
+  // Resolve retroativamente os eventos já perdidos e previne acúmulo futuro.
+  let orphansDeleted = 0;
+  for (const ev of events) {
+    if (!ev.id || !ev.summary?.startsWith('[HUB-FLY]')) continue;
+    // Se está no hubflyPushMap → ainda existe no banco → não é órfão
+    if (hubflyPushMap.has(ev.id)) continue;
+    // Evento com prefixo [HUB-FLY] mas sem vínculo no banco → deletar do GCal
+    try {
+      const delRes = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${ev.id}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (delRes.ok || delRes.status === 410) {
+        orphansDeleted++;
+        console.log(`[gcal-sync] 🗑 órfão removido do GCal: ${ev.summary} (${ev.id})`);
+      } else {
+        const txt = await delRes.text();
+        console.warn(`[gcal-sync] ⚠ falha ao remover órfão ${ev.id}: ${delRes.status} ${txt.slice(0, 100)}`);
+      }
+    } catch (e) {
+      console.warn(`[gcal-sync] ⚠ erro ao remover órfão ${ev.id}:`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  return { synced: events.length, removed, orphansDeleted };
 }
 
 // ── Handler principal ─────────────────────────────────────────────────────────
@@ -284,16 +311,16 @@ export async function GET(request: Request) {
   const { data: usersData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
   const users = (usersData?.users ?? []).filter(u => u.email?.endsWith(`@${DOMAIN}`));
 
-  const results: { email: string; synced?: number; removed?: number; error?: string }[] = [];
+  const results: { email: string; synced?: number; removed?: number; orphansDeleted?: number; error?: string }[] = [];
 
   console.log(`[gcal-sync] iniciando — ${users.length} usuário(s) @${DOMAIN}`);
 
   for (const user of users) {
     if (!user.email) continue;
     try {
-      const { synced, removed } = await syncUser(supabase, credentials, user.id, user.email);
-      results.push({ email: user.email, synced, removed });
-      console.log(`[gcal-sync] ✓ ${user.email} — synced=${synced} removed=${removed}`);
+      const { synced, removed, orphansDeleted } = await syncUser(supabase, credentials, user.id, user.email);
+      results.push({ email: user.email, synced, removed, orphansDeleted });
+      console.log(`[gcal-sync] ✓ ${user.email} — synced=${synced} removed=${removed} orphansDeleted=${orphansDeleted}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       results.push({ email: user.email, error: msg });

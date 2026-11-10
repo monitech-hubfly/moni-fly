@@ -341,9 +341,11 @@ export function useModalAgendamento(
         if (escopo === 'following' && dataBase) idsQ = idsQ.gte('data', dataBase);
         const { data: scopeRows } = await idsQ;
         const scopeIds = ((scopeRows ?? []) as { id: string }[]).map(r => r.id);
-        // Remover do Google Calendar ANTES de apagar do banco (a função lê o gcal_hubfly_push_id)
+        // Aguardar deleção no GCal ANTES de apagar do banco:
+        // deletarDoGCal lê gcal_hubfly_push_id da row — se o banco for apagado primeiro
+        // (void/fire-and-forget) a row já não existe e o evento fica preso no GCal.
         for (const id of scopeIds) {
-          void deletarDoGCal(id).catch(e => console.warn('[gcal-delete-serie]', e));
+          await deletarDoGCal(id).catch(e => console.warn('[gcal-delete-serie]', e));
         }
         if (scopeIds.length > 0) {
           await supabase.from('gantt_agenda_participantes').delete().in('gantt_id', scopeIds);
@@ -353,8 +355,8 @@ export function useModalAgendamento(
         const { error } = await delQ;
         if (error) throw error;
       } else {
-        // Remover do Google Calendar ANTES de apagar do banco (a função lê o gcal_hubfly_push_id)
-        void deletarDoGCal(editandoId).catch(e => console.warn('[gcal-delete]', e));
+        // Aguardar deleção no GCal ANTES de apagar do banco (mesmo motivo acima)
+        await deletarDoGCal(editandoId).catch(e => console.warn('[gcal-delete]', e));
         await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', editandoId);
         const { error } = await supabase.from('gantt_planejamento').delete().eq('id', editandoId);
         if (error) throw error;

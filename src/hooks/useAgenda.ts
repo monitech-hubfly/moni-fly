@@ -406,7 +406,11 @@ export function useAgenda(refreshKey = 0): UseAgendaResult {
   }, [supabase]);
 
   const excluir = useCallback(async (id: string) => {
-    void deletarDoGCal(id).catch(e => console.warn('[gcal-delete]', e));
+    // Aguardar deleção no GCal ANTES de apagar do banco:
+    // deletarDoGCal precisa consultar gcal_hubfly_push_id que está na row do banco.
+    // Se deletarmos o banco primeiro (void/fire-and-forget), a row já não existe e
+    // o evento fica preso no Google Calendar silenciosamente.
+    await deletarDoGCal(id).catch(e => console.warn('[gcal-delete]', e));
     await supabase.from('gantt_agenda_participantes').delete().eq('gantt_id', id);
     const { error } = await supabase.from('gantt_planejamento').delete().eq('id', id);
     if (error) throw error;
