@@ -79,7 +79,7 @@ export async function gerarSnapshotCarometro(
 
   const [topicosAbertosSnap, topicosConcluidosSnap] = await Promise.all([
     db.from('sirene_topicos')
-      .select('id, chamado_id, nome, data_fim, prazo_proposto, status, updated_at')
+      .select('id, chamado_id, interacao_id, nome, data_fim, prazo_proposto, status, updated_at')
       .or(`responsavel_id.eq.${profileId},responsaveis_ids.cs.{${profileId}}`)
       .in('status', ['nao_iniciado', 'em_andamento'])
       .eq('arquivado', false),
@@ -92,11 +92,104 @@ export async function gerarSnapshotCarometro(
   ]);
 
   type TopicoSnap = {
-    id: number; chamado_id: number | null; nome: string | null;
+    id: number; chamado_id: number | null; interacao_id: string | null; nome: string | null;
     data_fim: string | null; prazo_proposto: string | null;
     status: string; updated_at: string | null;
   };
-  const topicosAbertos   = (topicosAbertosSnap.data   ?? []) as TopicoSnap[];
+  let topicosAbertos = (topicosAbertosSnap.data ?? []) as TopicoSnap[];
+
+  // ── Filtrar tópicos-fantasma: chamado-pai arquivado (direto ou via kanban_atividades) ─────
+  // Replica a lógica do useBacklog.ts para evitar que chamados concluídos/arquivados
+  // penalizem o score do Carômetro no cron noturno.
+  {
+    // 1. Chamados diretos arquivados
+    const chamadoIdsDirectos = topicosAbertos
+      .filter(t => t.chamado_id != null)
+      .map(t => t.chamado_id as number);
+
+    const chamadosArquivadosSet = new Set<number>();
+    if (chamadoIdsDirectos.length > 0) {
+      const { data: chamArq } = await db
+        .from('sirene_chamados')
+        .select('id')
+        .in('id', chamadoIdsDirectos)
+        .eq('arquivado', true);
+      for (const c of (chamArq ?? []) as { id: number }[]) {
+        chamadosArquivadosSet.add(c.id);
+      }
+    }
+
+    // 2. Chamados via kanban_atividades.sirene_chamado_id arquivados + cards arquivados
+    const interacaoIds = topicosAbertos
+      .filter(t => !t.chamado_id && t.interacao_id)
+      .map(t => t.interacao_id as string);
+
+    const chamadosArquivadosViaKativSet = new Set<number>();
+    const cardsAtivosSnapSet = new Set<string>();
+
+    if (interacaoIds.length > 0) {
+      type KASnapRow = { id: string; card_id: string | null; sirene_chamado_id: number | null };
+      const { data: kativs } = await db
+        .from('kanban_atividades')
+        .select('id, card_id, sirene_chamado_id')
+        .in('id', interacaoIds);
+
+      const kativSnapMap = new Map<string, KASnapRow>(
+        ((kativs ?? []) as KASnapRow[]).map(r => [r.id, r])
+      );
+
+      // 2a. Chamados via sirene_chamado_id
+      const chamadoIdsViaKativ = [...kativSnapMap.values()]
+        .filter(r => r.sirene_chamado_id != null)
+        .map(r => r.sirene_chamado_id as number);
+
+      if (chamadoIdsViaKativ.length > 0) {
+        const { data: chamArqViaKativ } = await db
+          .from('sirene_chamados')
+          .select('id')
+          .in('id', chamadoIdsViaKativ)
+          .eq('arquivado', true);
+        for (const c of (chamArqViaKativ ?? []) as { id: number }[]) {
+          chamadosArquivadosViaKativSet.add(c.id);
+        }
+      }
+
+      // 2b. Cards via card_id (cards arquivados = ausentes na query com .eq('arquivado', false))
+      const cardIdsSnap = [...kativSnapMap.values()]
+        .filter(r => r.sirene_chamado_id == null && r.card_id != null)
+        .map(r => r.card_id as string);
+
+      if (cardIdsSnap.length > 0) {
+        const { data: cardsAtivosSnap } = await db
+          .from('kanban_cards')
+          .select('id')
+          .in('id', cardIdsSnap)
+          .eq('arquivado', false);
+        for (const c of (cardsAtivosSnap ?? []) as { id: string }[]) {
+          cardsAtivosSnapSet.add(c.id);
+        }
+      }
+
+      topicosAbertos = topicosAbertos.filter(t => {
+        // Chamado direto arquivado
+        if (t.chamado_id != null && chamadosArquivadosSet.has(t.chamado_id)) return false;
+        // Via kanban_atividades
+        if (!t.chamado_id && t.interacao_id) {
+          const kativ = kativSnapMap.get(t.interacao_id);
+          if (kativ) {
+            if (kativ.sirene_chamado_id != null && chamadosArquivadosViaKativSet.has(kativ.sirene_chamado_id)) return false;
+            if (kativ.sirene_chamado_id == null && kativ.card_id != null && !cardsAtivosSnapSet.has(kativ.card_id)) return false;
+          }
+        }
+        return true;
+      });
+    } else if (chamadosArquivadosSet.size > 0) {
+      // Sem interacao_ids mas pode ter chamados diretos arquivados
+      topicosAbertos = topicosAbertos.filter(t =>
+        !(t.chamado_id != null && chamadosArquivadosSet.has(t.chamado_id))
+      );
+    }
+  }
   const topicosConcluidos = ((topicosConcluidosSnap.data ?? []) as TopicoSnap[]).filter(t => {
     const prazo = t.data_fim || t.prazo_proposto;
     return prazo && prazo <= hojeStr;

@@ -285,11 +285,37 @@ export function useMeuCarometro(): UseMeuCarometroResult {
           }
         }
 
+        // Round 4: filtrar tópicos cujo chamado-pai (via kanban_atividades.sirene_chamado_id) está arquivado.
+        // Cobre o caso em que o tópico foi criado dentro de um card Kanban vinculado a um chamado Sirene
+        // que já foi concluído/arquivado — o useBacklog.ts faz o mesmo filtro via nested join.
+        const chamadoIdsViaKativ = [...kanbanAtivMinMap.values()]
+          .filter(r => r.sirene_chamado_id != null)
+          .map(r => r.sirene_chamado_id as number);
+
+        const chamadosArquivadosViaKativSet = new Set<number>();
+        if (chamadoIdsViaKativ.length > 0) {
+          const { data: chamArqViaKativ } = await supabase
+            .from('sirene_chamados')
+            .select('id')
+            .in('id', chamadoIdsViaKativ)
+            .eq('arquivado', true);
+          for (const c of (chamArqViaKativ ?? []) as { id: number }[]) {
+            chamadosArquivadosViaKativSet.add(c.id);
+          }
+        }
+
         topicosAbertos = topicosAbertosRaw.filter(t => {
           if (!t.chamado_id && t.interacao_id) {
             const kativ = kanbanAtivMinMap.get(t.interacao_id);
-            if (kativ && kativ.sirene_chamado_id == null && kativ.card_id != null) {
-              if (!cardsAtivosSetMetrica.has(kativ.card_id)) return false;
+            if (kativ) {
+              // Via card_id: card arquivado → fantasma
+              if (kativ.sirene_chamado_id == null && kativ.card_id != null) {
+                if (!cardsAtivosSetMetrica.has(kativ.card_id)) return false;
+              }
+              // Via sirene_chamado_id: chamado arquivado → fantasma
+              if (kativ.sirene_chamado_id != null) {
+                if (chamadosArquivadosViaKativSet.has(kativ.sirene_chamado_id)) return false;
+              }
             }
           }
           return true;
@@ -544,8 +570,9 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
         if (objIds.length === 0) {
           // Nenhuma Meta Mãe assumida → 0%
-          indicadoresAtual    = { porIndicador: [], media: 0 };
-          indicadoresAnterior = { porIndicador: [], media: 0 };
+          indicadoresAtual       = { porIndicador: [], media: 0 };
+          indicadoresAnterior    = { porIndicador: [], media: 0 };
+          indicadoresPreviaLocal = { porIndicador: [], media: 0 };
           setIndicadoresPrevia({ porIndicador: [], media: 0 });
         } else {
           // 2. Detalhes das Metas Mãe do mês vigente (ativo, relancada, concluido)
@@ -564,8 +591,9 @@ export function useMeuCarometro(): UseMeuCarometroResult {
 
           if (metas.length === 0) {
             // Assumiu metas em outros meses mas não neste → 0%
-            indicadoresAtual    = { porIndicador: [], media: 0 };
-            indicadoresAnterior = { porIndicador: [], media: 0 };
+            indicadoresAtual       = { porIndicador: [], media: 0 };
+            indicadoresAnterior    = { porIndicador: [], media: 0 };
+            indicadoresPreviaLocal = { porIndicador: [], media: 0 };
             setIndicadoresPrevia({ porIndicador: [], media: 0 });
           } else {
             const objRespMap = new Map(objRespRows.map(r => [r.objetivo_id, r]));
@@ -716,7 +744,7 @@ export function useMeuCarometro(): UseMeuCarometroResult {
             // indicadores = resultado real (para ciclo histórico)
             indicadores: semAnteriorNaMes ? indicadoresAnterior : indicadoresAtual,
             // indicadores_previa = simulação "se fechasse hoje" (para dashboard gestão)
-            indicadores_previa: indicadoresPreviaLocal ?? null,
+            indicadores_previa: indicadoresPreviaLocal ?? { media: 0, porIndicador: [] },
           },
           { onConflict: 'area_id,profile_id,data' },
         ).then(({ error: snapErr }) => {

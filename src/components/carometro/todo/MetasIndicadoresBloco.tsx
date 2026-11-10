@@ -35,8 +35,10 @@ function TipoBadge({ tipo }: { tipo: string | null }) {
 // ── Data curta DD/MM ──────────────────────────────────────────────────────────
 function formatarDataCurta(iso: string | null): string {
   if (!iso) return '';
-  // Usa T12:00:00 para evitar deslocamento de 1 dia por fuso horário (UTC-3)
-  const d = new Date(iso + 'T12:00:00');
+  // Evita duplicar o sufixo de hora se a string já contiver 'T' (ex: timestamptz)
+  const str = iso.includes('T') ? iso : iso + 'T12:00:00';
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return '';
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
@@ -439,8 +441,11 @@ function ComentariosModal({ metaId, onFechar, onNovoComentario }: {
 // ── Helper: semana ISO a partir de data_fim ───────────────────────────────────
 function semanaDeData(dataIso: string | null): string {
   if (!dataIso) return '';
-  const d = new Date(dataIso + 'T12:00:00');
+  const str = dataIso.includes('T') ? dataIso : dataIso + 'T12:00:00';
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return '';
   const sem = isoWeek(d);
+  if (!Number.isFinite(sem)) return '';
   return `S${sem}`;
 }
 
@@ -2043,9 +2048,11 @@ export function MetasIndicadoresBloco() {
                           const dias = Math.round(
                             (new Date(dataFim).getTime() - new Date(concluidoEm).getTime()) / 86_400_000
                           );
-                          if (dias > 0)       { badgeLabel = `${dias}d antes`; badgeClass = 'bg-green-50 text-green-600 border-green-200'; }
-                          else if (dias === 0) { badgeLabel = 'No prazo';      badgeClass = 'bg-blue-50 text-blue-500 border-blue-200'; }
-                          else                 { badgeLabel = `${Math.abs(dias)}d após`; badgeClass = 'bg-amber-50 text-amber-600 border-amber-200'; }
+                          if (Number.isFinite(dias)) {
+                            if (dias > 0)       { badgeLabel = `${dias}d antes`; badgeClass = 'bg-green-50 text-green-600 border-green-200'; }
+                            else if (dias === 0) { badgeLabel = 'No prazo';      badgeClass = 'bg-blue-50 text-blue-500 border-blue-200'; }
+                            else                 { badgeLabel = `${Math.abs(dias)}d após`; badgeClass = 'bg-amber-50 text-amber-600 border-amber-200'; }
+                          }
                         }
 
                         return (
