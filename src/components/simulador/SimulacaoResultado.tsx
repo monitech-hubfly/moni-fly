@@ -307,7 +307,7 @@ export function SimulacaoResultado({
     valoresConfirmados?.parcelaFixaObra ??
     resultado.personalizacao_rp?.parcela_fixa ??
     0;
-  const textoFase2 = modoFase2 === 'fixa' ? `${formatarMoeda(Number(valorFase2))} por mês` : 'Varia com a obra';
+  const textoFase2 = modoFase2 === 'fixa' ? `${formatarMoeda(Number(valorFase2))} por mês` : 'Varia de acordo com o cronograma da obra';
   const taxaPctLabel =
     taxaJurosPct != null ? String(taxaJurosPct).replace('.', ',') : null;
 
