@@ -14,12 +14,14 @@ import {
   mensagemJaPagoAcimaDoLote,
   mensagemPagamentoAMaior,
   mensagemPagamentoAMaiorRecursosProprios,
+  mensagemParcelaMensalMinima,
   pagamentoAMaiorBloqueia,
   sugerirParcelaMensal,
   type OfertaConfig,
 } from '@/lib/simulador/calcular-oferta';
 import { mapTemplateRow, parsePremissaJson } from '@/lib/loteamento-simulador-template';
 import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
+import { validarReguasRp } from '@/lib/simulador/personalizar-recursos-proprios';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -40,6 +42,10 @@ export type SnapshotSimulacaoJornada = {
   parcela_unica: number;
   saldo_a_financiar: number;
   modalidade?: 'financiamento' | 'recursos_proprios';
+  personalizada?: boolean;
+  modo_parcelas_obra?: 'variavel' | 'fixa';
+  parcela_fixa_obra?: number | null;
+  ancora_cobertura?: 'parcela_fixa' | 'parcela_unica' | null;
   customizacao_itens: ItemCustomizacaoEscolhido[];
   fluxo: {
     mes: number;
@@ -304,6 +310,12 @@ async function recusarPagamentoAMaiorJornada(
   const parcelaBase =
     percMensal > 0 ? percMensal * input.valorLote : sugerirParcelaMensal(input.valorLote);
   const recursosProprios = input.snapshot.modalidade === 'recursos_proprios';
+  if (recursosProprios) {
+    const minimoFaixa = sugerirParcelaMensal(input.valorLote);
+    if (Number(input.snapshot.parcela_mensal ?? 0) < minimoFaixa - 0.005) {
+      return mensagemParcelaMensalMinima(minimoFaixa);
+    }
+  }
   const oferta: OfertaConfig = recursosProprios
     ? {
         valor_lote: input.valorLote,
@@ -337,6 +349,38 @@ async function recusarPagamentoAMaiorJornada(
             }
           : {}),
       };
+  if (recursosProprios && input.personalizada) {
+    const modo = input.snapshot.modo_parcelas_obra === 'fixa' ? 'fixa' : 'variavel';
+    const validacao = validarReguasRp(template, oferta, {
+      entrada: Number(input.entradaConfirmada ?? input.snapshot.entrada ?? 0),
+      mensal: Number(input.parcelaMensalConfirmada ?? input.snapshot.parcela_mensal ?? 0),
+      unica: Number(input.parcelaUnicaConfirmada ?? input.snapshot.parcela_unica ?? 0),
+      modo,
+      fixa: Number(input.snapshot.parcela_fixa_obra ?? 0),
+      ancora: input.snapshot.ancora_cobertura === 'parcela_unica' ? 'unica' : 'fixa',
+    });
+    if (!validacao.ok) return validacao.error;
+    const efetivo = validacao.aplicado.estado;
+    const recalculado = validacao.aplicado.resultado;
+    input.snapshot.personalizada = true;
+    input.snapshot.entrada = efetivo.entrada;
+    input.snapshot.parcela_mensal = efetivo.mensal;
+    input.snapshot.parcela_unica = efetivo.unica;
+    input.snapshot.modo_parcelas_obra = efetivo.modo;
+    input.snapshot.parcela_fixa_obra = efetivo.modo === 'fixa' ? efetivo.fixa : null;
+    input.snapshot.ancora_cobertura = efetivo.ancora === 'fixa' ? 'parcela_fixa' : 'parcela_unica';
+    input.snapshot.saldo_a_financiar = recalculado.saldo_financiar;
+    input.snapshot.fluxo = recalculado.fluxo.map((linha) => ({
+      mes: linha.mes,
+      fase: linha.fase,
+      descricao: linha.descricao,
+      entrada_cliente: linha.entrada_cliente,
+      saidas_total: linha.saidas_total,
+      saldo_lote: linha.saldo_lote,
+      caixa_cliente: linha.caixa_cliente,
+    }));
+    return null;
+  }
   const calc = calcularOferta(template, oferta, input.valorAcoplamento);
   if (!pagamentoAMaiorBloqueia(calc.valor_pago_a_maior)) return null;
   return recursosProprios

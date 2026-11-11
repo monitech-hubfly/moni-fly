@@ -7,10 +7,18 @@ import {
   calcularParcelaUnicaMinimaConfirmada,
   jaPagoAcimaDoLote,
   pagamentoAMaiorBloqueia,
+  sugerirParcelaMensal,
   type OfertaConfig,
   type ResultadoCalculo,
   type TemplateConfig,
 } from '../src/lib/simulador/calcular-oferta';
+import {
+  definirModoReguasRp,
+  estadoInicialReguasRp,
+  moverReguaRp,
+  type CampoReguaRp,
+  type ReguasAplicadas,
+} from '../src/lib/simulador/personalizar-recursos-proprios';
 import {
   montarTemplateParaEngine,
   type TemplateFonteEngine,
@@ -277,11 +285,11 @@ function verificarRecursosProprios(
   }
   const obra = r.fluxo.filter((l) => l.fase === 'fase2');
   obra.forEach((linha, i) => {
-    if (i < obra.length - 1 && linha.entrada_cliente + TOL < oferta.parcela_mensal) {
+    if (i < obra.length - 1 && linha.entrada_cliente + TOL < r.parcela_mensal_usada) {
       registrar(
         'RP8',
         entrada,
-        `mês ${linha.mes} parcela ${linha.entrada_cliente} < desejada ${oferta.parcela_mensal}`,
+        `mês ${linha.mes} parcela ${linha.entrada_cliente} < mensal da Fase 1 ${r.parcela_mensal_usada}`,
       );
     }
   });
@@ -660,6 +668,209 @@ exigir(
   'modo financiamento divergiu do cálculo atual',
 );
 
+function checarReguas(nome: string, tpl: TemplateConfig, oferta: OfertaConfig, aplicado: ReguasAplicadas) {
+  const r = aplicado.resultado;
+  const pago = soma(r.fluxo.map((l) => l.entrada_cliente));
+  if (!perto(pago, r.vte)) registrar('P1', nome, `pago ${r2(pago)} ≠ total ${r2(r.vte)}`);
+  const piso = sugerirParcelaMensal(oferta.valor_lote);
+  const entradaMin = r.entrada_sugerida;
+  const quitacao = r.personalizacao_rp?.quitacao_terreno ?? 0;
+  if (aplicado.estado.entrada + TOL < entradaMin) registrar('P2', nome, `entrada ${aplicado.estado.entrada} < ${entradaMin}`);
+  if (aplicado.estado.mensal + TOL < piso) registrar('P2', nome, `mensal ${aplicado.estado.mensal} < ${piso}`);
+  if (aplicado.estado.unica + TOL < quitacao) registrar('P2', nome, `única ${aplicado.estado.unica} < ${quitacao}`);
+  if (aplicado.estado.modo === 'fixa' && aplicado.estado.fixa + TOL < piso) {
+    registrar('P2', nome, `parcela fixa ${aplicado.estado.fixa} < ${piso}`);
+  }
+  const obra = r.fluxo.filter((l) => l.fase === 'fase2');
+  obra.forEach((linha, i) => {
+    if (i < obra.length - 1 && linha.caixa_cliente < -TOL) {
+      registrar('P3', nome, `caixa ${linha.caixa_cliente} no mês ${linha.mes}`);
+    }
+  });
+  const ultima = obra[obra.length - 1];
+  if (ultima && ultima.entrada_cliente < -TOL) registrar('P3', nome, `última ${ultima.entrada_cliente}`);
+  if (aplicado.estado.modo === 'variavel') {
+    let taxaAnterior: number | null = null;
+    obra.forEach((linha, i) => {
+      if (i === obra.length - 1) return;
+      if (linha.entrada_cliente <= r.parcela_mensal_usada + TOL || linha.saidas_total <= TOL) {
+        taxaAnterior = null;
+        return;
+      }
+      const taxa = (linha.saidas_total - linha.entrada_cliente) / linha.saidas_total;
+      if (taxaAnterior != null && Math.abs(taxa - taxaAnterior) > 0.0001) {
+        registrar('P4', nome, `desconto ${taxa} ≠ ${taxaAnterior}`);
+      }
+      taxaAnterior = taxa;
+    });
+  } else {
+    obra.forEach((linha, i) => {
+      if (i === obra.length - 1) return;
+      if (!perto(linha.entrada_cliente, aplicado.estado.fixa)) {
+        registrar('P5', nome, `mês ${linha.mes} ${linha.entrada_cliente} ≠ fixa ${aplicado.estado.fixa}`);
+      }
+    });
+  }
+  for (const limite of aplicado.limites) {
+    const noTeto = moverReguaRp(tpl, oferta, aplicado.estado, limite.campo, limite.maximo);
+    const pagoTeto = soma(noTeto.resultado.fluxo.map((l) => l.entrada_cliente));
+    if (!perto(pagoTeto, noTeto.resultado.vte)) {
+      registrar('P6', nome, `${limite.campo} no máximo paga ${r2(pagoTeto)} ≠ ${r2(noTeto.resultado.vte)}`);
+    }
+    const forcar = { ...noTeto.estado };
+    if (limite.campo === 'entrada') forcar.entrada = limite.maximo + 1000;
+    else if (limite.campo === 'mensal') forcar.mensal = limite.maximo + 1000;
+    else if (limite.campo === 'unica') forcar.unica = limite.maximo + 1000;
+    else forcar.fixa = limite.maximo + 1000;
+    const acima = calcularOferta(
+      tpl,
+      {
+        ...oferta,
+        modalidade: 'recursos_proprios',
+        entrada_confirmada: forcar.entrada,
+        mensal_confirmada: forcar.mensal,
+        parcela_unica_confirmada: forcar.unica,
+        modo_parcelas_obra: forcar.modo,
+        parcela_fixa_obra: forcar.fixa,
+        ancora_cobertura: forcar.ancora === 'fixa' ? 'parcela_fixa' : 'parcela_unica',
+      },
+      oferta.valor_acoplamento,
+    );
+    const pagoAcima = soma(acima.fluxo.map((l) => l.entrada_cliente));
+    if (!(pagoAcima > acima.vte + TOL) && !pagamentoAMaiorBloqueia(acima.valor_pago_a_maior)) {
+      registrar('P6', nome, `${limite.campo} + 1000 não passou do total (${r2(pagoAcima)} / ${r2(acima.vte)})`);
+    }
+  }
+}
+
+function valorCampo(aplicado: ReguasAplicadas, campo: CampoReguaRp): number {
+  if (campo === 'entrada') return aplicado.estado.entrada;
+  if (campo === 'mensal') return aplicado.estado.mensal;
+  if (campo === 'unica') return aplicado.estado.unica;
+  return aplicado.estado.fixa;
+}
+
+const tpl52 = templateDe(
+  baseFonte({
+    pct_taxa_plataforma: 0.08,
+    pct_plataforma_entrada: 0.1,
+    pct_taxa_gestao: 0.07,
+    pct_lucro_loteadora: 0,
+    pct_lucro_moni: 0.1,
+    pct_lucro_franqueado: 0,
+    pct_comissao_corretor: 0.06,
+    pct_impostos_recursos_proprios: 0.15,
+    taxa_juros_parcelado_mes: 0,
+    prazo_obra_meses: 7,
+    entrada_minima_loteadora: { tipo: 'percentual', valor: 0.1 },
+  }),
+);
+const oferta52: OfertaConfig = {
+  valor_lote: 180_000,
+  valor_casa: 1_000_000,
+  valor_customizacao: 0,
+  valor_acoplamento: 200_000,
+  valor_ja_pago: 100_000,
+  prazo_meses: 5,
+  parcela_mensal: 7_000,
+  renda_cliente: 0,
+  prazo_financiamento_anos: 30,
+  modalidade: 'recursos_proprios',
+};
+const rp52 = calcularOferta(tpl52, oferta52, oferta52.valor_acoplamento);
+verificarRecursosProprios(rp52, oferta52, tpl52);
+const obra52 = rp52.fluxo.filter((l) => l.fase === 'fase2').map((l) => Math.round(l.entrada_cliente));
+console.log('\nCaso 5.2 sem personalização', {
+  total: rp52.vte,
+  entrada: rp52.entrada_sugerida,
+  unica: rp52.parcela_unica_sugerida,
+  obra: obra52,
+});
+igual('5.2.total', rp52.vte, 1_979_880);
+igual('5.2.entrada', rp52.entrada_sugerida, 111_480);
+igual('5.2.unica', rp52.parcela_unica_sugerida, 45_000);
+[130_920, 218_800, 351_160, 382_480, 225_280, 272_560, 107_200].forEach((esperado, i) => {
+  igual(`5.2.obra.${i + 1}`, obra52[i] ?? -1, esperado);
+});
+
+const inicial52 = estadoInicialReguasRp(tpl52, oferta52);
+checarReguas('5.2.inicial', tpl52, oferta52, inicial52);
+const maxUnica = inicial52.limites.find((l) => l.campo === 'unica')?.maximo ?? 0;
+const maxEntrada = inicial52.limites.find((l) => l.campo === 'entrada')?.maximo ?? 0;
+const maxMensal = inicial52.limites.find((l) => l.campo === 'mensal')?.maximo ?? 0;
+console.log('Caso 5.2 máximos variável', { maxUnica, maxEntrada, maxMensal });
+igual('5.2.max.unica', maxUnica, 1_688_427);
+igual('5.2.max.entrada', maxEntrada, 1_799_907);
+igual('5.2.max.mensal', maxMensal, 154_782);
+
+let passo = definirModoReguasRp(tpl52, oferta52, inicial52.estado, 'fixa');
+checarReguas('5.2.fixa', tpl52, oferta52, passo);
+console.log('Caso 5.2 valor fixo', {
+  fixa: passo.estado.fixa,
+  unica: passo.estado.unica,
+  ultima: passo.ultimaParcela,
+  total: passo.resultado.vte,
+});
+igual('5.2.fixa.x', passo.estado.fixa, 241_200);
+igual('5.2.fixa.unica', passo.estado.unica, 179_000);
+igual('5.2.fixa.ultima', passo.ultimaParcela, 107_200);
+igual('5.2.fixa.total', passo.resultado.vte, 1_979_880);
+
+passo = moverReguaRp(tpl52, oferta52, passo.estado, 'unica', 600_000);
+checarReguas('5.2.u600', tpl52, oferta52, passo);
+console.log('Caso 5.2 única 600000', { fixa: passo.estado.fixa, ultima: passo.ultimaParcela, unica: passo.estado.unica });
+igual('5.2.u600.ultima', passo.ultimaParcela, 0);
+igual('5.2.u600.fixa', passo.estado.fixa, 188_900);
+igual('5.2.u600.total', passo.resultado.vte, 1_979_880);
+
+passo = moverReguaRp(tpl52, oferta52, passo.estado, 'unica', 100_000);
+checarReguas('5.2.u100', tpl52, oferta52, passo);
+console.log('Caso 5.2 única 100000', { fixa: passo.estado.fixa, ultima: passo.ultimaParcela });
+igual('5.2.u100.fixa', passo.estado.fixa, 257_090);
+igual('5.2.u100.ultima', passo.ultimaParcela, 90_860);
+igual('5.2.u100.total', passo.resultado.vte, 1_979_880);
+
+passo = moverReguaRp(tpl52, oferta52, passo.estado, 'fixa', 150_000);
+checarReguas('5.2.x150', tpl52, oferta52, passo);
+console.log('Caso 5.2 fixa 150000', { unica: passo.estado.unica, ultima: passo.ultimaParcela, fixa: passo.estado.fixa });
+igual('5.2.x150.unica', passo.estado.unica, 726_200);
+igual('5.2.x150.ultima', passo.ultimaParcela, 107_200);
+igual('5.2.x150.total', passo.resultado.vte, 1_979_880);
+
+passo = moverReguaRp(tpl52, oferta52, passo.estado, 'entrada', 900_000);
+checarReguas('5.2.e900', tpl52, oferta52, passo);
+console.log('Caso 5.2 entrada 900000', { fixa: passo.estado.fixa, ultima: passo.ultimaParcela });
+igual('5.2.e900.fixa', passo.estado.fixa, 36_447);
+igual('5.2.e900.ultima', passo.ultimaParcela, 0);
+igual('5.2.e900.total', passo.resultado.vte, 1_979_880);
+
+for (let i = 0; i < 20; i += 1) {
+  const lote = Math.round(entre(120_000, 900_000));
+  const ofertaAleatoria: OfertaConfig = {
+    ...oferta52,
+    valor_lote: lote,
+    valor_ja_pago: Math.round(lote * entre(0, 0.8)),
+    parcela_mensal: sugerirParcelaMensal(lote),
+    prazo_meses: inteiro(4, 10),
+  };
+  let atual = estadoInicialReguasRp(tpl52, ofertaAleatoria);
+  checarReguas(`P.aleatorio.${i}`, tpl52, ofertaAleatoria, atual);
+  const campos = atual.limites.map((l) => l.campo);
+  const campo = escolha(campos);
+  const limite = atual.limites.find((l) => l.campo === campo)!;
+  const pedido = limite.minimo + rand() * Math.max(0, limite.maximo - limite.minimo);
+  const antes = valorCampo(atual, campo);
+  atual = moverReguaRp(tpl52, ofertaAleatoria, atual.estado, campo, pedido);
+  checarReguas(`P.aleatorio.${i}.${campo}`, tpl52, ofertaAleatoria, atual);
+  const escolhido = Math.min(Math.max(pedido, limite.minimo), limite.maximo);
+  if (!perto(valorCampo(atual, campo), escolhido) && Math.abs(valorCampo(atual, campo) - antes) > TOL) {
+    const ficou = valorCampo(atual, campo);
+    if (Math.abs(ficou - escolhido) > TOL) {
+      registrar('P7', `P.aleatorio.${i}`, `${campo} ficou ${ficou} e o pedido era ${escolhido}`);
+    }
+  }
+}
+
 console.log(`\nFalhas: ${falhas.length}`);
 for (const [check, itens] of exemplos) {
   console.log(`\n${check} (${itens.length} exemplo(s) de até 3)`);
@@ -667,5 +878,5 @@ for (const [check, itens] of exemplos) {
 }
 if (falhas.length > 0) process.exit(1);
 console.log(
-  `\n${COMBINACOES} combinações aleatórias mais os casos fixos passaram nas verificações V1–V9 e, no modo recursos próprios, em RP1–RP9.`,
+  `\n${COMBINACOES} combinações aleatórias mais os casos fixos passaram nas verificações V1–V9 e, no modo recursos próprios, em RP1–RP9 e P1–P7.`,
 );

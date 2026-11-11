@@ -35,6 +35,7 @@ import {
   mensagemJaPagoAcimaDoLote,
   mensagemPagamentoAMaior,
   mensagemPagamentoAMaiorRecursosProprios,
+  mensagemParcelaMensalMinima,
   mensagemParcelaUnicaMinima,
   pagamentoAMaiorBloqueia,
   parcelaUnicaAbaixoDoMinimo,
@@ -43,6 +44,7 @@ import {
   type ResultadoCalculo,
 } from '@/lib/simulador/calcular-oferta';
 import { montarTemplateParaEngine } from '@/lib/simulador/montar-template-jornada';
+import { validarReguasRp } from '@/lib/simulador/personalizar-recursos-proprios';
 import { valorExibidoNaJornada } from '@/lib/simulador/valor-exibido-jornada';
 import { inferirCondicaoLote } from '@/lib/loteamento-simulador-template';
 import { maskTelefoneCelular } from '@/lib/br-docs';
@@ -182,6 +184,15 @@ function montarSnapshotSimulacao(args: {
     parcela_unica: args.valores?.unica ?? args.calc.parcela_unica_sugerida,
     saldo_a_financiar: args.calc.saldo_financiar,
     modalidade: args.oferta.modalidade === 'recursos_proprios' ? 'recursos_proprios' : 'financiamento',
+    ...(args.oferta.modalidade === 'recursos_proprios'
+      ? {
+          personalizada: args.valores != null,
+          modo_parcelas_obra: args.valores?.modoParcelasObra ?? ('variavel' as const),
+          parcela_fixa_obra:
+            args.valores?.modoParcelasObra === 'fixa' ? args.valores.parcelaFixaObra ?? null : null,
+          ancora_cobertura: args.valores?.ancoraCobertura ?? null,
+        }
+      : {}),
     customizacao_itens: args.itens,
     fluxo: args.calc.fluxo.map((linha) => ({
       mes: linha.mes,
@@ -851,10 +862,19 @@ function PassoSimulacao({
   salvando: boolean;
   erroSimulacao: string | null;
 }) {
+  const minimoMensalFaixa = sugerirParcelaMensal(valorLoteParaCalculo(state));
+  const mensalDesejada =
+    state.parcelaMensalDesejada ?? minimoMensalFaixa;
+  const mensalAbaixoDoMinimo =
+    state.precisaFinanciamento === false && mensalDesejada < minimoMensalFaixa - 0.005;
+  const erroMensalMinima = mensalAbaixoDoMinimo
+    ? mensagemParcelaMensalMinima(minimoMensalFaixa)
+    : null;
   const podeSimular =
     Boolean(empreendimento.template?.id) &&
     state.prazoFinanciamento > 0 &&
-    Number.isFinite(state.taxaJuros);
+    Number.isFinite(state.taxaJuros) &&
+    !mensalAbaixoDoMinimo;
 
   const jaRolouResultado = useRef(false);
   useEffect(() => {
@@ -960,10 +980,18 @@ function PassoSimulacao({
             <label htmlFor="sim-parcela-desejada">Parcela mensal desejada</label>
             <CampoNumeroBr
               id="sim-parcela-desejada"
-              valor={state.parcelaMensalDesejada ?? sugerirParcelaMensal(valorLoteParaCalculo(state))}
+              className={erroMensalMinima ? 'is-erro' : undefined}
+              aria-invalid={erroMensalMinima ? true : undefined}
+              aria-describedby={erroMensalMinima ? 'sim-parcela-desejada-erro' : undefined}
+              valor={state.parcelaMensalDesejada ?? minimoMensalFaixa}
               onChange={(n) => setState({ parcelaMensalDesejada: n ?? 0 })}
               inteiro
             />
+            {erroMensalMinima ? (
+              <p id="sim-parcela-desejada-erro" className="jornadaFieldErro" role="alert">
+                {erroMensalMinima}
+              </p>
+            ) : null}
           </div>
         )}
         {erroSimulacao && <p className="jornadaSimNota">{erroSimulacao}</p>}
@@ -995,6 +1023,8 @@ function PassoSimulacao({
             minimoParcelaUnica={minimoParcelaUnica}
             avaliarPagamentoAMaior={avaliarPagamentoAMaior}
             modalidade={state.precisaFinanciamento ? 'financiamento' : 'recursos_proprios'}
+            templateEngine={montarTemplateParaEngine(empreendimento.template)}
+            ofertaBase={montarOfertaJornada(state, empreendimento.template, empreendimento.customizacao_itens)}
             onVerMemorial={onAvancar}
           />
         </div>
@@ -1443,6 +1473,46 @@ export default function JornadaClient({
   function handleRecalcularSimulacao(valores: ValoresConfirmadosOferta) {
     setErroSimulacao(null);
     try {
+      const ofertaBase = montarOfertaJornada(
+        state,
+        empreendimento.template,
+        empreendimento.customizacao_itens,
+      );
+      if (ofertaBase.modalidade === 'recursos_proprios' && valores.modoParcelasObra) {
+        const validacao = validarReguasRp(
+          montarTemplateParaEngine(empreendimento.template),
+          ofertaBase,
+          {
+            entrada: valores.entrada,
+            mensal: valores.mensal,
+            unica: valores.unica,
+            modo: valores.modoParcelasObra,
+            fixa: valores.parcelaFixaObra ?? 0,
+            ancora: valores.ancoraCobertura === 'parcela_unica' ? 'unica' : 'fixa',
+          },
+        );
+        if (!validacao.ok) {
+          setErroSimulacao(validacao.error);
+          return;
+        }
+        const prazoObra = Math.max(1, Math.round(state.prazoObraMeses || 12));
+        const stateCalc: JornadaLocal = { ...state, prazoObraMeses: prazoObra };
+        setValoresConfirmados(valores);
+        setResultadoSimulacao(validacao.aplicado.resultado);
+        setRecalcToken((n) => n + 1);
+        startTransition(() => {
+          void persistirSimulacao({
+            stateCalc,
+            oferta: ofertaBase,
+            calc: validacao.aplicado.resultado,
+            valores,
+            somenteSeMudou: false,
+          }).catch((err) => {
+            console.error('[JORNADA-SIMULACAO]', err);
+          });
+        });
+        return;
+      }
       const entradaMinima = entradaMinimaOferta(
         calcularOferta(
           montarTemplateParaEngine(empreendimento.template),

@@ -36,6 +36,7 @@ const LINHAS: { id: string; label: string }[] = [
   { id: 'entrada', label: 'Entrada' },
   { id: 'mensal', label: 'Parcela mensal' },
   { id: 'unica', label: 'Parcela única' },
+  { id: 'parcelasObra', label: 'Parcelas da obra' },
   { id: 'saldo', label: 'Saldo a financiar' },
 ];
 
@@ -99,6 +100,12 @@ function lerItens(raw: unknown): { item: string; valor: string }[] {
   });
 }
 
+function textoParcelasObra(snapshot: Record<string, unknown>): string {
+  if (String(snapshot.modo_parcelas_obra ?? '') !== 'fixa') return 'Variável';
+  const valor = numero(snapshot.parcela_fixa_obra);
+  return valor == null ? 'Fixa' : `Fixa: ${moeda(valor)}`;
+}
+
 function lerFluxo(raw: unknown): SimulacaoColuna['fluxo'] {
   if (!Array.isArray(raw)) return [];
   return raw.map((linha) => {
@@ -146,6 +153,7 @@ function montarColuna(row: Record<string, unknown>): SimulacaoColuna {
         snapshot.parcela_mensal ?? inputs.parcela_mensal ?? row.parcela_mensal_confirmada ?? row.parcela_mensal,
       ),
       unica: moeda(snapshot.parcela_unica ?? inputs.parcela_unica ?? row.parcela_unica_confirmada),
+      parcelasObra: textoParcelasObra(snapshot),
       saldo:
         modalidade === 'Recursos próprios'
           ? '—'
