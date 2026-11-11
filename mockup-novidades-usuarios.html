@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Novidades — Hub Fly · Out 2026</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #e8ecf0; color: #1a1a2e; font-size: 16px;
+}
+
+/* Slides */
+.slide {
+  width: 960px; background: #fff;
+  margin: 32px auto; border-radius: 16px;
+  box-shadow: 0 4px 32px rgba(0,0,0,.13);
+  display: flex; flex-direction: column; overflow: hidden;
+  page-break-after: always;
+}
+
+/* Slide header */
+.slide-bar {
+  background: #0c2633; color: #fff;
+  padding: 22px 36px; display: flex; align-items: baseline; gap: 16px;
+}
+.slide-bar .eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: #d4ad68; margin-bottom: 4px;
+}
+.slide-bar h2 { font-size: 24px; font-weight: 800; }
+.slide-bar .sub { font-size: 13px; color: #94a3b8; margin-left: auto; white-space: nowrap; }
+
+/* Slide body */
+.slide-body { padding: 28px 36px 36px; flex: 1; display: flex; flex-direction: column; gap: 22px; }
+
+/* ── CARINHAS ── */
+.carinhas-row {
+  display: flex; border: .5px solid #e5e7eb; border-radius: 12px; overflow: hidden;
+}
+.carinha-item {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 14px 10px; border-right: .5px solid #e5e7eb;
+}
+.carinha-item:last-child { border-right: none; }
+.carinha-img { width: 44px; height: 44px; object-fit: contain; flex-shrink: 0; }
+.carinha-info { display: flex; flex-direction: column; gap: 2px; }
+.carinha-label { font-size: 15px; font-weight: 700; }
+.carinha-pct { font-size: 13px; font-weight: 500; color: #6b7280; }
+.c-verde-escuro { background: #f0fdf4; }
+.c-verde-escuro .carinha-label { color: #15803d; }
+.c-verde-claro  { background: #f7fef9; }
+.c-verde-claro  .carinha-label { color: #16a34a; }
+.c-amarelo      { background: #fefce8; }
+.c-amarelo      .carinha-label { color: #854d0e; }
+.c-vermelho     { background: #fff1f2; }
+.c-vermelho     .carinha-label { color: #b91c1c; }
+
+/* ── TABELA TIERS (unificada) ── */
+.tier-section { display: flex; gap: 18px; }
+.tier-table-wrap { flex: 1; border: .5px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+.tier-table-hdr {
+  padding: 11px 16px; background: #0c2633; color: #fff;
+  font-size: 14px; font-weight: 700;
+}
+.tier-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 16px; border-bottom: .5px solid #f3f4f6; font-size: 14px;
+}
+.tier-row:last-child { border-bottom: none; }
+.tier-lbl { flex: 1; color: #374151; }
+.tier-badge {
+  font-size: 13px; font-weight: 800; padding: 3px 14px;
+  border-radius: 20px; white-space: nowrap;
+}
+.t100 { background: #dcfce7; color: #15803d; }
+.t75  { background: #fef9c3; color: #854d0e; }
+.t50  { background: #fed7aa; color: #92400e; }
+.t20  { background: #fee2e2; color: #7f1d1d; }
+.t0   { background: #f3f4f6; color: #6b7280; }
+.tign { background: #eff6ff; color: #1d4ed8; }
+
+/* ── NOTAS LADO DIREITO ── */
+.notas-col { display: flex; flex-direction: column; gap: 10px; width: 290px; flex-shrink: 0; }
+
+/* ── CALLOUT ── */
+.callout {
+  border-left: 3px solid #0c2633; background: #e8edf2;
+  border-radius: 6px; padding: 11px 16px; font-size: 14px;
+  color: #0c2633; line-height: 1.6;
+}
+.callout.gold { border-color: #d4ad68; background: #fef9e7; color: #7c5a1e; }
+.callout.red  { border-color: #dc2626; background: #fff1f2; color: #991b1b; }
+
+/* ── EXEMPLOS (linha) ── */
+.exemplos-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.exemplo-card {
+  border: .5px solid #e5e7eb; border-radius: 10px;
+  overflow: hidden;
+}
+.exemplo-card-hdr {
+  background: #f9fafb; border-bottom: .5px solid #e5e7eb;
+  padding: 9px 14px; font-size: 13px; font-weight: 700; color: #374151;
+}
+.exemplo-card-body {
+  padding: 12px 14px; font-size: 13px; color: #6b7280; line-height: 1.6;
+}
+.exemplo-result {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; padding-top: 10px;
+  border-top: .5px solid #f3f4f6;
+}
+.exemplo-result .carinha-em { font-size: 28px; }
+.exemplo-result .pct-big { font-size: 20px; font-weight: 900; }
+
+/* ── ÁRVORE META MÃE → FILHAS ── */
+.tree { display: flex; flex-direction: column; gap: 10px; }
+.mae-card { border: .5px solid #e5e7eb; border-radius: 10px; overflow: hidden; }
+.mae-hdr {
+  background: #f9fafb; border-bottom: .5px solid #e5e7eb;
+  padding: 10px 16px; display: flex; align-items: center; gap: 10px;
+}
+.mae-dot { width: 8px; height: 8px; border-radius: 50%; background: #0c2633; flex-shrink: 0; }
+.mae-nome { font-weight: 700; font-size: 14px; color: #0c2633; flex: 1; }
+.mae-tipo {
+  font-size: 12px; font-weight: 600; padding: 2px 10px;
+  border-radius: 20px; background: #e0e7ef; color: #374151; white-space: nowrap;
+}
+.filha-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px 8px 28px; border-bottom: .5px solid #f3f4f6; font-size: 13px;
+}
+.filha-row:last-child { border-bottom: none; }
+.filha-nome { flex: 1; color: #374151; }
+.st {
+  font-size: 12px; font-weight: 600; padding: 2px 10px;
+  border-radius: 20px; white-space: nowrap;
+}
+.st-np  { background: #dcfce7; color: #15803d; }
+.st-t1  { background: #fef9c3; color: #854d0e; }
+.st-ab  { background: #eff6ff; color: #1d4ed8; }
+.st-vc  { background: #fee2e2; color: #991b1b; }
+
+/* ── MUDANÇA DESTAQUE ── */
+.mudanca-box { border: .5px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+.mudanca-hdr {
+  background: #0c2633; color: #d4ad68;
+  padding: 11px 18px; font-size: 13px; font-weight: 700;
+  letter-spacing: .5px; text-transform: uppercase;
+}
+.mudanca-body {
+  padding: 16px 18px; display: flex; flex-direction: column;
+  gap: 10px; font-size: 14px; color: #374151; line-height: 1.6;
+}
+.mudanca-item { display: flex; gap: 10px; align-items: flex-start; }
+.mudanca-bullet {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #d4ad68; flex-shrink: 0; margin-top: 7px;
+}
+
+/* Slide number */
+.slide-num {
+  text-align: right; font-size: 11px; color: #9ca3af;
+  padding: 10px 22px 14px;
+}
+
+@media print {
+  body { background: #fff; }
+  .slide { margin: 0; border-radius: 0; box-shadow: none; page-break-after: always; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+     SLIDE 1 — MEU CARÔMETRO
+═════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-bar">
+    <div>
+      <div class="eyebrow">Hub Fly · Out 2026</div>
+      <h2>Meu Carômetro — como funciona agora</h2>
+    </div>
+    <span class="sub">TO DO &amp; Planning</span>
+  </div>
+
+  <div class="slide-body">
+
+    <!-- Carinhas com imagens do Hub Fly -->
+    <div class="carinhas-row">
+      <div class="carinha-item c-verde-escuro">
+        <img class="carinha-img" src="/carometro/carometro-emoji-verde-escuro.png"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+             alt="Ótimo">
+        <div class="carinha-info" style="display:none">
+          <span style="font-size:36px;line-height:1">😁</span>
+        </div>
+        <div class="carinha-info">
+          <span class="carinha-label">Ótimo</span>
+          <span class="carinha-pct">≥ 90%</span>
+        </div>
+      </div>
+      <div class="carinha-item c-verde-claro">
+        <img class="carinha-img" src="/carometro/carometro-emoji-verde-claro.png"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+             alt="Bem">
+        <div class="carinha-info" style="display:none">
+          <span style="font-size:36px;line-height:1">🙂</span>
+        </div>
+        <div class="carinha-info">
+          <span class="carinha-label">Bem</span>
+          <span class="carinha-pct">70–89%</span>
+        </div>
+      </div>
+      <div class="carinha-item c-amarelo">
+        <img class="carinha-img" src="/carometro/carometro-emoji-amarelo.png"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+             alt="Atenção">
+        <div class="carinha-info" style="display:none">
+          <span style="font-size:36px;line-height:1">😐</span>
+        </div>
+        <div class="carinha-info">
+          <span class="carinha-label">Atenção</span>
+          <span class="carinha-pct">51–69%</span>
+        </div>
+      </div>
+      <div class="carinha-item c-vermelho">
+        <img class="carinha-img" src="/carometro/carometro-emoji-vermelho.png"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+             alt="Ruim">
+        <div class="carinha-info" style="display:none">
+          <span style="font-size:36px;line-height:1">😟</span>
+        </div>
+        <div class="carinha-info">
+          <span class="carinha-label">Ruim</span>
+          <span class="carinha-pct">≤ 50%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tiers unificados + notas -->
+    <div class="tier-section">
+
+      <!-- Tabela única para as 3 métricas -->
+      <div class="tier-table-wrap">
+        <div class="tier-table-hdr">
+          🚨 Sirene &nbsp;·&nbsp; ⚡ Engajamento &nbsp;·&nbsp; 📈 Indicadores — mesma pontuação
+        </div>
+        <div class="tier-row">
+          <span class="tier-lbl">Entregue / concluído <strong>no prazo</strong></span>
+          <span class="tier-badge t100">100%</span>
+        </div>
+        <div class="tier-row">
+          <span class="tier-lbl">1 a 6 dias de atraso</span>
+          <span class="tier-badge t75">75%</span>
+        </div>
+        <div class="tier-row">
+          <span class="tier-lbl">7 a 14 dias de atraso</span>
+          <span class="tier-badge t50">50%</span>
+        </div>
+        <div class="tier-row">
+          <span class="tier-lbl">15+ dias de atraso</span>
+          <span class="tier-badge t20">20%</span>
+        </div>
+        <div class="tier-row">
+          <span class="tier-lbl">Vencido e ainda em aberto</span>
+          <span class="tier-badge t0">0% (penaliza)</span>
+        </div>
+        <div class="tier-row">
+          <span class="tier-lbl">Aberto com prazo futuro</span>
+          <span class="tier-badge tign">Ignorado</span>
+        </div>
+      </div>
+
+      <!-- Notas específicas por métrica -->
+      <div class="notas-col">
+        <div class="callout red">
+          <strong>🚨 Sirene:</strong> se algum chamado estiver aberto há mais de <strong>15 dias</strong>, o score trava em <strong>≤ 50%</strong> até ser fechado — independente dos outros chamados.
+        </div>
+        <div class="callout">
+          <strong>⚡ Engajamento:</strong> score pelas Metas Filhas do mês. Reinicia todo mês — começa do zero na virada.
+        </div>
+        <div class="callout">
+          <strong>📈 Indicadores:</strong> score pelas Metas Mãe que você é responsável. Também reinicia a cada mês.
+        </div>
+      </div>
+
+    </div><!-- /tier-section -->
+
+    <!-- Exemplos com carinhas -->
+    <div class="exemplos-row">
+
+      <div class="exemplo-card">
+        <div class="exemplo-card-hdr">Sirene — semana boa</div>
+        <div class="exemplo-card-body">
+          3 chamados fechados no prazo + 1 aberto (prazo futuro)
+          <div class="exemplo-result">
+            <img src="/carometro/carometro-emoji-verde-escuro.png"
+                 onerror="this.outerHTML='<span class=\'carinha-em\'>😁</span>'"
+                 class="carinha-em" style="width:32px;height:32px;object-fit:contain">
+            <span class="pct-big" style="color:#15803d">100%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="exemplo-card">
+        <div class="exemplo-card-hdr">Sirene — com cap ativo</div>
+        <div class="exemplo-card-body">
+          2 fechados no prazo + 1 aberto há <strong>20 dias</strong> sem fechar
+          <div class="exemplo-result">
+            <img src="/carometro/carometro-emoji-vermelho.png"
+                 onerror="this.outerHTML='<span class=\'carinha-em\'>😟</span>'"
+                 class="carinha-em" style="width:32px;height:32px;object-fit:contain">
+            <span class="pct-big" style="color:#dc2626">≤ 50%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="exemplo-card">
+        <div class="exemplo-card-hdr">Engajamento — mês regular</div>
+        <div class="exemplo-card-body">
+          2 filhas no prazo (100%) + 1 com 5d atraso (75%) + 1 vencida (0%)
+          <div class="exemplo-result">
+            <img src="/carometro/carometro-emoji-verde-claro.png"
+                 onerror="this.outerHTML='<span class=\'carinha-em\'>🙂</span>'"
+                 class="carinha-em" style="width:32px;height:32px;object-fit:contain">
+            <span class="pct-big" style="color:#16a34a">69%</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /exemplos-row -->
+
+  </div><!-- /slide-body -->
+  <div class="slide-num">1 / 2</div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════
+     SLIDE 2 — BONÉ DAY / PLANO
+═════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="slide-bar">
+    <div>
+      <div class="eyebrow">Hub Fly · Out 2026</div>
+      <h2>Boné Day / Plano — o que mudou</h2>
+    </div>
+    <span class="sub">Carômetro → Plano Boné Day</span>
+  </div>
+
+  <div class="slide-body">
+
+    <!-- O que mudou -->
+    <div class="mudanca-box">
+      <div class="mudanca-hdr">O que mudou</div>
+      <div class="mudanca-body">
+        <div class="mudanca-item">
+          <span class="mudanca-bullet"></span>
+          <span>Toda Meta aberta agora exige a criação de <strong>Metas Filhas</strong> — sub-tarefas que mostram o caminho para atingir a meta principal.</span>
+        </div>
+        <div class="mudanca-item">
+          <span class="mudanca-bullet"></span>
+          <span>Cada Filha tem seu próprio prazo e status. Juntas respondem: <em>"estamos indo bem ou mal nessa meta?"</em></span>
+        </div>
+        <div class="mudanca-item">
+          <span class="mudanca-bullet"></span>
+          <span>O <strong>score de Engajamento</strong> passa a ser calculado pelas Filhas — substituindo a lógica anterior.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Árvore visual -->
+    <div>
+      <p style="font-size:13px;color:#6b7280;margin-bottom:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">Exemplo — como fica na prática</p>
+      <div class="tree">
+
+        <div class="mae-card">
+          <div class="mae-hdr">
+            <span class="mae-dot"></span>
+            <span class="mae-nome">Captação de Franqueados · Outubro 2026</span>
+            <span class="mae-tipo">Recorrente</span>
+          </div>
+          <div class="filha-row">
+            <span class="filha-nome">Prospectar 10 leads qualificados</span>
+            <span class="st st-np">Entregue no prazo → 100%</span>
+          </div>
+          <div class="filha-row">
+            <span class="filha-nome">Realizar 5 visitas técnicas</span>
+            <span class="st st-t1">Entregue com 5d atraso → 75%</span>
+          </div>
+          <div class="filha-row">
+            <span class="filha-nome">Enviar proposta comercial</span>
+            <span class="st st-ab">Aberta · prazo 31/10 — aguardando</span>
+          </div>
+          <div class="filha-row">
+            <span class="filha-nome">Fechar contrato de franquia</span>
+            <span class="st st-vc">Vencida em aberto → 0%</span>
+          </div>
+        </div>
+
+        <div class="mae-card">
+          <div class="mae-hdr">
+            <span class="mae-dot"></span>
+            <span class="mae-nome">Implantação do Sistema de Gestão · Nov 2026</span>
+            <span class="mae-tipo">Projeto</span>
+          </div>
+          <div class="filha-row">
+            <span class="filha-nome">Mapear processos da unidade</span>
+            <span class="st st-np">Entregue no prazo → 100%</span>
+          </div>
+          <div class="filha-row">
+            <span class="filha-nome">Configurar acesso da equipe</span>
+            <span class="st st-np">Entregue no prazo → 100%</span>
+          </div>
+          <div class="filha-row">
+            <span class="filha-nome">Treinamento com a equipe</span>
+            <span class="st st-ab">Aberta · prazo 05/11 — aguardando</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="callout gold">
+      <strong>Score de Engajamento</strong> = média das Filhas relevantes (entregues ou vencidas). Filhas abertas com prazo futuro não pontuam ainda — entram quando vencerem ou forem entregues.
+    </div>
+
+  </div><!-- /slide-body -->
+  <div class="slide-num">2 / 2</div>
+</div>
+
+</body>
+</html>

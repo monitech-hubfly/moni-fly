@@ -37,13 +37,13 @@ export function tierPorAtraso(concluidoEm: string, deadline: Date): number {
 
 /**
  * Pontuação tier para Engajamento (Metas Filhas).
- * Recebe data_fim da filha e updated_at (data de conclusão).
+ * Recebe data_fim da filha e concluidoEmData (coluna concluido_em_data).
  * Sem datas → considera no prazo (100).
  */
-export function tierFilha(dataFim: string | null, updatedAt: string | null): number {
-  if (!dataFim || !updatedAt) return 100;
+export function tierFilha(dataFim: string | null, concluidoEmData: string | null): number {
+  if (!dataFim || !concluidoEmData) return 100;
   const prazo = new Date(dataFim + 'T00:00:00');
-  const conc  = new Date(updatedAt.slice(0, 10) + 'T00:00:00');
+  const conc  = new Date(concluidoEmData.slice(0, 10) + 'T00:00:00');
   const dias  = Math.floor((conc.getTime() - prazo.getTime()) / 86_400_000);
   if (dias <= 0)  return 100;
   if (dias <= 6)  return 75;

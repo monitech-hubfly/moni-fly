@@ -450,10 +450,22 @@ function semanaDeData(dataIso: string | null): string {
 }
 
 // ── Helper: badge Tier por dias de atraso ─────────────────────────────────────
-function calcDiasAtraso(dataFim: string | null): number {
+/**
+ * Para metas FILHAS concluídas: compara data_fim com concluido_em_data.
+ * Para metas FILHAS ativas (pendentes): compara data_fim com HOJE.
+ * Para META MÃE (concluido_em_data = undefined): comportamento legado (compara com hoje).
+ */
+function calcDiasAtraso(dataFim: string | null, concluidoEmData?: string | null): number {
   if (!dataFim) return 0;
+  const fim = new Date(dataFim + 'T00:00:00');
+  // Se a filha já foi concluída e temos a data exata, usa ela
+  if (concluidoEmData) {
+    const conc = new Date(concluidoEmData.slice(0, 10) + 'T00:00:00');
+    const dias = Math.floor((conc.getTime() - fim.getTime()) / 86400000);
+    return dias > 0 ? dias : 0;
+  }
+  // Filha ainda ativa (ou meta mãe): compara com hoje
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  const fim  = new Date(dataFim + 'T00:00:00');
   if (fim >= hoje) return 0;
   return Math.max(1, Math.floor((hoje.getTime() - fim.getTime()) / 86400000));
 }
@@ -502,9 +514,11 @@ function SubMetaFilhaRow({ sub, onConcluir, onReabrir, onArquivar }: {
     finally { setArquivando(false); setConfirmandoArquivar(false); }
   };
 
-  // Sempre calcula atraso com base em data_fim — mesmo para concluídas,
-  // assim o Tier fica registrado como prova de que foi entregue com atraso.
-  const diasAtraso = calcDiasAtraso(sub.data_fim);
+  // Para concluídas: compara data_fim com concluido_em_data (data real de conclusão).
+  // Para ativas: compara com hoje (mantém urgência visual).
+  const diasAtraso = isConcluida
+    ? calcDiasAtraso(sub.data_fim, sub.concluido_em_data)
+    : calcDiasAtraso(sub.data_fim);
 
   /* ── Confirmação de arquivamento ── */
   if (confirmandoArquivar) {
@@ -1322,12 +1336,13 @@ export function MetasIndicadoresBloco() {
         status: string; ordem: number | null;
         profile_id: string | null; data_inicio: string | null;
         data_fim: string | null; area_id: string; objetivo_pai_id: string | null;
+        concluido_em_data: string | null;
       };
 
       // 1. Filhas em outras áreas onde o usuário é profile_id
       const { data: sinData } = await supabase
         .from('objetivos')
-        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id, data_inicio, data_fim, area_id, objetivo_pai_id')
+        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, profile_id, data_inicio, data_fim, area_id, objetivo_pai_id, concluido_em_data')
         .eq('profile_id', uid)
         .neq('area_id', areaId)
         .not('objetivo_pai_id', 'is', null)
@@ -1417,6 +1432,7 @@ export function MetasIndicadoresBloco() {
         status: r.status,
         data_inicio: r.data_inicio ?? null,
         data_fim: r.data_fim ?? null,
+        concluido_em_data: r.concluido_em_data ?? null,
       }));
 
       type IndRow2 = {
@@ -1641,14 +1657,15 @@ export function MetasIndicadoresBloco() {
   }, [supabase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleConcluirFilha = useCallback(async (filhaId: string) => {
-    const { error: e } = await supabase.from('objetivos').update({ status: 'concluido' }).eq('id', filhaId);
+    const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const { error: e } = await supabase.from('objetivos').update({ status: 'concluido', concluido_em_data: hoje }).eq('id', filhaId);
     if (e) { console.error('[ConcluirFilha]', e); return; }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: filhaId, operacao: 'UPDATE', descricao: 'Meta filha concluída' });
     recarregar();
   }, [supabase, recarregar]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReabrirFilha = useCallback(async (filhaId: string) => {
-    const { error: e } = await supabase.from('objetivos').update({ status: 'ativo' }).eq('id', filhaId);
+    const { error: e } = await supabase.from('objetivos').update({ status: 'ativo', concluido_em_data: null }).eq('id', filhaId);
     if (e) { console.error('[ReabrirFilha]', e); return; }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: filhaId, operacao: 'UPDATE', descricao: 'Meta filha reaberta' });
     recarregar();
@@ -1777,14 +1794,15 @@ export function MetasIndicadoresBloco() {
   }, [supabase, carregarSinergia]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleConcluirFilhaSinergia = useCallback(async (filhaId: string) => {
-    const { error } = await supabase.from('objetivos').update({ status: 'concluido' }).eq('id', filhaId);
+    const hoje = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const { error } = await supabase.from('objetivos').update({ status: 'concluido', concluido_em_data: hoje }).eq('id', filhaId);
     if (error) { console.error('[ConcluirFilhaSinergia]', error); return; }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: filhaId, operacao: 'UPDATE', descricao: 'Meta filha sinergia concluída' });
     void carregarSinergia();
   }, [supabase, carregarSinergia]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReabrirFilhaSinergia = useCallback(async (filhaId: string) => {
-    const { error } = await supabase.from('objetivos').update({ status: 'ativo' }).eq('id', filhaId);
+    const { error } = await supabase.from('objetivos').update({ status: 'ativo', concluido_em_data: null }).eq('id', filhaId);
     if (error) { console.error('[ReabrirFilhaSinergia]', error); return; }
     log({ modulo: 'Planejamento', entidade: 'objetivos', entidade_id: filhaId, operacao: 'UPDATE', descricao: 'Meta filha sinergia reaberta' });
     void carregarSinergia();

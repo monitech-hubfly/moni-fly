@@ -21,7 +21,7 @@ export type FilhaDetalhe = {
   descricao: string;
   data_fim: string | null;
   status: string;
-  atualizado_em: string | null;
+  concluido_em_data: string | null;
   dias_atraso: number | null;
   tier: string;
   credito: number;
@@ -261,12 +261,12 @@ export async function gerarSnapshotCarometro(
 
   const { data: filhasData } = await db
     .from('objetivos')
-    .select('id, descricao, status, data_fim, atualizado_em')
+    .select('id, descricao, status, data_fim, concluido_em_data')
     .eq('profile_id', profileId)
     .not('objetivo_pai_id', 'is', null)
     .eq('mes', mesAtualEng);
 
-  type FilhaRow = { id: string; descricao: string; status: string; data_fim: string | null; atualizado_em: string | null };
+  type FilhaRow = { id: string; descricao: string; status: string; data_fim: string | null; concluido_em_data: string | null };
   const filhasArr = (filhasData ?? []) as FilhaRow[];
 
   const filhasConcluidas      = filhasArr.filter(f => f.status === 'concluido');
@@ -287,7 +287,7 @@ export async function gerarSnapshotCarometro(
     novoScoreEng = 100;
   } else {
     const totalCreditos = filhasConcluidas.reduce(
-      (sum, f) => sum + tierFilha(f.data_fim, f.atualizado_em), 0
+      (sum, f) => sum + tierFilha(f.data_fim, f.concluido_em_data), 0
     );
     novoScoreEng = Math.max(0, Math.round((totalCreditos / (engRelevantes * 100)) * 100));
   }
@@ -301,10 +301,10 @@ export async function gerarSnapshotCarometro(
       let da: number | null = null;
 
       if (f.status === 'concluido') {
-        credito = tierFilha(f.data_fim, f.atualizado_em);
-        if (f.data_fim && f.atualizado_em) {
+        credito = tierFilha(f.data_fim, f.concluido_em_data);
+        if (f.data_fim && f.concluido_em_data) {
           da = Math.floor(
-            (new Date(f.atualizado_em.slice(0, 10) + 'T00:00:00').getTime() -
+            (new Date(f.concluido_em_data.slice(0, 10) + 'T00:00:00').getTime() -
              new Date(f.data_fim + 'T00:00:00').getTime()) / 86_400_000
           );
         }
@@ -320,7 +320,7 @@ export async function gerarSnapshotCarometro(
 
       return {
         id: f.id, descricao: f.descricao, data_fim: f.data_fim,
-        status: f.status, atualizado_em: f.atualizado_em,
+        status: f.status, concluido_em_data: f.concluido_em_data,
         dias_atraso: da, tier, credito,
       };
     });

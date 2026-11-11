@@ -1010,10 +1010,10 @@ export async function fetchKanbanBoardSnapshot(
    * Híbridos Contabilidade/Crédito Obra: mantêm view no lean para lacunas (proteção).
    * Fast paint / enrichment client: skip view legado em Operações já migrado.
    */
+  // Nota: snapshotMode === 'arquivados' | 'concluidos' já retornou via useFastStatusPool acima.
+  // Depois desse ponto, snapshotMode é garantidamente 'lean' | 'full'.
   const skipLegadoView =
     forceSkipLegadoView ||
-    snapshotMode === 'arquivados' ||
-    snapshotMode === 'concluidos' ||
     sempreNativo ||
     (hasNativo && !hibridoComView) ||
     (deferEnrichments && isFastPaintKanban(kanbanNomeDb) && hasNativo);

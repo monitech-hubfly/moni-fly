@@ -79,6 +79,8 @@ export type SubMetaItem = {
   status: string;
   data_inicio: string | null;
   data_fim: string | null;
+  /** Data exata em que a meta filha foi concluída (clique do usuário). */
+  concluido_em_data: string | null;
 };
 
 export type IndicadorItemMeta = {
@@ -158,7 +160,7 @@ export function useMetasIndicadores(
       // ── Rodada 1: tudo que não depende de IDs (paralelo) ──────────────────
       let objQuery = supabase
         .from('objetivos')
-        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, objetivo_pai_id, profile_id, data_inicio, data_fim')
+        .select('id, descricao, tipo, is_chave, meta_valor, meta_unidade, criado_em, status, ordem, objetivo_pai_id, profile_id, data_inicio, data_fim, concluido_em_data')
         .eq('area_id', areaId)
         .in('status', ['ativo', 'concluido', 'relancada']);
       if (mes) objQuery = objQuery.eq('mes', mes);
@@ -198,6 +200,7 @@ export function useMetasIndicadores(
         profile_id: string | null;
         data_inicio: string | null;
         data_fim: string | null;
+        concluido_em_data: string | null;
       };
       const objArr    = (objRes.data ?? []) as ObjRow[];
       const metaIds   = objArr.filter(o => !o.objetivo_pai_id).map(o => o.id);
@@ -293,6 +296,7 @@ export function useMetasIndicadores(
           status: o.status,
           data_inicio: o.data_inicio ?? null,
           data_fim: o.data_fim ?? null,
+          concluido_em_data: o.concluido_em_data ?? null,
         }));
 
       // Índice: objetivo_id → datas do usuário efetivo (para is_projeto_relativo)
