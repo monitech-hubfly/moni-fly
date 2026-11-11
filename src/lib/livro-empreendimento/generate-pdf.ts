@@ -1,39 +1,41 @@
-import puppeteer from 'puppeteer'
+import type { Browser } from 'puppeteer'
 
 /**
  * Converte uma string HTML em Buffer de PDF A4 via Puppeteer.
  * Usado para geração do Book do Empreendimento.
  *
- * IMPORTANTE: esta função roda no servidor (Next.js API Route).
- * Puppeteer deve estar instalado: npm install puppeteer
+ * No Vercel o Chrome completo do pacote `puppeteer` não entra na função.
+ * Lá usamos `@sparticuz/chromium` (Chrome 143) com `puppeteer-core`.
+ * Localmente continua o Puppeteer com o Chrome instalado na máquina.
  */
-const ARGS_SERVERLESS = [
-  '--no-sandbox',
-  '--disable-setuid-sandbox',
-  '--disable-dev-shm-usage',
-  '--disable-accelerated-2d-canvas',
-  '--no-first-run',
-  '--no-zygote',
-  '--single-process',
-  '--disable-gpu',
-]
+const ARGS_LOCAL = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+
+async function launchBrowser(): Promise<Browser> {
+  if (process.env.VERCEL) {
+    const chromium = (await import('@sparticuz/chromium')).default
+    const puppeteer = (await import('puppeteer-core')).default
+    chromium.setGraphicsMode = false
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    })
+    return browser as unknown as Browser
+  }
+
+  const puppeteer = (await import('puppeteer')).default
+  return puppeteer.launch({
+    headless: true,
+    args: ARGS_LOCAL,
+  })
+}
 
 export async function generatePdf(html: string): Promise<Buffer> {
-  // --single-process / --no-zygote derrubam o Chrome no Windows ao chamar printToPDF.
-  // No serverless (Vercel) esses args continuam necessários.
-  const serverless = Boolean(process.env.VERCEL)
-  const browser = await puppeteer.launch({
-    // Puppeteer 25: true usa o headless novo (--headless=new). O valor 'new' deixou de existir no tipo.
-    headless: true,
-    args: serverless
-      ? ARGS_SERVERLESS
-      : ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
-  })
+  const browser = await launchBrowser()
 
   try {
     const page = await browser.newPage()
 
-    // Aguarda imagens externas carregarem (R2 CDN)
     await page.setContent(html, {
       waitUntil: 'load',
       timeout: 60000,

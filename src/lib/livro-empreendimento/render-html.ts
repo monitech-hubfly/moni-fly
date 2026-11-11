@@ -38,12 +38,16 @@ function imgUrl(path: string): string {
   return BASE_IMAGENS + path
 }
 
+function listaImagens(ctx: BookContext): Imagem[] {
+  return Array.isArray(ctx.casa.imagens) ? ctx.casa.imagens : []
+}
+
 function getImagem(ctx: BookContext, indice: number): Imagem | undefined {
-  return ctx.casa.imagens[indice]
+  return listaImagens(ctx)[indice]
 }
 
 function ultimaRender(ctx: BookContext): Imagem | undefined {
-  const imagens = ctx.casa.imagens
+  const imagens = listaImagens(ctx)
   for (let i = imagens.length - 1; i >= 0; i -= 1) {
     if (imagens[i]?.tipo === 'render') return imagens[i]
   }
@@ -52,7 +56,7 @@ function ultimaRender(ctx: BookContext): Imagem | undefined {
 
 function encontrarPorAlt(ctx: BookContext, altText: string): Imagem | undefined {
   const needle = altText.toLowerCase()
-  return ctx.casa.imagens.find((img) => img.alt.toLowerCase().includes(needle))
+  return listaImagens(ctx).find((img) => img.alt?.toLowerCase().includes(needle))
 }
 
 function getImagemPorAlt(ctx: BookContext, altText: string): Imagem | undefined {

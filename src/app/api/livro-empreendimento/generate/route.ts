@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         dimensoes: casa.dimensoes ?? '',
         preco_base: Number(casa.preco_base),
         descricao: casa.descricao ?? undefined,
-        imagens: casa.imagens ?? [],
+        imagens: Array.isArray(casa.imagens) ? casa.imagens : [],
         especificacoes: casa.especificacoes ?? {},
       },
       condominio: null,
@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('[livro-empreendimento] Erro inesperado:', error)
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Erro interno do servidor'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

@@ -6,6 +6,12 @@
       "funcionalidade-danilo": false
     }
   },
+  "functions": {
+    "src/app/api/livro-empreendimento/generate/route.ts": {
+      "maxDuration": 60,
+      "memory": 2048
+    }
+  },
   "headers": [
     {
       "source": "/embed/(.*)",

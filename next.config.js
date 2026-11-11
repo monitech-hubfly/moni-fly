@@ -5,7 +5,15 @@ const nextConfig = {
   poweredByHeader: false,
   experimental: {
     optimizePackageImports: ['lucide-react', 'date-fns'],
-    serverComponentsExternalPackages: ['@react-pdf/renderer', 'puppeteer'],
+    serverComponentsExternalPackages: [
+      '@react-pdf/renderer',
+      'puppeteer',
+      'puppeteer-core',
+      '@sparticuz/chromium',
+    ],
+    outputFileTracingIncludes: {
+      '/api/livro-empreendimento/generate': ['./node_modules/@sparticuz/chromium/bin/**'],
+    },
     serverActions: {
       /** Etapas ZAP / uploads podem enviar payloads maiores que 1 MB (default). */
       bodySizeLimit: '10mb',
