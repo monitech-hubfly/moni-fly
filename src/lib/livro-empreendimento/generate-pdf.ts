@@ -35,7 +35,7 @@ export async function generatePdf(html: string): Promise<Buffer> {
 
     // Aguarda imagens externas carregarem (R2 CDN)
     await page.setContent(html, {
-      waitUntil: 'networkidle0',
+      waitUntil: 'load',
       timeout: 60000,
     })
 
