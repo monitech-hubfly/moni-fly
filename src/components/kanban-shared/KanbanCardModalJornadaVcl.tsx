@@ -100,7 +100,12 @@ function lerItens(raw: unknown): { item: string; valor: string }[] {
   });
 }
 
-function textoParcelasObra(snapshot: Record<string, unknown>): string {
+function textoParcelasObra(
+  snapshot: Record<string, unknown>,
+  inputs: Record<string, unknown>,
+): string {
+  const modalidade = String(snapshot.modalidade ?? inputs.modalidade ?? '');
+  if (modalidade !== 'recursos_proprios') return '—';
   if (String(snapshot.modo_parcelas_obra ?? '') !== 'fixa') return 'Variável';
   const valor = numero(snapshot.parcela_fixa_obra);
   return valor == null ? 'Fixa' : `Fixa: ${moeda(valor)}`;
@@ -153,7 +158,7 @@ function montarColuna(row: Record<string, unknown>): SimulacaoColuna {
         snapshot.parcela_mensal ?? inputs.parcela_mensal ?? row.parcela_mensal_confirmada ?? row.parcela_mensal,
       ),
       unica: moeda(snapshot.parcela_unica ?? inputs.parcela_unica ?? row.parcela_unica_confirmada),
-      parcelasObra: textoParcelasObra(snapshot),
+      parcelasObra: textoParcelasObra(snapshot, inputs),
       saldo:
         modalidade === 'Recursos próprios'
           ? '—'

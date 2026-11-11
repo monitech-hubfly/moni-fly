@@ -102,12 +102,14 @@ function PainelReguasRecursosProprios({
   aplicado,
   onChange,
   onAtualizar,
+  onFechar,
 }: {
   template: TemplateConfig;
   oferta: OfertaConfig;
   aplicado: ReguasAplicadas;
   onChange: (proximo: ReguasAplicadas) => void;
   onAtualizar: () => void;
+  onFechar: () => void;
 }) {
   const modo = aplicado.estado.modo;
   return (
@@ -115,19 +117,17 @@ function PainelReguasRecursosProprios({
       <div className="jornadaReguasModo" role="group" aria-label="Parcelas da obra">
         <button
           type="button"
-          className={modo === 'variavel' ? 'is-ativo' : undefined}
           aria-pressed={modo === 'variavel'}
           onClick={() => onChange(definirModoReguasRp(template, oferta, aplicado.estado, 'variavel'))}
         >
-          Valor varia com a obra
+          Valor da parcela Fase 2 variando com a obra
         </button>
         <button
           type="button"
-          className={modo === 'fixa' ? 'is-ativo' : undefined}
           aria-pressed={modo === 'fixa'}
           onClick={() => onChange(definirModoReguasRp(template, oferta, aplicado.estado, 'fixa'))}
         >
-          Valor fixo
+          Valor da parcela Fase 2 fixo
         </button>
       </div>
       <p className="jornadaReguasModoTexto">
@@ -138,27 +138,34 @@ function PainelReguasRecursosProprios({
       {aplicado.limites.map((limite) => {
         const minimo = Math.floor(limite.minimo);
         const maximo = Math.ceil(limite.maximo);
+        const teto = Math.max(minimo, maximo);
+        const atual = Math.min(Math.max(limite.valor, minimo), teto);
+        const pct = teto <= minimo ? 0 : ((atual - minimo) / (teto - minimo)) * 100;
         return (
           <div key={limite.campo} className="jornadaRegua">
             <div className="jornadaReguaTop">
               <p className="jornadaReguaNome">{ROTULO_REGUA[limite.campo]}</p>
-              <CampoNumeroBr
-                id={`regua-${limite.campo}`}
-                valor={limite.valor}
-                inteiro
-                onChange={(n) =>
-                  onChange(moverReguaRp(template, oferta, aplicado.estado, limite.campo, n ?? minimo))
-                }
-              />
+              <div className="jornadaReguaValor">
+                <span className="jornadaReguaPrefixo">R$</span>
+                <CampoNumeroBr
+                  id={`regua-${limite.campo}`}
+                  valor={limite.valor}
+                  inteiro
+                  onChange={(n) =>
+                    onChange(moverReguaRp(template, oferta, aplicado.estado, limite.campo, n ?? minimo))
+                  }
+                />
+              </div>
             </div>
             <input
               type="range"
               min={minimo}
-              max={Math.max(minimo, maximo)}
+              max={teto}
               step={1000}
-              value={Math.min(Math.max(limite.valor, minimo), Math.max(minimo, maximo))}
+              value={atual}
               disabled={maximo - minimo < 1}
               aria-label={ROTULO_REGUA[limite.campo]}
+              style={{ ['--regua-pct' as string]: `${pct}%` }}
               onChange={(e) =>
                 onChange(
                   moverReguaRp(template, oferta, aplicado.estado, limite.campo, Number(e.target.value)),
@@ -176,9 +183,14 @@ function PainelReguasRecursosProprios({
           </div>
         );
       })}
-      <button type="button" className="jornadaSimBtnRecalc" onClick={onAtualizar}>
-        Atualizar simulação
-      </button>
+      <div className="jornadaReguasAcoes">
+        <button type="button" className="jornadaBtn jornadaBtnSecondary" onClick={onFechar}>
+          Fechar personalização
+        </button>
+        <button type="button" className="jornadaBtn jornadaBtnPrimary" onClick={onAtualizar}>
+          Atualizar simulação
+        </button>
+      </div>
     </div>
   );
 }
@@ -283,6 +295,17 @@ export function SimulacaoResultado({
     : valoresConfirmados?.unica ?? resultado.parcela_unica_sugerida;
   const totalRp = reguasVivas ? reguasVivas.resultado.vte : resultado.vte;
   const fluxoExibido = reguasVivas ? reguasVivas.resultado.fluxo : resultado.fluxo;
+  const modoFase2 =
+    reguasVivas?.estado.modo ??
+    valoresConfirmados?.modoParcelasObra ??
+    resultado.personalizacao_rp?.modo ??
+    'variavel';
+  const valorFase2 =
+    reguasVivas?.estado.fixa ??
+    valoresConfirmados?.parcelaFixaObra ??
+    resultado.personalizacao_rp?.parcela_fixa ??
+    0;
+  const textoFase2 = modoFase2 === 'fixa' ? `${formatarMoeda(Number(valorFase2))} por mês` : 'Varia com a obra';
   const taxaPctLabel =
     taxaJurosPct != null ? String(taxaJurosPct).replace('.', ',') : null;
 
@@ -336,10 +359,11 @@ export function SimulacaoResultado({
               <p className="jornadaSimHeroLabel">Valor total</p>
               <p className="jornadaSimHeroValor">{formatarMoeda(totalRp)}</p>
             </div>
-            <div className="jornadaSimMetricas">
+            <div className="jornadaSimMetricas is-quatro">
               <Metrica label="Entrada" valor={formatarMoeda(entradaRp)} />
               <Metrica label="Parcela mensal desejada" valor={formatarMoeda(mensalRp)} />
               <Metrica label="Parcela única" valor={formatarMoeda(unicaRp)} />
+              <Metrica label="Mensal na Fase 2" valor={textoFase2} />
             </div>
             <p className="jornadaSimCardHint">
               Pagamento com recursos próprios — sem financiamento
@@ -395,25 +419,19 @@ export function SimulacaoResultado({
         </p>
       ))}
 
-      {recursosProprios ? (
+      {recursosProprios && !personalizarAberto ? (
         <button
           type="button"
           className="jornadaSimLinkPersonalizar"
           onClick={() => {
-            if (personalizarAberto) {
-              setPersonalizarAberto(false);
-              return;
-            }
             if (!templateEngine || !ofertaBase) return;
             setReguasRp(estadoInicialReguasRp(templateEngine, ofertaBase));
             setPersonalizarAberto(true);
           }}
         >
-          {personalizarAberto
-            ? 'Fechar personalização'
-            : 'Deseja personalizar o valor das parcelas?'}
+          Deseja personalizar o valor das parcelas?
         </button>
-      ) : (
+      ) : recursosProprios ? null : (
         <button
           type="button"
           className="jornadaSimLinkPersonalizar"
@@ -506,6 +524,7 @@ export function SimulacaoResultado({
           oferta={ofertaBase}
           aplicado={reguasVivas}
           onChange={setReguasRp}
+          onFechar={() => setPersonalizarAberto(false)}
           onAtualizar={() =>
             onRecalcular({
               entrada: reguasVivas.estado.entrada,
