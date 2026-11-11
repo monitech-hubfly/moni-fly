@@ -46,7 +46,7 @@ async function makeJWT(credentials: ServiceAccountKey, subject: string): Promise
   const payload = base64url(new TextEncoder().encode(JSON.stringify({
     iss:   credentials.client_email,
     sub:   subject,
-    scope: 'https://www.googleapis.com/auth/calendar.readonly',
+    scope: 'https://www.googleapis.com/auth/calendar',
     aud:   'https://oauth2.googleapis.com/token',
     iat:   now,
     exp:   now + 3600,
