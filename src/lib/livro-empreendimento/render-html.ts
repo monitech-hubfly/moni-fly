@@ -299,7 +299,7 @@ function estilos(): string {
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    @page { size: A4; margin: 0; }
+    @page { size: A4 landscape; margin: 0; }
 
     html, body {
       margin: 0;
@@ -310,8 +310,8 @@ function estilos(): string {
     }
 
     .page {
-      width: 210mm;
-      height: 297mm;
+      width: 297mm;
+      height: 210mm;
       overflow: hidden;
       position: relative;
       page-break-after: always;
@@ -368,17 +368,17 @@ function estilos(): string {
     .cover-logo {
       position: absolute;
       top: 16mm;
-      left: 0;
-      right: 0;
-      text-align: center;
+      left: 148mm;
+      right: 16mm;
+      text-align: left;
     }
 
     .cover-foto {
       position: absolute;
-      top: 30mm;
-      left: 18mm;
-      right: 18mm;
-      height: 72mm;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 132mm;
       background: var(--moni-green-800);
       display: flex;
       flex-direction: column;
@@ -405,11 +405,11 @@ function estilos(): string {
 
     .cover-centro {
       position: absolute;
-      left: 16mm;
+      left: 148mm;
       right: 16mm;
       top: 50%;
       transform: translateY(-50%);
-      text-align: center;
+      text-align: left;
     }
 
     .cover-nome {
@@ -432,10 +432,10 @@ function estilos(): string {
 
     .cover-ano {
       position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 16mm;
-      text-align: center;
+      left: 148mm;
+      right: 16mm;
+      bottom: 14mm;
+      text-align: left;
       font-family: var(--moni-font-sans);
       font-size: 11px;
       letter-spacing: 0.28em;
@@ -530,7 +530,7 @@ function estilos(): string {
     .filosofia,
     .ficha {
       height: 100%;
-      padding: 28mm 22mm 24mm;
+      padding: 16mm 22mm;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -551,7 +551,7 @@ function estilos(): string {
     .ficha .rule { margin: 8mm 0 8mm; }
 
     .filosofia-texto p {
-      max-width: 158mm;
+      max-width: 240mm;
       font-family: var(--moni-font-display);
       font-size: 16px;
       line-height: 1.65;
