@@ -114,6 +114,8 @@ function PainelReguasRecursosProprios({
   const modo = aplicado.estado.modo;
   return (
     <div className="jornadaReguas">
+      <h3 className="jornadaReguasTitulo">Ajuste as parcelas</h3>
+      <p className="jornadaReguasRotulo">Parcelas da obra</p>
       <div className="jornadaReguasModo" role="group" aria-label="Parcelas da obra">
         <button
           type="button"
