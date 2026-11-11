@@ -37,6 +37,7 @@ export const TEAM_ALLOWED_PATH_PREFIXES: readonly string[] = [
   '/alertas',
   '/sirene',
   '/formularios',
+  '/apresentacoes',
   '/universidade',
   '/admin/universidade',
   '/ajuda',

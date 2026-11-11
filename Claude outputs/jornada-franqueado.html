@@ -1,0 +1,1093 @@
+<title>Jornada do Franqueado — Casa Moní</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap">
+
+<style>
+:root {
+  --navy: #0C2633;
+  --navy-mid: #1e4258;
+  --navy-light: #EEF4F7;
+  --gold: #D4AD68;
+  --gold-mid: #B8923E;
+  --gold-light: #FBF5E8;
+  --gold-muted: rgba(212,173,104,.14);
+  --green: #2F4A3A;
+  --green-mid: #3d6450;
+  --green-light: #EBF2ED;
+  --green-muted: rgba(47,74,58,.1);
+  --earth: #4A3929;
+  --bg: #FAFAF8;
+  --bg-card: #FFFFFF;
+  --fg: #1a1a1a;
+  --fg-muted: #6b6b6b;
+  --border: rgba(0,0,0,.08);
+  --note-bg: rgba(0,0,0,.035);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1B22;
+    --bg-card: rgba(255,255,255,.04);
+    --fg: #E8DFD3;
+    --fg-muted: #8A8078;
+    --navy-light: #0F2230;
+    --gold-light: #1E1810;
+    --gold-muted: rgba(212,173,104,.1);
+    --green-light: #0F1E14;
+    --green-muted: rgba(47,74,58,.18);
+    --border: rgba(255,255,255,.08);
+    --note-bg: rgba(255,255,255,.04);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1B22;
+  --bg-card: rgba(255,255,255,.04);
+  --fg: #E8DFD3;
+  --fg-muted: #8A8078;
+  --navy-light: #0F2230;
+  --gold-light: #1E1810;
+  --gold-muted: rgba(212,173,104,.1);
+  --green-light: #0F1E14;
+  --green-muted: rgba(47,74,58,.18);
+  --border: rgba(255,255,255,.08);
+  --note-bg: rgba(255,255,255,.04);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ── HEADER ───────────────────────────────── */
+.site-header {
+  background: var(--navy);
+  padding-block: 56px 44px;
+  padding-left: max(32px, env(safe-area-inset-left, 0px));
+  padding-right: max(32px, env(safe-area-inset-right, 0px));
+  text-align: center;
+}
+
+.header-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 20px;
+}
+
+.header-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(30px, 6vw, 52px);
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.12;
+  margin-bottom: 20px;
+}
+
+.header-subtitle {
+  font-size: 14px;
+  font-weight: 300;
+  color: rgba(255,255,255,.68);
+  max-width: 560px;
+  margin: 0 auto;
+  line-height: 1.75;
+}
+
+.header-rule {
+  width: 44px;
+  height: 2px;
+  background: var(--gold);
+  margin: 28px auto 0;
+  opacity: .8;
+}
+
+/* ── LEGEND ───────────────────────────────── */
+.legend-row {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 16px max(32px, env(safe-area-inset-left, 0px));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 28px;
+  justify-content: center;
+  align-items: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+.ldot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.lbadge {
+  display: inline-flex;
+  padding: 2px 7px;
+  border-radius: 100px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  background: var(--gold);
+  color: var(--navy);
+}
+
+/* ── MAIN ───────────────────────────────── */
+.content {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 52px max(24px, env(safe-area-inset-left, 0px)) 64px;
+}
+
+/* ── SECTION LABEL ───────────────────────── */
+.section-label-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.section-num {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.section-num.pf  { color: var(--navy);     }
+.section-num.ops { color: var(--green);    }
+.section-num.rcp { color: var(--gold-mid); }
+
+.section-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.section-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(19px, 3.2vw, 26px);
+  font-weight: 600;
+  line-height: 1.25;
+  margin-bottom: 4px;
+}
+
+.section-desc {
+  font-size: 13px;
+  color: var(--fg-muted);
+  margin-bottom: 28px;
+}
+
+/* ── TIMELINE ───────────────────────────── */
+.timeline {
+  position: relative;
+  padding-left: 56px;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: 16px;
+  bottom: 16px;
+  width: 2px;
+  border-radius: 2px;
+}
+
+.timeline.pf::before  { background: linear-gradient(to bottom, var(--navy),     var(--navy-mid)); }
+.timeline.ops::before { background: linear-gradient(to bottom, var(--green),    var(--green-mid)); }
+.timeline.rcp::before { background: linear-gradient(to bottom, var(--gold),     var(--gold-mid)); }
+
+/* ── STEP ───────────────────────────────── */
+.step {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.step:last-child { margin-bottom: 0; }
+
+/* circle node */
+.step-node {
+  position: absolute;
+  left: -44px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  border: 2px solid transparent;
+  z-index: 1;
+}
+
+.pf  .step-node { background: var(--navy-light);  color: var(--navy);     border-color: var(--navy);     }
+.ops .step-node { background: var(--green-light); color: var(--green);    border-color: var(--green);    }
+.rcp .step-node { background: var(--gold-light);  color: var(--earth);    border-color: var(--gold);     }
+
+.step.novo .step-node {
+  background: var(--gold);
+  color: var(--navy);
+  border-color: var(--gold-mid);
+}
+
+/* card body */
+.step-body {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 15px 18px;
+}
+
+.step.novo .step-body {
+  border-color: var(--gold);
+  background: var(--gold-light);
+}
+
+.step-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.step-title {
+  font-weight: 600;
+  font-size: 14.5px;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.novo-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 100px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  background: var(--gold);
+  color: var(--navy);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.step-desc {
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.55;
+}
+
+/* ── STEP META (SLA + responsável) ─────── */
+.step-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  background: var(--note-bg);
+  color: var(--fg-muted);
+  line-height: 1;
+}
+
+.meta-tag .meta-icon {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.pf  .meta-tag { border-color: rgba(12,38,51,.15);  }
+.ops .meta-tag { border-color: rgba(47,74,58,.15);  }
+.step.novo .meta-tag { border-color: rgba(184,146,62,.3); background: rgba(212,173,104,.08); }
+
+.step-note {
+  margin-top: 10px;
+  padding: 9px 12px;
+  background: var(--note-bg);
+  border-left: 3px solid var(--navy);
+  border-radius: 0 6px 6px 0;
+  font-size: 12px;
+  color: var(--fg);
+  line-height: 1.55;
+}
+
+.ops .step-note  { border-left-color: var(--green); }
+.rcp .step-note  { border-left-color: var(--gold-mid); }
+.step.novo .step-note { background: var(--gold-muted); }
+
+/* ── O QUE MUDA (step 5 highlight) ──────── */
+.muda-box {
+  margin-top: 10px;
+  padding: 11px 14px;
+  background: rgba(212,173,104,.13);
+  border: 1px solid rgba(184,146,62,.35);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg);
+}
+
+.muda-box-eyebrow {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--gold-mid);
+  margin-bottom: 5px;
+}
+
+/* ── TRANSITION ───────────────────────────── */
+.transition {
+  margin: 32px 0;
+  padding: 20px 22px;
+  border-radius: 14px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  border: 1px solid;
+}
+
+.transition.to-ops {
+  background: var(--green-light);
+  border-color: rgba(47,74,58,.2);
+}
+
+.transition-arrow {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.transition-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.transition-body {
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.55;
+}
+
+.section-gap { height: 48px; }
+
+/* ── UNIFIED SUB-FLOW SECTION ──────────── */
+.subflow-wrapper {
+  margin-top: 36px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.subflow-header {
+  background: var(--navy);
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subflow-eyebrow {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.subflow-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.25;
+}
+
+.subflow-subtitle {
+  font-size: 12.5px;
+  color: rgba(255,255,255,.55);
+  margin-top: 2px;
+}
+
+.subflow-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.subflow-col {
+  padding: 20px 20px 24px;
+}
+
+.subflow-col.col-ops {
+  background: var(--green-light);
+  border-right: 1px solid var(--border);
+}
+
+.subflow-col.col-rcp {
+  background: var(--gold-light);
+}
+
+.subflow-col-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.subflow-col-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.subflow-col-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.col-ops .subflow-col-dot  { background: var(--green); }
+.col-ops .subflow-col-label { color: var(--green); }
+.col-rcp .subflow-col-dot  { background: var(--gold-mid); }
+.col-rcp .subflow-col-label { color: var(--gold-mid); }
+
+.subflow-col-badge {
+  display: inline-flex;
+  padding: 2px 6px;
+  border-radius: 100px;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  background: var(--gold);
+  color: var(--navy);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* sub-steps inside the grid */
+.sub-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.sub-step:last-child { margin-bottom: 0; }
+
+.sub-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.col-ops .sub-num { background: var(--green); color: #fff; }
+.col-rcp .sub-num { background: var(--gold-mid); color: #fff; }
+
+.sub-body { flex: 1; min-width: 0; }
+
+.sub-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-bottom: 2px;
+  color: var(--fg);
+}
+
+.sub-desc {
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  line-height: 1.5;
+}
+
+.sub-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.sub-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+  background: rgba(255,255,255,.5);
+  line-height: 1.2;
+}
+
+/* ── CALLOUT BOX ───────────────────────────── */
+.callout {
+  margin-top: 44px;
+  padding: 22px 24px;
+  background: var(--navy-light);
+  border-radius: 14px;
+  border: 1px solid rgba(12,38,51,.12);
+}
+
+.callout-eyebrow {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+
+.callout p {
+  font-size: 13px;
+  color: var(--fg-muted);
+  line-height: 1.65;
+}
+
+/* ── FOOTER ───────────────────────────────── */
+.site-footer {
+  background: var(--navy);
+  color: rgba(255,255,255,.5);
+  font-size: 12px;
+  text-align: center;
+  padding: 28px max(32px, env(safe-area-inset-left, 0px));
+  margin-top: 0;
+}
+
+.site-footer strong { color: var(--gold); }
+
+/* ── RESPONSIVE ───────────────────────────── */
+@media (max-width: 540px) {
+  .content { padding-inline: 16px; }
+  .timeline { padding-left: 44px; }
+  .timeline::before { left: 15px; }
+  .step-node { left: -37px; width: 26px; height: 26px; font-size: 10px; }
+  .legend-row { padding-inline: 16px; }
+  .subflow-grid { grid-template-columns: 1fr; }
+  .subflow-col.col-ops { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* -- CONDITIONAL STEPS ------------------------------------------------- */
+.step.condicional .step-body {
+  border-style: dashed;
+  border-color: var(--border);
+  background: var(--note-bg);
+  opacity: 0.85;
+}
+.step.condicional .step-node {
+  border-style: dashed;
+  opacity: 0.75;
+}
+.condicional-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 100px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  background: var(--note-bg);
+  color: var(--fg-muted);
+  border: 1px dashed var(--border);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════════════════ -->
+<header class="site-header">
+  <p class="header-eyebrow">COMUNICADO · DOIS NOVOS PROCESSOS</p>
+  <h1 class="header-title">Jornada do Franqueado</h1>
+  <p class="header-subtitle">A partir de agora, dois novos processos passam a fazer parte da jornada: o <strong style="color:rgba(255,255,255,.85)">Comitê Ops</strong>, processo de atualização do estudo pós Alvará e Pré Crédito, e as <strong style="color:rgba(255,255,255,.85)">Assinaturas de Recompra</strong>, pois sempre que a Moní escolher exercitar a Opção de compra, a fará por meio deste contrato e desta assinatura. Este mapa mostra onde cada um entra na esteira.</p>
+  <div class="header-rule"></div>
+</header>
+
+<!-- LEGENDA -->
+<div class="legend-row">
+  <div class="legend-item">
+    <div class="ldot" style="background:var(--navy)"></div>
+    <span>Funil Portfólio</span>
+  </div>
+  <div class="legend-item">
+    <div class="ldot" style="background:var(--green)"></div>
+    <span>Pré Obra e Obra</span>
+  </div>
+  <div class="legend-item">
+    <div class="ldot" style="background:var(--gold)"></div>
+    <span>Sub-fluxo Recompra</span>
+  </div>
+  <div class="legend-item">
+    <span class="lbadge">novo</span>
+    <span>Processo novo</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     CONTEÚDO
+══════════════════════════════════════════════════════════════════ -->
+<main class="content">
+
+  <!-- ══ 01 · PORTFÓLIO ══════════════════════════════════════════ -->
+  <div class="section-label-row">
+    <span class="section-num pf">Fase 01</span>
+    <div class="section-rule"></div>
+  </div>
+  <h2 class="section-title">Funil Portfólio: Novos Negócios</h2>
+  <p class="section-desc">Da análise de viabilidade até a passagem formal para o início das obras.</p>
+
+  <div class="timeline pf">
+
+    <div class="step">
+      <div class="step-node">1</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Step One &amp; Viabilidade</span></div>
+        <p class="step-desc">Análise do condomínio, mapa competitivo, configurador de casas e BCA inicial. Primeira avaliação da viabilidade do negócio.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 15–30 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Frank</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">2</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Aprovação Novo Negócio</span></div>
+        <p class="step-desc">O negócio é avaliado e aprovado pela equipe Moní para seguir na esteira de processos.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 5 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Moní</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">3</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Opção de Compra</span></div>
+        <p class="step-desc">Assinatura do contrato de opção de compra com o terrenista, garantindo o direito sobre o imóvel.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 7 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Frank</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">4</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Acoplamento: Modelagem Financeira</span></div>
+        <p class="step-desc">Modelagem financeira detalhada via Gbox, validando a viabilidade econômica do projeto com todos os parâmetros do terreno.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 10 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Moní</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">5</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Comitê Moní</span></div>
+        <p class="step-desc">Aprovação pelo comitê da Moní. A Hipótese é apresentada com todos os cenários financeiros do negócio.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 5 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Moní</span>
+        </div>
+        <div class="muda-box">
+          <div class="muda-box-eyebrow">✦ O que muda nesta etapa</div>
+          Agora, após o Comitê Moní, o <strong>valor de recompra projetado</strong> é apresentado formalmente, calculado com base no BCA atualizado. Este valor será consolidado definitivamente no Comitê Ops (etapa 13), já com o projeto aprovado pela Prefeitura.
+        </div>
+      </div>
+    </div>
+
+    <div class="step condicional">
+      <div class="step-node">6</div>
+      <div class="step-body">
+        <div class="step-top">
+          <span class="step-title">Demais Comitês</span>
+          <span class="condicional-pill">se necessário</span>
+        </div>
+        <p class="step-desc">Comitês adicionais realizados conforme necessidade específica do negócio, terreno ou condomínio.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">👤</span> Moní</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">7</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Diligência do Terreno: Fornecedor Homologado</span></div>
+        <p class="step-desc">Análise técnica e jurídica do terreno realizada por fornecedor homologado pela Moní.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> mín. 10 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Fornecedor</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step novo">
+      <div class="step-node">8</div>
+      <div class="step-body">
+        <div class="step-top">
+          <span class="step-title">Assinatura de Contrato de Compra Futura do Terreno</span>
+          <span class="novo-pill">novo</span>
+        </div>
+        <p class="step-desc">Assinatura do contrato que formaliza a compra futura do terreno. Sempre que a Moní escolher exercitar a Opção de compra, a fará por meio deste contrato e desta assinatura.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 3 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Franqueado</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /timeline.pf -->
+
+  <!-- TRANSIÇÃO: Portfólio → Ops -->
+  <div class="transition to-ops">
+    <span class="transition-arrow">↓</span>
+    <div>
+      <div class="transition-title">Passagem para Pré Obra e Obra</div>
+      <p class="transition-body">O negócio avança para a fase operacional.</p>
+    </div>
+  </div>
+
+  <!-- ══ 02 · PRÉ OBRA E OBRA ════════════════════════════════════ -->
+  <div class="section-label-row" style="margin-top:0">
+    <span class="section-num ops">Fase 02</span>
+    <div class="section-rule"></div>
+  </div>
+  <h2 class="section-title">Pré Obra e Obra: Operações</h2>
+  <p class="section-desc">Da topografia até a entrega da obra. Inclui o novo Comitê Ops e as Assinaturas de Recompra.</p>
+
+  <div class="timeline ops">
+
+    <div class="step">
+      <div class="step-node">9</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Planialtimétrico e Sondagem</span></div>
+        <p class="step-desc">Levantamento topográfico detalhado do terreno como base para o projeto arquitetônico.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 10 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Wayser / Moní</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">10</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Projeto Legal</span></div>
+        <p class="step-desc">Desenvolvimento do projeto arquitetônico legal pelo escritório parceiro Wayser.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 20 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Wayser</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">11</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Aprovação do Condomínio</span></div>
+        <p class="step-desc">Aprovação do projeto pela administração do condomínio ou loteamento onde o terreno está localizado.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 15 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Condomínio</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step condicional">
+      <div class="step-body">
+        <div class="step-top">
+          <span class="step-title">Possíveis Comunique-ses no Condomínio</span>
+          <span class="condicional-pill">se necessário</span>
+        </div>
+        <p class="step-desc">Comunicações formais ao condomínio durante o processo de aprovação.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">👤</span> Wayser / Moní</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">12</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Aprovação na Prefeitura</span></div>
+        <p class="step-desc">Protocolo e aprovação do projeto junto à prefeitura municipal. Etapa de maior variação de prazo, podendo levar de 60 a 120 dias.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 60–120 d.c.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Prefeitura</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step condicional">
+      <div class="step-body">
+        <div class="step-top">
+          <span class="step-title">Possíveis Comunique-ses na Prefeitura</span>
+          <span class="condicional-pill">se necessário</span>
+        </div>
+        <p class="step-desc">Comunicações formais à prefeitura durante o processo de aprovação.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">👤</span> Wayser / Moní</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step novo">
+      <div class="step-node">13</div>
+      <div class="step-body">
+        <div class="step-top">
+          <span class="step-title">Comitê Ops</span>
+          <span class="novo-pill">novo</span>
+        </div>
+        <p class="step-desc">O Comitê Operacional validará o negócio após a emissão do alvará. Como aproximadamente 120 dias se passaram desde a Assinatura do Contrato (etapa 8), o material é atualizado e o valor de recompra é consolidado definitivamente, aceite e assinado.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> ~15 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Moní + Frank</span>
+        </div>
+        <div class="step-note">🔗 <strong>Acionamento automático:</strong> ao entrar nesta etapa, o Hub sinaliza seu card no Portfólio para iniciar o Sub-fluxo de Recompra, e os dois fluxos correm em paralelo, conforme detalhado abaixo.</div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">14</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Processos Cartorários</span></div>
+        <p class="step-desc">Registros e processos em cartório necessários para a emissão do alvará de construção.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 20 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Cartório / Moní</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">15</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Aguardando Crédito</span></div>
+        <p class="step-desc">Liberação do crédito de obra pelo parceiro Cash Me. Análise de crédito para construção e liberação das tranches.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 30 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Cash Me</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">16</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Em Obra</span></div>
+        <p class="step-desc">Execução da construção com acompanhamento técnico. Crédito liberado em tranches conforme avanço físico da obra.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> ~180 d.c.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Frank / Wayser</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-node">17</div>
+      <div class="step-body">
+        <div class="step-top"><span class="step-title">Obra Entregue: Habite-se ✓</span></div>
+        <p class="step-desc">Entrega das chaves, habite-se emitido e conclusão do ciclo operacional do negócio.</p>
+        <div class="step-meta">
+          <span class="meta-tag"><span class="meta-icon">⏱</span> 15 d.u.</span>
+          <span class="meta-tag"><span class="meta-icon">👤</span> Moní / Frank</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /timeline.ops -->
+
+  <!-- ══ SUB-FLUXO UNIFICADO: COMITÊ OPS + RECOMPRA ══════════════ -->
+  <div class="subflow-wrapper">
+
+    <div class="subflow-header">
+      <span class="subflow-eyebrow">🔗 Acionado pela etapa 13 · Comitê Ops</span>
+      <div class="subflow-title">Sub-fluxo: Comitê Ops + Recompra</div>
+      <p class="subflow-subtitle">Enquanto a etapa 13 ocorre em Operações, o Portfólio é sinalizado para atualizar o material e processar as Assinaturas de Recompra em paralelo.</p>
+    </div>
+
+    <div class="subflow-grid">
+
+      <!-- COLUNA ESQUERDA: Comitê Ops -->
+      <div class="subflow-col col-ops">
+        <div class="subflow-col-header">
+          <div class="subflow-col-dot"></div>
+          <span class="subflow-col-label">Comitê Ops: Pré Obra e Obra</span>
+        </div>
+
+        <div class="sub-step">
+          <div class="sub-num">I</div>
+          <div class="sub-body">
+            <div class="sub-title">Atualizar Material</div>
+            <div class="sub-desc">BCA, Estudo de Mercado e Batalha de Casas são revisados com dados atuais do projeto.</div>
+            <div class="sub-tags">
+              <span class="sub-tag">⏱ 3 d.u.</span>
+              <span class="sub-tag">👤 Frank</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-step">
+          <div class="sub-num">II</div>
+          <div class="sub-body">
+            <div class="sub-title">Análise do Material Revisado</div>
+            <div class="sub-desc">Moní revisa o material atualizado e verifica consistência com os parâmetros do projeto.</div>
+            <div class="sub-tags">
+              <span class="sub-tag">⏱ 2 d.u.</span>
+              <span class="sub-tag">👤 Moní</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-step">
+          <div class="sub-num">III</div>
+          <div class="sub-body">
+            <div class="sub-title">Revisões do Material</div>
+            <div class="sub-desc">Frank aplica ajustes solicitados e reenvia para validação final.</div>
+            <div class="sub-tags">
+              <span class="sub-tag">⏱ 2 d.u.</span>
+              <span class="sub-tag">👤 Frank</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-step">
+          <div class="sub-num">IV</div>
+          <div class="sub-body">
+            <div class="sub-title">Comitê Alvará: Validação Final</div>
+            <div class="sub-desc">Aprovação final com material consolidado. Valor de recompra é confirmado definitivamente.</div>
+            <div class="sub-tags">
+              <span class="sub-tag">⏱ a definir</span>
+              <span class="sub-tag">👤 Moní + Frank</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /col-ops -->
+
+      <!-- COLUNA DIREITA: Recompra -->
+      <div class="subflow-col col-rcp">
+        <div class="subflow-col-header">
+          <div class="subflow-col-dot"></div>
+          <span class="subflow-col-label">Recompra: Portfólio</span>
+          <span class="subflow-col-badge">novo</span>
+        </div>
+
+        <div class="sub-step">
+          <div class="sub-num">A</div>
+          <div class="sub-body">
+            <div class="sub-title">Definição e Envio do Valor</div>
+            <div class="sub-desc">Moní define o valor preliminar e definitivo de recompra da cota SPE e envia o Contrato de Outorga de Opções ao franqueado.</div>
+            <div class="sub-tags">
+              <span class="sub-tag">⏱ 2 d.u.</span>
+              <span class="sub-tag">👤 Moní</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-step">
+          <div class="sub-num">B</div>
+          <div class="sub-body">
+            <div class="sub-title">Conferência e Aceite do Valor</div>
+            <div class="sub-desc">Frank analisa os termos e valores apresentados e confirma o aceite para seguir com as assinaturas.</div>
+            <div class="sub-tags">
+              <span class="sub-tag">⏱ 3 d.u.</span>
+              <span class="sub-tag">👤 Frank</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-step">
+          <div class="sub-num">C</div>
+          <div class="sub-body">
+            <div class="sub-title">Envio do Contrato e Esclarecimentos</div>
+            <div class="sub-desc">Contrato formal enviado via Autentique. Dúvidas são esclarecidas pelo time jurídico Moní antes das assinaturas.</div>
+            <div class="sub-tags">
+              <span class="sub-tag">⏱ 2 d.u.</span>
+              <span class="sub-tag">👤 Moní / Frank</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-step">
+          <div class="sub-num">D</div>
+          <div class="sub-body">
+            <div class="sub-title">Aceite e Assinaturas do Contrato ✓</div>
+            <div class="sub-desc">Contrato assinado por todas as partes via plataforma digital. Recompra formalizada com validade jurídica.</div>
+            <div class="sub-tags">
+              <span class="sub-tag">⏱ 2 d.u.</span>
+              <span class="sub-tag">👤 Partes</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /col-rcp -->
+
+    </div><!-- /subflow-grid -->
+  </div><!-- /subflow-wrapper -->
+
+  <!-- NOTA FINAL -->
+  <div class="callout">
+    <div class="callout-eyebrow">📋 Implementação dos Novos Processos</div>
+    <p>O <strong style="color:var(--fg)">Comitê Ops</strong> (etapa 13) e as <strong style="color:var(--fg)">Assinaturas de Recompra</strong> (etapas A–D) estão sendo implementados em <strong style="color:var(--fg)">toda a esteira ativa</strong>. Franqueados com projetos em andamento serão integrados a esses fluxos conforme a etapa em que se encontram no momento da implementação.<br><br>Dúvidas sobre o processo? Entre em contato com seu consultor Moní pelo Hub Fly.</p>
+  </div>
+
+</main>
+
+<footer class="site-footer">
+  <p><strong>Casa Moní</strong> &nbsp;·&nbsp; Documento de processos internos &nbsp;·&nbsp; Novembro 2026</p>
+</footer>

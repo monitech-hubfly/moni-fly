@@ -1,0 +1,3 @@
+-- Migration 430_casas_modelos.sql
+-- SUBSTITUIDA por 688_casas_modelos.sql (numero correto + JSONB em linha unica)
+-- Este arquivo e mantido apenas para evitar reprocessamento. Nao faz nada.

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
+import { ClipboardDocumentListIcon, PresentationChartBarIcon } from '@heroicons/react/24/outline';
 import { Building2, ChevronDown, ChevronRight, User } from 'lucide-react';
 import { AlertasBellLink } from '@/components/AlertasBellLink';
 import { canAccessFunilContratacoes, isAdminRole, normalizeAccessRole } from '@/lib/authz';
@@ -48,6 +48,10 @@ const INTERNO_SUBITENS: NavItem[] = [{ href: '/funil-contratacoes', label: 'Cont
 const SIRENE_SUBITENS: NavItem[] = [
   { href: '/sirene/chamados', label: 'Chamados' },
   { href: '/sirene/pericias', label: 'Classificações' },
+];
+const REPOSITORIO_SUBITENS: NavItem[] = [
+  { href: '/formularios', label: 'Formulários', icon: ClipboardDocumentListIcon as typeof Building2 },
+  { href: '/apresentacoes', label: 'Apresentações', icon: PresentationChartBarIcon as typeof Building2 },
 ];
 // Itens visíveis para todos admin/team
 const CAROMETRO_SUBITENS_ATIVOS: NavItem[] = [
@@ -179,6 +183,7 @@ export function PortalSidebar({ user, userRole, userCargo = null }: PortalSideba
   const [stepsOpen, setStepsOpen] = useState(() => isStepsActive(pathname ?? ''));
   const [internoOpen, setInternoOpen] = useState(() => isInternoNavActive(pathname ?? ''));
   const [sireneOpen, setSireneOpen] = useState(() => isSireneNavActive(pathname ?? ''));
+  const [repositorioOpen, setRepositorioOpen] = useState(() => Boolean(pathname?.startsWith('/repositorio') || pathname?.startsWith('/formularios') || pathname?.startsWith('/apresentacoes')));
   const [dashboardsGeraisOpen] = useState(false); // sem expansão — link direto
   const [carometroOpen, setCarometroOpen] = useState(() => isCarometroNavActive(pathname ?? ''));
   /** Franqueado não acessa `/rede-franqueados` (middleware); visão consolidada em `/portal-frank/rede`. */
@@ -201,6 +206,7 @@ export function PortalSidebar({ user, userRole, userCargo = null }: PortalSideba
     }
     if (isInternoNavActive(p)) setInternoOpen(true);
     if (isSireneNavActive(p)) setSireneOpen(true);
+    if (p.startsWith('/repositorio') || p.startsWith('/formularios') || p.startsWith('/apresentacoes')) setRepositorioOpen(true);
     if (isCarometroNavActive(p)) setCarometroOpen(true);
     if (isRedeFranqueadosActive(p)) setRedeFranqueadosOpen(true);
     else if (isCatalogoActive(p)) setCatalogoOpen(true);
@@ -235,7 +241,8 @@ export function PortalSidebar({ user, userRole, userCargo = null }: PortalSideba
       | 'hdm'
       | 'interno'
       | 'sirene'
-      | 'carometro',
+      | 'carometro'
+      | 'repositorio',
     label: string,
     isActive: boolean,
     open: boolean,
@@ -393,24 +400,16 @@ export function PortalSidebar({ user, userRole, userCargo = null }: PortalSideba
             (href) => pathname === href || (pathname?.startsWith(`${href}/`) ?? false),
           )}
 
-        {!limitedRelease && (isAdmin || resolvedRole === 'team') && (
-          <Link
-            href="/repositorio"
-            className={linkClassPrincipal(Boolean(pathname?.startsWith('/repositorio')))}
-          >
-            Repositório
-          </Link>
-        )}
-
-        {!limitedRelease && !isFrank && (isAdmin || resolvedRole === 'team') && (
-          <Link
-            href="/formularios"
-            className={`${linkClassPrincipal(Boolean(pathname?.startsWith('/formularios')))} flex items-center gap-2`}
-          >
-            <ClipboardDocumentListIcon className="h-4 w-4 shrink-0" aria-hidden />
-            Formulários
-          </Link>
-        )}
+        {!limitedRelease && !isFrank && (isAdmin || resolvedRole === 'team') &&
+          renderMacro(
+            'repositorio',
+            'Repositório',
+            Boolean(pathname?.startsWith('/repositorio') || pathname?.startsWith('/formularios') || pathname?.startsWith('/apresentacoes')),
+            repositorioOpen,
+            setRepositorioOpen,
+            REPOSITORIO_SUBITENS,
+            (href) => Boolean(pathname === href || pathname?.startsWith(`${href}/`)),
+          )}
 
         {!limitedRelease &&
           (isAdmin || resolvedRole === 'team') &&

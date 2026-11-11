@@ -134,6 +134,7 @@ export async function updateSession(request: NextRequest) {
     '/perfil',
     '/sirene',
     '/formularios',
+    '/apresentacoes',
     '/universidade',
     '/casa0',
     '/casa1',
