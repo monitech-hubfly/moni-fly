@@ -1,6 +1,6 @@
 /**
  * HTML das 27 páginas do Book do Empreendimento.
- * Autossuficiente para o Puppeteer: paleta no :root, sem CSS externo e sem Google Fonts.
+ * Requer Google Fonts (Playfair Display + Inter) via @import — Puppeteer com waitUntil:load.
  */
 
 export interface Imagem {
@@ -175,6 +175,12 @@ function nomeCatalogo(casa: CasaModelo): string {
   return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase()
 }
 
+function blank(value?: string | number, unit = ''): string {
+  if (value !== undefined && value !== null && value !== '')
+    return `${value}${unit}`
+  return `<span class="blank">—${unit}</span>`
+}
+
 function renderCover(ctx: BookContext): string {
   const codigo = escapeHtml(nomeCatalogo(ctx.casa))
   const fachada = getImagemPorAlt(ctx, 'Fachada') ?? getImagem(ctx, 0)
@@ -204,7 +210,13 @@ function renderCover(ctx: BookContext): string {
         <span class="cover-meta-item">${loteSvg}</span>
       </div>
     </div>
-    <div class="cover-footer">
+    <div class="moni-wm">
+      <span>Casa Moní</span>
+      <span>Book do Empreendimento</span>
+      <span>Uso interno — confidencial</span>
+      <span>moni.casa</span>
+    </div>
+  <div class="cover-footer">
       <div class="cover-footer-rule"></div>
       <div class="cover-footer-row">${moniWordmarkSvg}<p class="cover-footer-label">BOOK DO EMPREENDIMENTO &middot; ${ano}</p></div>
     </div>
@@ -245,6 +257,7 @@ function renderAberturaCondominio(ctx: BookContext): string {
       '<h2 class="cond-ab-titulo">O condomínio</h2>' +
       (fraseEsc ? '<p class="cond-ab-sub">' + fraseEsc + '</p>' : '') +
     '</div>' +
+    '    <div class=\"moni-wm\">\n      <span>Casa Moní</span>\n      <span>Book do Empreendimento</span>\n      <span>Uso interno — confidencial</span>\n      <span>moni.casa</span>\n    </div>' +
     '</section>'
 }
 
@@ -381,6 +394,12 @@ function renderAberturaCasa(ctx: BookContext): string {
       <p class="abertura-parte">Parte 02</p>
       <h2 class="abertura-nome">${nome}</h2>
     </div>
+    <div class="moni-wm">
+      <span>Casa Moní</span>
+      <span>Book do Empreendimento</span>
+      <span>Uso interno — confidencial</span>
+      <span>moni.casa</span>
+    </div>
   </section>`
 }
 
@@ -491,23 +510,32 @@ function renderEncerramento(_ctx: BookContext): string {
       <p class="fim-tagline">Viver bem é uma escolha.</p>
     </div>
     <p class="fim-site">moni.casa</p>
+    <div class="moni-wm">
+      <span>Casa Moní</span>
+      <span>Book do Empreendimento</span>
+      <span>Uso interno — confidencial</span>
+      <span>moni.casa</span>
+    </div>
   </section>`
 }
 
 function estilos(): string {
   return `
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@300;400;500&display=swap');
+
     :root {
-      --moni-navy-800: #0C2633;
-      --moni-navy-600: #163545;
-      --moni-green-800: #2F4A3A;
-      --moni-green-400: #4d7a62;
-      --moni-earth-800: #4A3929;
-      --moni-gold-400: #D4AD68;
-      --moni-gold-200: #e8c98a;
-      --moni-cream: #F5F0E8;
-      --moni-white: #FFFFFF;
-      --moni-font-display: Georgia, 'Times New Roman', serif;
-      --moni-font-sans: Arial, Helvetica, sans-serif;
+      --navy: #0C2633;
+      --navy-mid: #163545;
+      --green: #2F4A3A;
+      --green-mid: #4d7a62;
+      --earth: #4A3929;
+      --gold: #D4AD68;
+      --gold-light: #e8c98a;
+      --cream: #F5F0E8;
+      --white: #FFFFFF;
+      --gray-light: #E8E4DC;
+      --gray-mid: #9A9490;
+      --text-dark: #1A1612;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -517,7 +545,7 @@ function estilos(): string {
     html, body {
       margin: 0;
       padding: 0;
-      background: var(--moni-navy-800);
+      background: var(--navy);
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -542,29 +570,29 @@ function estilos(): string {
       width: 100%;
       height: 100%;
       object-fit: cover;
-      background: var(--moni-navy-800);
+      background: var(--navy);
     }
 
     .rule {
       width: 18mm;
       height: 0.5px;
-      background: var(--moni-gold-400);
+      background: var(--gold);
       border: 0;
     }
 
-    .rule-light { background: var(--moni-gold-200); }
+    .rule-light { background: var(--gold-light); }
     .rule-center { margin-left: auto; margin-right: auto; }
 
     .kicker {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 10px;
       letter-spacing: 0.34em;
       text-transform: uppercase;
-      color: var(--moni-green-800);
+      color: var(--green);
     }
 
     /* ── Capa ── */
-    .page-cover { background: var(--moni-navy-800); }
+    .page-cover { background: var(--navy); }
 
     .cover-overlay {
       position: absolute;
@@ -595,11 +623,11 @@ function estilos(): string {
     }
 
     .cover-kicker {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 7.5px;
       letter-spacing: 0.38em;
       text-transform: uppercase;
-      color: var(--moni-gold-400);
+      color: var(--gold);
       margin-bottom: 1.5mm;
     }
 
@@ -610,24 +638,24 @@ function estilos(): string {
     }
 
     .cover-word-casa {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 76px;
       font-weight: 700;
-      color: var(--moni-white);
+      color: var(--white);
       letter-spacing: 0.01em;
     }
 
     .cover-word-codigo {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 76px;
       font-weight: 400;
       font-style: italic;
-      color: var(--moni-gold-400);
+      color: var(--gold);
       letter-spacing: 0.01em;
     }
 
     .cover-subtitulo {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 12.5px;
       line-height: 1.4;
       color: rgba(255,255,255,0.80);
@@ -645,7 +673,7 @@ function estilos(): string {
       display: flex;
       align-items: center;
       gap: 2mm;
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 9.5px;
       letter-spacing: 0.18em;
       color: rgba(255,255,255,0.60);
@@ -684,16 +712,16 @@ function estilos(): string {
     .moni-wordmark { width: 56px; height: 13px; display: block; }
 
     .fim-logo {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 13px;
       letter-spacing: 0.52em;
       text-transform: uppercase;
       text-indent: 0.52em;
-      color: var(--moni-white);
+      color: var(--white);
     }
 
     .cover-footer-label {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 8.5px;
       letter-spacing: 0.28em;
       text-transform: uppercase;
@@ -701,7 +729,7 @@ function estilos(): string {
     }
 
     .page-placeholder {
-      background: var(--moni-navy-800);
+      background: var(--navy);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -715,35 +743,35 @@ function estilos(): string {
     .placeholder-inner .rule { margin: 0 auto 8mm; }
 
     .placeholder-title {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-weight: normal;
       font-size: 36px;
       line-height: 1.15;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--moni-gold-400);
+      color: var(--gold);
     }
 
     .placeholder-sub {
       margin-top: 6mm;
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 12px;
       letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: color-mix(in srgb, var(--moni-cream) 78%, var(--moni-navy-600));
+      color: color-mix(in srgb, var(--cream) 78%, var(--navy-mid));
     }
 
     .placeholder-hint {
       margin-top: 8mm;
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 10px;
       letter-spacing: 0.28em;
       text-transform: uppercase;
-      color: color-mix(in srgb, var(--moni-cream) 78%, var(--moni-navy-600));
+      color: color-mix(in srgb, var(--cream) 78%, var(--navy-mid));
     }
 
     /* ── Folha 2: Abertura Condomínio ── */
-    .page-cond-abertura { background: var(--moni-navy-800); }
+    .page-cond-abertura { background: var(--navy); }
 
     .cond-overlay {
       position: absolute;
@@ -765,48 +793,48 @@ function estilos(): string {
     }
 
     .cond-ab-parte {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 8px;
       font-weight: 500;
       letter-spacing: 0.46em;
       text-transform: uppercase;
-      color: var(--moni-gold-400);
+      color: var(--gold);
       margin-bottom: 4mm;
     }
 
     .cond-ab-casa {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 15px;
       font-weight: 500;
       letter-spacing: 0.42em;
       text-transform: uppercase;
-      color: var(--moni-white);
+      color: var(--white);
       margin-bottom: 3mm;
     }
 
     .cond-ab-titulo {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 68px;
       font-weight: 700;
       line-height: 0.9;
       letter-spacing: 0.01em;
-      color: var(--moni-white);
+      color: var(--white);
       margin-bottom: 4mm;
     }
 
     .cond-ab-sub {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 14px;
       font-weight: 400;
       line-height: 1.35;
-      color: var(--moni-white);
+      color: var(--white);
       max-width: 150mm;
     }
 
     /* ── Folha 3: Localização ── */
     .page-loc {
       display: flex;
-      background: var(--moni-cream);
+      background: var(--cream);
     }
 
     .loc-esquerda {
@@ -815,7 +843,7 @@ function estilos(): string {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      background: var(--moni-cream);
+      background: var(--cream);
       position: relative;
       z-index: 1;
     }
@@ -836,34 +864,34 @@ function estilos(): string {
     }
 
     .loc-foto-placeholder {
-      background: var(--moni-navy-800);
+      background: var(--navy);
     }
 
     .loc-nome {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 14px;
       font-weight: 600;
       letter-spacing: 0.34em;
       text-transform: uppercase;
-      color: var(--moni-navy-800);
+      color: var(--navy);
       margin-bottom: 2mm;
     }
 
     .loc-cidade {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 8px;
       letter-spacing: 0.2em;
       text-transform: uppercase;
-      color: var(--moni-green-400);
+      color: var(--green-mid);
       margin-bottom: 6mm;
     }
 
     .loc-titulo {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 36px;
       line-height: 1.05;
       margin-bottom: 5mm;
-      color: var(--moni-navy-800);
+      color: var(--navy);
     }
 
     .loc-titulo-bold {
@@ -873,14 +901,14 @@ function estilos(): string {
     .loc-titulo-italic {
       font-weight: 400;
       font-style: italic;
-      color: var(--moni-gold-400);
+      color: var(--gold);
     }
 
     .loc-sub {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 12px;
       line-height: 1.45;
-      color: var(--moni-earth-800);
+      color: var(--earth);
       margin-bottom: 6mm;
       max-width: 92mm;
       display: -webkit-box;
@@ -891,7 +919,7 @@ function estilos(): string {
 
     .loc-sub strong {
       font-weight: 700;
-      color: var(--moni-navy-800);
+      color: var(--navy);
     }
 
     .loc-rule {
@@ -916,13 +944,13 @@ function estilos(): string {
 
     .loc-icone {
       flex-shrink: 0;
-      color: var(--moni-navy-800);
+      color: var(--navy);
       opacity: 0.65;
       margin-top: 0.5mm;
     }
 
     .loc-item-txt {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 9.5px;
       line-height: 1.5;
       color: #3A3A3A;
@@ -930,19 +958,19 @@ function estilos(): string {
 
     .loc-item-txt strong {
       font-weight: 700;
-      color: var(--moni-navy-800);
+      color: var(--navy);
     }
 
-    .page-abertura { background: var(--moni-navy-800); }
+    .page-abertura { background: var(--navy); }
 
     .overlay-abertura {
       position: absolute;
       inset: 0;
       background: linear-gradient(
         to top,
-        color-mix(in srgb, var(--moni-navy-800) 88%, transparent) 0%,
-        color-mix(in srgb, var(--moni-navy-800) 42%, transparent) 46%,
-        color-mix(in srgb, var(--moni-navy-800) 18%, transparent) 100%
+        color-mix(in srgb, var(--navy) 88%, transparent) 0%,
+        color-mix(in srgb, var(--navy) 42%, transparent) 46%,
+        color-mix(in srgb, var(--navy) 18%, transparent) 100%
       );
     }
 
@@ -954,26 +982,26 @@ function estilos(): string {
     }
 
     .abertura-parte {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 11px;
       letter-spacing: 0.38em;
       text-transform: uppercase;
-      color: var(--moni-gold-200);
+      color: var(--gold-light);
     }
 
     .abertura-nome {
       margin-top: 4mm;
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-weight: normal;
       font-size: 58px;
       line-height: 0.92;
       letter-spacing: 0.04em;
-      color: var(--moni-gold-400);
+      color: var(--gold);
     }
 
     .page-cream {
-      background: var(--moni-cream);
-      color: var(--moni-earth-800);
+      background: var(--cream);
+      color: var(--earth);
     }
 
     .filosofia,
@@ -988,12 +1016,12 @@ function estilos(): string {
     .filosofia-nome,
     .ficha-nome {
       margin-top: 4mm;
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-weight: normal;
       font-size: 42px;
       line-height: 1;
       letter-spacing: 0.04em;
-      color: var(--moni-navy-800);
+      color: var(--navy);
     }
 
     .filosofia .rule,
@@ -1001,15 +1029,15 @@ function estilos(): string {
 
     .filosofia-texto p {
       max-width: 240mm;
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 16px;
       line-height: 1.65;
-      color: var(--moni-earth-800);
+      color: var(--earth);
     }
 
     .filosofia-texto p + p { margin-top: 5mm; }
 
-    .page-imagem { background: var(--moni-navy-800); }
+    .page-imagem { background: var(--navy); }
 
     .legenda {
       position: absolute;
@@ -1019,20 +1047,20 @@ function estilos(): string {
       padding: 28mm 16mm 16mm;
       background: linear-gradient(
         to top,
-        color-mix(in srgb, var(--moni-navy-800) 90%, transparent) 0%,
-        color-mix(in srgb, var(--moni-navy-800) 55%, transparent) 48%,
-        color-mix(in srgb, var(--moni-navy-800) 0%, transparent) 100%
+        color-mix(in srgb, var(--navy) 90%, transparent) 0%,
+        color-mix(in srgb, var(--navy) 55%, transparent) 48%,
+        color-mix(in srgb, var(--navy) 0%, transparent) 100%
       );
     }
 
     .legenda-titulo {
       margin-top: 5mm;
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-weight: normal;
       font-size: 32px;
       line-height: 1;
       letter-spacing: 0.03em;
-      color: var(--moni-white);
+      color: var(--white);
     }
 
     .ficha-grid {
@@ -1045,19 +1073,19 @@ function estilos(): string {
     .ficha-item-largo { grid-column: 1 / -1; }
 
     .ficha-valor {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 26px;
       line-height: 1.1;
-      color: var(--moni-navy-800);
+      color: var(--navy);
     }
 
     .ficha-label {
       margin-top: 1.5mm;
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 10px;
       letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: var(--moni-earth-800);
+      color: var(--earth);
     }
 
     .ficha-programa { margin-top: 12mm; }
@@ -1071,10 +1099,10 @@ function estilos(): string {
     .ficha-programa li {
       position: relative;
       padding-left: 6mm;
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 14px;
       line-height: 1.55;
-      color: var(--moni-earth-800);
+      color: var(--earth);
     }
 
     .ficha-programa li + li { margin-top: 1.5mm; }
@@ -1086,25 +1114,25 @@ function estilos(): string {
       top: 0.55em;
       width: 2.5mm;
       height: 0.5px;
-      background: var(--moni-gold-400);
+      background: var(--gold);
     }
 
 
     /* ── Folha 5: Faixas de Lote ── */
     .page-faixas {
-      background: var(--moni-cream);
+      background: var(--cream);
       display: flex;
       flex-direction: column;
       padding: 0;
     }
 
     .fx-logo {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 14px;
       font-weight: 600;
       letter-spacing: 0.34em;
       text-transform: uppercase;
-      color: var(--moni-navy-800);
+      color: var(--navy);
       margin-bottom: 8px;
     }
 
@@ -1116,21 +1144,21 @@ function estilos(): string {
     }
 
     .fx-label {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 10px;
       font-weight: 500;
       letter-spacing: 0.28em;
       text-transform: uppercase;
-      color: var(--moni-gold-400);
+      color: var(--gold);
       margin-bottom: 8px;
     }
 
     .fx-titulo {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 42px;
       font-weight: 700;
       line-height: 1.05;
-      color: var(--moni-navy-800);
+      color: var(--navy);
       margin-bottom: 28px;
     }
 
@@ -1143,16 +1171,16 @@ function estilos(): string {
 
     .fx-card {
       flex: 1;
-      border: 0.5px solid var(--moni-gold-400);
+      border: 0.5px solid var(--gold);
       border-radius: 6px;
-      background: var(--moni-white);
+      background: var(--white);
       display: flex;
       align-items: flex-start;
     }
 
     .fx-card--destaque {
-      background: var(--moni-navy-800);
-      border-color: var(--moni-navy-800);
+      background: var(--navy);
+      border-color: var(--navy);
       box-shadow: 0 14px 28px rgba(12, 38, 51, 0.16);
     }
 
@@ -1162,20 +1190,20 @@ function estilos(): string {
     }
 
     .fx-card-nome {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 26px;
-      color: var(--moni-navy-800);
+      color: var(--navy);
       margin-bottom: 10px;
     }
 
     .fx-card--destaque .fx-card-nome {
-      color: var(--moni-white);
+      color: var(--white);
     }
 
     .fx-card-area {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 13px;
-      color: color-mix(in srgb, var(--moni-navy-800) 60%, transparent);
+      color: color-mix(in srgb, var(--navy) 60%, transparent);
       margin-bottom: 20px;
     }
 
@@ -1185,7 +1213,7 @@ function estilos(): string {
 
     .fx-rule {
       border: none;
-      border-top: 0.5px solid var(--moni-gold-400);
+      border-top: 0.5px solid var(--gold);
       margin-bottom: 20px;
     }
 
@@ -1194,25 +1222,50 @@ function estilos(): string {
     }
 
     .fx-card-label {
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 9px;
       letter-spacing: 0.28em;
       text-transform: uppercase;
-      color: var(--moni-gold-400);
+      color: var(--gold);
       margin-bottom: 10px;
     }
 
     .fx-card-preco {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-size: 32px;
       font-weight: bold;
       line-height: 1.15;
-      color: var(--moni-gold-400);
+      color: var(--gold);
+    }
+
+    .blank {
+      display: inline-block;
+      color: var(--gray-mid);
+      font-style: italic;
     }
 
     .page-fim {
-      background: var(--moni-navy-800);
-      color: var(--moni-white);
+      background: var(--navy);
+      color: var(--white);
+    }
+
+    .moni-wm {
+      position: absolute;
+      bottom: 24px;
+      left: 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .moni-wm span {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 7px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.08);
+      line-height: 1.6;
     }
 
     .fim-centro {
@@ -1229,10 +1282,10 @@ function estilos(): string {
     .fim-centro .rule { margin: 8mm auto; }
 
     .fim-tagline {
-      font-family: var(--moni-font-display);
+      font-family: 'Playfair Display', Georgia, serif;
       font-style: italic;
       font-size: 18px;
-      color: var(--moni-gold-400);
+      color: var(--gold);
     }
 
     .fim-site {
@@ -1241,10 +1294,10 @@ function estilos(): string {
       right: 0;
       bottom: 16mm;
       text-align: center;
-      font-family: var(--moni-font-sans);
+      font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 11px;
       letter-spacing: 0.22em;
-      color: var(--moni-cream);
+      color: var(--cream);
     }
   `
 }
