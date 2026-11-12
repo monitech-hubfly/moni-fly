@@ -68,8 +68,57 @@ function ultimaRender(ctx: BookContext): Imagem | undefined {
 }
 
 function encontrarPorAlt(ctx: BookContext, altText: string): Imagem | undefined {
+  return encontrarPorAltIndice(ctx, altText, 0)
+}
+
+function encontrarPorAltIndice(ctx: BookContext, altText: string, indice: number): Imagem | undefined {
   const needle = altText.toLowerCase()
-  return listaImagens(ctx).find((img) => img.alt?.toLowerCase().includes(needle))
+  return listaImagens(ctx).filter((img) => img.alt?.toLowerCase().includes(needle))[indice]
+}
+
+function semAcento(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+function ehRooftop(img: Imagem): boolean {
+  const rotulo = semAcento(`${img.alt} ${img.path}`)
+  return rotulo.includes('rooftop') || rotulo.includes('cobertura')
+}
+
+function ehPlantaTecnica(img: Imagem): boolean {
+  if (img.tipo === 'planta') return true
+  const alt = semAcento(img.alt || '')
+  return alt.includes('layout') || alt.includes('planta baixa') || alt === 'planta' || alt.startsWith('planta ')
+}
+
+function imagensJaUsadas(ctx: BookContext): Set<string> {
+  const usadas = new Set<string>()
+  const capa = encontrarPorAlt(ctx, 'Fachada') ?? ultimaRender(ctx) ?? getImagem(ctx, 0)
+  const abertura = encontrarPorAlt(ctx, 'Fachada Noturna')
+    ?? encontrarPorAlt(ctx, 'Quintal')
+    ?? encontrarPorAlt(ctx, 'Piscina')
+  const escolhidas = [
+    capa,
+    abertura,
+    encontrarPorAltIndice(ctx, 'Living', 0),
+    encontrarPorAlt(ctx, 'Cozinha'),
+    encontrarPorAltIndice(ctx, 'Living', 1),
+  ]
+  for (const img of escolhidas) {
+    if (img?.path) usadas.add(img.path)
+  }
+  return usadas
+}
+
+function fotoPatio(ctx: BookContext): Imagem | undefined {
+  const usadas = imagensJaUsadas(ctx)
+  const livres = listaImagens(ctx).filter((img) => img.path && !usadas.has(img.path) && !ehRooftop(img) && !ehPlantaTecnica(img))
+  const patio = livres.find((img) => semAcento(img.alt || '').includes('patio'))
+  if (patio) return patio
+  return livres.find((img) => {
+    const alt = semAcento(img.alt || '')
+    return alt.includes('quintal') || alt.includes('jardim') || alt.includes('plantas') || alt.includes('vegeta')
+  })
 }
 
 function getImagemPorAlt(ctx: BookContext, altText: string): Imagem | undefined {
@@ -531,8 +580,14 @@ function renderAberturaCasa(ctx: BookContext): string {
   </section>`
 }
 
-function renderFilosofiaModelo(_ctx: BookContext): string {
-  return `<section class="page page-filo">
+function renderFilosofiaModelo(ctx: BookContext): string {
+  const foto = encontrarPorAlt(ctx, 'Living')
+  const fotoUrl = foto ? imgUrl(foto.path) : ''
+  const fotoHtml = fotoUrl
+    ? `<img class="filo-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
+    : ''
+
+  return `<section class="page page-filo${fotoUrl ? ' page-filo-foto' : ''}">
     <div class="filo">
       <p class="filo-kicker">O modelo</p>
       <h2 class="filo-titulo">Uma casa que <em>respira leveza</em></h2>
@@ -543,6 +598,57 @@ function renderFilosofiaModelo(_ctx: BookContext): string {
       </div>
       <p class="filo-fecho">Porque viver bem não deveria ser complicado.</p>
     </div>
+    ${fotoHtml}
+  </section>`
+}
+
+function renderEstarJantar(ctx: BookContext): string {
+  const foto = encontrarPorAlt(ctx, 'Cozinha')
+  const fotoUrl = foto ? imgUrl(foto.path) : ''
+  const fotoHtml = fotoUrl
+    ? `<img class="ej-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
+    : '<div class="ej-foto ej-foto-vazia"></div>'
+
+  return `<section class="page page-estar">
+    <div class="ej">
+      <p class="ej-kicker">Estar &amp; jantar</p>
+      <h2 class="ej-titulo">Conforto em<br/>tons quentes</h2>
+      <p class="ej-texto">O mobiliário de desenho contemporâneo compõe uma paleta acolhedora e convida a pausar — para a conversa, a leitura, o tempo em família.</p>
+    </div>
+    ${fotoHtml}
+  </section>`
+}
+
+function renderCentroConvivencia(ctx: BookContext): string {
+  const foto = encontrarPorAltIndice(ctx, 'Living', 1)
+  const fotoUrl = foto ? imgUrl(foto.path) : ''
+  const fotoHtml = fotoUrl
+    ? `<img class="conv-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
+    : ''
+
+  return `<section class="page page-conv">
+    ${fotoHtml}
+    <div class="conv-overlay"></div>
+    <div class="conv">
+      <p class="conv-kicker">Cozinha</p>
+      <h2 class="conv-titulo">O centro da convivência</h2>
+      <p class="conv-texto">Ilha em pedra, marcenaria clara e generosa bancada — a cozinha se integra ao jantar e ao estar em um só ambiente para receber.</p>
+    </div>
+  </section>`
+}
+
+function renderPatioIntimo(ctx: BookContext): string {
+  const foto = fotoPatio(ctx)
+  if (!foto) return ''
+
+  return `<section class="page page-patio">
+    <img class="patio-foto" src="${escapeHtml(imgUrl(foto.path))}" alt="" />
+    <div class="patio-overlay"></div>
+    <div class="patio">
+      <p class="patio-kicker">Pátio íntimo</p>
+      <h2 class="patio-titulo">Um coração ao ar livre</h2>
+      <p class="patio-texto">Protegido pelo ripado, o pátio reúne a família em torno do fogo — extensão natural do living, aberto ao céu.</p>
+    </div>
   </section>`
 }
 
@@ -551,20 +657,81 @@ function renderImagemFull(titulo: string, ctx: BookContext, indice: number): str
 }
 
 function renderSuiteMaster(ctx: BookContext): string {
-  return renderFullBleed('Suíte Master', getImagemPorAlt(ctx, 'Master'))
+  const foto = listaImagens(ctx).find((img) => {
+    if (ehPlantaTecnica(img)) return false
+    const alt = semAcento(img.alt || '')
+    return alt.includes('suite') && alt.includes('master')
+  })
+  const fotoUrl = foto ? imgUrl(foto.path) : ''
+  const fotoHtml = fotoUrl
+    ? `<img class="suite-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
+    : ''
+
+  return `<section class="page page-suite">
+    ${fotoHtml}
+    <div class="suite-overlay"></div>
+    <div class="suite">
+      <p class="suite-kicker">Suíte master</p>
+      <h2 class="suite-titulo">O refúgio<br/>do dia</h2>
+      <p class="suite-texto">Luz difusa, materiais macios e o ripado que emoldura a paisagem. Um quarto que convida ao descanso e começa o dia com calma.</p>
+    </div>
+  </section>`
 }
 
 function renderBanhoMaster(ctx: BookContext): string {
-  return renderFullBleed('Banho Master', getImagemPorAlt(ctx, 'Banho'))
+  const imagens = listaImagens(ctx).filter((img) => !ehPlantaTecnica(img))
+  const porAlt = (pred: (alt: string) => boolean) => imagens.find((img) => pred(semAcento(img.alt || '')))
+  const foto = porAlt((alt) => alt.includes('closet'))
+    ?? porAlt((alt) => alt.includes('suite') && alt.includes('master'))
+    ?? porAlt((alt) => alt.includes('banheiro'))
+    ?? porAlt((alt) => alt.includes('banho'))
+  const fotoUrl = foto ? imgUrl(foto.path) : ''
+  const fotoHtml = fotoUrl
+    ? `<img class="bm-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
+    : '<div class="bm-foto bm-foto-vazia"></div>'
+
+  return `<section class="page page-banho">
+    <div class="bm">
+      <p class="bm-kicker">Banho master</p>
+      <h2 class="bm-titulo">O ritual do bem-estar</h2>
+      <p class="bm-texto">Pedra clara, ripado e iluminação suave criam a atmosfera de um spa privativo. Dupla bancada e ventilação natural completam o cuidado com cada detalhe.</p>
+    </div>
+    ${fotoHtml}
+  </section>`
 }
 
 function renderEasyToPlay(ctx: BookContext): string {
-  const imagem = encontrarPorAlt(ctx, 'Gourmet') ?? getImagemPorAlt(ctx, 'Rooftop')
-  return renderFullBleed('Easy to Play', imagem)
+  const foto = listaImagens(ctx).find((img) => !ehPlantaTecnica(img) && semAcento(img.alt || '').includes('gourmet'))
+  const fotoUrl = foto ? imgUrl(foto.path) : ''
+  const fotoHtml = fotoUrl
+    ? `<img class="play-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
+    : ''
+
+  return `<section class="page page-play">
+    ${fotoHtml}
+    <div class="play-overlay"></div>
+    <p class="play-kicker">Easy to play</p>
+    <h2 class="play-titulo">Feito para receber</h2>
+  </section>`
 }
 
 function renderRooftop(ctx: BookContext): string {
-  return renderFullBleed('Rooftop', getImagemPorAlt(ctx, 'Rooftop'))
+  const foto = listaImagens(ctx).find((img) => {
+    if (ehPlantaTecnica(img) || !img.path) return false
+    const rotulo = semAcento(`${img.alt} ${img.path}`)
+    return rotulo.includes('rooftop') || rotulo.includes('terraco')
+  })
+  if (!foto) return ''
+
+  return `<section class="page page-terraco">
+    <img class="terraco-foto" src="${escapeHtml(imgUrl(foto.path))}" alt="" />
+    <div class="terraco-overlay"></div>
+    <div class="terraco">
+      <p class="terraco-kicker">Terraço</p>
+      <h2 class="terraco-titulo">A vista que <em>encerra o dia</em></h2>
+      <p class="terraco-texto">No topo da GAL, a piscina de borda infinita se funde ao horizonte. Um lugar para respirar, contemplar e simplesmente estar.</p>
+    </div>
+  </section>`
 }
 
 function renderFichaTecnica(ctx: BookContext): string {
@@ -1269,6 +1436,422 @@ function estilos(): string {
       color: var(--gold);
     }
 
+    .page-filo-foto .filo {
+      width: 734px;
+      max-width: none;
+      padding: 56px 40px 56px 72px;
+    }
+
+    .page-filo-foto .filo-texto { max-width: none; }
+
+    .page-filo-foto .filo-topicos {
+      flex-direction: column;
+      gap: 18px;
+      max-width: 460px;
+    }
+
+    .filo-foto {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 600px;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .page-estar { background: var(--cream); color: var(--navy); }
+
+    .ej {
+      height: 100%;
+      width: 546px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 72px 56px 72px 80px;
+    }
+
+    .ej-kicker {
+      margin: 0 0 20px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .ej-titulo {
+      margin: 0 0 22px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1.02;
+      color: var(--navy);
+    }
+
+    .ej-texto {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.6;
+      color: color-mix(in srgb, var(--earth) 62%, var(--gray-mid));
+    }
+
+    .ej-foto {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 788px;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .ej-foto-vazia {
+      background: color-mix(in srgb, var(--navy) 8%, var(--cream));
+    }
+
+    .page-conv { background: var(--navy); }
+
+    .conv-foto {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .conv-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to top,
+        rgba(12, 38, 51, 0.78) 0%,
+        rgba(12, 38, 51, 0.34) 28%,
+        rgba(12, 38, 51, 0) 52%
+      );
+    }
+
+    .conv {
+      position: absolute;
+      left: 72px;
+      bottom: 52px;
+      z-index: 2;
+      max-width: 760px;
+    }
+
+    .conv-kicker {
+      margin: 0 0 12px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .conv-titulo {
+      margin: 0 0 12px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--white);
+    }
+
+    .conv-texto {
+      margin: 0;
+      max-width: 640px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    .page-patio { background: var(--green); }
+
+    .patio-foto {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .patio-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to top,
+        rgba(12, 38, 51, 0.78) 0%,
+        rgba(12, 38, 51, 0.34) 28%,
+        rgba(12, 38, 51, 0) 52%
+      );
+    }
+
+    .patio {
+      position: absolute;
+      left: 72px;
+      bottom: 52px;
+      z-index: 2;
+      max-width: 820px;
+    }
+
+    .patio-kicker {
+      margin: 0 0 12px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .patio-titulo {
+      margin: 0 0 12px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--white);
+    }
+
+    .patio-texto {
+      margin: 0;
+      max-width: 680px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    .page-suite { background: var(--navy); }
+
+    .suite-foto {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .suite-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to left,
+        rgba(12, 38, 51, 0.5) 0%,
+        rgba(12, 38, 51, 0.16) 24%,
+        rgba(12, 38, 51, 0) 46%
+      );
+    }
+
+    .suite {
+      position: absolute;
+      right: 72px;
+      top: 46%;
+      z-index: 2;
+      width: 390px;
+      transform: translateY(-50%);
+      text-align: right;
+    }
+
+    .suite-kicker {
+      margin: 0 0 14px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .suite-titulo {
+      margin: 0 0 16px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1.02;
+      color: var(--white);
+    }
+
+    .suite-texto {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    .page-banho { background: var(--white); color: var(--navy); }
+
+    .bm {
+      height: 100%;
+      width: 620px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 72px 48px 72px 72px;
+    }
+
+    .bm-kicker {
+      margin: 0 0 18px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .bm-titulo {
+      margin: 0 0 18px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1.08;
+      color: var(--navy);
+    }
+
+    .bm-texto {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.6;
+      color: color-mix(in srgb, var(--earth) 62%, var(--gray-mid));
+    }
+
+    .bm-foto {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 714px;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .bm-foto-vazia {
+      background: color-mix(in srgb, var(--navy) 6%, var(--white));
+    }
+
+    .page-play { background: var(--navy); }
+
+    .play-foto {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .play-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to top,
+        rgba(12, 38, 51, 0.72) 0%,
+        rgba(12, 38, 51, 0.22) 24%,
+        rgba(12, 38, 51, 0) 46%
+      );
+    }
+
+    .play-kicker {
+      position: absolute;
+      top: 36px;
+      left: 48px;
+      z-index: 2;
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .play-titulo {
+      position: absolute;
+      left: 56px;
+      bottom: 48px;
+      z-index: 2;
+      margin: 0;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 52px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--white);
+    }
+
+    .page-terraco { background: var(--navy); }
+
+    .terraco-foto {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .terraco-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to top,
+        rgba(12, 38, 51, 0.72) 0%,
+        rgba(12, 38, 51, 0.28) 32%,
+        rgba(12, 38, 51, 0) 58%
+      );
+    }
+
+    .terraco {
+      position: absolute;
+      left: 64px;
+      bottom: 48px;
+      z-index: 2;
+      max-width: 760px;
+    }
+
+    .terraco-kicker {
+      margin: 0 0 12px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .terraco-titulo {
+      margin: 0 0 12px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--white);
+    }
+
+    .terraco-titulo em {
+      font-style: italic;
+      font-weight: 500;
+      color: var(--gold);
+    }
+
+    .terraco-texto {
+      margin: 0;
+      max-width: 640px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
     .page-imagem { background: var(--navy); }
 
     .legenda {
@@ -1845,24 +2428,22 @@ export function renderBookHtml(ctx: BookContext): string {
     renderDetalheLote(ctx),
     renderAberturaCasa(ctx),
     renderFilosofiaModelo(ctx),
-    renderImagemFull('Fachada', ctx, 1),
-    renderImagemFull('Perspectiva', ctx, 2),
-    renderImagemFull('Living', ctx, 3),
-    renderImagemFull('Estar', ctx, 4),
-    renderImagemFull('Interior', ctx, 5),
-    renderImagemFull('Detalhe', ctx, 6),
-    renderImagemFull('Planta', ctx, 7),
+    renderEstarJantar(ctx),
+    renderCentroConvivencia(ctx),
+    renderPatioIntimo(ctx),
     renderSuiteMaster(ctx),
     renderBanhoMaster(ctx),
     renderEasyToPlay(ctx),
     renderRooftop(ctx),
+    renderImagemFull('Detalhe', ctx, 6),
+    renderImagemFull('Planta', ctx, 7),
     renderFichaTecnica(ctx),
     renderAnaliseMercado(ctx),
     renderPosicionamento(ctx),
     renderViabilidade(ctx),
     renderCenarios(ctx),
     renderEncerramento(ctx),
-  ]
+  ].filter((pagina) => pagina.trim().length > 0)
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
