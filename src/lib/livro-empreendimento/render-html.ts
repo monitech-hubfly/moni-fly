@@ -128,8 +128,55 @@ function renderFullBleed(titulo: string, imagem: Imagem | undefined): string {
   </section>`
 }
 
+/** Nomes como no Configurador / Catálogo (Sol, Gal, Alê), não o código curto (so, ga, al). */
+const NOME_CATALOGO: Record<string, string> = {
+  al: 'Alê',
+  ale: 'Alê',
+  du: 'Duda',
+  duda: 'Duda',
+  lu: 'Lu',
+  is: 'Isa',
+  isa: 'Isa',
+  li: 'Liz',
+  liz: 'Liz',
+  va: 'Val',
+  val: 'Val',
+  iv: 'Ivy',
+  ivy: 'Ivy',
+  ev: 'Eva',
+  eva: 'Eva',
+  ci: 'Cissa',
+  cissa: 'Cissa',
+  so: 'Sol',
+  sol: 'Sol',
+  ga: 'Gal',
+  gal: 'Gal',
+  le: 'Lena',
+  lena: 'Lena',
+  mi: 'Mia',
+  mia: 'Mia',
+}
+
+function chaveCatalogo(valor: string): string {
+  return valor
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function nomeCatalogo(casa: CasaModelo): string {
+  for (const valor of [casa.nome, casa.codigo]) {
+    const nome = NOME_CATALOGO[chaveCatalogo(valor)]
+    if (nome) return nome
+  }
+  const base = casa.nome.trim() || casa.codigo.trim()
+  if (!base) return ''
+  return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase()
+}
+
 function renderCover(ctx: BookContext): string {
-  const codigo = escapeHtml(ctx.casa.codigo.toUpperCase())
+  const codigo = escapeHtml(nomeCatalogo(ctx.casa))
   const fachada = getImagemPorAlt(ctx, 'Fachada') ?? getImagem(ctx, 0)
   const fotoUrl = fachada ? imgUrl(fachada.path) : ''
   const imgHtml = fotoUrl ? '<img class="full-bleed" src="' + fotoUrl + '" alt="Fachada" />' : ''
