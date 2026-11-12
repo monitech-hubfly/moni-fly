@@ -531,22 +531,17 @@ function renderAberturaCasa(ctx: BookContext): string {
   </section>`
 }
 
-function renderFilosofiaModelo(ctx: BookContext): string {
-  const nome = escapeHtml(ctx.casa.nome)
-  const texto = ctx.casa.descricao?.trim() || `Texto editorial da ${ctx.casa.nome}`
-  const paragrafos = texto
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean)
-    .map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br />')}</p>`)
-    .join('')
-
-  return `<section class="page page-cream">
-    <div class="filosofia">
-      <p class="kicker">O modelo</p>
-      <h2 class="filosofia-nome">${nome}</h2>
-      <div class="rule"></div>
-      <div class="filosofia-texto">${paragrafos}</div>
+function renderFilosofiaModelo(_ctx: BookContext): string {
+  return `<section class="page page-filo">
+    <div class="filo">
+      <p class="filo-kicker">O modelo</p>
+      <h2 class="filo-titulo">Uma casa que <em>respira leveza</em></h2>
+      <p class="filo-texto">As casas nascem do encontro entre madeira, luz e natureza. Volumes horizontais revestidos em ripado, curvas que abraçam e ambientes que se abrem para fora, para que a vida aconteça em cada espaço.</p>
+      <div class="filo-topicos">
+        <p class="filo-topico">Cheios e vazios em equilíbrio</p>
+        <p class="filo-topico">Conforto em tons quentes</p>
+      </div>
+      <p class="filo-fecho">Porque viver bem não deveria ser complicado.</p>
     </div>
   </section>`
 }
@@ -1199,6 +1194,80 @@ function estilos(): string {
     }
 
     .filosofia-texto p + p { margin-top: 5mm; }
+
+    .page-filo {
+      background: var(--navy);
+      color: var(--white);
+    }
+
+    .filo {
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 64px 88px;
+      max-width: 980px;
+    }
+
+    .filo-kicker {
+      margin: 0 0 16px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .filo-titulo {
+      margin: 0 0 22px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 52px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--white);
+    }
+
+    .filo-titulo em {
+      font-style: italic;
+      font-weight: 500;
+      color: var(--gold);
+    }
+
+    .filo-texto {
+      margin: 0;
+      max-width: 720px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.65;
+      color: rgba(255,255,255,0.78);
+    }
+
+    .filo-topicos {
+      display: flex;
+      gap: 28px;
+      margin-top: 28px;
+    }
+
+    .filo-topico {
+      margin: 0;
+      padding-top: 12px;
+      border-top: 0.5px solid var(--gold);
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 18px;
+      line-height: 1.3;
+      color: var(--white);
+    }
+
+    .filo-fecho {
+      margin: 28px 0 0;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 18px;
+      font-style: italic;
+      color: var(--gold);
+    }
 
     .page-imagem { background: var(--navy); }
 
