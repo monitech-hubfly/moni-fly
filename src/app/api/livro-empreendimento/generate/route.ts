@@ -65,7 +65,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 2. Montar contexto do book
+    // 2. Buscar dados do condomínio (se fornecido)
+    let condominioLivro: BookContext['condominio'] = null
+    if (condominio_id) {
+      const { data: cond } = await supabase
+        .from('condominios')
+        .select('nome, cidade, estado, livro_foto_principal, livro_foto_secundaria, livro_frase_principal, livro_frase_secundaria, livro_subtitulo, livro_vantagens_localizacao')
+        .eq('id', condominio_id)
+        .single()
+
+      if (cond) {
+        condominioLivro = {
+          nome: cond.nome,
+          cidade: cond.cidade ?? undefined,
+          estado: cond.estado ?? undefined,
+          fotoPrincipal: cond.livro_foto_principal ?? undefined,
+          fotoSecundaria: cond.livro_foto_secundaria ?? undefined,
+          frasePrincipal: cond.livro_frase_principal ?? undefined,
+          fraseSecundaria: cond.livro_frase_secundaria ?? undefined,
+          subtitulo: cond.livro_subtitulo ?? undefined,
+          vantagensLocalizacao: Array.isArray(cond.livro_vantagens_localizacao)
+            ? cond.livro_vantagens_localizacao as { icone: string; texto: string }[]
+            : [],
+        }
+      }
+    }
+
+    // 3. Montar contexto do book
     const ctx: BookContext = {
       casa: {
         codigo: casa.codigo,
@@ -80,16 +106,16 @@ export async function POST(request: NextRequest) {
         imagens: Array.isArray(casa.imagens) ? casa.imagens : [],
         especificacoes: casa.especificacoes ?? {},
       },
-      condominio: null,
+      condominio: condominioLivro,
     }
 
-    // 3. Renderizar HTML das 27 páginas
+    // 4. Renderizar HTML das 27 páginas
     const html = renderBookHtml(ctx)
 
-    // 4. Converter para PDF via Puppeteer
+    // 5. Converter para PDF via Puppeteer
     const pdfBuffer = await generatePdf(html)
 
-    // 5. Upload para Supabase Storage
+    // 6. Upload para Supabase Storage
     const timestamp = Date.now()
     const storagePath = `livros/${casa.codigo}/${timestamp}.pdf`
 

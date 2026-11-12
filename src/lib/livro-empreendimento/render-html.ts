@@ -27,9 +27,21 @@ export interface CasaModelo {
   }
 }
 
+export interface CondominioLivro {
+  nome: string
+  cidade?: string
+  estado?: string
+  fotoPrincipal?: string   // livro_foto_principal
+  fotoSecundaria?: string  // livro_foto_secundaria
+  frasePrincipal?: string  // livro_frase_principal
+  fraseSecundaria?: string // livro_frase_secundaria (itálico ouro)
+  subtitulo?: string       // livro_subtitulo — descrição da região
+  vantagensLocalizacao?: { icone: string; texto: string }[] // livro_vantagens_localizacao
+}
+
 export interface BookContext {
   casa: CasaModelo
-  condominio?: null // será preenchido futuramente
+  condominio?: CondominioLivro | null
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -152,12 +164,74 @@ function renderCover(ctx: BookContext): string {
   </section>`
 }
 
-function renderAberturaCondominio(_ctx: BookContext): string {
-  return placeholderPage('Parte 01', 'O Condomínio')
+function renderAberturaCondominio(ctx: BookContext): string {
+  if (!ctx.condominio) return placeholderPage('Parte 01', 'O Condomínio')
+
+  const c = ctx.condominio
+  const nomeEsc = escapeHtml(c.nome)
+  const fraseEsc = c.frasePrincipal ? escapeHtml(c.frasePrincipal) : ''
+  const imgHtml = c.fotoPrincipal
+    ? '<img class="full-bleed" src="' + escapeHtml(c.fotoPrincipal) + '" alt="Condomínio" />'
+    : ''
+
+  return '<section class="page page-cond-abertura">' +
+    imgHtml +
+    '<div class="cond-overlay"></div>' +
+    '<div class="cond-ab-copy">' +
+      '<p class="cond-ab-parte">PARTE 01</p>' +
+      '<p class="cond-ab-nome">' + nomeEsc + '</p>' +
+      '<h2 class="cond-ab-titulo">O condomínio</h2>' +
+      (fraseEsc ? '<p class="cond-ab-sub">' + fraseEsc + '</p>' : '') +
+    '</div>' +
+    '</section>'
 }
 
-function renderLocalizacao(_ctx: BookContext): string {
-  return placeholderPage('Localização', 'A preencher — dados do condomínio')
+function renderLocalizacao(ctx: BookContext): string {
+  if (!ctx.condominio) return placeholderPage('Localização', 'A preencher — dados do condomínio')
+
+  const c = ctx.condominio
+  const nomeEsc = escapeHtml(c.nome)
+  const cidadeEstado = [c.cidade, c.estado].filter(Boolean).map(escapeHtml).join(' / ')
+  const tituloParts = c.frasePrincipal ? c.frasePrincipal.split(',') : ['', '']
+  const tituloNegrito = escapeHtml(tituloParts[0]?.trim() ?? c.nome)
+  const tituloItalico = c.fraseSecundaria ? escapeHtml(c.fraseSecundaria) : (tituloParts[1] ? escapeHtml(tituloParts[1].trim()) : '')
+  const subtituloEsc = c.subtitulo ? escapeHtml(c.subtitulo) : ''
+  const foto2Html = c.fotoSecundaria
+    ? '<img class="loc-foto" src="' + escapeHtml(c.fotoSecundaria) + '" alt="Condomínio" />'
+    : '<div class="loc-foto loc-foto-placeholder"></div>'
+
+  const iconePinSvg = '<svg viewBox="0 0 12 16" fill="none" xmlns="http://www.w3.org/2000/svg" width="13" height="16"><path d="M6 1C3.24 1 1 3.24 1 6C1 9.5 6 15.5 6 15.5C6 15.5 11 9.5 11 6C11 3.24 8.76 1 6 1Z" stroke="currentColor" stroke-width="1.1"/><circle cx="6" cy="6" r="2" stroke="currentColor" stroke-width="1"/></svg>'
+  const iconeShopSvg = '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" width="14" height="14"><rect x="1" y="4" width="14" height="10" rx="1" stroke="currentColor" stroke-width="1.1"/><path d="M5 4V3a3 3 0 1 1 6 0v1" stroke="currentColor" stroke-width="1.1"/></svg>'
+  const iconeRodSvg = '<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" width="14" height="14"><path d="M8 1v14M4 3l4 2 4-2M4 13l4-2 4 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>'
+
+  const icones: string[] = [iconePinSvg, iconeShopSvg, iconeRodSvg]
+  const vantagens = c.vantagensLocalizacao && c.vantagensLocalizacao.length > 0
+    ? c.vantagensLocalizacao
+    : []
+
+  let vantagensHtml = ''
+  for (let i = 0; i < vantagens.length && i < 3; i++) {
+    const v = vantagens[i]
+    vantagensHtml += '<div class="loc-item">' +
+      '<span class="loc-icone">' + (icones[i] ?? icones[0]) + '</span>' +
+      '<span class="loc-item-txt">' + escapeHtml(v.texto) + '</span>' +
+    '</div>'
+  }
+
+  return '<section class="page page-loc">' +
+    '<div class="loc-esquerda">' +
+      '<p class="loc-nome">' + nomeEsc + '</p>' +
+      (cidadeEstado ? '<p class="loc-cidade">O CONDOMÍNIO &middot; ' + cidadeEstado + '</p>' : '') +
+      '<h2 class="loc-titulo">' +
+        '<span class="loc-titulo-bold">' + tituloNegrito + '</span>' +
+        (tituloItalico ? ',<br/><em class="loc-titulo-italic">' + tituloItalico + '</em>' : '') +
+      '</h2>' +
+      (subtituloEsc ? '<p class="loc-sub">' + subtituloEsc + '</p>' : '') +
+      '<div class="loc-rule"></div>' +
+      '<div class="loc-vantagens">' + vantagensHtml + '</div>' +
+    '</div>' +
+    '<div class="loc-direita">' + foto2Html + '</div>' +
+    '</section>'
 }
 
 function renderAmenidades(_ctx: BookContext): string {
@@ -547,6 +621,183 @@ function estilos(): string {
       letter-spacing: 0.28em;
       text-transform: uppercase;
       color: color-mix(in srgb, var(--moni-cream) 78%, var(--moni-navy-600));
+    }
+
+    /* ── Folha 2: Abertura Condomínio ── */
+    .page-cond-abertura { background: var(--moni-navy-800); }
+
+    .cond-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        170deg,
+        rgba(12,38,51,0.08) 0%,
+        rgba(12,38,51,0.52) 55%,
+        rgba(12,38,51,0.90) 100%
+      );
+    }
+
+    .cond-ab-copy {
+      position: absolute;
+      left: 14mm;
+      right: 60mm;
+      bottom: 14mm;
+      z-index: 2;
+    }
+
+    .cond-ab-parte {
+      font-family: var(--moni-font-sans);
+      font-size: 7px;
+      letter-spacing: 0.44em;
+      text-transform: uppercase;
+      color: var(--moni-gold-400);
+      margin-bottom: 2mm;
+    }
+
+    .cond-ab-nome {
+      font-family: var(--moni-font-sans);
+      font-size: 9px;
+      letter-spacing: 0.38em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.75);
+      margin-bottom: 1.5mm;
+    }
+
+    .cond-ab-titulo {
+      font-family: var(--moni-font-display);
+      font-size: 68px;
+      font-weight: 700;
+      line-height: 0.9;
+      letter-spacing: 0.01em;
+      color: var(--moni-white);
+      margin-bottom: 4mm;
+    }
+
+    .cond-ab-sub {
+      font-family: var(--moni-font-display);
+      font-size: 13px;
+      line-height: 1.4;
+      color: rgba(255,255,255,0.78);
+      max-width: 180mm;
+    }
+
+    /* ── Folha 3: Localização ── */
+    .page-loc {
+      display: flex;
+      background: var(--moni-cream);
+    }
+
+    .loc-esquerda {
+      width: 42%;
+      padding: 14mm 11mm 14mm 14mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background: #F5F0E8;
+      position: relative;
+      z-index: 1;
+    }
+
+    .loc-direita {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .loc-foto {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+    }
+
+    .loc-foto-placeholder {
+      background: var(--moni-navy-800);
+    }
+
+    .loc-nome {
+      font-family: var(--moni-font-sans);
+      font-size: 9px;
+      letter-spacing: 0.38em;
+      text-transform: uppercase;
+      color: var(--moni-navy-800);
+      margin-bottom: 1mm;
+    }
+
+    .loc-cidade {
+      font-family: var(--moni-font-sans);
+      font-size: 8px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #7B9E87;
+      margin-bottom: 6mm;
+    }
+
+    .loc-titulo {
+      font-family: var(--moni-font-display);
+      font-size: 32px;
+      line-height: 1.08;
+      margin-bottom: 5mm;
+      color: var(--moni-navy-800);
+    }
+
+    .loc-titulo-bold {
+      font-weight: 700;
+    }
+
+    .loc-titulo-italic {
+      font-weight: 400;
+      font-style: italic;
+      color: var(--moni-gold-400);
+    }
+
+    .loc-sub {
+      font-family: var(--moni-font-display);
+      font-size: 10.5px;
+      line-height: 1.6;
+      color: #3A3A3A;
+      margin-bottom: 6mm;
+      max-width: 90mm;
+    }
+
+    .loc-rule {
+      width: 100%;
+      height: 0.5px;
+      background: rgba(12,38,51,0.18);
+      margin-bottom: 5mm;
+    }
+
+    .loc-vantagens {
+      display: flex;
+      flex-direction: column;
+      gap: 3.5mm;
+    }
+
+    .loc-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 3mm;
+    }
+
+    .loc-icone {
+      flex-shrink: 0;
+      color: var(--moni-navy-800);
+      opacity: 0.65;
+      margin-top: 0.5mm;
+    }
+
+    .loc-item-txt {
+      font-family: var(--moni-font-sans);
+      font-size: 9.5px;
+      line-height: 1.5;
+      color: #3A3A3A;
+    }
+
+    .loc-item-txt strong {
+      font-weight: 700;
+      color: var(--moni-navy-800);
     }
 
     .page-abertura { background: var(--moni-navy-800); }
