@@ -509,19 +509,24 @@ function renderDetalheLote(ctx: BookContext): string {
 }
 
 function renderAberturaCasa(ctx: BookContext): string {
-  const nome = escapeHtml(ctx.casa.nome)
-  return `<section class="page page-abertura">
-    ${renderFoto(getImagem(ctx, 0))}
-    <div class="overlay-abertura"></div>
-    <div class="abertura-copy">
-      <p class="abertura-parte">Parte 02</p>
-      <h2 class="abertura-nome">${nome}</h2>
+  const codigo = escapeHtml(nomeCatalogo(ctx.casa))
+  const foto = encontrarPorAlt(ctx, 'Fachada Noturna')
+    ?? encontrarPorAlt(ctx, 'Quintal')
+    ?? encontrarPorAlt(ctx, 'Piscina')
+  const fotoUrl = foto ? imgUrl(foto.path) : ''
+  const imgHtml = fotoUrl ? '<img class="full-bleed" src="' + escapeHtml(fotoUrl) + '" alt="" />' : ''
+
+  return `<section class="page page-cover">
+    ${imgHtml}
+    <div class="cover-overlay"></div>
+    <div class="parte2-top">
+      <p class="parte2-label">Parte 02</p>
+      <span class="parte2-rule"></span>
     </div>
-    <div class="moni-wm">
-      <span>Casa Moní</span>
-      <span>Book do Empreendimento</span>
-      <span>Uso interno — confidencial</span>
-      <span>moni.casa</span>
+    <div class="cover-content">
+      <p class="cover-kicker">Discover Casa Living</p>
+      <h1 class="cover-titulo"><span class="cover-word-casa">Casa</span><span class="cover-word-codigo"> ${codigo}</span></h1>
+      <p class="cover-subtitulo">Um modelo residencial da coleção Casa Moní</p>
     </div>
   </section>`
 }
@@ -736,6 +741,33 @@ function estilos(): string {
     }
 
     .cover-top-icon { width: 22px; height: 22px; display: block; }
+
+    .parte2-top {
+      position: absolute;
+      top: 28px;
+      left: 36px;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .parte2-label {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .parte2-rule {
+      display: block;
+      width: 52px;
+      height: 1px;
+      background: var(--gold);
+    }
 
     .cover-content {
       position: absolute;
