@@ -261,21 +261,75 @@ function renderAberturaCondominio(ctx: BookContext): string {
     '</section>'
 }
 
+function normalizarTitulo(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function repeteNome(frase: string, nome: string): boolean {
+  const f = normalizarTitulo(frase)
+  const n = normalizarTitulo(nome)
+  if (!f || !n) return false
+  return f === n || f === `o ${n}` || f === `condominio ${n}` || f === `residencial ${n}`
+}
+
+function reduzirFrase(frase: string): string {
+  const texto = frase.replace(/\s+/g, ' ').trim()
+  const porQue = texto.split(/\s+que\s+/i)[0]?.trim() ?? ''
+  if (porQue.length >= 12 && porQue.length <= 56 && porQue.length < texto.length) {
+    return porQue.replace(/[,:;.\s]+$/, '')
+  }
+  const porVirgula = texto.split(',')[0]?.trim() ?? ''
+  if (porVirgula.length >= 12 && porVirgula.length <= 56 && porVirgula.length < texto.length) {
+    return porVirgula
+  }
+  const palavras = texto.split(' ')
+  const escolhidas: string[] = []
+  for (const palavra of palavras) {
+    const next = [...escolhidas, palavra].join(' ')
+    if (next.length > 48 && escolhidas.length >= 3) break
+    escolhidas.push(palavra)
+    if (next.length >= 32 && !/^(de|da|do|das|dos|em|na|no|nas|nos|para|por|com|e|a|o|um|uma)$/i.test(palavra)) {
+      break
+    }
+  }
+  while (escolhidas.length > 2 && /^(de|da|do|das|dos|em|na|no|nas|nos|para|por|com|e|a|o)$/i.test(escolhidas[escolhidas.length - 1] ?? '')) {
+    escolhidas.pop()
+  }
+  return escolhidas.join(' ').replace(/[,:;.\s]+$/, '')
+}
+
 function tituloLocalizacao(c: CondominioLivro): { bold: string; italic: string; virgula: boolean } {
-  const secundaria = c.fraseSecundaria?.trim() ?? ''
-  const principal = c.frasePrincipal?.trim() ?? ''
-  const fonte = secundaria.length > 0 && secundaria.length <= 80
-    ? secundaria
-    : (principal.length > 0 && principal.length <= 80 ? principal : c.nome)
+  const nome = c.nome?.trim() ?? ''
+  const candidatas = [c.fraseSecundaria, c.frasePrincipal, c.subtitulo]
+    .map((item) => item?.replace(/\s+/g, ' ').trim() ?? '')
+    .filter((item) => item.length > 0 && !repeteNome(item, nome))
+
+  let fonte = ''
+  for (const candidata of candidatas) {
+    const reduzida = candidata.length <= 72 ? candidata : reduzirFrase(candidata)
+    if (reduzida.length >= 8 && !repeteNome(reduzida, nome)) {
+      fonte = reduzida
+      break
+    }
+  }
+  if (!fonte) return { bold: '', italic: '', virgula: false }
+
   const linhas = fonte.split('\n').map((linha) => linha.trim()).filter(Boolean)
   if (linhas.length >= 2) {
     return { bold: linhas[0], italic: linhas.slice(1).join(' '), virgula: false }
   }
   const partes = fonte.split(',')
   if (partes.length >= 2 && (partes[0]?.trim().length ?? 0) <= 48) {
-    return { bold: partes[0].trim(), italic: partes.slice(1).join(',').trim(), virgula: true }
+    const bold = partes[0].trim()
+    const italic = partes.slice(1).join(',').trim()
+    if (!repeteNome(bold, nome)) return { bold, italic, virgula: true }
   }
-  return { bold: fonte.trim() || c.nome, italic: '', virgula: false }
+  return { bold: fonte.trim(), italic: '', virgula: false }
 }
 
 function renderLocalizacao(ctx: BookContext): string {
@@ -319,12 +373,14 @@ function renderLocalizacao(ctx: BookContext): string {
     '<div class="loc-esquerda">' +
       '<p class="loc-nome">' + nomeEsc + '</p>' +
       (cidadeEstado ? '<p class="loc-cidade">O CONDOMÍNIO &middot; ' + cidadeEstado + '</p>' : '') +
-      '<h2 class="loc-titulo">' +
-        '<span class="loc-titulo-bold">' + tituloNegrito + '</span>' +
-        (tituloItalico
-          ? (titulo.virgula ? ',<br/>' : '<br/>') + '<em class="loc-titulo-italic">' + tituloItalico + '</em>'
-          : '') +
-      '</h2>' +
+      (tituloNegrito
+        ? '<h2 class="loc-titulo">' +
+            '<span class="loc-titulo-bold">' + tituloNegrito + '</span>' +
+            (tituloItalico
+              ? (titulo.virgula ? ',<br/>' : '<br/>') + '<em class="loc-titulo-italic">' + tituloItalico + '</em>'
+              : '') +
+          '</h2>'
+        : '') +
       (subtituloEsc ? '<p class="loc-sub">' + subtituloEsc + '</p>' : '') +
       '<div class="loc-rule"></div>' +
       '<div class="loc-vantagens">' + vantagensHtml + '</div>' +
