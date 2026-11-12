@@ -117,18 +117,38 @@ function renderFullBleed(titulo: string, imagem: Imagem | undefined): string {
 }
 
 function renderCover(ctx: BookContext): string {
-  const nome = escapeHtml(ctx.casa.nome)
+  const codigo = escapeHtml(ctx.casa.codigo.toUpperCase())
+  const fachada = getImagemPorAlt(ctx, 'Fachada') ?? getImagem(ctx, 0)
+  const fotoUrl = fachada ? imgUrl(fachada.path) : ''
+  const imgHtml = fotoUrl ? '<img class="full-bleed" src="' + fotoUrl + '" alt="Fachada" />' : ''
+  const ano = new Date().getFullYear()
+
+  const pinSvg = '<svg class="meta-icon" viewBox="0 0 12 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 1C3.24 1 1 3.24 1 6C1 9.5 6 15.5 6 15.5C6 15.5 11 9.5 11 6C11 3.24 8.76 1 6 1Z" stroke="currentColor" stroke-width="1.1"/><circle cx="6" cy="6" r="2" stroke="currentColor" stroke-width="1"/></svg>'
+
+  const loteSvg = '<svg class="meta-icon meta-icon-lote" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0.5" y="0.5" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/><rect x="7" y="0.5" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/><rect x="0.5" y="7" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/><rect x="7" y="7" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/></svg>'
+
+  const moniWordmarkSvg = '<svg class="moni-wordmark" viewBox="0 0 72 16" xmlns="http://www.w3.org/2000/svg"><text x="0" y="13" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="white" font-weight="300" letter-spacing="1">M</text><ellipse cx="24.5" cy="8" rx="6.8" ry="7.2" fill="none" stroke="white" stroke-width="1.1"/><line x1="17.7" y1="8" x2="31.3" y2="8" stroke="white" stroke-width="1.1"/><text x="34" y="13" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="white" font-weight="300" letter-spacing="1">NÍ</text></svg>'
+
+  const topIconSvg = '<svg class="cover-top-icon" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="10" stroke="rgba(255,255,255,0.65)" stroke-width="0.8"/><line x1="1" y1="11" x2="21" y2="11" stroke="rgba(255,255,255,0.65)" stroke-width="0.8"/></svg>'
+
   return `<section class="page page-cover">
-    <p class="cover-logo">MONÍ</p>
-    <div class="cover-foto">
-      <p class="cover-foto-label">Foto do condomínio</p>
-      <p class="cover-foto-hint">A preencher</p>
+    ${imgHtml}
+    <div class="cover-overlay"></div>
+    <div class="cover-top-left">${topIconSvg}</div>
+    <div class="cover-content">
+      <p class="cover-kicker">Discover Casa Living</p>
+      <h1 class="cover-titulo"><span class="cover-word-casa">Casa</span><span class="cover-word-codigo"> ${codigo}</span></h1>
+      <p class="cover-subtitulo">Um modelo residencial da coleção Casa Moní</p>
+      <div class="cover-meta">
+        <span class="cover-meta-item">${pinSvg}</span>
+        <span class="cover-meta-sep">·</span>
+        <span class="cover-meta-item">${loteSvg}</span>
+      </div>
     </div>
-    <div class="cover-centro">
-      <h1 class="cover-nome">${nome}</h1>
-      <p class="cover-book">Book do Empreendimento</p>
+    <div class="cover-footer">
+      <div class="cover-footer-rule"></div>
+      <div class="cover-footer-row">${moniWordmarkSvg}<p class="cover-footer-label">BOOK DO EMPREENDIMENTO &middot; ${ano}</p></div>
     </div>
-    <p class="cover-ano">2025</p>
   </section>`
 }
 
@@ -350,12 +370,126 @@ function estilos(): string {
       color: var(--moni-green-800);
     }
 
-    .page-cover {
-      background: var(--moni-navy-800);
-      color: var(--moni-white);
+    /* ── Capa ── */
+    .page-cover { background: var(--moni-navy-800); }
+
+    .cover-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        145deg,
+        rgba(12,38,51,0.76) 0%,
+        rgba(12,38,51,0.44) 44%,
+        rgba(12,38,51,0.10) 100%
+      );
     }
 
-    .cover-logo,
+    .cover-top-left {
+      position: absolute;
+      top: 11mm;
+      left: 11mm;
+      z-index: 2;
+    }
+
+    .cover-top-icon { width: 22px; height: 22px; display: block; }
+
+    .cover-content {
+      position: absolute;
+      left: 11mm;
+      right: 48mm;
+      bottom: 20mm;
+      z-index: 2;
+    }
+
+    .cover-kicker {
+      font-family: var(--moni-font-sans);
+      font-size: 7.5px;
+      letter-spacing: 0.38em;
+      text-transform: uppercase;
+      color: var(--moni-gold-400);
+      margin-bottom: 1.5mm;
+    }
+
+    .cover-titulo {
+      display: block;
+      line-height: 0.88;
+      margin-bottom: 4mm;
+    }
+
+    .cover-word-casa {
+      font-family: var(--moni-font-display);
+      font-size: 76px;
+      font-weight: 700;
+      color: var(--moni-white);
+      letter-spacing: 0.01em;
+    }
+
+    .cover-word-codigo {
+      font-family: var(--moni-font-display);
+      font-size: 76px;
+      font-weight: 400;
+      font-style: italic;
+      color: var(--moni-gold-400);
+      letter-spacing: 0.01em;
+    }
+
+    .cover-subtitulo {
+      font-family: var(--moni-font-display);
+      font-size: 12.5px;
+      line-height: 1.4;
+      color: rgba(255,255,255,0.80);
+      margin-bottom: 4mm;
+    }
+
+    .cover-meta {
+      display: flex;
+      align-items: center;
+      gap: 5mm;
+      margin-top: 1mm;
+    }
+
+    .cover-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+      font-family: var(--moni-font-sans);
+      font-size: 9.5px;
+      letter-spacing: 0.18em;
+      color: rgba(255,255,255,0.60);
+    }
+
+    .meta-icon { width: 11px; height: 13px; color: rgba(255,255,255,0.60); flex-shrink: 0; }
+    .meta-icon-lote { width: 12px; height: 12px; }
+
+    .cover-meta-sep {
+      color: rgba(255,255,255,0.35);
+      font-size: 10px;
+    }
+
+    .cover-footer {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 0 11mm 7mm;
+      z-index: 2;
+    }
+
+    .cover-footer-rule {
+      width: 100%;
+      height: 0.5px;
+      background: rgba(255,255,255,0.20);
+      margin-bottom: 4.5mm;
+    }
+
+    .cover-footer-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .moni-wordmark { width: 56px; height: 13px; display: block; }
+
     .fim-logo {
       font-family: var(--moni-font-sans);
       font-size: 13px;
@@ -365,81 +499,12 @@ function estilos(): string {
       color: var(--moni-white);
     }
 
-    .cover-logo {
-      position: absolute;
-      top: 16mm;
-      left: 148mm;
-      right: 16mm;
-      text-align: left;
-    }
-
-    .cover-foto {
-      position: absolute;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 132mm;
-      background: var(--moni-green-800);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 4mm;
-    }
-
-    .cover-foto-label {
-      font-family: var(--moni-font-display);
-      font-size: 18px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--moni-cream);
-    }
-
-    .cover-foto-hint {
+    .cover-footer-label {
       font-family: var(--moni-font-sans);
-      font-size: 10px;
+      font-size: 8.5px;
       letter-spacing: 0.28em;
       text-transform: uppercase;
-      color: color-mix(in srgb, var(--moni-cream) 72%, var(--moni-green-800));
-    }
-
-    .cover-centro {
-      position: absolute;
-      left: 148mm;
-      right: 16mm;
-      top: 50%;
-      transform: translateY(-50%);
-      text-align: left;
-    }
-
-    .cover-nome {
-      font-family: var(--moni-font-display);
-      font-weight: normal;
-      font-size: 64px;
-      line-height: 0.92;
-      letter-spacing: 0.06em;
-      color: var(--moni-gold-400);
-    }
-
-    .cover-book {
-      margin-top: 7mm;
-      font-family: var(--moni-font-sans);
-      font-size: 11px;
-      letter-spacing: 0.32em;
-      text-transform: uppercase;
-      color: var(--moni-white);
-    }
-
-    .cover-ano {
-      position: absolute;
-      left: 148mm;
-      right: 16mm;
-      bottom: 14mm;
-      text-align: left;
-      font-family: var(--moni-font-sans);
-      font-size: 11px;
-      letter-spacing: 0.28em;
-      color: var(--moni-gold-200);
+      color: rgba(255,255,255,0.60);
     }
 
     .page-placeholder {
