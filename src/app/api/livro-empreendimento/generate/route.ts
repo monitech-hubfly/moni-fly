@@ -68,13 +68,18 @@ export async function POST(request: NextRequest) {
     // 2. Buscar dados do condomínio (se fornecido)
     let condominioLivro: BookContext['condominio'] = null
     if (condominio_id) {
-      const { data: cond } = await supabase
+      const { data: cond, error: condError } = await supabase
         .from('condominios')
-        .select('nome, cidade, estado, livro_foto_principal, livro_foto_secundaria, livro_frase_principal, livro_frase_secundaria, livro_subtitulo, livro_vantagens_localizacao')
+        .select('nome, cidade, estado, descricao_breve, livro_foto_principal, livro_foto_secundaria, livro_frase_principal, livro_frase_secundaria, livro_subtitulo, livro_vantagens_localizacao')
         .eq('id', condominio_id)
         .single()
 
+      if (condError) {
+        return NextResponse.json({ error: condError.message }, { status: 500 })
+      }
+
       if (cond) {
+        const descricao = typeof cond.descricao_breve === 'string' ? cond.descricao_breve.trim() : ''
         condominioLivro = {
           nome: cond.nome,
           cidade: cond.cidade ?? undefined,
@@ -83,7 +88,7 @@ export async function POST(request: NextRequest) {
           fotoSecundaria: cond.livro_foto_secundaria ?? undefined,
           frasePrincipal: cond.livro_frase_principal ?? undefined,
           fraseSecundaria: cond.livro_frase_secundaria ?? undefined,
-          subtitulo: cond.livro_subtitulo ?? undefined,
+          subtitulo: cond.livro_subtitulo ?? (descricao || undefined),
           vantagensLocalizacao: Array.isArray(cond.livro_vantagens_localizacao)
             ? cond.livro_vantagens_localizacao as { icone: string; texto: string }[]
             : [],

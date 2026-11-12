@@ -4,6 +4,13 @@ import { useState } from 'react';
 import { DocumentArrowDownIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 
+export type CondominioOpcaoLivro = {
+  id: string;
+  nome: string;
+  cidade: string | null;
+  estado: string | null;
+};
+
 const MODELOS_CASA = [
   { codigo: 'ALE',  nome: 'ALÊ',  area: '47,0 m²',    suites: 2, banheiros: 1, dimensoes: '3,50 × 12,00 m', preco: 'R$ 288.553,20' },
   { codigo: 'DUDA', nome: 'DUDA', area: '103,0 m²',   suites: 3, banheiros: 2, dimensoes: '9,00 × 13,00 m', preco: 'R$ 533.937,05' },
@@ -19,22 +26,41 @@ const MODELOS_CASA = [
   { codigo: 'LENA', nome: 'LENA', area: '708,3 m²',   suites: 6, banheiros: 8, dimensoes: '24 × 42 m',      preco: 'R$ 3.527.092,00' },
 ];
 
-export function BookDoEmpreendimentoGerador() {
+export function BookDoEmpreendimentoGerador({
+  condominios,
+}: {
+  condominios: CondominioOpcaoLivro[];
+}) {
   const [modeloSelecionado, setModeloSelecionado] = useState<string | null>(null);
+  const [condominioId, setCondominioId] = useState('');
+  const [siteUrl, setSiteUrl] = useState('');
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const modelo = MODELOS_CASA.find((m) => m.codigo === modeloSelecionado);
 
   async function handleGerar() {
-    if (!modeloSelecionado) return;
+    if (!modeloSelecionado || !condominioId) return;
     setGerando(true);
     setErro(null);
     try {
+      const site = siteUrl.trim();
+      if (site) {
+        const scrape = await fetch('/api/livro-empreendimento/scrape-condominio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ condominio_id: condominioId, site_url: site }),
+        });
+        const scrapeData = await scrape.json().catch(() => ({})) as { error?: string };
+        if (!scrape.ok) {
+          throw new Error(scrapeData.error ?? 'Não foi possível ler o site do condomínio');
+        }
+      }
+
       const res = await fetch('/api/livro-empreendimento/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ casa_codigo: modeloSelecionado }),
+        body: JSON.stringify({ casa_codigo: modeloSelecionado, condominio_id: condominioId }),
       });
 
       const data = await res.json().catch(() => ({})) as { url?: string; error?: string };
@@ -82,7 +108,7 @@ export function BookDoEmpreendimentoGerador() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-[var(--moni-navy-800)]">Book do Empreendimento</h1>
-            <p className="text-sm text-stone-500">Selecione o modelo de casa para gerar o book personalizado</p>
+            <p className="text-sm text-stone-500">Selecione a casa e o condomínio. As folhas 2 e 3 saem dos dados do condomínio.</p>
           </div>
         </div>
 
@@ -108,6 +134,44 @@ export function BookDoEmpreendimentoGerador() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
+          <h2 className="mb-4 text-sm font-semibold text-[var(--moni-navy-800)]">Condomínio</h2>
+          <label className="mb-1 block text-xs text-stone-400" htmlFor="condominio-livro">
+            Empreendimento das folhas 2 e 3
+          </label>
+          <select
+            id="condominio-livro"
+            value={condominioId}
+            onChange={(event) => setCondominioId(event.target.value)}
+            className="min-h-11 w-full rounded-lg border border-[var(--moni-border)] bg-white px-3 text-sm text-[var(--moni-navy-800)]"
+          >
+            <option value="">Selecione o condomínio</option>
+            {condominios.map((condominio) => {
+              const local = [condominio.cidade, condominio.estado].filter(Boolean).join(' / ');
+              return (
+                <option key={condominio.id} value={condominio.id}>
+                  {local ? `${condominio.nome} — ${local}` : condominio.nome}
+                </option>
+              );
+            })}
+          </select>
+          <label className="mb-1 mt-4 block text-xs text-stone-400" htmlFor="site-condominio">
+            Site do condomínio
+          </label>
+          <input
+            id="site-condominio"
+            type="url"
+            inputMode="url"
+            placeholder="https://siteDoCondominio.com.br"
+            value={siteUrl}
+            onChange={(event) => setSiteUrl(event.target.value)}
+            className="min-h-11 w-full rounded-lg border border-[var(--moni-border)] px-3 text-sm text-[var(--moni-navy-800)]"
+          />
+          <p className="mt-2 text-xs text-stone-400">
+            Com a URL, a foto, a frase e as vantagens entram no PDF. Sem ela, as folhas usam nome, cidade e a descrição já cadastrada.
+          </p>
         </div>
 
         {/* Resumo do modelo selecionado */}
@@ -151,7 +215,7 @@ export function BookDoEmpreendimentoGerador() {
           <button
             type="button"
             onClick={handleGerar}
-            disabled={!modeloSelecionado || gerando}
+            disabled={!modeloSelecionado || !condominioId || gerando}
             className="flex items-center gap-2 rounded-lg bg-[var(--moni-navy-800)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--moni-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <DocumentArrowDownIcon className="h-4 w-4 shrink-0" aria-hidden />

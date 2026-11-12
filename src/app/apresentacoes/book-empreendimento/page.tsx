@@ -17,5 +17,19 @@ export default async function BookDoEmpreendimentoPage() {
   if (role === 'frank') redirect('/portal-frank');
   if (!isAdminRole(role) && role !== 'team') redirect('/rede-franqueados');
 
-  return <BookDoEmpreendimentoGerador />;
+  const { data: condominios } = await supabase
+    .from('condominios')
+    .select('id, nome, cidade, estado')
+    .order('nome', { ascending: true });
+
+  const opcoes = (condominios ?? [])
+    .map((row) => ({
+      id: String(row.id ?? ''),
+      nome: String(row.nome ?? '').trim(),
+      cidade: row.cidade ? String(row.cidade) : null,
+      estado: row.estado ? String(row.estado) : null,
+    }))
+    .filter((row) => row.id && row.nome);
+
+  return <BookDoEmpreendimentoGerador condominios={opcoes} />;
 }

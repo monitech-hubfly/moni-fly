@@ -233,6 +233,23 @@ function renderAberturaCondominio(ctx: BookContext): string {
     '</section>'
 }
 
+function tituloLocalizacao(c: CondominioLivro): { bold: string; italic: string; virgula: boolean } {
+  const secundaria = c.fraseSecundaria?.trim() ?? ''
+  const principal = c.frasePrincipal?.trim() ?? ''
+  const fonte = secundaria.length > 0 && secundaria.length <= 80
+    ? secundaria
+    : (principal.length > 0 && principal.length <= 80 ? principal : c.nome)
+  const linhas = fonte.split('\n').map((linha) => linha.trim()).filter(Boolean)
+  if (linhas.length >= 2) {
+    return { bold: linhas[0], italic: linhas.slice(1).join(' '), virgula: false }
+  }
+  const partes = fonte.split(',')
+  if (partes.length >= 2 && (partes[0]?.trim().length ?? 0) <= 48) {
+    return { bold: partes[0].trim(), italic: partes.slice(1).join(',').trim(), virgula: true }
+  }
+  return { bold: fonte.trim() || c.nome, italic: '', virgula: false }
+}
+
 function renderLocalizacao(ctx: BookContext): string {
   if (!ctx.condominio) return placeholderPage('Localização', 'A preencher — dados do condomínio')
 
@@ -242,9 +259,9 @@ function renderLocalizacao(ctx: BookContext): string {
     .filter((parte): parte is string => Boolean(parte))
     .map((parte) => escapeHtml(parte))
     .join(' / ')
-  const tituloParts = c.frasePrincipal ? c.frasePrincipal.split(',') : ['']
-  const tituloNegrito = escapeHtml(tituloParts[0]?.trim() || c.nome)
-  const tituloItalico = c.fraseSecundaria ? escapeHtml(c.fraseSecundaria) : (tituloParts[1] ? escapeHtml(tituloParts[1].trim()) : '')
+  const titulo = tituloLocalizacao(c)
+  const tituloNegrito = escapeHtml(titulo.bold)
+  const tituloItalico = titulo.italic ? escapeHtml(titulo.italic) : ''
   const subtituloEsc = c.subtitulo ? escapeHtml(c.subtitulo) : ''
   const foto2Html = c.fotoSecundaria
     ? '<img class="loc-foto" src="' + escapeHtml(c.fotoSecundaria) + '" alt="Condomínio" />'
@@ -274,7 +291,9 @@ function renderLocalizacao(ctx: BookContext): string {
       (cidadeEstado ? '<p class="loc-cidade">O CONDOMÍNIO &middot; ' + cidadeEstado + '</p>' : '') +
       '<h2 class="loc-titulo">' +
         '<span class="loc-titulo-bold">' + tituloNegrito + '</span>' +
-        (tituloItalico ? ',<br/><em class="loc-titulo-italic">' + tituloItalico + '</em>' : '') +
+        (tituloItalico
+          ? (titulo.virgula ? ',<br/>' : '<br/>') + '<em class="loc-titulo-italic">' + tituloItalico + '</em>'
+          : '') +
       '</h2>' +
       (subtituloEsc ? '<p class="loc-sub">' + subtituloEsc + '</p>' : '') +
       '<div class="loc-rule"></div>' +
