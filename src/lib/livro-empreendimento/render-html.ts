@@ -1128,19 +1128,19 @@ function estilos(): string {
 
     .fx-logo {
       font-family: Inter, Arial, Helvetica, sans-serif;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
-      letter-spacing: 0.34em;
+      letter-spacing: 0.42em;
       text-transform: uppercase;
       color: var(--navy);
-      margin-bottom: 8px;
+      margin: 0 0 12px;
     }
 
     .fx-body {
       flex: 1;
       display: flex;
       flex-direction: column;
-      padding: 36px 48px 40px;
+      padding: 72px 64px 56px;
     }
 
     .fx-label {
@@ -1150,22 +1150,22 @@ function estilos(): string {
       letter-spacing: 0.28em;
       text-transform: uppercase;
       color: var(--gold);
-      margin-bottom: 8px;
+      margin: 0 0 14px;
     }
 
     .fx-titulo {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 42px;
+      font-size: 40px;
       font-weight: 700;
       line-height: 1.05;
       color: var(--navy);
-      margin-bottom: 28px;
+      margin: 0 0 36px;
     }
 
     .fx-cards {
       display: flex;
-      gap: 20px;
-      flex: 1;
+      gap: 22px;
+      height: 360px;
       align-items: stretch;
     }
 
@@ -1185,7 +1185,11 @@ function estilos(): string {
     }
 
     .fx-card-inner {
-      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      height: 100%;
+      padding: 28px 28px 32px;
       width: 100%;
     }
 
@@ -1214,7 +1218,8 @@ function estilos(): string {
     .fx-rule {
       border: none;
       border-top: 0.5px solid var(--gold);
-      margin-bottom: 20px;
+      margin-top: auto;
+      margin-bottom: 18px;
     }
 
     .fx-rule--light {
