@@ -429,21 +429,6 @@ function renderFaixasLote(ctx: BookContext): string {
   </section>`
 }
 
-function padraoFundoOcupacao(): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
-    <g fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity="0.22">
-      <circle cx="46" cy="52" r="18"/>
-      <path d="M16 58c12-16 20 10 30-4 10-14 18 12 30-2"/>
-    </g>
-    <g fill="#ffffff" opacity="0.2">
-      <path d="M112 36l1.3 3.8 3.8 1.3-3.8 1.3-1.3 3.8-1.3-3.8-3.8-1.3 3.8-1.3z"/>
-      <path d="M28 118l1 2.8 2.8 1-2.8 1-1 2.8-1-2.8-2.8-1 2.8-1z"/>
-      <path d="M124 108l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>
-    </g>
-  </svg>`
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
-}
-
 function renderOcupacao(ctx: BookContext): string {
   const nome = escapeHtml(ctx.condominio?.nome ?? 'Condomínio')
   const stats = [
@@ -469,6 +454,7 @@ function renderOcupacao(ctx: BookContext): string {
       <div class="oc-rule"></div>
       <p class="oc-disp-lbl">Lotes ainda disponíveis</p>
       <p class="oc-disp-num">0</p>
+      <p class="oc-disp-txt">De 0 lotes exclusivos, cerca de 0 seguem disponíveis<br/>— uma janela clara de oportunidade.</p>
     </div>
     <div class="oc-direita">
       <div class="oc-lote">
@@ -1411,9 +1397,7 @@ function estilos(): string {
       flex-direction: column;
       justify-content: center;
       padding: 56px 48px 56px 52px;
-      background-color: var(--navy);
-      background-image: ${padraoFundoOcupacao()};
-      background-size: 150px 150px;
+      background: var(--navy);
       color: var(--white);
     }
 
@@ -1467,7 +1451,17 @@ function estilos(): string {
       font-weight: 500;
       line-height: 1;
       color: var(--gold);
+      margin: 0 0 14px;
+    }
+
+    .oc-disp-txt {
       margin: 0;
+      max-width: 280px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 1.55;
+      color: rgba(255,255,255,0.72);
     }
 
     .oc-direita {
