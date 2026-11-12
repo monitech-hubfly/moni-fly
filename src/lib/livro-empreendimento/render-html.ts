@@ -42,6 +42,7 @@ export interface CondominioLivro {
 export interface BookContext {
   casa: CasaModelo
   condominio?: CondominioLivro | null
+  imagensLote?: string[]
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -428,16 +429,101 @@ function renderFaixasLote(ctx: BookContext): string {
   </section>`
 }
 
-function renderOcupacao(_ctx: BookContext): string {
-  return placeholderPage('Ocupação', 'A preencher — dados do condomínio')
+function padraoFundoOcupacao(): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
+    <g fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity="0.22">
+      <circle cx="46" cy="52" r="18"/>
+      <path d="M16 58c12-16 20 10 30-4 10-14 18 12 30-2"/>
+    </g>
+    <g fill="#ffffff" opacity="0.2">
+      <path d="M112 36l1.3 3.8 3.8 1.3-3.8 1.3-1.3 3.8-1.3-3.8-3.8-1.3 3.8-1.3z"/>
+      <path d="M28 118l1 2.8 2.8 1-2.8 1-1 2.8-1-2.8-2.8-1 2.8-1z"/>
+      <path d="M124 108l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>
+    </g>
+  </svg>`
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+
+function renderOcupacao(ctx: BookContext): string {
+  const nome = escapeHtml(ctx.condominio?.nome ?? 'Condomínio')
+  const stats = [
+    { valor: '0', label: 'Lotes exclusivos', ouro: false },
+    { valor: '0', label: 'Casas construídas', ouro: false },
+    { valor: '0', label: 'Casas em construção', ouro: false },
+    { valor: '0', label: 'Casas à venda no condomínio', ouro: true },
+    { valor: '0', label: 'Anos de condomínio', ouro: false },
+    { valor: '0', label: 'Estações de lazer', ouro: false },
+  ]
+  const statsHtml = stats.map((item) =>
+    '<div class="oc-stat">' +
+      '<p class="oc-stat-num' + (item.ouro ? ' oc-stat-num--ouro' : '') + '">' + item.valor + '</p>' +
+      '<p class="oc-stat-lbl">' + escapeHtml(item.label) + '</p>' +
+    '</div>',
+  ).join('')
+
+  return `<section class="page page-ocupacao">
+    <div class="oc-esquerda">
+      <p class="oc-nome">${nome}</p>
+      <p class="oc-kicker">Estágio de ocupação</p>
+      <h2 class="oc-titulo">Ocupação</h2>
+      <div class="oc-rule"></div>
+      <p class="oc-disp-lbl">Lotes ainda disponíveis</p>
+      <p class="oc-disp-num">0</p>
+    </div>
+    <div class="oc-direita">
+      <div class="oc-lote">
+        <div>
+          <p class="oc-lote-lbl">Lote · Setor</p>
+          <p class="oc-lote-num">0 m²</p>
+        </div>
+        <div class="oc-lote-valor-bloco">
+          <p class="oc-lote-lbl">Valor</p>
+          <p class="oc-lote-valor">R$ 0</p>
+        </div>
+      </div>
+      <div class="oc-card">${statsHtml}</div>
+    </div>
+  </section>`
 }
 
 function renderMasterplan(_ctx: BookContext): string {
   return placeholderPage('Masterplan', 'A preencher — dados do condomínio')
 }
 
-function renderDetalheLote(_ctx: BookContext): string {
-  return placeholderPage('Detalhe do lote', 'A preencher — dados do condomínio')
+function renderDetalheLote(ctx: BookContext): string {
+  const sol = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="2.4" stroke="currentColor" stroke-width="1.1"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>'
+  const topo = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.5 12.5l4.2-5.2 2.6 2.8 2.2-2.6 4 5" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>'
+  const recuo = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8h10M3 8l2-2M3 8l2 2M13 8l-2-2M13 8l-2 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  const fotos = ctx.imagensLote ?? []
+  const fotoHtml = (indice: number, legenda?: string) => {
+    const src = fotos[indice]
+    const img = src ? '<img src="' + escapeHtml(src) + '" alt="" />' : ''
+    const texto = legenda ? '<span>' + escapeHtml(legenda) + '</span>' : ''
+    return img + texto
+  }
+
+  return `<section class="page page-lote">
+    <div class="lt-esquerda">
+      <p class="lt-kicker">O terreno</p>
+      <h2 class="lt-titulo">A ficha do <em>lote</em></h2>
+      <p class="lt-medida-lbl">Área do lote</p>
+      <p class="lt-medida-num">0 m²</p>
+      <p class="lt-medida-lbl">Valor do lote</p>
+      <p class="lt-medida-valor">R$ 0</p>
+      <div class="lt-itens">
+        <div class="lt-item">${sol}<span>Posição do sol ·</span></div>
+        <div class="lt-item">${topo}<span>Topografia ·</span></div>
+        <div class="lt-item">${recuo}<span>Recuos · 0 m frente · 0 m fundo · 0 m laterais</span></div>
+      </div>
+    </div>
+    <div class="lt-direita">
+      <div class="lt-foto lt-foto-grande">${fotoHtml(0, 'Vista aérea')}</div>
+      <div class="lt-fotos">
+        <div class="lt-foto">${fotoHtml(1)}</div>
+        <div class="lt-foto">${fotoHtml(2)}</div>
+      </div>
+    </div>
+  </section>`
 }
 
 function renderAberturaCasa(ctx: BookContext): string {
@@ -1312,6 +1398,294 @@ function estilos(): string {
       font-style: italic;
     }
 
+    .page-ocupacao {
+      display: flex;
+      background: var(--cream);
+    }
+
+    .oc-esquerda {
+      width: 44%;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 56px 48px 56px 52px;
+      background-color: var(--navy);
+      background-image: ${padraoFundoOcupacao()};
+      background-size: 150px 150px;
+      color: var(--white);
+    }
+
+    .oc-nome {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.34em;
+      text-transform: uppercase;
+      margin: 0 0 12px;
+    }
+
+    .oc-kicker {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin: 0 0 16px;
+    }
+
+    .oc-titulo {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1.02;
+      margin: 0 0 18px;
+    }
+
+    .oc-rule {
+      width: 100%;
+      height: 0.5px;
+      background: rgba(255,255,255,0.28);
+      margin-bottom: 22px;
+    }
+
+    .oc-disp-lbl {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+      margin: 0 0 8px;
+    }
+
+    .oc-disp-num {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 58px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--gold);
+      margin: 0;
+    }
+
+    .oc-direita {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 16px;
+      padding: 40px 36px 40px 32px;
+    }
+
+    .oc-lote,
+    .oc-card {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .oc-lote {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--navy);
+      border-radius: 12px;
+      padding: 22px 28px;
+    }
+
+    .oc-lote-lbl {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+      margin: 0 0 6px;
+    }
+
+    .oc-lote-num {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 34px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--white);
+      margin: 0;
+    }
+
+    .oc-lote-valor-bloco {
+      text-align: right;
+    }
+
+    .oc-lote-valor {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 30px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--gold);
+      margin: 0;
+    }
+
+    .oc-card {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px 20px;
+      background: var(--white);
+      border-radius: 14px;
+      padding: 28px 32px;
+    }
+
+    .oc-stat-num {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 32px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--navy);
+      margin: 0 0 6px;
+    }
+
+    .oc-stat-num--ouro {
+      color: var(--gold);
+    }
+
+    .oc-stat-lbl {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--gray-mid);
+      margin: 0;
+    }
+
+    .page-lote {
+      display: flex;
+      background: var(--cream);
+    }
+
+    .lt-esquerda {
+      width: 42%;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 48px 40px 48px 48px;
+    }
+
+    .lt-kicker {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gray-mid);
+      margin: 0 0 10px;
+    }
+
+    .lt-titulo {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 40px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--navy);
+      margin: 0 0 28px;
+    }
+
+    .lt-titulo em {
+      font-style: italic;
+      font-weight: 500;
+      color: var(--gold);
+    }
+
+    .lt-medida-lbl {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--gray-mid);
+      margin: 14px 0 4px;
+    }
+
+    .lt-medida-num,
+    .lt-medida-valor {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 32px;
+      font-weight: 500;
+      line-height: 1;
+      margin: 0;
+    }
+
+    .lt-medida-num { color: var(--navy); }
+    .lt-medida-valor { color: var(--gold); }
+
+    .lt-itens {
+      margin-top: 28px;
+      border-top: 0.5px solid rgba(12,38,51,0.16);
+    }
+
+    .lt-item {
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr);
+      column-gap: 10px;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 0.5px solid rgba(12,38,51,0.16);
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--navy);
+    }
+
+    .lt-item svg {
+      display: block;
+      width: 15px;
+      height: 15px;
+      color: var(--navy);
+    }
+
+    .lt-direita {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px 8px 8px 0;
+      background: var(--cream);
+    }
+
+    .lt-foto-grande { flex: 1.35; }
+    .lt-fotos { flex: 1; display: flex; gap: 8px; }
+    .lt-fotos .lt-foto { flex: 1; }
+
+    .lt-foto {
+      position: relative;
+      background: color-mix(in srgb, var(--navy) 55%, var(--cream));
+      overflow: hidden;
+    }
+
+    .lt-foto img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .lt-foto span {
+      position: absolute;
+      left: 16px;
+      bottom: 14px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.85);
+    }
+
     .page-fim {
       background: var(--navy);
       color: var(--white);
@@ -1377,8 +1751,8 @@ export function renderBookHtml(ctx: BookContext): string {
     renderLocalizacao(ctx),
     renderFaixasLote(ctx),
     renderOcupacao(ctx),
-    renderMasterplan(ctx),
     renderDetalheLote(ctx),
+    renderMasterplan(ctx),
     renderAberturaCasa(ctx),
     renderFilosofiaModelo(ctx),
     renderImagemFull('Fachada', ctx, 1),

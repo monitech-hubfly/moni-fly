@@ -26,6 +26,17 @@ function urlHttp(value: unknown): string | undefined {
   }
 }
 
+function imagensLote(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.slice(0, 3).map((item) => {
+    if (typeof item !== 'string') return ''
+    const texto = item.trim().replace(/\s+/g, '')
+    if (!/^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(texto)) return ''
+    if (texto.length > 2_500_000) return ''
+    return texto
+  })
+}
+
 function conteudoSite(value: unknown): CondominioLivro | null {
   if (!value || typeof value !== 'object') return null
   const raw = value as Record<string, unknown>
@@ -64,12 +75,13 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id, conteudo_site } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
       kanban_card_id?: string
       conteudo_site?: unknown
+      imagens_lote?: unknown
     }
     const site = conteudoSite(conteudo_site)
     const casa_codigo = (body.casa_codigo ?? body.codigo)?.trim()
@@ -175,6 +187,7 @@ export async function POST(request: NextRequest) {
         especificacoes: casa.especificacoes ?? {},
       },
       condominio: condominioLivro,
+      imagensLote: imagensLote(imagens_lote),
     }
 
     // 4. Renderizar HTML das 27 páginas
@@ -207,7 +220,10 @@ export async function POST(request: NextRequest) {
       gerado_por: user.id,
       storage_path: storagePath,
       versao: 1,
-      contexto_json: ctx,
+      contexto_json: {
+        casa: ctx.casa,
+        condominio: ctx.condominio,
+      },
     })
 
     // 7. Gerar URL assinada (válida por 1 hora)

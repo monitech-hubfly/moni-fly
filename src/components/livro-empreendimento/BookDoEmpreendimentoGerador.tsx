@@ -26,6 +26,40 @@ const MODELOS_CASA = [
   { codigo: 'LENA', nome: 'LENA', area: '708,3 m²',   suites: 6, banheiros: 8, dimensoes: '24 × 42 m',      preco: 'R$ 3.527.092,00' },
 ];
 
+const CAMPOS_IMAGEM_LOTE = [
+  { id: 'lote-vista-aerea', rotulo: 'Vista aérea' },
+  { id: 'lote-foto-2', rotulo: 'Foto 2' },
+  { id: 'lote-foto-3', rotulo: 'Foto 3' },
+] as const
+
+function lerImagemLote(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const imagem = new Image()
+    imagem.onload = () => {
+      const limite = 1400
+      const escala = Math.min(1, limite / Math.max(imagem.width, imagem.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(imagem.width * escala))
+      canvas.height = Math.max(1, Math.round(imagem.height * escala))
+      const contexto = canvas.getContext('2d')
+      if (!contexto) {
+        URL.revokeObjectURL(url)
+        reject(new Error('Não foi possível ler a imagem'))
+        return
+      }
+      contexto.drawImage(imagem, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/jpeg', 0.82))
+    }
+    imagem.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Não foi possível ler a imagem'))
+    }
+    imagem.src = url
+  })
+}
+
 export function BookDoEmpreendimentoGerador({
   condominios,
 }: {
@@ -34,6 +68,7 @@ export function BookDoEmpreendimentoGerador({
   const [modeloSelecionado, setModeloSelecionado] = useState<string | null>(null);
   const [condominioId, setCondominioId] = useState('');
   const [siteUrl, setSiteUrl] = useState('');
+  const [imagensLote, setImagensLote] = useState<[string, string, string]>(['', '', '']);
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -66,6 +101,7 @@ export function BookDoEmpreendimentoGerador({
           casa_codigo: modeloSelecionado,
           condominio_id: condominioId,
           conteudo_site: conteudoSite,
+          imagens_lote: imagensLote,
         }),
       });
 
@@ -178,6 +214,51 @@ export function BookDoEmpreendimentoGerador({
           <p className="mt-2 text-xs text-stone-400">
             Com a URL, a foto, a frase e as vantagens entram no PDF. Sem ela, as folhas usam nome, cidade e a descrição já cadastrada.
           </p>
+        </div>
+
+        <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
+          <h2 className="mb-1 text-sm font-semibold text-[var(--moni-navy-800)]">Imagens do lote</h2>
+          <p className="mb-4 text-xs text-stone-400">
+            Três fotos, nesta ordem: vista aérea em cima e as duas de baixo na ficha do lote.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {CAMPOS_IMAGEM_LOTE.map((campo, indice) => (
+              <label
+                key={campo.id}
+                htmlFor={campo.id}
+                className="flex min-h-11 cursor-pointer flex-col gap-2 rounded-lg border border-[var(--moni-border)] p-3"
+              >
+                <span className="text-xs text-stone-500">{campo.rotulo}</span>
+                {imagensLote[indice] ? (
+                  <img src={imagensLote[indice]} alt="" className="h-24 w-full rounded-md object-cover" />
+                ) : (
+                  <span className="flex h-24 items-center text-sm text-[var(--moni-navy-800)]">Escolher imagem</span>
+                )}
+                <input
+                  id={campo.id}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={(event) => {
+                    const arquivo = event.target.files?.[0]
+                    if (!arquivo) return
+                    void lerImagemLote(arquivo)
+                      .then((dataUrl) => {
+                        setImagensLote((atual) => {
+                          const proxima: [string, string, string] = [...atual]
+                          proxima[indice] = dataUrl
+                          return proxima
+                        })
+                        setErro(null)
+                      })
+                      .catch((falha: unknown) => {
+                        setErro(falha instanceof Error ? falha.message : 'Não foi possível ler a imagem')
+                      })
+                  }}
+                />
+              </label>
+            ))}
+          </div>
         </div>
 
         {/* Resumo do modelo selecionado */}
