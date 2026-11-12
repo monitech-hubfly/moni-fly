@@ -472,10 +472,6 @@ function renderOcupacao(ctx: BookContext): string {
   </section>`
 }
 
-function renderMasterplan(_ctx: BookContext): string {
-  return placeholderPage('Masterplan', 'A preencher — dados do condomínio')
-}
-
 function renderDetalheLote(ctx: BookContext): string {
   const sol = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="2.4" stroke="currentColor" stroke-width="1.1"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>'
   const topo = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.5 12.5l4.2-5.2 2.6 2.8 2.2-2.6 4 5" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>'
@@ -1746,7 +1742,6 @@ export function renderBookHtml(ctx: BookContext): string {
     renderFaixasLote(ctx),
     renderOcupacao(ctx),
     renderDetalheLote(ctx),
-    renderMasterplan(ctx),
     renderAberturaCasa(ctx),
     renderFilosofiaModelo(ctx),
     renderImagemFull('Fachada', ctx, 1),
