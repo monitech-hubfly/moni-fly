@@ -443,7 +443,7 @@ function estilos(): string {
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    @page { size: A4 landscape; margin: 0; }
+    @page { size: 1334px 750px; margin: 0; }
 
     html, body {
       margin: 0;
@@ -454,8 +454,8 @@ function estilos(): string {
     }
 
     .page {
-      width: 297mm;
-      height: 210mm;
+      width: 1334px;
+      height: 750px;
       overflow: hidden;
       position: relative;
       page-break-after: always;
