@@ -238,7 +238,10 @@ function renderLocalizacao(ctx: BookContext): string {
 
   const c = ctx.condominio
   const nomeEsc = escapeHtml(c.nome)
-  const cidadeEstado = [c.cidade, c.estado].filter(Boolean).map(escapeHtml).join(' / ')
+  const cidadeEstado = [c.cidade, c.estado]
+    .filter((parte): parte is string => Boolean(parte))
+    .map((parte) => escapeHtml(parte))
+    .join(' / ')
   const tituloParts = c.frasePrincipal ? c.frasePrincipal.split(',') : ['', '']
   const tituloNegrito = escapeHtml(tituloParts[0]?.trim() ?? c.nome)
   const tituloItalico = c.fraseSecundaria ? escapeHtml(c.fraseSecundaria) : (tituloParts[1] ? escapeHtml(tituloParts[1].trim()) : '')
