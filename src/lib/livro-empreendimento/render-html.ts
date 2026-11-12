@@ -382,7 +382,6 @@ function renderLocalizacao(ctx: BookContext): string {
           '</h2>'
         : '') +
       (subtituloEsc ? '<p class="loc-sub">' + subtituloEsc + '</p>' : '') +
-      '<div class="loc-rule"></div>' +
       '<div class="loc-vantagens">' + vantagensHtml + '</div>' +
     '</div>' +
     '<div class="loc-direita">' + foto2Html + '</div>' +
@@ -978,37 +977,45 @@ function estilos(): string {
       color: var(--navy);
     }
 
-    .loc-rule {
-      width: 100%;
-      height: 0.5px;
-      background: rgba(12,38,51,0.18);
-      margin-bottom: 5mm;
-    }
-
     .loc-vantagens {
       display: flex;
       flex-direction: column;
+      margin-top: 2mm;
     }
 
     .loc-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 3mm;
-      border-top: 0.5px solid rgba(12,38,51,0.16);
+      display: grid;
+      grid-template-columns: 16px minmax(0, 1fr);
+      column-gap: 8px;
+      align-items: start;
       padding: 3.2mm 0;
     }
 
+    .loc-item + .loc-item {
+      border-top: 0.5px solid rgba(12,38,51,0.16);
+    }
+
     .loc-icone {
-      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 14px;
       color: var(--navy);
       opacity: 0.65;
-      margin-top: 0.5mm;
+    }
+
+    .loc-icone svg {
+      display: block;
+      width: auto;
+      height: 13px;
+      max-width: 13px;
     }
 
     .loc-item-txt {
       font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 9.5px;
-      line-height: 1.5;
+      line-height: 14px;
       color: #3A3A3A;
     }
 
@@ -1196,7 +1203,7 @@ function estilos(): string {
       flex: 1;
       display: flex;
       flex-direction: column;
-      padding: 72px 64px 56px;
+      padding: 104px 72px 48px;
     }
 
     .fx-label {
@@ -1215,13 +1222,13 @@ function estilos(): string {
       font-weight: 700;
       line-height: 1.05;
       color: var(--navy);
-      margin: 0 0 36px;
+      margin: 0 0 28px;
     }
 
     .fx-cards {
       display: flex;
       gap: 22px;
-      height: 360px;
+      height: 268px;
       align-items: stretch;
     }
 
@@ -1245,7 +1252,7 @@ function estilos(): string {
       flex-direction: column;
       box-sizing: border-box;
       height: 100%;
-      padding: 28px 28px 32px;
+      padding: 22px 24px 20px;
       width: 100%;
     }
 
