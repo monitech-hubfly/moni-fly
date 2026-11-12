@@ -211,11 +211,26 @@ function renderCover(ctx: BookContext): string {
   </section>`
 }
 
+function destacarTrecho(texto: string, re: RegExp): string {
+  const flags = re.flags.includes('g') ? re.flags : `${re.flags}g`
+  const rx = new RegExp(re.source, flags)
+  let html = ''
+  let cursor = 0
+  for (const match of texto.matchAll(rx)) {
+    const inicio = match.index ?? 0
+    html += escapeHtml(texto.slice(cursor, inicio))
+    html += '<strong>' + escapeHtml(match[0]) + '</strong>'
+    cursor = inicio + match[0].length
+  }
+  html += escapeHtml(texto.slice(cursor))
+  return html
+}
+
 function renderAberturaCondominio(ctx: BookContext): string {
   if (!ctx.condominio) return placeholderPage('Parte 01', 'O Condomínio')
 
   const c = ctx.condominio
-  const nomeEsc = escapeHtml(c.nome)
+  const casaNome = escapeHtml(`Casa ${nomeCatalogo(ctx.casa)}`)
   const fraseEsc = c.frasePrincipal ? escapeHtml(c.frasePrincipal) : ''
   const imgHtml = c.fotoPrincipal
     ? '<img class="full-bleed" src="' + escapeHtml(c.fotoPrincipal) + '" alt="Condomínio" />'
@@ -226,7 +241,7 @@ function renderAberturaCondominio(ctx: BookContext): string {
     '<div class="cond-overlay"></div>' +
     '<div class="cond-ab-copy">' +
       '<p class="cond-ab-parte">PARTE 01</p>' +
-      '<p class="cond-ab-nome">' + nomeEsc + '</p>' +
+      '<p class="cond-ab-casa">' + casaNome + '</p>' +
       '<h2 class="cond-ab-titulo">O condomínio</h2>' +
       (fraseEsc ? '<p class="cond-ab-sub">' + fraseEsc + '</p>' : '') +
     '</div>' +
@@ -262,7 +277,9 @@ function renderLocalizacao(ctx: BookContext): string {
   const titulo = tituloLocalizacao(c)
   const tituloNegrito = escapeHtml(titulo.bold)
   const tituloItalico = titulo.italic ? escapeHtml(titulo.italic) : ''
-  const subtituloEsc = c.subtitulo ? escapeHtml(c.subtitulo) : ''
+  const subtituloEsc = c.subtitulo
+    ? destacarTrecho(c.subtitulo, /\d+\s*km(?:\s+de\s+\S+(?:\s+\S+)?)?/i)
+    : ''
   const foto2Html = c.fotoSecundaria
     ? '<img class="loc-foto" src="' + escapeHtml(c.fotoSecundaria) + '" alt="Condomínio" />'
     : '<div class="loc-foto loc-foto-placeholder"></div>'
@@ -281,7 +298,7 @@ function renderLocalizacao(ctx: BookContext): string {
     const v = vantagens[i]
     vantagensHtml += '<div class="loc-item">' +
       '<span class="loc-icone">' + (icones[i] ?? icones[0]) + '</span>' +
-      '<span class="loc-item-txt">' + escapeHtml(v.texto) + '</span>' +
+      '<span class="loc-item-txt">' + destacarTrecho(v.texto, /\d+\s+minutos/i) + '</span>' +
     '</div>'
   }
 
@@ -306,12 +323,9 @@ function renderLocalizacao(ctx: BookContext): string {
 function renderFaixasLote(ctx: BookContext): string {
   const nomeCondominio = escapeHtml(ctx.condominio?.nome ?? 'Condomínio')
   return `<section class="page page-faixas">
-    <div class="fx-header">
-      <div class="fx-logo">${nomeCondominio}</div>
-      <div class="fx-nav"></div>
-    </div>
     <div class="fx-body">
-      <div class="fx-label kicker">LOTES &amp; VALORES</div>
+      <p class="fx-logo">${nomeCondominio}</p>
+      <p class="fx-label">LOTES &amp; VALORES</p>
       <h2 class="fx-titulo">Faixas de lote</h2>
       <div class="fx-cards">
         <div class="fx-card">
@@ -486,6 +500,7 @@ function estilos(): string {
       --moni-navy-800: #0C2633;
       --moni-navy-600: #163545;
       --moni-green-800: #2F4A3A;
+      --moni-green-400: #4d7a62;
       --moni-earth-800: #4A3929;
       --moni-gold-400: #D4AD68;
       --moni-gold-200: #e8c98a;
@@ -734,37 +749,39 @@ function estilos(): string {
       position: absolute;
       inset: 0;
       background: linear-gradient(
-        170deg,
-        rgba(12,38,51,0.08) 0%,
-        rgba(12,38,51,0.52) 55%,
-        rgba(12,38,51,0.90) 100%
+        to top,
+        rgba(12,38,51,0.78) 0%,
+        rgba(12,38,51,0.34) 34%,
+        rgba(12,38,51,0.08) 68%
       );
     }
 
     .cond-ab-copy {
       position: absolute;
-      left: 14mm;
-      right: 60mm;
-      bottom: 14mm;
+      left: 13mm;
+      right: 42%;
+      bottom: 12mm;
       z-index: 2;
     }
 
     .cond-ab-parte {
       font-family: var(--moni-font-sans);
-      font-size: 7px;
-      letter-spacing: 0.44em;
+      font-size: 8px;
+      font-weight: 500;
+      letter-spacing: 0.46em;
       text-transform: uppercase;
       color: var(--moni-gold-400);
-      margin-bottom: 2mm;
+      margin-bottom: 4mm;
     }
 
-    .cond-ab-nome {
+    .cond-ab-casa {
       font-family: var(--moni-font-sans);
-      font-size: 9px;
-      letter-spacing: 0.38em;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.42em;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.75);
-      margin-bottom: 1.5mm;
+      color: var(--moni-white);
+      margin-bottom: 3mm;
     }
 
     .cond-ab-titulo {
@@ -779,10 +796,11 @@ function estilos(): string {
 
     .cond-ab-sub {
       font-family: var(--moni-font-display);
-      font-size: 13px;
-      line-height: 1.4;
-      color: rgba(255,255,255,0.78);
-      max-width: 180mm;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 1.35;
+      color: var(--moni-white);
+      max-width: 150mm;
     }
 
     /* ── Folha 3: Localização ── */
@@ -797,7 +815,7 @@ function estilos(): string {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      background: #F5F0E8;
+      background: var(--moni-cream);
       position: relative;
       z-index: 1;
     }
@@ -823,26 +841,27 @@ function estilos(): string {
 
     .loc-nome {
       font-family: var(--moni-font-sans);
-      font-size: 9px;
-      letter-spacing: 0.38em;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.34em;
       text-transform: uppercase;
       color: var(--moni-navy-800);
-      margin-bottom: 1mm;
+      margin-bottom: 2mm;
     }
 
     .loc-cidade {
       font-family: var(--moni-font-sans);
       font-size: 8px;
-      letter-spacing: 0.22em;
+      letter-spacing: 0.2em;
       text-transform: uppercase;
-      color: #7B9E87;
+      color: var(--moni-green-400);
       margin-bottom: 6mm;
     }
 
     .loc-titulo {
       font-family: var(--moni-font-display);
-      font-size: 32px;
-      line-height: 1.08;
+      font-size: 36px;
+      line-height: 1.05;
       margin-bottom: 5mm;
       color: var(--moni-navy-800);
     }
@@ -859,11 +878,20 @@ function estilos(): string {
 
     .loc-sub {
       font-family: var(--moni-font-display);
-      font-size: 10.5px;
-      line-height: 1.6;
-      color: #3A3A3A;
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--moni-earth-800);
       margin-bottom: 6mm;
-      max-width: 90mm;
+      max-width: 92mm;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .loc-sub strong {
+      font-weight: 700;
+      color: var(--moni-navy-800);
     }
 
     .loc-rule {
@@ -876,13 +904,14 @@ function estilos(): string {
     .loc-vantagens {
       display: flex;
       flex-direction: column;
-      gap: 3.5mm;
     }
 
     .loc-item {
       display: flex;
       align-items: flex-start;
       gap: 3mm;
+      border-top: 0.5px solid rgba(12,38,51,0.16);
+      padding: 3.2mm 0;
     }
 
     .loc-icone {
@@ -1069,52 +1098,53 @@ function estilos(): string {
       padding: 0;
     }
 
-    .fx-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 20px 44px 0;
-    }
-
     .fx-logo {
-      font-family: var(--moni-font-display);
-      font-size: 18px;
-      letter-spacing: 0.18em;
+      font-family: var(--moni-font-sans);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.34em;
       text-transform: uppercase;
       color: var(--moni-navy-800);
+      margin-bottom: 8px;
     }
 
     .fx-body {
       flex: 1;
       display: flex;
       flex-direction: column;
-      padding: 24px 44px 44px;
+      padding: 36px 48px 40px;
     }
 
     .fx-label {
+      font-family: var(--moni-font-sans);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
       color: var(--moni-gold-400);
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .fx-titulo {
       font-family: var(--moni-font-display);
-      font-size: 54px;
-      font-weight: bold;
-      line-height: 1.0;
+      font-size: 42px;
+      font-weight: 700;
+      line-height: 1.05;
       color: var(--moni-navy-800);
-      margin-bottom: 32px;
+      margin-bottom: 28px;
     }
 
     .fx-cards {
       display: flex;
       gap: 20px;
       flex: 1;
+      align-items: stretch;
     }
 
     .fx-card {
       flex: 1;
-      border: 1px solid var(--moni-gold-400);
-      border-radius: 4px;
+      border: 0.5px solid var(--moni-gold-400);
+      border-radius: 6px;
       background: var(--moni-white);
       display: flex;
       align-items: flex-start;
@@ -1123,6 +1153,7 @@ function estilos(): string {
     .fx-card--destaque {
       background: var(--moni-navy-800);
       border-color: var(--moni-navy-800);
+      box-shadow: 0 14px 28px rgba(12, 38, 51, 0.16);
     }
 
     .fx-card-inner {

@@ -81,7 +81,67 @@ function categoria(texto: string): 'pin' | 'shop' | 'road' | null {
   return null
 }
 
+function fraseContraste(texto: string): string {
+  const match = texto.match(/([A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){0,5}) e a ([A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+){0,3})/i)
+  if (!match) return ''
+  const esquerda = match[1].trim().split(/\s+/).slice(-2).join(' ')
+  const direita = match[2].trim().replace(/[.,;].*$/, '').trim()
+  if (esquerda.length < 8 || direita.length < 8) return ''
+  const titulo = esquerda.charAt(0).toLocaleUpperCase('pt-BR') + esquerda.slice(1)
+  const complemento = direita.charAt(0).toLocaleLowerCase('pt-BR') + direita.slice(1)
+  return `${titulo}, ${complemento}`
+}
+
+function fraseRegiao(texto: string): string {
+  const primeira = primeiraFrase(texto, 420).replace(/\.$/, '').trim()
+  if (!primeira) return ''
+  let frase = primeira.replace(/^.*?est[aá] localizad[oa] em uma\s+/i, '')
+  if (frase.length < 40) frase = primeira
+  frase = frase.charAt(0).toLocaleUpperCase('pt-BR') + frase.slice(1)
+  frase = frase.replace(/,\s+a apenas\b/i, ' – a apenas')
+  frase = frase.replace(/\bda cidade de\b/gi, 'de')
+  if (frase.length <= 230) return frase
+  const ate = frase.slice(0, 230)
+  const espaco = ate.lastIndexOf(' ')
+  return (espaco > 120 ? ate.slice(0, espaco) : ate).trim()
+}
+
+function vantagensExplicitas(texto: string): VantagemLocalizacao[] {
+  const saida: VantagemLocalizacao[] = []
+  const minutos = texto.match(
+    /a\s+(\d+\s+minutos)\s+do\s+(.+?)(?:\s+e\s+pr[oó]ximo\s+ao\s+(.+?))?(?=,|\.|$)/i,
+  )
+  if (minutos) {
+    const lugar = minutos[2].trim()
+    const extra = (minutos[3] ?? '').trim().replace(/^shopping\s+/i, '')
+    let linha = `A ${minutos[1]} do ${lugar}`
+    if (extra) linha += ` e próximo ao ${extra}`
+    saida.push({ icone: 'pin', texto: linha })
+  }
+
+  const lojas = texto.match(/cercad[oa]\s+por\s+(.+?)(?=\s+e\s+com\b|,|\.)/i)
+  if (lojas) {
+    const miolo = lojas[1].trim()
+    saida.push({
+      icone: 'shop',
+      texto: `Cercado por ${miolo.charAt(0).toLocaleLowerCase('pt-BR')}${miolo.slice(1)}`,
+    })
+  }
+
+  const acesso = texto.match(/f[aá]cil acesso\s+(.+?)(?=,|\s+e\s+|$)/i)
+  if (acesso) {
+    let destino = acesso[1].trim().replace(/\.+$/, '').replace(/^à\s+/i, '')
+    destino = destino.replace(/\brodovia\b/i, 'Rodovia')
+    saida.push({ icone: 'road', texto: `Fácil acesso à ${destino}` })
+  }
+
+  return saida.slice(0, 3)
+}
+
 function vantagensDaLocalizacao(texto: string): VantagemLocalizacao[] {
+  const explicitas = vantagensExplicitas(texto)
+  if (explicitas.length >= 2) return explicitas
+
   const porTipo = new Map<string, string>()
   for (const parte of clausulas(texto)) {
     const tipo = categoria(parte)
@@ -91,7 +151,8 @@ function vantagensDaLocalizacao(texto: string): VantagemLocalizacao[] {
   }
   return (['pin', 'shop', 'road'] as const)
     .filter((tipo) => porTipo.has(tipo))
-    .map((tipo) => ({ icone: tipo, texto: porTipo.get(tipo)! }))
+    .map((tipo) => ({ icone: tipo, texto: porTipo.get(tipo) ?? '' }))
+    .filter((item) => item.texto)
 }
 
 function fotosDoHtml(html: string, base: string): string[] {
@@ -173,8 +234,11 @@ export async function scrapeSiteContent(siteUrl: string): Promise<ScrapedData> {
     (ogTitle.length > 8 ? ogTitle : '') ||
     undefined
 
-  const tituloCurto = tituloLocal || (manchete.length > 0 && manchete.length <= 80 ? manchete : '')
-  if (tituloCurto && cleanText(tituloCurto) !== result.frasePrincipal) {
+  const tituloContraste = fraseContraste(textoLocal || descricaoCurta)
+  const tituloCurto = tituloContraste
+    || (manchete.length > 0 && manchete.length <= 80 ? manchete : '')
+    || tituloLocal
+  if (tituloCurto && cleanText(tituloCurto.replace(/\n/g, ' ')) !== result.frasePrincipal) {
     result.fraseSecundaria = tituloCurto
   }
 
@@ -184,7 +248,7 @@ export async function scrapeSiteContent(siteUrl: string): Promise<ScrapedData> {
     .find((t) => t.length > 60 && t.length < 400)
 
   const corpo = textoLocal || descricaoCurta || descPara || ''
-  const subtitulo = primeiraFrase(corpo)
+  const subtitulo = fraseRegiao(corpo) || primeiraFrase(corpo)
   if (subtitulo) result.subtitulo = subtitulo
 
   result.vantagens = vantagensDaLocalizacao(textoLocal || corpo)
