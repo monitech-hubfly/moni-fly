@@ -242,8 +242,8 @@ function renderLocalizacao(ctx: BookContext): string {
     .filter((parte): parte is string => Boolean(parte))
     .map((parte) => escapeHtml(parte))
     .join(' / ')
-  const tituloParts = c.frasePrincipal ? c.frasePrincipal.split(',') : ['', '']
-  const tituloNegrito = escapeHtml(tituloParts[0]?.trim() ?? c.nome)
+  const tituloParts = c.frasePrincipal ? c.frasePrincipal.split(',') : ['']
+  const tituloNegrito = escapeHtml(tituloParts[0]?.trim() || c.nome)
   const tituloItalico = c.fraseSecundaria ? escapeHtml(c.fraseSecundaria) : (tituloParts[1] ? escapeHtml(tituloParts[1].trim()) : '')
   const subtituloEsc = c.subtitulo ? escapeHtml(c.subtitulo) : ''
   const foto2Html = c.fotoSecundaria
@@ -284,12 +284,47 @@ function renderLocalizacao(ctx: BookContext): string {
     '</section>'
 }
 
-function renderAmenidades(_ctx: BookContext): string {
-  return placeholderPage('Amenidades', 'A preencher — dados do condomínio')
-}
-
-function renderFaixasLote(_ctx: BookContext): string {
-  return placeholderPage('Faixas de lote', 'A preencher — dados do condomínio')
+function renderFaixasLote(ctx: BookContext): string {
+  const nomeCondominio = escapeHtml(ctx.condominio?.nome ?? 'Condomínio')
+  return `<section class="page page-faixas">
+    <div class="fx-header">
+      <div class="fx-logo">${nomeCondominio}</div>
+      <div class="fx-nav"></div>
+    </div>
+    <div class="fx-body">
+      <div class="fx-label kicker">LOTES &amp; VALORES</div>
+      <h2 class="fx-titulo">Faixas de lote</h2>
+      <div class="fx-cards">
+        <div class="fx-card">
+          <div class="fx-card-inner">
+            <p class="fx-card-nome">Médios</p>
+            <p class="fx-card-area">≈ 450–500 m²</p>
+            <hr class="fx-rule" />
+            <p class="fx-card-label">VALOR DE REFERÊNCIA</p>
+            <p class="fx-card-preco">R$ 890 mil<br/>– 1,1 mi</p>
+          </div>
+        </div>
+        <div class="fx-card fx-card--destaque">
+          <div class="fx-card-inner">
+            <p class="fx-card-nome">Grandes</p>
+            <p class="fx-card-area">≈ 550–650 m²</p>
+            <hr class="fx-rule fx-rule--light" />
+            <p class="fx-card-label">VALOR DE REFERÊNCIA</p>
+            <p class="fx-card-preco">R$ 1,0 mi<br/>– 1,35 mi</p>
+          </div>
+        </div>
+        <div class="fx-card">
+          <div class="fx-card-inner">
+            <p class="fx-card-nome">Extra grandes</p>
+            <p class="fx-card-area">≈ 800–950 m²</p>
+            <hr class="fx-rule" />
+            <p class="fx-card-label">VALOR DE REFERÊNCIA</p>
+            <p class="fx-card-preco">R$ 1,2 mi<br/>– 1,6 mi+</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>`
 }
 
 function renderOcupacao(_ctx: BookContext): string {
@@ -1006,6 +1041,125 @@ function estilos(): string {
       background: var(--moni-gold-400);
     }
 
+
+    /* ── Folha 5: Faixas de Lote ── */
+    .page-faixas {
+      background: var(--moni-cream);
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+
+    .fx-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 44px 0;
+    }
+
+    .fx-logo {
+      font-family: var(--moni-font-display);
+      font-size: 18px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--moni-navy-800);
+    }
+
+    .fx-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 44px 44px;
+    }
+
+    .fx-label {
+      color: var(--moni-gold-400);
+      margin-bottom: 10px;
+    }
+
+    .fx-titulo {
+      font-family: var(--moni-font-display);
+      font-size: 54px;
+      font-weight: bold;
+      line-height: 1.0;
+      color: var(--moni-navy-800);
+      margin-bottom: 32px;
+    }
+
+    .fx-cards {
+      display: flex;
+      gap: 20px;
+      flex: 1;
+    }
+
+    .fx-card {
+      flex: 1;
+      border: 1px solid var(--moni-gold-400);
+      border-radius: 4px;
+      background: var(--moni-white);
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .fx-card--destaque {
+      background: var(--moni-navy-800);
+      border-color: var(--moni-navy-800);
+    }
+
+    .fx-card-inner {
+      padding: 32px 28px;
+      width: 100%;
+    }
+
+    .fx-card-nome {
+      font-family: var(--moni-font-display);
+      font-size: 26px;
+      color: var(--moni-navy-800);
+      margin-bottom: 10px;
+    }
+
+    .fx-card--destaque .fx-card-nome {
+      color: var(--moni-white);
+    }
+
+    .fx-card-area {
+      font-family: var(--moni-font-sans);
+      font-size: 13px;
+      color: color-mix(in srgb, var(--moni-navy-800) 60%, transparent);
+      margin-bottom: 20px;
+    }
+
+    .fx-card--destaque .fx-card-area {
+      color: rgba(255,255,255,0.60);
+    }
+
+    .fx-rule {
+      border: none;
+      border-top: 0.5px solid var(--moni-gold-400);
+      margin-bottom: 20px;
+    }
+
+    .fx-rule--light {
+      border-top-color: rgba(212,173,104,0.5);
+    }
+
+    .fx-card-label {
+      font-family: var(--moni-font-sans);
+      font-size: 9px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--moni-gold-400);
+      margin-bottom: 10px;
+    }
+
+    .fx-card-preco {
+      font-family: var(--moni-font-display);
+      font-size: 32px;
+      font-weight: bold;
+      line-height: 1.15;
+      color: var(--moni-gold-400);
+    }
+
     .page-fim {
       background: var(--moni-navy-800);
       color: var(--moni-white);
@@ -1050,7 +1204,6 @@ export function renderBookHtml(ctx: BookContext): string {
     renderCover(ctx),
     renderAberturaCondominio(ctx),
     renderLocalizacao(ctx),
-    renderAmenidades(ctx),
     renderFaixasLote(ctx),
     renderOcupacao(ctx),
     renderMasterplan(ctx),
