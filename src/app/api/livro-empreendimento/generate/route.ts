@@ -1,7 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { renderBookHtml, type BookContext } from '@/lib/livro-empreendimento/render-html'
+import { renderBookHtml, type BookContext, type CondominioLivro } from '@/lib/livro-empreendimento/render-html'
 import { generatePdf } from '@/lib/livro-empreendimento/generate-pdf'
+
+function colunaLivroAusente(error: { code?: string; message?: string }): boolean {
+  return error.code === '42703'
+    || error.code === 'PGRST204'
+    || /does not exist|schema cache/i.test(error.message ?? '')
+}
+
+function textoCurto(value: unknown, max = 600): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const texto = value.replace(/\s+/g, ' ').trim()
+  return texto ? texto.slice(0, max) : undefined
+}
+
+function urlHttp(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  try {
+    const url = new URL(value.trim())
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined
+    return url.href
+  } catch {
+    return undefined
+  }
+}
+
+function conteudoSite(value: unknown): CondominioLivro | null {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Record<string, unknown>
+  const vantagens = Array.isArray(raw.vantagens)
+    ? raw.vantagens.flatMap((item) => {
+        if (!item || typeof item !== 'object') return []
+        const icone = textoCurto((item as { icone?: unknown }).icone, 20)
+        const texto = textoCurto((item as { texto?: unknown }).texto, 180)
+        if (!icone || !texto) return []
+        return [{ icone, texto }]
+      }).slice(0, 3)
+    : []
+  return {
+    nome: '',
+    fotoPrincipal: urlHttp(raw.fotoPrincipal),
+    fotoSecundaria: urlHttp(raw.fotoSecundaria),
+    frasePrincipal: textoCurto(raw.frasePrincipal),
+    fraseSecundaria: textoCurto(raw.fraseSecundaria, 160),
+    subtitulo: textoCurto(raw.subtitulo),
+    vantagensLocalizacao: vantagens,
+  }
+}
 
 export const runtime = 'nodejs' // Puppeteer requer Node.js runtime — NÃO Edge
 export const maxDuration = 60 // 60 segundos de timeout
@@ -18,12 +64,14 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
       kanban_card_id?: string
+      conteudo_site?: unknown
     }
+    const site = conteudoSite(conteudo_site)
     const casa_codigo = (body.casa_codigo ?? body.codigo)?.trim()
 
     if (!casa_codigo) {
@@ -70,29 +118,44 @@ export async function POST(request: NextRequest) {
     if (condominio_id) {
       const { data: cond, error: condError } = await supabase
         .from('condominios')
-        .select('nome, cidade, estado, descricao_breve, livro_foto_principal, livro_foto_secundaria, livro_frase_principal, livro_frase_secundaria, livro_subtitulo, livro_vantagens_localizacao')
+        .select('nome, cidade, estado, descricao_breve')
         .eq('id', condominio_id)
-        .single()
+        .maybeSingle()
 
       if (condError) {
         return NextResponse.json({ error: condError.message }, { status: 500 })
       }
+      if (!cond) {
+        return NextResponse.json({ error: 'Condomínio não encontrado' }, { status: 404 })
+      }
 
-      if (cond) {
-        const descricao = typeof cond.descricao_breve === 'string' ? cond.descricao_breve.trim() : ''
-        condominioLivro = {
-          nome: cond.nome,
-          cidade: cond.cidade ?? undefined,
-          estado: cond.estado ?? undefined,
-          fotoPrincipal: cond.livro_foto_principal ?? undefined,
-          fotoSecundaria: cond.livro_foto_secundaria ?? undefined,
-          frasePrincipal: cond.livro_frase_principal ?? undefined,
-          fraseSecundaria: cond.livro_frase_secundaria ?? undefined,
-          subtitulo: cond.livro_subtitulo ?? (descricao || undefined),
-          vantagensLocalizacao: Array.isArray(cond.livro_vantagens_localizacao)
-            ? cond.livro_vantagens_localizacao as { icone: string; texto: string }[]
-            : [],
-        }
+      const livroRes = await supabase
+        .from('condominios')
+        .select('livro_foto_principal, livro_foto_secundaria, livro_frase_principal, livro_frase_secundaria, livro_subtitulo, livro_vantagens_localizacao')
+        .eq('id', condominio_id)
+        .maybeSingle()
+
+      if (livroRes.error && !colunaLivroAusente(livroRes.error)) {
+        return NextResponse.json({ error: livroRes.error.message }, { status: 500 })
+      }
+
+      const livro = livroRes.error ? null : livroRes.data
+      const descricao = typeof cond.descricao_breve === 'string' ? cond.descricao_breve.trim() : ''
+      const vantagensDb = Array.isArray(livro?.livro_vantagens_localizacao)
+        ? livro.livro_vantagens_localizacao as { icone: string; texto: string }[]
+        : []
+      condominioLivro = {
+        nome: cond.nome,
+        cidade: cond.cidade ?? undefined,
+        estado: cond.estado ?? undefined,
+        fotoPrincipal: site?.fotoPrincipal ?? livro?.livro_foto_principal ?? undefined,
+        fotoSecundaria: site?.fotoSecundaria ?? livro?.livro_foto_secundaria ?? undefined,
+        frasePrincipal: site?.frasePrincipal ?? livro?.livro_frase_principal ?? undefined,
+        fraseSecundaria: site?.fraseSecundaria ?? livro?.livro_frase_secundaria ?? undefined,
+        subtitulo: site?.subtitulo ?? livro?.livro_subtitulo ?? (descricao || undefined),
+        vantagensLocalizacao: site?.vantagensLocalizacao?.length
+          ? site.vantagensLocalizacao
+          : vantagensDb,
       }
     }
 

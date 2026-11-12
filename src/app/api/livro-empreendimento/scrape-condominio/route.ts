@@ -17,9 +17,15 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { isAdminRole, normalizeAccessRole } from '@/lib/authz'
-import { scrapeSiteContent } from '@/lib/livro-empreendimento/scrape-site'
+import { scrapeSiteContent, type ScrapedData } from '@/lib/livro-empreendimento/scrape-site'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+
+function colunaLivroAusente(error: { code?: string; message?: string }): boolean {
+  return error.code === '42703'
+    || error.code === 'PGRST204'
+    || /does not exist|schema cache/i.test(error.message ?? '')
+}
 
 // ── Handler ──────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -52,59 +58,73 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const supabase = createAdminClient()
+    const condominioId = condominio_id.trim()
 
-    // Buscar condomínio
-    const { data: cond, error: condErr } = await supabase
+    // A lista da tela usa a sessão do usuário. A service role pode apontar para outro banco
+    // e a coluna site_url pode ainda não existir; os dois casos viravam "não encontrado".
+    const { data: cond, error: condErr } = await userClient
       .from('condominios')
-      .select('id, nome, site_url')
-      .eq('id', condominio_id)
-      .single()
+      .select('id, nome')
+      .eq('id', condominioId)
+      .maybeSingle()
 
-    if (condErr || !cond) {
+    if (condErr) {
+      return NextResponse.json({ error: condErr.message }, { status: 500 })
+    }
+    if (!cond) {
       return NextResponse.json(
-        { error: `Condomínio ${condominio_id} não encontrado` },
+        { error: `Condomínio ${condominioId} não encontrado` },
         { status: 404 },
       )
     }
 
-    const siteUrl = bodySiteUrl ?? cond.site_url
+    const siteUrl = bodySiteUrl?.trim()
     if (!siteUrl) {
       return NextResponse.json(
-        { error: 'site_url não definida. Envie no body ou salve em condominios.site_url.' },
+        { error: 'Informe a URL do site do condomínio.' },
         { status: 422 },
       )
     }
 
-    // Scraping
     const scraped = await scrapeSiteContent(siteUrl)
+    const patch = {
+      site_url: siteUrl,
+      livro_foto_principal: scraped.fotoPrincipal ?? null,
+      livro_foto_secundaria: scraped.fotoSecundaria ?? null,
+      livro_frase_principal: scraped.frasePrincipal ?? null,
+      livro_frase_secundaria: scraped.fraseSecundaria ?? null,
+      livro_subtitulo: scraped.subtitulo ?? null,
+      livro_vantagens_localizacao: scraped.vantagens,
+    }
 
-    // Salvar no banco
-    const { error: upErr } = await supabase
-      .from('condominios')
-      .update({
-        site_url: siteUrl,
-        livro_foto_principal: scraped.fotoPrincipal ?? null,
-        livro_foto_secundaria: scraped.fotoSecundaria ?? null,
-        livro_frase_principal: scraped.frasePrincipal ?? null,
-        livro_frase_secundaria: scraped.fraseSecundaria ?? null,
-        livro_subtitulo: scraped.subtitulo ?? null,
-        livro_vantagens_localizacao: scraped.vantagens,
-      })
-      .eq('id', condominio_id)
+    let upErr: { code?: string; message: string } | null = null
+    try {
+      const admin = createAdminClient()
+      const saved = await admin.from('condominios').update(patch).eq('id', condominioId)
+      upErr = saved.error
+    } catch (adminErr) {
+      upErr = { message: adminErr instanceof Error ? adminErr.message : 'Falha na service role' }
+    }
 
-    if (upErr) {
-      return NextResponse.json(
-        { error: `Erro ao salvar: ${upErr.message}` },
-        { status: 500 },
-      )
+    let persisted = !upErr
+    if (upErr && !colunaLivroAusente(upErr)) {
+      const fallback = await userClient.from('condominios').update(patch).eq('id', condominioId)
+      if (!fallback.error) {
+        persisted = true
+      } else if (!colunaLivroAusente(fallback.error)) {
+        return NextResponse.json(
+          { error: `Erro ao salvar: ${upErr.message}` },
+          { status: 500 },
+        )
+      }
     }
 
     return NextResponse.json({
       ok: true,
+      persisted,
       condominio: cond.nome,
       site_url: siteUrl,
-      scraped,
+      scraped: scraped satisfies ScrapedData,
     })
   } catch (err) {
     console.error('[scrape-condominio]', err)
