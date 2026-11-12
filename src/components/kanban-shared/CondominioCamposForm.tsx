@@ -52,6 +52,7 @@ export function CondominioCamposForm({
     return (
       <div className="grid grid-cols-2 gap-x-2 gap-y-2">
         <FieldView label="Nome" value={row.nome} />
+        <FieldView label="Site do condomínio" value={row.site_url ?? ''} />
         <FieldView label="CEP" value={row.cep ?? ''} />
         <FieldView label="Endereço + Nº" value={formatEnderecoNumero(row.endereco, row.numero)} />
         <FieldView label="Cidade / Estado" value={formatCidadeEstadoCondominio(row.cidade, row.estado)} />
@@ -107,6 +108,17 @@ export function CondominioCamposForm({
           onChange={(e) => onChange({ nome: e.target.value })}
           className={inputCls}
           required
+        />
+      </label>
+      <label className="col-span-2 block">
+        <span className="text-[11px] font-medium text-stone-500">Site do condomínio</span>
+        <input
+          type="url"
+          inputMode="url"
+          value={draft.site_url}
+          onChange={(e) => onChange({ site_url: e.target.value })}
+          className={inputCls}
+          placeholder="https://siteDoCondominio.com.br"
         />
       </label>
       <label className="block">

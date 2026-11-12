@@ -58,6 +58,7 @@ function cleanPatch(patch: CondominioPatch): Record<string, unknown> {
   setText('planta_cadastral', patch.planta_cadastral);
   setText('manual_obras', patch.manual_obras);
   setText('casas_concorrentes', patch.casas_concorrentes);
+  setText('site_url', patch.site_url);
   setNum('prazo_aprovacao_condominio_dias', patch.prazo_aprovacao_condominio_dias);
   setText('prazo_aprovacao_condominio_sla_tipo', patch.prazo_aprovacao_condominio_sla_tipo);
   setNum('prazo_aprovacao_prefeitura_dias', patch.prazo_aprovacao_prefeitura_dias);

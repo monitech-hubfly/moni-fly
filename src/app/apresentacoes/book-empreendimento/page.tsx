@@ -2,7 +2,10 @@ import { redirect } from 'next/navigation';
 import { guardLoginRequired } from '@/lib/auth-guard';
 import { isAdminRole, normalizeAccessRole } from '@/lib/authz';
 import { createClient } from '@/lib/supabase/server';
+import { filtrarLinhasEmBrancoCondominios, toCondominioRow } from '@/lib/condominios';
+import { isKanbanIdInterno } from '@/lib/kanban/filtrar-kanbans-internos';
 import { BookDoEmpreendimentoGerador } from '@/components/livro-empreendimento/BookDoEmpreendimentoGerador';
+import type { FunilLivroOpcao } from '@/app/apresentacoes/book-empreendimento/dados-negocio-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,17 +22,20 @@ export default async function BookDoEmpreendimentoPage() {
 
   const { data: condominios } = await supabase
     .from('condominios')
-    .select('id, nome, cidade, estado')
+    .select('*')
     .order('nome', { ascending: true });
 
-  const opcoes = (condominios ?? [])
-    .map((row) => ({
-      id: String(row.id ?? ''),
-      nome: String(row.nome ?? '').trim(),
-      cidade: row.cidade ? String(row.cidade) : null,
-      estado: row.estado ? String(row.estado) : null,
-    }))
-    .filter((row) => row.id && row.nome);
+  const opcoes = filtrarLinhasEmBrancoCondominios(
+    (condominios ?? []).map((row) => toCondominioRow(row as Record<string, unknown>)),
+  );
 
-  return <BookDoEmpreendimentoGerador condominios={opcoes} />;
+  const { data: kanbans } = await supabase.from('kanbans').select('id, nome').order('nome', { ascending: true });
+  const funis: FunilLivroOpcao[] = (kanbans ?? [])
+    .map((row) => ({
+      id: String((row as { id?: string }).id ?? ''),
+      nome: String((row as { nome?: string | null }).nome ?? '').trim(),
+    }))
+    .filter((funil) => funil.id && funil.nome && !isKanbanIdInterno(funil.id));
+
+  return <BookDoEmpreendimentoGerador condominios={opcoes} funis={funis} />;
 }

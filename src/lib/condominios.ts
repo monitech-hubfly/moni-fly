@@ -27,6 +27,7 @@ export type CondominioRow = {
   planta_cadastral: string | null;
   manual_obras: string | null;
   casas_concorrentes: string | null;
+  site_url: string | null;
   recuo_frontal_m: number | null;
   recuo_fundo_m: number | null;
   recuo_lateral_m: number | null;
@@ -121,6 +122,7 @@ export function condominioRowMatchesBusca(row: CondominioRow, busca: string): bo
     row.planta_cadastral,
     row.manual_obras,
     row.casas_concorrentes,
+    row.site_url,
     formatTicketCadastro(row.ticket_medio_lote),
     formatTicketCadastro(row.ticket_medio_casas),
     formatTicketCadastro(row.valor_tx_condominio),
@@ -202,6 +204,7 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
     planta_cadastral: ((r.planta_cadastral as string | null) ?? null)?.trim() || null,
     manual_obras: ((r.manual_obras as string | null) ?? null)?.trim() || null,
     casas_concorrentes: ((r.casas_concorrentes as string | null) ?? null)?.trim() || null,
+    site_url: ((r.site_url as string | null) ?? null)?.trim() || null,
     recuo_frontal_m: parseNumericField(r.recuo_frontal_m),
     recuo_fundo_m: parseNumericField(r.recuo_fundo_m),
     recuo_lateral_m: parseNumericField(r.recuo_lateral_m),
@@ -213,6 +216,10 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
     created_at: (r.created_at as string | null) ?? null,
     updated_at: (r.updated_at as string | null) ?? null,
   };
+}
+
+export function toCondominioRow(r: Record<string, unknown>): CondominioRow {
+  return mapRow(r);
 }
 
 export async function condominioNomeJaExiste(
@@ -280,6 +287,7 @@ export type CondominioPatch = {
   planta_cadastral?: string | null;
   manual_obras?: string | null;
   casas_concorrentes?: string | null;
+  site_url?: string | null;
   prazo_aprovacao_condominio_dias?: number | null;
   prazo_aprovacao_condominio_sla_tipo?: string | null;
   prazo_aprovacao_prefeitura_dias?: number | null;

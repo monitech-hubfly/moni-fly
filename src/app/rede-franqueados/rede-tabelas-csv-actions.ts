@@ -164,6 +164,7 @@ function rowCondominioFromCsv(row: Record<string, string>): Record<string, unkno
     'planta_cadastral',
     'manual_obras',
     'casas_concorrentes',
+    'site_url',
   ]) {
     const v = valorCsv(row, k);
     if (!v) continue;

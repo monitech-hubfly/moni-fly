@@ -36,6 +36,7 @@ export type CondominioFormDraft = {
   planta_cadastral: string;
   manual_obras: string;
   casas_concorrentes: string;
+  site_url: string;
   prazo_aprovacao_condominio_dias: string;
   prazo_aprovacao_condominio_sla_tipo: SlaTipo;
   prazo_aprovacao_prefeitura_dias: string;
@@ -65,6 +66,7 @@ export function emptyCondominioFormDraft(): CondominioFormDraft {
     planta_cadastral: '',
     manual_obras: '',
     casas_concorrentes: '',
+    site_url: '',
     ...emptyCondominioPrazosAprovacaoDraft(),
   };
 }
@@ -92,6 +94,7 @@ export function condominioRowToFormDraft(r: CondominioRow): CondominioFormDraft 
     planta_cadastral: r.planta_cadastral ?? '',
     manual_obras: r.manual_obras ?? '',
     casas_concorrentes: r.casas_concorrentes ?? '',
+    site_url: r.site_url ?? '',
     ...prazosAprovacaoDraftFromRow(r),
   };
 }
@@ -119,6 +122,7 @@ export function condominioFormDraftToPatch(d: CondominioFormDraft): CondominioPa
     planta_cadastral: d.planta_cadastral.trim() || null,
     manual_obras: d.manual_obras.trim() || null,
     casas_concorrentes: d.casas_concorrentes.trim() || null,
+    site_url: d.site_url.trim() || null,
     ...prazosAprovacaoPatchFromDraft({
       prazo_aprovacao_condominio_dias: d.prazo_aprovacao_condominio_dias,
       prazo_aprovacao_condominio_sla_tipo: d.prazo_aprovacao_condominio_sla_tipo,

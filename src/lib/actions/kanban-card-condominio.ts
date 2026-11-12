@@ -291,6 +291,7 @@ export async function cadastrarCondominioEVincularCard(input: {
     planta_cadastral: patch.planta_cadastral ?? null,
     manual_obras: patch.manual_obras ?? null,
     casas_concorrentes: patch.casas_concorrentes ?? null,
+    site_url: patch.site_url ?? null,
     prazo_aprovacao_condominio_dias: patch.prazo_aprovacao_condominio_dias ?? null,
     prazo_aprovacao_condominio_sla_tipo: patch.prazo_aprovacao_condominio_sla_tipo ?? null,
     prazo_aprovacao_prefeitura_dias: patch.prazo_aprovacao_prefeitura_dias ?? null,

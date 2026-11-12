@@ -3,13 +3,11 @@
 import { useState } from 'react';
 import { DocumentArrowDownIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-
-export type CondominioOpcaoLivro = {
-  id: string;
-  nome: string;
-  cidade: string | null;
-  estado: string | null;
-};
+import { SearchableSelect } from '@/components/SearchableSelect';
+import { DadosNegocioBookSecao } from '@/components/livro-empreendimento/DadosNegocioBookSecao';
+import type { FunilLivroOpcao } from '@/app/apresentacoes/book-empreendimento/dados-negocio-actions';
+import { CAMPOS_EXIBICAO_CONDOMINIO } from '@/lib/condominio-campos-exibicao';
+import type { CondominioRow } from '@/lib/condominios';
 
 const MODELOS_CASA = [
   { codigo: 'ALE',  nome: 'ALÊ',  area: '47,0 m²',    suites: 2, banheiros: 1, dimensoes: '3,50 × 12,00 m', preco: 'R$ 288.553,20' },
@@ -62,8 +60,10 @@ function lerImagemLote(file: File): Promise<string> {
 
 export function BookDoEmpreendimentoGerador({
   condominios,
+  funis,
 }: {
-  condominios: CondominioOpcaoLivro[];
+  condominios: CondominioRow[];
+  funis: FunilLivroOpcao[];
 }) {
   const [modeloSelecionado, setModeloSelecionado] = useState<string | null>(null);
   const [condominioId, setCondominioId] = useState('');
@@ -73,6 +73,13 @@ export function BookDoEmpreendimentoGerador({
   const [erro, setErro] = useState<string | null>(null);
 
   const modelo = MODELOS_CASA.find((m) => m.codigo === modeloSelecionado);
+  const condominio = condominios.find((item) => item.id === condominioId) ?? null;
+
+  function selecionarCondominio(id: string) {
+    setCondominioId(id);
+    const escolhido = condominios.find((item) => item.id === id);
+    setSiteUrl(escolhido?.site_url?.trim() ?? '');
+  }
 
   async function handleGerar() {
     if (!modeloSelecionado || !condominioId) return;
@@ -181,40 +188,47 @@ export function BookDoEmpreendimentoGerador({
         <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
           <h2 className="mb-4 text-sm font-semibold text-[var(--moni-navy-800)]">Condomínio</h2>
           <label className="mb-1 block text-xs text-stone-400" htmlFor="condominio-livro">
-            Empreendimento das folhas 2 e 3
+            Buscar no cadastro
           </label>
-          <select
+          <SearchableSelect
             id="condominio-livro"
+            className="w-full"
+            size="md"
             value={condominioId}
-            onChange={(event) => setCondominioId(event.target.value)}
-            className="min-h-11 w-full rounded-lg border border-[var(--moni-border)] bg-white px-3 text-sm text-[var(--moni-navy-800)]"
-          >
-            <option value="">Selecione o condomínio</option>
-            {condominios.map((condominio) => {
-              const local = [condominio.cidade, condominio.estado].filter(Boolean).join(' / ');
-              return (
-                <option key={condominio.id} value={condominio.id}>
-                  {local ? `${condominio.nome} — ${local}` : condominio.nome}
-                </option>
-              );
+            onChange={selecionarCondominio}
+            placeholder="Digite para buscar o condomínio"
+            searchPlaceholder="Nome, cidade, endereço ou site"
+            aria-label="Buscar condomínio"
+            triggerClassName="min-h-11 w-full border-[var(--moni-border)] text-[var(--moni-navy-800)]"
+            options={condominios.map((item) => {
+              const local = [item.cidade, item.estado].filter(Boolean).join(' / ');
+              return {
+                value: item.id,
+                label: local ? `${item.nome} — ${local}` : item.nome,
+                keywords: CAMPOS_EXIBICAO_CONDOMINIO.map((campo) => campo.valor(item)).join(' '),
+              };
             })}
-          </select>
-          <label className="mb-1 mt-4 block text-xs text-stone-400" htmlFor="site-condominio">
-            Site do condomínio
-          </label>
-          <input
-            id="site-condominio"
-            type="url"
-            inputMode="url"
-            placeholder="https://siteDoCondominio.com.br"
-            value={siteUrl}
-            onChange={(event) => setSiteUrl(event.target.value)}
-            className="min-h-11 w-full rounded-lg border border-[var(--moni-border)] px-3 text-sm text-[var(--moni-navy-800)]"
           />
-          <p className="mt-2 text-xs text-stone-400">
-            Com a URL, a foto, a frase e as vantagens entram no PDF. Sem ela, as folhas usam nome, cidade e a descrição já cadastrada.
+          {condominio ? (
+            <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+              {CAMPOS_EXIBICAO_CONDOMINIO.map((campo) => (
+                <div key={campo.key} className={campo.key === 'descricao_breve' || campo.key === 'site_url' ? 'sm:col-span-2' : ''}>
+                  <dt className="text-[11px] font-medium text-stone-400">{campo.label}</dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-[var(--moni-navy-800)]">{campo.valor(condominio)}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="mt-3 text-xs text-stone-400">
+              Escolha um condomínio para ver o cadastro completo, inclusive o site.
+            </p>
+          )}
+          <p className="mt-3 text-xs text-stone-400">
+            O site cadastrado entra na leitura das folhas 2 e 3. Sem ele, essas folhas usam nome, cidade e a descrição já cadastrada.
           </p>
         </div>
+
+        <DadosNegocioBookSecao funis={funis} />
 
         <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
           <h2 className="mb-1 text-sm font-semibold text-[var(--moni-navy-800)]">Imagens do lote</h2>

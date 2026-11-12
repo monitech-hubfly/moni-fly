@@ -7,6 +7,8 @@ import { ChevronDown, X } from 'lucide-react';
 export type SearchableSelectOption = {
   value: string;
   label: string;
+  /** Texto extra usado só na busca, sem aparecer no rótulo. */
+  keywords?: string;
   disabled?: boolean;
 };
 
@@ -110,6 +112,7 @@ export function SearchableSelect({
     return todasOpcoes.filter(
       (o) =>
         normalizarBusca(o.label).includes(q) ||
+        normalizarBusca(o.keywords ?? '').includes(q) ||
         normalizarBusca(o.value).includes(q),
     );
   }, [todasOpcoes, query]);

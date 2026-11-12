@@ -103,6 +103,7 @@ function imagensJaUsadas(ctx: BookContext): Set<string> {
     encontrarPorAltIndice(ctx, 'Living', 0),
     encontrarPorAlt(ctx, 'Cozinha'),
     encontrarPorAltIndice(ctx, 'Living', 1),
+    fotoEstarJantar(ctx),
   ]
   for (const img of escolhidas) {
     if (img?.path) usadas.add(img.path)
@@ -155,25 +156,6 @@ function placeholderPage(titulo: string, subtitulo: string): string {
       <h2 class="placeholder-title">${escapeHtml(titulo)}</h2>
       <p class="placeholder-sub">${escapeHtml(subtitulo)}</p>
       ${hint}
-    </div>
-  </section>`
-}
-
-function renderFoto(imagem: Imagem | undefined): string {
-  if (!imagem) return ''
-  return `<img class="full-bleed" src="${escapeHtml(imgUrl(imagem.path))}" alt="${escapeHtml(imagem.alt)}" />`
-}
-
-function renderFullBleed(titulo: string, imagem: Imagem | undefined): string {
-  if (!imagem) {
-    return placeholderPage(titulo, 'A preencher')
-  }
-
-  return `<section class="page page-imagem">
-    ${renderFoto(imagem)}
-    <div class="legenda">
-      <div class="rule rule-light"></div>
-      <h2 class="legenda-titulo">${escapeHtml(titulo)}</h2>
     </div>
   </section>`
 }
@@ -573,11 +555,27 @@ function renderAberturaCasa(ctx: BookContext): string {
       <span class="parte2-rule"></span>
     </div>
     <div class="cover-content">
-      <p class="cover-kicker">Discover Casa Living</p>
+      <p class="cover-kicker">O modelo</p>
       <h1 class="cover-titulo"><span class="cover-word-casa">Casa</span><span class="cover-word-codigo"> ${codigo}</span></h1>
-      <p class="cover-subtitulo">Um modelo residencial da coleção Casa Moní</p>
+      <p class="parte2-texto">As casas nascem do encontro entre madeira, luz e natureza. Volumes horizontais revestidos em ripado, curvas que abraçam e ambientes que se abrem para fora, para que a vida aconteça em cada espaço.</p>
+      <p class="parte2-fecho">Porque viver bem não deveria ser complicado.</p>
     </div>
   </section>`
+}
+
+function plantasCatalogo(ctx: BookContext): Imagem[] {
+  return listaImagens(ctx).filter((img) => img.path && ehPlantaTecnica(img))
+}
+
+function renderPlantas(ctx: BookContext): string {
+  const plantas = plantasCatalogo(ctx)
+  if (plantas.length === 0) return ''
+  const uma = plantas.length === 1
+  const orient = uma ? 'horizontal' : 'vertical'
+  const slots = plantas.map((img) =>
+    `<div class="planta-slot"><img class="planta-img" data-orient="${orient}" src="${escapeHtml(imgUrl(img.path))}" alt="" /></div>`,
+  ).join('')
+  return `<section class="page page-plantas ${uma ? 'page-plantas-uma' : 'page-plantas-varias'}">${slots}</section>`
 }
 
 function renderFilosofiaModelo(ctx: BookContext): string {
@@ -602,8 +600,54 @@ function renderFilosofiaModelo(ctx: BookContext): string {
   </section>`
 }
 
+function renderLivingIntegrado(ctx: BookContext): string {
+  const foto = encontrarPorAlt(ctx, 'Living')
+  const fotoUrl = foto ? imgUrl(foto.path) : ''
+  const fotoHtml = fotoUrl
+    ? `<img class="living-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
+    : ''
+
+  return `<section class="page page-living">
+    ${fotoHtml}
+    <div class="living-overlay"></div>
+    <p class="living-kicker">Living integrado</p>
+    <div class="living">
+      <h2 class="living-titulo">Tudo em um só gesto</h2>
+      <p class="living-texto">Estar, jantar e cozinha fluem sob o teto ripado contínuo, com vidros que dissolvem o limite entre dentro e fora.</p>
+    </div>
+  </section>`
+}
+
+function fotosCatalogo(ctx: BookContext, termo: string): Imagem[] {
+  const needle = semAcento(termo)
+  return listaImagens(ctx).filter((img) => {
+    if (!img.path || ehPlantaTecnica(img)) return false
+    return semAcento(`${img.alt ?? ''} ${img.path}`).includes(needle)
+  })
+}
+
+function fotosJaUsadasAntesDoEstar(ctx: BookContext): Set<string> {
+  const usadas = new Set<string>()
+  const capa = encontrarPorAlt(ctx, 'Fachada') ?? ultimaRender(ctx) ?? getImagem(ctx, 0)
+  const abertura = encontrarPorAlt(ctx, 'Fachada Noturna')
+    ?? encontrarPorAlt(ctx, 'Quintal')
+    ?? encontrarPorAlt(ctx, 'Piscina')
+  const living = encontrarPorAlt(ctx, 'Living')
+  for (const img of [capa, abertura, living]) {
+    if (img?.path) usadas.add(img.path)
+  }
+  return usadas
+}
+
+function fotoEstarJantar(ctx: BookContext): Imagem | undefined {
+  const usadas = fotosJaUsadasAntesDoEstar(ctx)
+  const cozinha = fotosCatalogo(ctx, 'cozinha').find((img) => !usadas.has(img.path))
+  if (cozinha) return cozinha
+  return fotosCatalogo(ctx, 'living').find((img) => !usadas.has(img.path))
+}
+
 function renderEstarJantar(ctx: BookContext): string {
-  const foto = encontrarPorAlt(ctx, 'Cozinha')
+  const foto = fotoEstarJantar(ctx)
   const fotoUrl = foto ? imgUrl(foto.path) : ''
   const fotoHtml = fotoUrl
     ? `<img class="ej-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
@@ -620,7 +664,10 @@ function renderEstarJantar(ctx: BookContext): string {
 }
 
 function renderCentroConvivencia(ctx: BookContext): string {
-  const foto = encontrarPorAltIndice(ctx, 'Living', 1)
+  const usadas = fotosJaUsadasAntesDoEstar(ctx)
+  const estar = fotoEstarJantar(ctx)
+  if (estar?.path) usadas.add(estar.path)
+  const foto = fotosCatalogo(ctx, 'living').find((img) => !usadas.has(img.path))
   const fotoUrl = foto ? imgUrl(foto.path) : ''
   const fotoHtml = fotoUrl
     ? `<img class="conv-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
@@ -652,16 +699,16 @@ function renderPatioIntimo(ctx: BookContext): string {
   </section>`
 }
 
-function renderImagemFull(titulo: string, ctx: BookContext, indice: number): string {
-  return renderFullBleed(titulo, getImagem(ctx, indice))
-}
-
-function renderSuiteMaster(ctx: BookContext): string {
-  const foto = listaImagens(ctx).find((img) => {
-    if (ehPlantaTecnica(img)) return false
+function fotoSuiteMaster(ctx: BookContext): Imagem | undefined {
+  return listaImagens(ctx).find((img) => {
+    if (!img.path || ehPlantaTecnica(img)) return false
     const alt = semAcento(img.alt || '')
     return alt.includes('suite') && alt.includes('master')
   })
+}
+
+function renderSuiteMaster(ctx: BookContext): string {
+  const foto = fotoSuiteMaster(ctx)
   const fotoUrl = foto ? imgUrl(foto.path) : ''
   const fotoHtml = fotoUrl
     ? `<img class="suite-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
@@ -679,12 +726,20 @@ function renderSuiteMaster(ctx: BookContext): string {
 }
 
 function renderBanhoMaster(ctx: BookContext): string {
-  const imagens = listaImagens(ctx).filter((img) => !ehPlantaTecnica(img))
-  const porAlt = (pred: (alt: string) => boolean) => imagens.find((img) => pred(semAcento(img.alt || '')))
+  const usadas = imagensJaUsadas(ctx)
+  const patio = fotoPatio(ctx)
+  const suite = fotoSuiteMaster(ctx)
+  if (patio?.path) usadas.add(patio.path)
+  if (suite?.path) usadas.add(suite.path)
+
+  const imagens = listaImagens(ctx).filter((img) => img.path && !ehPlantaTecnica(img) && !usadas.has(img.path))
+  const porAlt = (pred: (alt: string) => boolean) =>
+    imagens.find((img) => pred(semAcento(`${img.alt ?? ''} ${img.path}`)))
   const foto = porAlt((alt) => alt.includes('closet'))
     ?? porAlt((alt) => alt.includes('suite') && alt.includes('master'))
     ?? porAlt((alt) => alt.includes('banheiro'))
-    ?? porAlt((alt) => alt.includes('banho'))
+    ?? porAlt((alt) => alt.includes('banho') && !alt.includes('master'))
+    ?? porAlt((alt) => alt.includes('banho') && alt.includes('master'))
   const fotoUrl = foto ? imgUrl(foto.path) : ''
   const fotoHtml = fotoUrl
     ? `<img class="bm-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
@@ -1023,7 +1078,7 @@ function estilos(): string {
     .parte2-label {
       margin: 0;
       font-family: Inter, Arial, Helvetica, sans-serif;
-      font-size: 11px;
+      font-size: 15px;
       font-weight: 500;
       letter-spacing: 0.28em;
       text-transform: uppercase;
@@ -1037,6 +1092,27 @@ function estilos(): string {
       background: var(--gold);
     }
 
+    .parte2-texto {
+      max-width: 760px;
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 22px;
+      font-weight: 400;
+      line-height: 1.55;
+      color: rgba(255,255,255,0.78);
+    }
+
+    .parte2-fecho {
+      max-width: 760px;
+      margin: 16px 0 0;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 24px;
+      font-style: italic;
+      font-weight: 500;
+      line-height: 1.4;
+      color: var(--gold);
+    }
+
     .cover-content {
       position: absolute;
       left: 11mm;
@@ -1047,11 +1123,11 @@ function estilos(): string {
 
     .cover-kicker {
       font-family: Inter, Arial, Helvetica, sans-serif;
-      font-size: 7.5px;
-      letter-spacing: 0.38em;
+      font-size: 13px;
+      letter-spacing: 0.32em;
       text-transform: uppercase;
       color: var(--gold);
-      margin-bottom: 1.5mm;
+      margin-bottom: 3mm;
     }
 
     .cover-titulo {
@@ -1062,7 +1138,7 @@ function estilos(): string {
 
     .cover-word-casa {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 76px;
+      font-size: 96px;
       font-weight: 700;
       color: var(--white);
       letter-spacing: 0.01em;
@@ -1070,7 +1146,7 @@ function estilos(): string {
 
     .cover-word-codigo {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 76px;
+      font-size: 96px;
       font-weight: 400;
       font-style: italic;
       color: var(--gold);
@@ -1079,7 +1155,7 @@ function estilos(): string {
 
     .cover-subtitulo {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 12.5px;
+      font-size: 20px;
       line-height: 1.4;
       color: rgba(255,255,255,0.80);
       margin-bottom: 4mm;
@@ -1097,13 +1173,13 @@ function estilos(): string {
       align-items: center;
       gap: 2mm;
       font-family: Inter, Arial, Helvetica, sans-serif;
-      font-size: 9.5px;
+      font-size: 13px;
       letter-spacing: 0.18em;
       color: rgba(255,255,255,0.60);
     }
 
-    .meta-icon { width: 11px; height: 13px; color: rgba(255,255,255,0.60); flex-shrink: 0; }
-    .meta-icon-lote { width: 12px; height: 12px; }
+    .meta-icon { width: 14px; height: 16px; color: rgba(255,255,255,0.60); flex-shrink: 0; }
+    .meta-icon-lote { width: 15px; height: 15px; }
 
     .cover-meta-sep {
       color: rgba(255,255,255,0.35);
@@ -1132,7 +1208,7 @@ function estilos(): string {
       justify-content: space-between;
     }
 
-    .moni-wordmark { width: 56px; height: 13px; display: block; }
+    .moni-wordmark { width: 72px; height: 16px; display: block; }
 
     .fim-logo {
       font-family: Inter, Arial, Helvetica, sans-serif;
@@ -1145,7 +1221,7 @@ function estilos(): string {
 
     .cover-footer-label {
       font-family: Inter, Arial, Helvetica, sans-serif;
-      font-size: 8.5px;
+      font-size: 12px;
       letter-spacing: 0.28em;
       text-transform: uppercase;
       color: rgba(255,255,255,0.60);
@@ -1565,6 +1641,39 @@ function estilos(): string {
       object-fit: cover;
     }
 
+    .page-plantas {
+      background: var(--cream);
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: 28px;
+      padding: 40px 44px;
+      box-sizing: border-box;
+    }
+
+    .page-plantas-uma .planta-slot { width: 100%; }
+
+    .page-plantas-varias .planta-slot {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
+    .planta-slot {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .planta-img {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      transform: translate(-50%, -50%);
+    }
+
     .page-estar { background: var(--cream); color: var(--navy); }
 
     .ej {
@@ -1616,6 +1725,68 @@ function estilos(): string {
 
     .ej-foto-vazia {
       background: color-mix(in srgb, var(--navy) 8%, var(--cream));
+    }
+
+    .page-living { background: var(--navy); }
+
+    .living-foto {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .living-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to top,
+        rgba(12, 38, 51, 0.78) 0%,
+        rgba(12, 38, 51, 0.28) 32%,
+        rgba(12, 38, 51, 0) 56%
+      );
+    }
+
+    .living-kicker {
+      position: absolute;
+      top: 36px;
+      left: 48px;
+      z-index: 2;
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .living {
+      position: absolute;
+      left: 48px;
+      bottom: 48px;
+      z-index: 2;
+      max-width: 820px;
+    }
+
+    .living-titulo {
+      margin: 0 0 14px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 52px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--white);
+    }
+
+    .living-texto {
+      margin: 0;
+      max-width: 720px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 20px;
+      font-weight: 400;
+      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.9);
     }
 
     .page-conv { background: var(--navy); }
@@ -1966,7 +2137,7 @@ function estilos(): string {
     .esp {
       height: 100%;
       box-sizing: border-box;
-      padding: 40px 56px 36px;
+      padding: 112px 56px 36px;
       display: flex;
       flex-direction: column;
     }
@@ -2319,6 +2490,7 @@ function estilos(): string {
     .via-box {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
+      min-height: 196px;
       margin-top: 28px;
       border: 0.5px solid rgba(255, 255, 255, 0.22);
       border-radius: 14px;
@@ -2326,7 +2498,10 @@ function estilos(): string {
     }
 
     .via-cell {
-      padding: 22px 28px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 32px 32px 36px;
       border-right: 0.5px solid rgba(255, 255, 255, 0.16);
     }
 
@@ -2428,7 +2603,10 @@ function estilos(): string {
     .cen {
       height: 100%;
       box-sizing: border-box;
-      padding: 48px 56px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 64px 72px;
     }
 
     .cen-kicker {
@@ -2517,32 +2695,6 @@ function estilos(): string {
     .cen-tabela td.cen-target {
       border-top-color: rgba(255, 255, 255, 0.12);
       color: var(--gold);
-    }
-
-    .page-imagem { background: var(--navy); }
-
-    .legenda {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      padding: 28mm 16mm 16mm;
-      background: linear-gradient(
-        to top,
-        color-mix(in srgb, var(--navy) 90%, transparent) 0%,
-        color-mix(in srgb, var(--navy) 55%, transparent) 48%,
-        color-mix(in srgb, var(--navy) 0%, transparent) 100%
-      );
-    }
-
-    .legenda-titulo {
-      margin-top: 5mm;
-      font-family: 'Playfair Display', Georgia, serif;
-      font-weight: normal;
-      font-size: 32px;
-      line-height: 1;
-      letter-spacing: 0.03em;
-      color: var(--white);
     }
 
     .ficha-grid {
@@ -3115,6 +3267,8 @@ export function renderBookHtml(ctx: BookContext): string {
     renderDetalheLote(ctx),
     renderAberturaCasa(ctx),
     renderFilosofiaModelo(ctx),
+    renderPlantas(ctx),
+    renderLivingIntegrado(ctx),
     renderEstarJantar(ctx),
     renderCentroConvivencia(ctx),
     renderPatioIntimo(ctx),
@@ -3127,8 +3281,6 @@ export function renderBookHtml(ctx: BookContext): string {
     renderViabilidade(ctx),
     renderCenarios(ctx),
     renderEncerramento(ctx),
-    renderImagemFull('Detalhe', ctx, 6),
-    renderImagemFull('Planta', ctx, 7),
   ].filter((pagina) => pagina.trim().length > 0)
 
   return `<!DOCTYPE html>
@@ -3140,6 +3292,36 @@ export function renderBookHtml(ctx: BookContext): string {
 </head>
 <body>
 ${paginas.join('\n')}
+<script>
+function orientarPlantas() {
+  document.querySelectorAll('.planta-img').forEach(function (img) {
+    var slot = img.parentElement
+    if (!slot) return
+    var sw = slot.clientWidth
+    var sh = slot.clientHeight
+    var nw = img.naturalWidth
+    var nh = img.naturalHeight
+    if (!nw || !nh || !sw || !sh) return
+    var querHorizontal = img.getAttribute('data-orient') === 'horizontal'
+    var jaHorizontal = nw >= nh
+    var girar = querHorizontal !== jaHorizontal
+    var dw = girar ? nh : nw
+    var dh = girar ? nw : nh
+    var escala = Math.min(sw / dw, sh / dh)
+    var fw = dw * escala
+    var fh = dh * escala
+    img.style.maxWidth = 'none'
+    img.style.maxHeight = 'none'
+    img.style.width = (girar ? fh : fw) + 'px'
+    img.style.height = (girar ? fw : fh) + 'px'
+    img.style.transform = girar
+      ? 'translate(-50%, -50%) rotate(90deg)'
+      : 'translate(-50%, -50%)'
+  })
+}
+if (document.readyState === 'complete') orientarPlantas()
+else window.addEventListener('load', orientarPlantas)
+</script>
 </body>
 </html>`
 }

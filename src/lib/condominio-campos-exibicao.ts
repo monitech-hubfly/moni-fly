@@ -83,6 +83,7 @@ export const CAMPOS_EXIBICAO_CONDOMINIO: CampoExibicaoCondominio[] = [
     label: 'Exemplo / links de casas concorrentes',
     valor: (r) => texto(r.casas_concorrentes),
   },
+  { key: 'site_url', label: 'Site do condomínio', valor: (r) => texto(r.site_url) },
   {
     key: 'prazo_aprovacao_condominio',
     label: 'Prazo de Aprovação no Condomínio',

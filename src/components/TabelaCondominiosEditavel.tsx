@@ -54,6 +54,7 @@ type Draft = {
   planta_cadastral: string;
   manual_obras: string;
   casas_concorrentes: string;
+  site_url: string;
   prazo_aprovacao_condominio_dias: string;
   prazo_aprovacao_condominio_sla_tipo: SlaTipo;
   prazo_aprovacao_prefeitura_dias: string;
@@ -83,6 +84,7 @@ function emptyDraft(): Draft {
     planta_cadastral: '',
     manual_obras: '',
     casas_concorrentes: '',
+    site_url: '',
     ...emptyCondominioPrazosAprovacaoDraft(),
   };
 }
@@ -110,6 +112,7 @@ function rowToDraft(r: CondominioRow): Draft {
     planta_cadastral: r.planta_cadastral ?? '',
     manual_obras: r.manual_obras ?? '',
     casas_concorrentes: r.casas_concorrentes ?? '',
+    site_url: r.site_url ?? '',
     ...prazosAprovacaoDraftFromRow(r),
   };
 }
@@ -137,6 +140,7 @@ function draftToPatch(d: Draft) {
     planta_cadastral: d.planta_cadastral.trim() || null,
     manual_obras: d.manual_obras.trim() || null,
     casas_concorrentes: d.casas_concorrentes.trim() || null,
+    site_url: d.site_url.trim() || null,
     ...prazosAprovacaoPatchFromDraft({
       prazo_aprovacao_condominio_dias: d.prazo_aprovacao_condominio_dias,
       prazo_aprovacao_condominio_sla_tipo: d.prazo_aprovacao_condominio_sla_tipo,
@@ -311,6 +315,9 @@ export function TabelaCondominiosEditavel({
                 Descrição breve
               </th>
               <th className={redeTh} scope="col">
+                Site do condomínio
+              </th>
+              <th className={redeTh} scope="col">
                 Ticket Médio Lote
               </th>
               <th className={redeTh} scope="col">
@@ -403,6 +410,11 @@ export function TabelaCondominiosEditavel({
                   <td className="max-w-[14rem] px-3 py-2.5 text-stone-700">
                     <span className="line-clamp-3 text-xs" title={r.descricao_breve ?? ''}>
                       {r.descricao_breve?.trim() || '—'}
+                    </span>
+                  </td>
+                  <td className="max-w-[14rem] px-3 py-2.5 text-stone-700">
+                    <span className="line-clamp-2 text-xs" title={r.site_url ?? ''}>
+                      {r.site_url?.trim() || '—'}
                     </span>
                   </td>
                   <td className="max-w-[16rem] px-3 py-2.5 text-stone-700">
@@ -638,6 +650,16 @@ function CondominioEditRow({
           onChange={(e) => setDraft((d) => ({ ...d, descricao_breve: e.target.value }))}
           className={`${inputCls} min-w-[10rem]`}
           placeholder="Resumo do condomínio…"
+        />
+      </td>
+      <td className="px-3 py-2">
+        <input
+          type="url"
+          inputMode="url"
+          value={draft.site_url}
+          onChange={(e) => setDraft((d) => ({ ...d, site_url: e.target.value }))}
+          className={`${inputCls} min-w-[12rem]`}
+          placeholder="https://siteDoCondominio.com.br"
         />
       </td>
       <td className="px-3 py-2">
