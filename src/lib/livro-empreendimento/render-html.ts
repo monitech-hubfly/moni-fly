@@ -735,76 +735,182 @@ function renderRooftop(ctx: BookContext): string {
 }
 
 function renderFichaTecnica(ctx: BookContext): string {
-  const { casa } = ctx
-  const programa = casa.especificacoes?.programa?.filter((item) => item.trim()) ?? []
-  const programaHtml = programa.length
-    ? `<div class="ficha-programa">
-        <p class="kicker">Programa</p>
-        <ul>${programa.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-      </div>`
-    : ''
+  const nome = escapeHtml(nomeCatalogo(ctx.casa).toUpperCase())
 
-  return `<section class="page page-cream">
-    <div class="ficha">
-      <p class="kicker">Ficha técnica</p>
-      <h2 class="ficha-nome">${escapeHtml(casa.nome)}</h2>
-      <div class="rule"></div>
-      <div class="ficha-grid">
-        <div class="ficha-item ficha-item-largo">
-          <p class="ficha-valor">${formatNumero(casa.area_m2)} m²</p>
-          <p class="ficha-label">Área</p>
+  return `<section class="page page-esp">
+    <div class="esp">
+      <p class="esp-kicker">Ficha técnica · Casa ${nome}</p>
+      <h2 class="esp-titulo">Especificações completas</h2>
+      <div class="esp-cards">
+        <div class="esp-card"><p class="esp-num">0</p><p class="esp-label">Suítes</p></div>
+        <div class="esp-card"><p class="esp-num">0</p><p class="esp-label">Banheiros</p></div>
+        <div class="esp-card"><p class="esp-num">0</p><p class="esp-label">Vagas cobertas</p></div>
+        <div class="esp-card"><p class="esp-num esp-num-gold">0 m²</p><p class="esp-label">Área construída</p></div>
+      </div>
+      <div class="esp-mercado">
+        <div class="esp-mercado-texto">
+          <h2 class="esp-mercado-titulo">Análise de<br/>Mercado.</h2>
+          <p class="esp-mercado-sub">O estoque de vendas<br/>hoje.</p>
         </div>
-        <div class="ficha-item">
-          <p class="ficha-valor">${rotuloContagem(casa.num_suites, 'suíte', 'suítes')}</p>
-          <p class="ficha-label">Suítes</p>
-        </div>
-        <div class="ficha-item">
-          <p class="ficha-valor">${rotuloContagem(casa.num_banheiros, 'banheiro', 'banheiros')}</p>
-          <p class="ficha-label">Banheiros</p>
-        </div>
-        <div class="ficha-item">
-          <p class="ficha-valor">${rotuloContagem(casa.num_vagas, 'vaga', 'vagas')}</p>
-          <p class="ficha-label">Vagas</p>
-        </div>
-        <div class="ficha-item">
-          <p class="ficha-valor">${escapeHtml(casa.dimensoes)}</p>
-          <p class="ficha-label">Dimensões</p>
+        <div class="esp-mercado-painel">
+          <p class="esp-comp-kicker">Compatibilidade com o padrão Moní</p>
+          <div class="esp-bar" aria-hidden="true">
+            <span class="esp-bar-alta">0 alta</span>
+            <span class="esp-bar-media"></span>
+            <span class="esp-bar-baixa"></span>
+          </div>
+          <div class="esp-legenda">
+            <span><i class="esp-dot esp-dot-alta"></i>0 alta compatibilidade</span>
+            <span><i class="esp-dot esp-dot-media"></i>0 média</span>
+            <span><i class="esp-dot esp-dot-baixa"></i>0 baixa</span>
+          </div>
+          <div class="esp-precos">
+            <div class="esp-preco">
+              <p class="esp-preco-label">Preço médio</p>
+              <p class="esp-preco-valor">R$ 0</p>
+            </div>
+            <div class="esp-preco esp-preco-gold">
+              <p class="esp-preco-label">Valor médio do m²</p>
+              <p class="esp-preco-valor esp-preco-valor-gold">R$ 0</p>
+            </div>
+          </div>
         </div>
       </div>
-      ${programaHtml}
     </div>
   </section>`
 }
 
-function renderAnaliseMercado(_ctx: BookContext): string {
-  return placeholderPage('Análise de mercado', 'A preencher')
-}
-
 function renderPosicionamento(_ctx: BookContext): string {
-  return placeholderPage('Posicionamento', 'A preencher')
+  return `<section class="page page-pos">
+    <div class="pos">
+      <div class="pos-esq">
+        <p class="pos-kicker">Posicionamento competitivo</p>
+        <h2 class="pos-titulo">A alternativa <em>ideal</em></h2>
+        <p class="pos-texto">Com programa completo e visual moderno, a Casa GAL supera a maioria dos concorrentes diretos. A topografia em aclive favorece a implantação e a arquitetura em ripado se torna um diferencial claro na região.</p>
+      </div>
+      <div class="pos-dir">
+        <p class="pos-frente">Frente aos concorrentes mais prováveis</p>
+        <div class="pos-bar" aria-hidden="true">
+          <span class="pos-bar-ouro"></span>
+          <span class="pos-bar-cinza"></span>
+        </div>
+        <div class="pos-nums">
+          <div>
+            <p class="pos-num pos-num-ouro">0</p>
+            <p class="pos-rotulo">Avaliações <strong>melhores</strong></p>
+          </div>
+          <div>
+            <p class="pos-num">0</p>
+            <p class="pos-rotulo">Avaliações <strong>similares</strong></p>
+          </div>
+          <div>
+            <p class="pos-num pos-num-cinza">0</p>
+            <p class="pos-rotulo">Concorrentes <strong>superiores</strong></p>
+          </div>
+        </div>
+        <p class="pos-fecho">Perde apenas para <span class="pos-fecho-num">0</span> — <em>a alternativa ideal.</em></p>
+      </div>
+    </div>
+  </section>`
 }
 
 function renderViabilidade(_ctx: BookContext): string {
-  return placeholderPage('Viabilidade', 'A preencher')
+  return `<section class="page page-via">
+    <div class="via">
+      <p class="via-kicker">Viabilidade</p>
+      <h2 class="via-titulo">Do terreno ao <em>VGV</em></h2>
+      <div class="via-box">
+        <div class="via-cell">
+          <p class="via-label">Valor do terreno</p>
+          <p class="via-valor">R$ 0</p>
+        </div>
+        <div class="via-cell">
+          <p class="via-label">Valor de obra</p>
+          <p class="via-valor">R$ 0</p>
+        </div>
+        <div class="via-cell">
+          <p class="via-label">VGV target</p>
+          <p class="via-valor via-valor-gold">R$ 0</p>
+        </div>
+      </div>
+      <div class="via-base">
+        <div class="via-resumo">
+          <p>Custo total <span>R$ 0</span> · Potencial de resultado <span>R$ 0</span></p>
+          <p>≈ <span>0%</span> sobre o VGV (target)</p>
+        </div>
+        <div class="via-bar" aria-hidden="true">
+          <span class="via-bar-terreno"></span>
+          <span class="via-bar-obra"></span>
+          <span class="via-bar-resultado"></span>
+        </div>
+        <div class="via-legenda">
+          <span><i class="via-dot via-dot-terreno"></i>Terreno</span>
+          <span><i class="via-dot via-dot-obra"></i>Obra</span>
+          <span><i class="via-dot via-dot-resultado"></i>Resultado</span>
+        </div>
+        <p class="via-nota">Valores de referência sujeitos a alteração conforme projeto final e tabela vigente.</p>
+      </div>
+    </div>
+  </section>`
 }
 
 function renderCenarios(_ctx: BookContext): string {
-  return placeholderPage('Cenários', 'A preencher')
+  return `<section class="page page-cen">
+    <div class="cen">
+      <p class="cen-kicker">Viabilidade · Cenários</p>
+      <h2 class="cen-titulo">Cenários de venda</h2>
+      <table class="cen-tabela">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Planta</th>
+            <th class="cen-target">Target</th>
+            <th>Liquidação</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="cen-bruta">
+            <td>Venda bruta</td>
+            <td class="cen-num">R$ 0</td>
+            <td class="cen-target cen-num">R$ 0</td>
+            <td class="cen-num">R$ 0</td>
+          </tr>
+          <tr>
+            <td>R$/m² – área de vendas (0 m²)</td>
+            <td class="cen-num">0</td>
+            <td class="cen-target cen-num">0</td>
+            <td class="cen-num">0</td>
+          </tr>
+          <tr>
+            <td>R$/m² – área útil (0 m²)</td>
+            <td class="cen-num">0</td>
+            <td class="cen-target cen-num">0</td>
+            <td class="cen-num">0</td>
+          </tr>
+          <tr>
+            <td>Mês de venda (após início de obra)</td>
+            <td class="cen-num">mês 0</td>
+            <td class="cen-target cen-num">mês 0</td>
+            <td class="cen-num">mês 0</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>`
 }
 
-function renderEncerramento(_ctx: BookContext): string {
+function renderEncerramento(ctx: BookContext): string {
+  const casa = escapeHtml(nomeCatalogo(ctx.casa).toUpperCase())
+  const condominio = ctx.condominio?.nome?.trim()
+  const noCondominio = condominio ? `, no ${escapeHtml(condominio)}` : ''
+  const marca = '<svg class="fim-marca" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="10" stroke="rgba(255,255,255,0.7)" stroke-width="0.8"/><line x1="1" y1="11" x2="21" y2="11" stroke="rgba(255,255,255,0.7)" stroke-width="0.8"/></svg>'
+  const wordmark = '<svg class="fim-wordmark" viewBox="0 0 72 16" xmlns="http://www.w3.org/2000/svg"><text x="0" y="13" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="white" font-weight="300" letter-spacing="1">M</text><ellipse cx="24.5" cy="8" rx="6.8" ry="7.2" fill="none" stroke="white" stroke-width="1.1"/><line x1="17.7" y1="8" x2="31.3" y2="8" stroke="white" stroke-width="1.1"/><text x="34" y="13" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="white" font-weight="300" letter-spacing="1">NÍ</text></svg>'
+
   return `<section class="page page-fim">
     <div class="fim-centro">
-      <p class="fim-logo">MONÍ</p>
-      <div class="rule rule-center"></div>
-      <p class="fim-tagline">Viver bem é uma escolha.</p>
-    </div>
-    <p class="fim-site">moni.casa</p>
-    <div class="moni-wm">
-      <span>Casa Moní</span>
-      <span>Book do Empreendimento</span>
-      <span>Uso interno — confidencial</span>
-      <span>moni.casa</span>
+      ${marca}
+      <h2 class="fim-frase">A Casa ${casa}${noCondominio} —<br/>um convite para <em>viver bem.</em></h2>
+      ${wordmark}
     </div>
   </section>`
 }
@@ -1852,6 +1958,567 @@ function estilos(): string {
       color: rgba(255, 255, 255, 0.9);
     }
 
+    .page-esp {
+      background: var(--cream);
+      color: var(--navy);
+    }
+
+    .esp {
+      height: 100%;
+      box-sizing: border-box;
+      padding: 40px 56px 36px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .esp-kicker {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .esp-titulo {
+      margin: 8px 0 18px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 40px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--navy);
+    }
+
+    .esp-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      background: var(--white);
+      border: 0.5px solid var(--gray-light);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .esp-card {
+      padding: 18px 28px 16px;
+      border-right: 0.5px solid var(--gray-light);
+    }
+
+    .esp-card:last-child { border-right: 0; }
+
+    .esp-num {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 36px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--navy);
+    }
+
+    .esp-num-gold { color: var(--gold); }
+
+    .esp-label {
+      margin: 8px 0 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--gray-mid);
+    }
+
+    .esp-mercado {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 36px;
+      align-items: center;
+      margin-top: 28px;
+    }
+
+    .esp-mercado-titulo {
+      margin: 0;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1.02;
+      color: var(--navy);
+    }
+
+    .esp-mercado-sub {
+      margin: 22px 0 0;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 22px;
+      font-weight: 500;
+      line-height: 1.25;
+      color: var(--navy);
+    }
+
+    .esp-comp-kicker {
+      margin: 0 0 10px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--gray-mid);
+    }
+
+    .esp-bar {
+      display: flex;
+      height: 36px;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .esp-bar-alta,
+    .esp-bar-media,
+    .esp-bar-baixa {
+      display: flex;
+      align-items: center;
+      flex: 1;
+    }
+
+    .esp-bar-alta {
+      background: var(--navy);
+      padding-left: 14px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--white);
+    }
+
+    .esp-bar-media { background: var(--gold); }
+    .esp-bar-baixa { background: var(--gray-mid); }
+
+    .esp-legenda {
+      display: flex;
+      gap: 18px;
+      margin-top: 10px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 12px;
+      color: var(--earth);
+    }
+
+    .esp-legenda span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .esp-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    .esp-dot-alta { background: var(--navy); }
+    .esp-dot-media { background: var(--gold); }
+    .esp-dot-baixa { background: var(--gray-mid); }
+
+    .esp-precos {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .esp-preco {
+      background: var(--white);
+      border: 0.5px solid var(--gray-light);
+      border-radius: 14px;
+      padding: 16px 20px 14px;
+    }
+
+    .esp-preco-gold { border-color: var(--gold); }
+
+    .esp-preco-label {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--gray-mid);
+    }
+
+    .esp-preco-valor {
+      margin: 8px 0 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 36px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--navy);
+    }
+
+    .esp-preco-valor-gold { color: var(--gold); }
+
+    .page-pos { background: var(--navy); color: var(--white); }
+
+    .pos {
+      height: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .pos-esq,
+    .pos-dir {
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 64px 72px;
+    }
+
+    .pos-dir { border-left: 0.5px solid rgba(255, 255, 255, 0.16); }
+
+    .pos-kicker,
+    .pos-frente {
+      margin: 0 0 16px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .pos-frente {
+      margin-bottom: 18px;
+      letter-spacing: 0.16em;
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    .pos-titulo {
+      margin: 0;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 48px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--white);
+    }
+
+    .pos-titulo em {
+      font-style: italic;
+      font-weight: 500;
+      color: var(--gold);
+    }
+
+    .pos-texto {
+      margin: 20px 0 0;
+      max-width: 460px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.6;
+      color: rgba(255, 255, 255, 0.82);
+    }
+
+    .pos-bar {
+      display: flex;
+      height: 8px;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .pos-bar-ouro,
+    .pos-bar-cinza { flex: 1; }
+
+    .pos-bar-ouro { background: var(--gold); }
+    .pos-bar-cinza { background: var(--gray-mid); }
+
+    .pos-nums {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .pos-num {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 48px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--white);
+    }
+
+    .pos-num-ouro { color: var(--gold); }
+    .pos-num-cinza { color: var(--gray-mid); }
+
+    .pos-rotulo {
+      margin: 8px 0 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 13px;
+      font-weight: 400;
+      line-height: 1.3;
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .pos-rotulo strong { font-weight: 600; color: var(--white); }
+
+    .pos-fecho {
+      margin: 32px 0 0;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 20px;
+      font-style: italic;
+      font-weight: 500;
+      color: var(--gold);
+    }
+
+    .pos-fecho em { font-style: italic; }
+
+    .pos-fecho-num {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-style: normal;
+      font-variant-numeric: lining-nums;
+      font-weight: 500;
+    }
+
+    .page-via { background: var(--navy); color: var(--white); }
+
+    .via {
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      padding: 52px 64px 40px;
+    }
+
+    .via-kicker {
+      margin: 0 0 12px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .via-titulo {
+      margin: 0;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 52px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--white);
+    }
+
+    .via-titulo em {
+      font-style: italic;
+      font-weight: 500;
+      color: var(--gold);
+    }
+
+    .via-box {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      margin-top: 28px;
+      border: 0.5px solid rgba(255, 255, 255, 0.22);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .via-cell {
+      padding: 22px 28px 24px;
+      border-right: 0.5px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .via-cell:last-child { border-right: 0; }
+
+    .via-label {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    .via-valor {
+      margin: 12px 0 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-size: 36px;
+      font-weight: 500;
+      line-height: 1;
+      color: var(--white);
+    }
+
+    .via-valor-gold { color: var(--gold); }
+
+    .via-base { margin-top: auto; }
+
+    .via-resumo {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: baseline;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    .via-resumo p { margin: 0; }
+
+    .via-resumo span {
+      font-variant-numeric: lining-nums;
+      font-weight: 500;
+      color: var(--gold);
+    }
+
+    .via-bar {
+      display: flex;
+      height: 8px;
+      margin-top: 16px;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .via-bar-terreno,
+    .via-bar-obra,
+    .via-bar-resultado { flex: 1; }
+
+    .via-bar-terreno { background: var(--gray-light); }
+    .via-bar-obra { background: var(--gray-mid); }
+    .via-bar-resultado { background: var(--gold); }
+
+    .via-legenda {
+      display: flex;
+      gap: 18px;
+      margin-top: 12px;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .via-legenda span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .via-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      display: inline-block;
+    }
+
+    .via-dot-terreno { background: var(--gray-light); }
+    .via-dot-obra { background: var(--gray-mid); }
+    .via-dot-resultado { background: var(--gold); }
+
+    .via-nota {
+      margin: 14px 0 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.45);
+    }
+
+    .page-cen { background: var(--cream); color: var(--navy); }
+
+    .cen {
+      height: 100%;
+      box-sizing: border-box;
+      padding: 48px 56px;
+    }
+
+    .cen-kicker {
+      margin: 0;
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--gold);
+    }
+
+    .cen-titulo {
+      margin: 10px 0 28px;
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 44px;
+      font-weight: 700;
+      line-height: 1.05;
+      color: var(--navy);
+    }
+
+    .cen-tabela {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--white);
+      border: 0.5px solid var(--gray-light);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .cen-tabela th,
+    .cen-tabela td {
+      padding: 18px 24px;
+      text-align: right;
+      vertical-align: middle;
+    }
+
+    .cen-tabela th:first-child,
+    .cen-tabela td:first-child { text-align: left; }
+
+    .cen-tabela th {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--gray-mid);
+    }
+
+    .cen-tabela td {
+      border-top: 0.5px solid var(--gray-light);
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--earth);
+    }
+
+    .cen-bruta td {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--navy);
+    }
+
+    .cen-num {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-variant-numeric: lining-nums;
+      font-weight: 500;
+    }
+
+    .cen-bruta td.cen-num {
+      font-size: 22px;
+      font-weight: 600;
+    }
+
+    .cen-target {
+      background: var(--navy);
+      color: var(--gold);
+    }
+
+    .cen-tabela th.cen-target {
+      color: var(--gold);
+    }
+
+    .cen-tabela td.cen-target {
+      border-top-color: rgba(255, 255, 255, 0.12);
+      color: var(--gold);
+    }
+
     .page-imagem { background: var(--navy); }
 
     .legenda {
@@ -2386,22 +3053,42 @@ function estilos(): string {
 
     .fim-centro {
       position: absolute;
-      left: 16mm;
-      right: 16mm;
+      left: 80px;
+      right: 80px;
       top: 50%;
       transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       text-align: center;
     }
 
-    .fim-logo { font-size: 22px; }
+    .fim-marca {
+      width: 22px;
+      height: 22px;
+      margin-bottom: 28px;
+    }
 
-    .fim-centro .rule { margin: 8mm auto; }
-
-    .fim-tagline {
+    .fim-frase {
+      margin: 0;
+      max-width: 920px;
       font-family: 'Playfair Display', Georgia, serif;
+      font-size: 36px;
+      font-weight: 500;
+      line-height: 1.35;
+      color: var(--white);
+    }
+
+    .fim-frase em {
       font-style: italic;
-      font-size: 18px;
+      font-weight: 500;
       color: var(--gold);
+    }
+
+    .fim-wordmark {
+      width: 78px;
+      height: 18px;
+      margin-top: 28px;
     }
 
     .fim-site {
@@ -2435,14 +3122,13 @@ export function renderBookHtml(ctx: BookContext): string {
     renderBanhoMaster(ctx),
     renderEasyToPlay(ctx),
     renderRooftop(ctx),
-    renderImagemFull('Detalhe', ctx, 6),
-    renderImagemFull('Planta', ctx, 7),
     renderFichaTecnica(ctx),
-    renderAnaliseMercado(ctx),
     renderPosicionamento(ctx),
     renderViabilidade(ctx),
     renderCenarios(ctx),
     renderEncerramento(ctx),
+    renderImagemFull('Detalhe', ctx, 6),
+    renderImagemFull('Planta', ctx, 7),
   ].filter((pagina) => pagina.trim().length > 0)
 
   return `<!DOCTYPE html>
