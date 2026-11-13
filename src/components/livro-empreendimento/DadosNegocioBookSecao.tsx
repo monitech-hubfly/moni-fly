@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import {
   carregarDadosNegocioLivro,
@@ -135,7 +135,13 @@ function camposDoProcesso(dados: DadosNegocioLivro): { key: string; label: strin
   return campos;
 }
 
-export function DadosNegocioBookSecao({ funis = [] }: { funis?: FunilLivroOpcao[] }) {
+export function DadosNegocioBookSecao({
+  funis = [],
+  onLinkBca,
+}: {
+  funis?: FunilLivroOpcao[];
+  onLinkBca?: (url: string) => void;
+}) {
   const [funilId, setFunilId] = useState('');
   const [cards, setCards] = useState<CardFunilLivro[]>([]);
   const [cardId, setCardId] = useState('');
@@ -143,6 +149,11 @@ export function DadosNegocioBookSecao({ funis = [] }: { funis?: FunilLivroOpcao[
   const [carregandoCards, setCarregandoCards] = useState(false);
   const [carregandoDados, setCarregandoDados] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    const link = typeof dados?.processo?.link_bca === 'string' ? dados.processo.link_bca.trim() : '';
+    onLinkBca?.(link);
+  }, [dados, onLinkBca]);
 
   async function selecionarFunil(id: string) {
     setFunilId(id);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { DocumentArrowDownIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { SearchableSelect } from '@/components/SearchableSelect';
@@ -157,6 +157,10 @@ export function BookDoEmpreendimentoGerador({
   const [imagensLote, setImagensLote] = useState<[string, string, string]>(['', '', '']);
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [linkBca, setLinkBca] = useState('');
+  const definirLinkBca = useCallback((url: string) => {
+    setLinkBca(url.trim());
+  }, []);
 
   const modelo = MODELOS_CASA.find((m) => m.codigo === modeloSelecionado);
   const condominio = condominios.find((item) => item.id === condominioId) ?? null;
@@ -201,10 +205,11 @@ export function BookDoEmpreendimentoGerador({
           condominio_id: condominioId,
           conteudo_site: conteudoSite,
           imagens_lote: imagensLote,
+          link_bca: linkBca || undefined,
         }),
       });
 
-      const data = await res.json().catch(() => ({})) as { url?: string; error?: string };
+      const data = await res.json().catch(() => ({})) as { url?: string; error?: string; aviso_bca?: string };
 
       if (!res.ok) {
         throw new Error(data.error ?? 'Erro ao gerar o book');
@@ -212,6 +217,10 @@ export function BookDoEmpreendimentoGerador({
 
       if (!data.url) {
         throw new Error('URL do PDF não retornada pela API');
+      }
+
+      if (data.aviso_bca) {
+        setErro((atual) => (atual ? `${atual} ${data.aviso_bca}` : data.aviso_bca ?? null));
       }
 
       // Abre o PDF em nova aba — o signed URL do Storage permite download direto
@@ -353,7 +362,7 @@ export function BookDoEmpreendimentoGerador({
           </p>
         </div>
 
-        <DadosNegocioBookSecao funis={funis} />
+        <DadosNegocioBookSecao funis={funis} onLinkBca={definirLinkBca} />
 
         <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
           <h2 className="mb-1 text-sm font-semibold text-[var(--moni-navy-800)]">Imagens do condomínio</h2>

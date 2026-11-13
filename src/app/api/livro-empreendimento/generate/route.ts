@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { renderBookHtml, type BookContext, type CondominioLivro } from '@/lib/livro-empreendimento/render-html'
 import { generatePdf } from '@/lib/livro-empreendimento/generate-pdf'
+import { cenariosDaPlanilhaBca } from '@/lib/livro-empreendimento/cenarios-bca'
 
 function colunaLivroAusente(error: { code?: string; message?: string }): boolean {
   return error.code === '42703'
@@ -91,13 +92,14 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
       kanban_card_id?: string
       conteudo_site?: unknown
       imagens_lote?: unknown
+      link_bca?: string
     }
     const site = conteudoSite(conteudo_site)
     const casa_codigo = (body.casa_codigo ?? body.codigo)?.trim()
@@ -188,6 +190,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const linkBca = typeof link_bca === 'string' ? link_bca.trim().slice(0, 2000) : ''
+    let cenarios: BookContext['cenarios'] = null
+    let avisoBca: string | undefined
+    if (linkBca) {
+      try {
+        cenarios = await cenariosDaPlanilhaBca(linkBca, user.email ?? undefined)
+        if (!cenarios) {
+          avisoBca = 'A pasta do BCA está fechada e os cenários de venda ficaram zerados.'
+        }
+      } catch (falha) {
+        console.error('[livro-empreendimento] BCA', falha)
+        avisoBca = 'Não foi possível ler a planilha do BCA. Os cenários de venda ficaram zerados.'
+      }
+    }
+
     // 3. Montar contexto do book
     const ctx: BookContext = {
       casa: {
@@ -205,6 +222,7 @@ export async function POST(request: NextRequest) {
       },
       condominio: condominioLivro,
       imagensLote: imagensLote(imagens_lote),
+      cenarios,
     }
 
     // 4. Renderizar HTML das 27 páginas
@@ -255,6 +273,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       url: signedData.signedUrl,
       storage_path: storagePath,
+      aviso_bca: avisoBca,
     })
 
   } catch (error) {

@@ -40,10 +40,17 @@ export interface CondominioLivro {
   vantagensLocalizacao?: { icone: string; texto: string }[] // livro_vantagens_localizacao
 }
 
+export interface CenariosVenda {
+  vendaBruta: [string, string, string]
+  metroVendas: [string, string, string]
+  mesVenda: [string, string, string]
+}
+
 export interface BookContext {
   casa: CasaModelo
   condominio?: CondominioLivro | null
   imagensLote?: string[]
+  cenarios?: CenariosVenda | null
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -913,7 +920,15 @@ function renderViabilidade(_ctx: BookContext): string {
   </section>`
 }
 
-function renderCenarios(_ctx: BookContext): string {
+function celulaCenario(valor: string, alvo: boolean): string {
+  const classe = alvo ? 'cen-target cen-num' : 'cen-num'
+  return `<td class="${classe}">${escapeHtml(valor)}</td>`
+}
+
+function renderCenarios(ctx: BookContext): string {
+  const venda = ctx.cenarios?.vendaBruta ?? ['R$ 0', 'R$ 0', 'R$ 0']
+  const metro = ctx.cenarios?.metroVendas ?? ['0', '0', '0']
+  const mes = ctx.cenarios?.mesVenda ?? ['mês 0', 'mês 0', 'mês 0']
   return `<section class="page page-cen">
     <div class="cen">
       <p class="cen-kicker">Viabilidade · Cenários</p>
@@ -930,27 +945,21 @@ function renderCenarios(_ctx: BookContext): string {
         <tbody>
           <tr class="cen-bruta">
             <td>Venda bruta</td>
-            <td class="cen-num">R$ 0</td>
-            <td class="cen-target cen-num">R$ 0</td>
-            <td class="cen-num">R$ 0</td>
+            ${celulaCenario(venda[0], false)}
+            ${celulaCenario(venda[1], true)}
+            ${celulaCenario(venda[2], false)}
           </tr>
           <tr>
-            <td>R$/m² – área de vendas (0 m²)</td>
-            <td class="cen-num">0</td>
-            <td class="cen-target cen-num">0</td>
-            <td class="cen-num">0</td>
-          </tr>
-          <tr>
-            <td>R$/m² – área útil (0 m²)</td>
-            <td class="cen-num">0</td>
-            <td class="cen-target cen-num">0</td>
-            <td class="cen-num">0</td>
+            <td>R$/m² – área de vendas</td>
+            ${celulaCenario(metro[0], false)}
+            ${celulaCenario(metro[1], true)}
+            ${celulaCenario(metro[2], false)}
           </tr>
           <tr>
             <td>Mês de venda (após início de obra)</td>
-            <td class="cen-num">mês 0</td>
-            <td class="cen-target cen-num">mês 0</td>
-            <td class="cen-num">mês 0</td>
+            ${celulaCenario(mes[0], false)}
+            ${celulaCenario(mes[1], true)}
+            ${celulaCenario(mes[2], false)}
           </tr>
         </tbody>
       </table>
@@ -1373,7 +1382,7 @@ function estilos(): string {
 
     .loc-nome {
       font-family: Inter, Arial, Helvetica, sans-serif;
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 600;
       letter-spacing: 0.34em;
       text-transform: uppercase;
@@ -1383,7 +1392,7 @@ function estilos(): string {
 
     .loc-cidade {
       font-family: Inter, Arial, Helvetica, sans-serif;
-      font-size: 8px;
+      font-size: 10px;
       letter-spacing: 0.2em;
       text-transform: uppercase;
       color: var(--green-mid);
