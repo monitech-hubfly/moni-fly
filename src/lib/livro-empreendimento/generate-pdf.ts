@@ -61,7 +61,7 @@ async function montarPptx(imagens: Buffer[]): Promise<Buffer> {
   throw new Error('Falha ao montar o PowerPoint')
 }
 
-export async function generateBook(html: string): Promise<{ pdf: Buffer; pptx: Buffer }> {
+export async function generateBook(html: string, formato: 'pdf' | 'pptx'): Promise<Buffer> {
   const browser = await launchBrowser()
 
   try {
@@ -85,6 +85,15 @@ export async function generateBook(html: string): Promise<{ pdf: Buffer; pptx: B
       new Promise((resolve) => setTimeout(resolve, 8000)),
     ])
 
+    if (formato === 'pdf') {
+      return Buffer.from(await page.pdf({
+        width: `${LARGURA_PX}px`,
+        height: `${ALTURA_PX}px`,
+        printBackground: true,
+        margin: { top: '0', right: '0', bottom: '0', left: '0' },
+      }))
+    }
+
     const folhas = await page.$$('.page')
     if (folhas.length === 0) throw new Error('O book não tem páginas para o PowerPoint')
 
@@ -94,15 +103,7 @@ export async function generateBook(html: string): Promise<{ pdf: Buffer; pptx: B
       imagens.push(Buffer.from(foto))
     }
 
-    const pdf = Buffer.from(await page.pdf({
-      width: `${LARGURA_PX}px`,
-      height: `${ALTURA_PX}px`,
-      printBackground: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' },
-    }))
-
-    const pptx = await montarPptx(imagens)
-    return { pdf, pptx }
+    return montarPptx(imagens)
   } finally {
     await browser.close()
   }

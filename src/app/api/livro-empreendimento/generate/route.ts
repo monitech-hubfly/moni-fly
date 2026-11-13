@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, custo_obra, vgv_pretendido } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, custo_obra, vgv_pretendido, formato } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
@@ -120,7 +120,9 @@ export async function POST(request: NextRequest) {
       valor_terreno?: string
       custo_obra?: string
       vgv_pretendido?: string
+      formato?: string
     }
+    const formatoBook = formato === 'pptx' ? 'pptx' : 'pdf'
     const site = conteudoSite(conteudo_site)
     const casa_codigo = (body.casa_codigo ?? body.codigo)?.trim()
 
@@ -251,29 +253,26 @@ export async function POST(request: NextRequest) {
     // 4. Renderizar HTML das 27 páginas
     const html = renderBookHtml(ctx)
 
-    // 5. PDF e PowerPoint a partir do mesmo HTML
-    const { pdf, pptx } = await generateBook(html)
+    // 5. Só o formato pedido
+    const arquivo = await generateBook(html, formatoBook)
+    const extensao = formatoBook === 'pptx' ? 'pptx' : 'pdf'
+    const contentType = formatoBook === 'pptx'
+      ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+      : 'application/pdf'
 
     // 6. Upload para Supabase Storage
     const timestamp = Date.now()
     const nomeBase = `book-empreendimento-${casa.codigo}`
-    const storagePath = `livros/${casa.codigo}/${timestamp}.pdf`
-    const storagePathPptx = `livros/${casa.codigo}/${timestamp}.pptx`
+    const storagePath = `livros/${casa.codigo}/${timestamp}.${extensao}`
     const bucket = supabase.storage.from('livros-empreendimento')
 
-    const [uploadPdf, uploadPptx] = await Promise.all([
-      bucket.upload(storagePath, pdf, {
-        contentType: 'application/pdf',
-        upsert: false,
-      }),
-      bucket.upload(storagePathPptx, pptx, {
-        contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        upsert: false,
-      }),
-    ])
+    const { error: uploadError } = await bucket.upload(storagePath, arquivo, {
+      contentType,
+      upsert: false,
+    })
 
-    if (uploadPdf.error || uploadPptx.error) {
-      console.error('[livro-empreendimento] Upload error:', uploadPdf.error ?? uploadPptx.error)
+    if (uploadError) {
+      console.error('[livro-empreendimento] Upload error:', uploadError)
       return NextResponse.json({ error: 'Falha ao salvar o book' }, { status: 500 })
     }
 
@@ -288,25 +287,23 @@ export async function POST(request: NextRequest) {
       contexto_json: {
         casa: ctx.casa,
         condominio: ctx.condominio,
-        storage_path_pptx: storagePathPptx,
+        formato: formatoBook,
       },
     })
 
-    // 7. URLs assinadas (válidas por 1 hora)
-    const [pdfAssinado, pptxAssinado] = await Promise.all([
-      bucket.createSignedUrl(storagePath, 3600, { download: `${nomeBase}.pdf` }),
-      bucket.createSignedUrl(storagePathPptx, 3600, { download: `${nomeBase}.pptx` }),
-    ])
+    // 7. URL assinada (válida por 1 hora)
+    const { data: signedData, error: signError } = await bucket.createSignedUrl(storagePath, 3600, {
+      download: `${nomeBase}.${extensao}`,
+    })
 
-    if (pdfAssinado.error || !pdfAssinado.data?.signedUrl || pptxAssinado.error || !pptxAssinado.data?.signedUrl) {
+    if (signError || !signedData?.signedUrl) {
       return NextResponse.json({ error: 'Falha ao gerar URL de download' }, { status: 500 })
     }
 
     return NextResponse.json({
-      url: pdfAssinado.data.signedUrl,
-      url_pptx: pptxAssinado.data.signedUrl,
+      url: signedData.signedUrl,
+      formato: formatoBook,
       storage_path: storagePath,
-      storage_path_pptx: storagePathPptx,
       aviso_bca: avisoBca,
     })
 

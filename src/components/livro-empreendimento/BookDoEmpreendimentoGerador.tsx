@@ -166,7 +166,7 @@ export function BookDoEmpreendimentoGerador({
   const [siteUrl, setSiteUrl] = useState('');
   const [imagensCondominio, setImagensCondominio] = useState<[string, string]>(['', '']);
   const [imagensLote, setImagensLote] = useState<[string, string, string]>(['', '', '']);
-  const [gerando, setGerando] = useState(false);
+  const [gerando, setGerando] = useState<'pdf' | 'pptx' | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [linkBca, setLinkBca] = useState('');
   const [valorTerreno, setValorTerreno] = useState('');
@@ -196,9 +196,9 @@ export function BookDoEmpreendimentoGerador({
     if (id !== condominioId) setImagensCondominio(['', '']);
   }
 
-  async function handleGerar() {
-    if (!modeloSelecionado || !condominioId) return;
-    setGerando(true);
+  async function handleGerar(formato: 'pdf' | 'pptx') {
+    if (!modeloSelecionado || !condominioId || gerando) return;
+    setGerando(formato);
     setErro(null);
     try {
       const site = siteUrl.trim();
@@ -232,32 +232,29 @@ export function BookDoEmpreendimentoGerador({
           valor_terreno: valorTerreno || undefined,
           custo_obra: custoObra || undefined,
           vgv_pretendido: vgvPretendido || undefined,
+          formato,
         }),
       });
 
-      const data = await res.json().catch(() => ({})) as { url?: string; url_pptx?: string; error?: string; aviso_bca?: string };
+      const data = await res.json().catch(() => ({})) as { url?: string; error?: string; aviso_bca?: string };
 
       if (!res.ok) {
         throw new Error(data.error ?? 'Erro ao gerar o book');
       }
 
-      if (!data.url || !data.url_pptx) {
-        throw new Error('Os arquivos do book não foram retornados pela API');
+      if (!data.url) {
+        throw new Error('O arquivo do book não foi retornado pela API');
       }
 
       if (data.aviso_bca) {
         setErro((atual) => (atual ? `${atual} ${data.aviso_bca}` : data.aviso_bca ?? null));
       }
 
-      const carimbo = Date.now();
-      baixarArquivo(data.url, `book-empreendimento-${modeloSelecionado}-${carimbo}.pdf`);
-      window.setTimeout(() => {
-        baixarArquivo(data.url_pptx as string, `book-empreendimento-${modeloSelecionado}-${carimbo}.pptx`);
-      }, 400);
+      baixarArquivo(data.url, `book-empreendimento-${modeloSelecionado}-${Date.now()}.${formato}`);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro desconhecido');
     } finally {
-      setGerando(false);
+      setGerando(null);
     }
   }
 
@@ -280,7 +277,7 @@ export function BookDoEmpreendimentoGerador({
           </div>
           <div>
             <h1 className="text-xl font-semibold text-[var(--moni-navy-800)]">Book do Empreendimento</h1>
-            <p className="text-sm text-stone-500">Selecione a casa e o condomínio. O book sai em PDF e em PowerPoint.</p>
+            <p className="text-sm text-stone-500">Selecione a casa e o condomínio. Gere o book em PDF ou em PowerPoint.</p>
           </div>
         </div>
 
@@ -490,16 +487,24 @@ export function BookDoEmpreendimentoGerador({
           </div>
         )}
 
-        {/* Botão gerar */}
-        <div className="flex justify-end">
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
-            onClick={handleGerar}
-            disabled={!modeloSelecionado || !condominioId || gerando}
-            className="flex min-h-11 items-center gap-2 rounded-lg bg-[var(--moni-navy-800)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--moni-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => { void handleGerar('pdf') }}
+            disabled={!modeloSelecionado || !condominioId || gerando !== null}
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--moni-navy-800)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--moni-secondary)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             <DocumentArrowDownIcon className="h-4 w-4 shrink-0" aria-hidden />
-            {gerando ? 'Gerando PDF e PowerPoint…' : 'Gerar Book em PDF e PowerPoint'}
+            {gerando === 'pdf' ? 'Gerando PDF…' : 'Gerar PDF'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { void handleGerar('pptx') }}
+            disabled={!modeloSelecionado || !condominioId || gerando !== null}
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border-[0.5px] border-[var(--moni-border)] bg-white px-5 py-2.5 text-sm font-semibold text-[var(--moni-navy-800)] shadow-sm transition hover:bg-[var(--moni-light)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+          >
+            <DocumentArrowDownIcon className="h-4 w-4 shrink-0" aria-hidden />
+            {gerando === 'pptx' ? 'Gerando PowerPoint…' : 'Gerar PowerPoint'}
           </button>
         </div>
       </div>
