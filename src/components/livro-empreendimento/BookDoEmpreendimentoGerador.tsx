@@ -58,12 +58,24 @@ function lerImagemLote(file: File): Promise<string> {
   })
 }
 
+function palavrasDoCondominio(item: CondominioRow): string {
+  const partes: string[] = [];
+  for (const campo of CAMPOS_EXIBICAO_CONDOMINIO) {
+    try {
+      partes.push(campo.valor(item));
+    } catch {
+      /* um campo inválido não pode derrubar a página */
+    }
+  }
+  return partes.join(' ');
+}
+
 export function BookDoEmpreendimentoGerador({
-  condominios,
-  funis,
+  condominios = [],
+  funis = [],
 }: {
-  condominios: CondominioRow[];
-  funis: FunilLivroOpcao[];
+  condominios?: CondominioRow[];
+  funis?: FunilLivroOpcao[];
 }) {
   const [modeloSelecionado, setModeloSelecionado] = useState<string | null>(null);
   const [condominioId, setCondominioId] = useState('');
@@ -78,7 +90,8 @@ export function BookDoEmpreendimentoGerador({
   function selecionarCondominio(id: string) {
     setCondominioId(id);
     const escolhido = condominios.find((item) => item.id === id);
-    setSiteUrl(escolhido?.site_url?.trim() ?? '');
+    const site = escolhido?.site_url;
+    setSiteUrl(typeof site === 'string' ? site.trim() : '');
   }
 
   async function handleGerar() {
@@ -200,23 +213,31 @@ export function BookDoEmpreendimentoGerador({
             searchPlaceholder="Nome, cidade, endereço ou site"
             aria-label="Buscar condomínio"
             triggerClassName="min-h-11 w-full border-[var(--moni-border)] text-[var(--moni-navy-800)]"
-            options={condominios.map((item) => {
+            options={(condominios ?? []).map((item) => {
               const local = [item.cidade, item.estado].filter(Boolean).join(' / ');
               return {
-                value: item.id,
+                value: String(item.id),
                 label: local ? `${item.nome} — ${local}` : item.nome,
-                keywords: CAMPOS_EXIBICAO_CONDOMINIO.map((campo) => campo.valor(item)).join(' '),
+                keywords: palavrasDoCondominio(item),
               };
             })}
           />
           {condominio ? (
             <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
-              {CAMPOS_EXIBICAO_CONDOMINIO.map((campo) => (
-                <div key={campo.key} className={campo.key === 'descricao_breve' || campo.key === 'site_url' ? 'sm:col-span-2' : ''}>
-                  <dt className="text-[11px] font-medium text-stone-400">{campo.label}</dt>
-                  <dd className="mt-0.5 whitespace-pre-wrap text-sm text-[var(--moni-navy-800)]">{campo.valor(condominio)}</dd>
-                </div>
-              ))}
+              {CAMPOS_EXIBICAO_CONDOMINIO.map((campo) => {
+                let valor = '—';
+                try {
+                  valor = campo.valor(condominio);
+                } catch {
+                  valor = '—';
+                }
+                return (
+                  <div key={campo.key} className={campo.key === 'descricao_breve' || campo.key === 'site_url' ? 'sm:col-span-2' : ''}>
+                    <dt className="text-[11px] font-medium text-stone-400">{campo.label}</dt>
+                    <dd className="mt-0.5 whitespace-pre-wrap text-sm text-[var(--moni-navy-800)]">{valor}</dd>
+                  </div>
+                );
+              })}
             </dl>
           ) : (
             <p className="mt-3 text-xs text-stone-400">

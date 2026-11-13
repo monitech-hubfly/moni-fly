@@ -5,13 +5,15 @@ import {
 } from '@/lib/condominios';
 import { fmtPrazoAprovacaoLabel } from '@/lib/kanban/condominio-prazos-aprovacao';
 
-function texto(value: string | null | undefined): string {
-  const s = (value ?? '').trim();
-  return s || '—';
+function texto(value: unknown): string {
+  if (typeof value === 'string') return value.trim() || '—';
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+  return '—';
 }
 
-function dataBr(iso: string | null | undefined): string {
-  const s = (iso ?? '').trim().slice(0, 10);
+function dataBr(iso: unknown): string {
+  const s = (typeof iso === 'string' ? iso : '').trim().slice(0, 10);
   if (!s) return '—';
   const [y, m, d] = s.split('-');
   if (!y || !m || !d) return s;

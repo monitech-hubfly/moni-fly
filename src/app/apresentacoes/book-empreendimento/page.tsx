@@ -20,22 +20,51 @@ export default async function BookDoEmpreendimentoPage() {
   if (role === 'frank') redirect('/portal-frank');
   if (!isAdminRole(role) && role !== 'team') redirect('/rede-franqueados');
 
-  const { data: condominios } = await supabase
-    .from('condominios')
-    .select('*')
-    .order('nome', { ascending: true });
+  try {
+    const { data: condominios, error: erroCondominios } = await supabase
+      .from('condominios')
+      .select('*')
+      .order('nome', { ascending: true });
+    if (erroCondominios) throw new Error(erroCondominios.message);
 
-  const opcoes = filtrarLinhasEmBrancoCondominios(
-    (condominios ?? []).map((row) => toCondominioRow(row as Record<string, unknown>)),
-  );
+    const linhas = [];
+    for (const row of condominios ?? []) {
+      try {
+        linhas.push(toCondominioRow(row as Record<string, unknown>));
+      } catch (falha) {
+        console.error('[book-empreendimento] condomínio ignorado', falha);
+      }
+    }
+    const opcoes = filtrarLinhasEmBrancoCondominios(linhas);
 
-  const { data: kanbans } = await supabase.from('kanbans').select('id, nome').order('nome', { ascending: true });
-  const funis: FunilLivroOpcao[] = (kanbans ?? [])
-    .map((row) => ({
-      id: String((row as { id?: string }).id ?? ''),
-      nome: String((row as { nome?: string | null }).nome ?? '').trim(),
-    }))
-    .filter((funil) => funil.id && funil.nome && !isKanbanIdInterno(funil.id));
+    const { data: kanbans, error: erroKanbans } = await supabase
+      .from('kanbans')
+      .select('id, nome')
+      .order('nome', { ascending: true });
+    if (erroKanbans) throw new Error(erroKanbans.message);
 
-  return <BookDoEmpreendimentoGerador condominios={opcoes} funis={funis} />;
+    const funis: FunilLivroOpcao[] = (kanbans ?? [])
+      .map((row) => ({
+        id: String((row as { id?: string }).id ?? ''),
+        nome: String((row as { nome?: string | null }).nome ?? '').trim(),
+      }))
+      .filter((funil) => funil.id && funil.nome && !isKanbanIdInterno(funil.id));
+
+    return <BookDoEmpreendimentoGerador condominios={opcoes} funis={funis} />;
+  } catch (falha) {
+    const digest = typeof falha === 'object' && falha && 'digest' in falha ? String((falha as { digest?: unknown }).digest) : '';
+    if (digest.startsWith('NEXT_')) throw falha;
+    console.error('[book-empreendimento]', falha);
+    const mensagem = falha instanceof Error ? falha.message : 'Não foi possível carregar o book.';
+    return (
+      <div className="mx-auto max-w-xl px-4 py-16">
+        <h1 className="text-xl text-[var(--moni-text-primary)]" style={{ fontFamily: 'var(--moni-font-display)' }}>
+          Book do Empreendimento
+        </h1>
+        <p className="mt-3 text-sm text-[var(--moni-text-secondary)]" style={{ fontFamily: 'var(--moni-font-sans)' }}>
+          Não foi possível carregar as informações. {mensagem}
+        </p>
+      </div>
+    );
+  }
 }

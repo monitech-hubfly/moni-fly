@@ -40,7 +40,22 @@ async function exigirStaff() {
   return { ok: true as const, supabase };
 }
 
+function mensagemFalha(falha: unknown, fallback: string): string {
+  return falha instanceof Error && falha.message ? falha.message : fallback;
+}
+
 export async function listarCardsDoFunilLivro(
+  kanbanId: string,
+): Promise<{ ok: true; cards: CardFunilLivro[] } | { ok: false; error: string }> {
+  try {
+    return await listarCardsDoFunilLivroInterno(kanbanId);
+  } catch (falha) {
+    console.error('[listarCardsDoFunilLivro]', falha);
+    return { ok: false, error: mensagemFalha(falha, 'Não foi possível carregar os cards do funil.') };
+  }
+}
+
+async function listarCardsDoFunilLivroInterno(
   kanbanId: string,
 ): Promise<{ ok: true; cards: CardFunilLivro[] } | { ok: false; error: string }> {
   const gate = await exigirStaff();
@@ -82,6 +97,17 @@ export async function listarCardsDoFunilLivro(
 export async function carregarDadosNegocioLivro(
   cardId: string,
 ): Promise<{ ok: true; dados: DadosNegocioLivro } | { ok: false; error: string }> {
+  try {
+    return await carregarDadosNegocioLivroInterno(cardId);
+  } catch (falha) {
+    console.error('[carregarDadosNegocioLivro]', falha);
+    return { ok: false, error: mensagemFalha(falha, 'Não foi possível carregar os dados do negócio.') };
+  }
+}
+
+async function carregarDadosNegocioLivroInterno(
+  cardId: string,
+): Promise<{ ok: true; dados: DadosNegocioLivro } | { ok: false; error: string }> {
   const gate = await exigirStaff();
   if (!gate.ok) return gate;
 
@@ -117,5 +143,6 @@ export async function carregarDadosNegocioLivro(
     fetchFasesNegocioPrazoOpcoes(gate.supabase),
   ]);
 
-  return { ok: true, dados: { processo: detalhes.processo, fases } };
+  const dados = JSON.parse(JSON.stringify({ processo: detalhes.processo, fases: fases ?? [] })) as DadosNegocioLivro;
+  return { ok: true, dados };
 }

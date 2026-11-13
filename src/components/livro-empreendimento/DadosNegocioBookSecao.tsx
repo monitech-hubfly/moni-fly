@@ -46,15 +46,15 @@ function rotuloCard(card: CardFunilLivro): string {
 function camposDoProcesso(dados: DadosNegocioLivro): { key: string; label: string; valor: string; largo?: boolean }[] {
   const proc = dados.processo;
   if (!proc) return [];
-  const prazos = negocioPrazoValoresFromProcessoModal(proc, dados.fases);
+  const fases = Array.isArray(dados.fases) ? dados.fases : [];
+  const prazos = negocioPrazoValoresFromProcessoModal(proc, fases);
   const tipo = proc.tipo_aquisicao_terreno;
-  const negociacao = (proc.negociacao_linhas ?? [])
+  const negociacao = (Array.isArray(proc.negociacao_linhas) ? proc.negociacao_linhas : [])
     .map((linha) => {
-      const partes = [
-        linha.condicao.trim(),
-        linha.valor.trim() ? fmtMoedaKanban(linha.valor) : '',
-        dataBr(linha.dataPagamento) === '—' ? '' : dataBr(linha.dataPagamento),
-      ].filter(Boolean);
+      const condicao = String(linha?.condicao ?? '').trim();
+      const valor = String(linha?.valor ?? '').trim();
+      const data = dataBr(linha?.dataPagamento);
+      const partes = [condicao, valor ? fmtMoedaKanban(valor) : '', data === '—' ? '' : data].filter(Boolean);
       return partes.join(' · ');
     })
     .filter(Boolean)
@@ -87,7 +87,7 @@ function camposDoProcesso(dados: DadosNegocioLivro): { key: string; label: strin
       label: 'Prazo Opção',
       valor: formatNegocioPrazoDisplay(
         prazos.prazo_opcao,
-        faseLabelFromOpcoes(prazos.prazo_opcao.faseId, dados.fases),
+        faseLabelFromOpcoes(prazos.prazo_opcao.faseId, fases),
       ),
     },
     { key: 'obs_opcao', label: 'Obs. Opção', valor: displayOrDash(proc.obs_opcao), largo: true },
@@ -120,7 +120,7 @@ function camposDoProcesso(dados: DadosNegocioLivro): { key: string; label: strin
       label: 'Prazo Instrumento Garantidor',
       valor: formatNegocioPrazoDisplay(
         prazos.prazo_instrumento_garantidor,
-        faseLabelFromOpcoes(prazos.prazo_instrumento_garantidor.faseId, dados.fases),
+        faseLabelFromOpcoes(prazos.prazo_instrumento_garantidor.faseId, fases),
       ),
     },
     {
@@ -135,7 +135,7 @@ function camposDoProcesso(dados: DadosNegocioLivro): { key: string; label: strin
   return campos;
 }
 
-export function DadosNegocioBookSecao({ funis }: { funis: FunilLivroOpcao[] }) {
+export function DadosNegocioBookSecao({ funis = [] }: { funis?: FunilLivroOpcao[] }) {
   const [funilId, setFunilId] = useState('');
   const [cards, setCards] = useState<CardFunilLivro[]>([]);
   const [cardId, setCardId] = useState('');
@@ -152,13 +152,18 @@ export function DadosNegocioBookSecao({ funis }: { funis: FunilLivroOpcao[] }) {
     setErro(null);
     if (!id) return;
     setCarregandoCards(true);
-    const res = await listarCardsDoFunilLivro(id);
-    setCarregandoCards(false);
-    if (!res.ok) {
-      setErro(res.error);
-      return;
+    try {
+      const res = await listarCardsDoFunilLivro(id);
+      if (!res.ok) {
+        setErro(res.error);
+        return;
+      }
+      setCards(Array.isArray(res.cards) ? res.cards : []);
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível carregar os cards do funil.');
+    } finally {
+      setCarregandoCards(false);
     }
-    setCards(res.cards);
   }
 
   async function selecionarCard(id: string) {
@@ -167,16 +172,29 @@ export function DadosNegocioBookSecao({ funis }: { funis: FunilLivroOpcao[] }) {
     setErro(null);
     if (!id) return;
     setCarregandoDados(true);
-    const res = await carregarDadosNegocioLivro(id);
-    setCarregandoDados(false);
-    if (!res.ok) {
-      setErro(res.error);
-      return;
+    try {
+      const res = await carregarDadosNegocioLivro(id);
+      if (!res.ok) {
+        setErro(res.error);
+        return;
+      }
+      setDados(res.dados);
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não foi possível carregar os dados do negócio.');
+    } finally {
+      setCarregandoDados(false);
     }
-    setDados(res.dados);
   }
 
-  const campos = dados ? camposDoProcesso(dados) : [];
+  let campos: { key: string; label: string; valor: string; largo?: boolean }[] = [];
+  let erroLeitura: string | null = null;
+  if (dados) {
+    try {
+      campos = camposDoProcesso(dados);
+    } catch (falha) {
+      erroLeitura = falha instanceof Error ? falha.message : 'Não foi possível ler os dados do negócio.';
+    }
+  }
   const semProcesso = Boolean(dados && !dados.processo);
 
   return (
@@ -219,13 +237,15 @@ export function DadosNegocioBookSecao({ funis }: { funis: FunilLivroOpcao[] }) {
         aria-label="Buscar card do funil"
         triggerClassName="min-h-11 w-full border-[var(--moni-border)] text-[var(--moni-navy-800)]"
         options={cards.map((card) => ({
-          value: card.id,
+          value: String(card.id),
           label: rotuloCard(card),
-          keywords: [card.titulo, card.nome_condominio, card.quadra, card.lote, card.id].filter(Boolean).join(' '),
+          keywords: [card.titulo, card.nome_condominio, card.quadra, card.lote, card.id]
+            .filter((parte) => parte != null && parte !== '')
+            .join(' '),
         }))}
       />
 
-      {erro ? <p className="mt-3 text-xs text-red-700">{erro}</p> : null}
+      {erro || erroLeitura ? <p className="mt-3 text-xs text-red-700">{erro || erroLeitura}</p> : null}
       {carregandoDados ? <p className="mt-3 text-xs text-stone-400">Carregando dados do negócio…</p> : null}
       {semProcesso ? (
         <p className="mt-3 text-xs text-stone-400">Sem processo vinculado — dados de negócio indisponíveis.</p>

@@ -173,16 +173,30 @@ function parseIntegerField(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
+/** Texto vindo do banco. Objeto/array vira null em vez de quebrar a página. */
+function textoDb(v: unknown): string | null {
+  if (typeof v === 'string') {
+    const s = v.trim();
+    return s || null;
+  }
+  if (typeof v === 'number' || typeof v === 'boolean') {
+    if (typeof v === 'number' && !Number.isFinite(v)) return null;
+    const s = String(v).trim();
+    return s || null;
+  }
+  return null;
+}
+
 function mapRow(r: Record<string, unknown>): CondominioRow {
   return {
     id: String(r.id),
     nome: String(r.nome ?? '').trim(),
-    endereco: (r.endereco as string | null) ?? null,
-    numero: (r.numero as string | null) ?? null,
-    cep: (r.cep as string | null) ?? null,
-    cidade: (r.cidade as string | null) ?? null,
-    estado: (r.estado as string | null) ?? null,
-    descricao_breve: ((r.descricao_breve as string | null) ?? null)?.trim() || null,
+    endereco: textoDb(r.endereco),
+    numero: textoDb(r.numero),
+    cep: textoDb(r.cep),
+    cidade: textoDb(r.cidade),
+    estado: textoDb(r.estado),
+    descricao_breve: textoDb(r.descricao_breve),
     ticket_medio_lote: ((r.ticket_medio_lote as string | number | null) ?? null) == null
       ? null
       : String(r.ticket_medio_lote).trim() || null,
@@ -194,27 +208,27 @@ function mapRow(r: Record<string, unknown>): CondominioRow {
       : String(r.valor_tx_condominio).trim() || null,
     ticket_medio_casas_rsm2: parseNumericField(r.ticket_medio_casas_rsm2),
     estimativa_casas_vendidas_ano: parseIntegerField(r.estimativa_casas_vendidas_ano),
-    extrato_como_eram_casas: ((r.extrato_como_eram_casas as string | null) ?? null)?.trim() || null,
-    extrato_tempo_venda: ((r.extrato_tempo_venda as string | null) ?? null)?.trim() || null,
+    extrato_como_eram_casas: textoDb(r.extrato_como_eram_casas),
+    extrato_tempo_venda: textoDb(r.extrato_tempo_venda),
     data_lancamento_vendas: parseDateField(r.data_lancamento_vendas),
     data_liberacao_tvo: parseDateField(r.data_liberacao_tvo),
     quantidade_lotes: parseIntegerField(r.quantidade_lotes),
-    metragem_lotes: ((r.metragem_lotes as string | null) ?? null)?.trim() || null,
-    metragem_casas: ((r.metragem_casas as string | null) ?? null)?.trim() || null,
-    planta_cadastral: ((r.planta_cadastral as string | null) ?? null)?.trim() || null,
-    manual_obras: ((r.manual_obras as string | null) ?? null)?.trim() || null,
-    casas_concorrentes: ((r.casas_concorrentes as string | null) ?? null)?.trim() || null,
-    site_url: ((r.site_url as string | null) ?? null)?.trim() || null,
+    metragem_lotes: textoDb(r.metragem_lotes),
+    metragem_casas: textoDb(r.metragem_casas),
+    planta_cadastral: textoDb(r.planta_cadastral),
+    manual_obras: textoDb(r.manual_obras),
+    casas_concorrentes: textoDb(r.casas_concorrentes),
+    site_url: textoDb(r.site_url),
     recuo_frontal_m: parseNumericField(r.recuo_frontal_m),
     recuo_fundo_m: parseNumericField(r.recuo_fundo_m),
     recuo_lateral_m: parseNumericField(r.recuo_lateral_m),
     prazo_aprovacao_condominio_dias: parseIntegerField(r.prazo_aprovacao_condominio_dias),
-    prazo_aprovacao_condominio_sla_tipo: (r.prazo_aprovacao_condominio_sla_tipo as string | null) ?? null,
+    prazo_aprovacao_condominio_sla_tipo: textoDb(r.prazo_aprovacao_condominio_sla_tipo),
     prazo_aprovacao_prefeitura_dias: parseIntegerField(r.prazo_aprovacao_prefeitura_dias),
-    prazo_aprovacao_prefeitura_sla_tipo: (r.prazo_aprovacao_prefeitura_sla_tipo as string | null) ?? null,
-    criado_por: (r.criado_por as string | null) ?? null,
-    created_at: (r.created_at as string | null) ?? null,
-    updated_at: (r.updated_at as string | null) ?? null,
+    prazo_aprovacao_prefeitura_sla_tipo: textoDb(r.prazo_aprovacao_prefeitura_sla_tipo),
+    criado_por: textoDb(r.criado_por),
+    created_at: textoDb(r.created_at),
+    updated_at: textoDb(r.updated_at),
   };
 }
 
