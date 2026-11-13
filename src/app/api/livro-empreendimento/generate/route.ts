@@ -36,7 +36,7 @@ function urlFoto(value: unknown): string | undefined {
   return urlHttp(value)
 }
 
-function moedaTerreno(value: unknown): string | null {
+function moedaLivro(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const texto = value.trim()
   if (!texto || !/\d/.test(texto)) return null
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, custo_obra, vgv_pretendido } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
@@ -118,6 +118,8 @@ export async function POST(request: NextRequest) {
       imagens_lote?: unknown
       link_bca?: string
       valor_terreno?: string
+      custo_obra?: string
+      vgv_pretendido?: string
     }
     const site = conteudoSite(conteudo_site)
     const casa_codigo = (body.casa_codigo ?? body.codigo)?.trim()
@@ -241,7 +243,9 @@ export async function POST(request: NextRequest) {
       condominio: condominioLivro,
       imagensLote: imagensLote(imagens_lote),
       cenarios,
-      valorTerreno: moedaTerreno(valor_terreno),
+      valorTerreno: moedaLivro(valor_terreno),
+      valorObra: moedaLivro(custo_obra),
+      vgvTarget: moedaLivro(vgv_pretendido),
     }
 
     // 4. Renderizar HTML das 27 páginas

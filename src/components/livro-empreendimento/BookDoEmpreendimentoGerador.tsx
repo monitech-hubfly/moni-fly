@@ -159,11 +159,19 @@ export function BookDoEmpreendimentoGerador({
   const [erro, setErro] = useState<string | null>(null);
   const [linkBca, setLinkBca] = useState('');
   const [valorTerreno, setValorTerreno] = useState('');
+  const [custoObra, setCustoObra] = useState('');
+  const [vgvPretendido, setVgvPretendido] = useState('');
   const definirLinkBca = useCallback((url: string) => {
     setLinkBca(url.trim());
   }, []);
   const definirValorTerreno = useCallback((valor: string) => {
     setValorTerreno(valor.trim());
+  }, []);
+  const definirCustoObra = useCallback((valor: string) => {
+    setCustoObra(valor.trim());
+  }, []);
+  const definirVgv = useCallback((valor: string) => {
+    setVgvPretendido(valor.trim());
   }, []);
 
   const modelo = MODELOS_CASA.find((m) => m.codigo === modeloSelecionado);
@@ -211,6 +219,8 @@ export function BookDoEmpreendimentoGerador({
           imagens_lote: imagensLote,
           link_bca: linkBca || undefined,
           valor_terreno: valorTerreno || undefined,
+          custo_obra: custoObra || undefined,
+          vgv_pretendido: vgvPretendido || undefined,
         }),
       });
 
@@ -367,7 +377,13 @@ export function BookDoEmpreendimentoGerador({
           </p>
         </div>
 
-        <DadosNegocioBookSecao funis={funis} onLinkBca={definirLinkBca} onValorTerreno={definirValorTerreno} />
+        <DadosNegocioBookSecao
+          funis={funis}
+          onLinkBca={definirLinkBca}
+          onValorTerreno={definirValorTerreno}
+          onCustoObra={definirCustoObra}
+          onVgv={definirVgv}
+        />
 
         <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
           <h2 className="mb-1 text-sm font-semibold text-[var(--moni-navy-800)]">Imagens do condomínio</h2>

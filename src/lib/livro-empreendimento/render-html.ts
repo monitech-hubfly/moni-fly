@@ -52,6 +52,8 @@ export interface BookContext {
   imagensLote?: string[]
   cenarios?: CenariosVenda | null
   valorTerreno?: string | null
+  valorObra?: string | null
+  vgvTarget?: string | null
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -881,8 +883,37 @@ function renderPosicionamento(_ctx: BookContext): string {
   </section>`
 }
 
+function numeroMoeda(valor: string): number {
+  let texto = valor.replace(/r\$/gi, '').replace(/\s/g, '')
+  if (!texto || !/\d/.test(texto)) return 0
+  const temVirgula = texto.includes(',')
+  const temPonto = texto.includes('.')
+  if (temVirgula && temPonto) texto = texto.replace(/\./g, '').replace(',', '.')
+  else if (/^\d{1,3}(,\d{3})+$/.test(texto)) texto = texto.replace(/,/g, '')
+  else if (temVirgula) texto = texto.replace(',', '.')
+  else if (temPonto && /^\d{1,3}(\.\d{3})+$/.test(texto)) texto = texto.replace(/\./g, '')
+  texto = texto.replace(/[^\d.-]/g, '')
+  const n = Number(texto)
+  return Number.isFinite(n) ? n : 0
+}
+
+function moedaTexto(valor: number): string {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor).replace(/\u00a0/g, ' ')
+}
+
 function renderViabilidade(ctx: BookContext): string {
   const terreno = ctx.valorTerreno?.trim() || 'R$ 0'
+  const obra = ctx.valorObra?.trim() || 'R$ 0'
+  const vgv = ctx.vgvTarget?.trim() || 'R$ 0'
+  const terrenoNum = numeroMoeda(terreno)
+  const obraNum = numeroMoeda(obra)
+  const vgvNum = numeroMoeda(vgv)
+  const custoTotal = terrenoNum + obraNum
+  const potencial = vgvNum - obraNum - terrenoNum
+  const percentual = vgvNum > 0 ? Math.round((potencial / vgvNum) * 100) : 0
+  const partesBarra = [terrenoNum, obraNum, potencial].map((parte) => Math.max(parte, 0))
+  const somaBarra = partesBarra.reduce((acc, parte) => acc + parte, 0)
+  const larguraBarra = partesBarra.map((parte) => (somaBarra > 0 ? `${(parte / somaBarra) * 100}%` : '0%'))
   return `<section class="page page-via">
     <div class="via">
       <p class="via-kicker">Viabilidade</p>
@@ -894,22 +925,22 @@ function renderViabilidade(ctx: BookContext): string {
         </div>
         <div class="via-cell">
           <p class="via-label">Valor de obra</p>
-          <p class="via-valor">R$ 0</p>
+          <p class="via-valor">${escapeHtml(obra)}</p>
         </div>
         <div class="via-cell">
           <p class="via-label">VGV target</p>
-          <p class="via-valor via-valor-gold">R$ 0</p>
+          <p class="via-valor via-valor-gold">${escapeHtml(vgv)}</p>
         </div>
       </div>
       <div class="via-base">
         <div class="via-resumo">
-          <p>Custo total <span>R$ 0</span> · Potencial de resultado <span>R$ 0</span></p>
-          <p>≈ <span>0%</span> sobre o VGV (target)</p>
+          <p>Custo total <span>${escapeHtml(moedaTexto(custoTotal))}</span> · Potencial de resultado <span>${escapeHtml(moedaTexto(potencial))}</span></p>
+          <p>≈ <span>${escapeHtml(`${percentual}%`)}</span> sobre o VGV (target)</p>
         </div>
         <div class="via-bar" aria-hidden="true">
-          <span class="via-bar-terreno"></span>
-          <span class="via-bar-obra"></span>
-          <span class="via-bar-resultado"></span>
+          <span class="via-bar-terreno" style="width:${larguraBarra[0]}"></span>
+          <span class="via-bar-obra" style="width:${larguraBarra[1]}"></span>
+          <span class="via-bar-resultado" style="width:${larguraBarra[2]}"></span>
         </div>
         <div class="via-legenda">
           <span><i class="via-dot via-dot-terreno"></i>Terreno</span>
@@ -2575,7 +2606,11 @@ function estilos(): string {
 
     .via-bar-terreno,
     .via-bar-obra,
-    .via-bar-resultado { flex: 1; }
+    .via-bar-resultado {
+      display: block;
+      height: 100%;
+      flex: none;
+    }
 
     .via-bar-terreno { background: var(--gray-light); }
     .via-bar-obra { background: var(--gray-mid); }

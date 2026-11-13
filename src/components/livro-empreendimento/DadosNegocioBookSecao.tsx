@@ -139,10 +139,14 @@ export function DadosNegocioBookSecao({
   funis = [],
   onLinkBca,
   onValorTerreno,
+  onCustoObra,
+  onVgv,
 }: {
   funis?: FunilLivroOpcao[];
   onLinkBca?: (url: string) => void;
   onValorTerreno?: (valor: string) => void;
+  onCustoObra?: (valor: string) => void;
+  onVgv?: (valor: string) => void;
 }) {
   const [funilId, setFunilId] = useState('');
   const [cards, setCards] = useState<CardFunilLivro[]>([]);
@@ -157,7 +161,11 @@ export function DadosNegocioBookSecao({
     onLinkBca?.(link);
     const terreno = dados?.processo?.valor_terreno;
     onValorTerreno?.(terreno == null ? '' : String(terreno).trim());
-  }, [dados, onLinkBca, onValorTerreno]);
+    const obra = dados?.processo?.custo_obra;
+    onCustoObra?.(obra == null ? '' : String(obra).trim());
+    const vgv = dados?.processo?.vgv_pretendido;
+    onVgv?.(vgv == null ? '' : String(vgv).trim());
+  }, [dados, onLinkBca, onValorTerreno, onCustoObra, onVgv]);
 
   async function selecionarFunil(id: string) {
     setFunilId(id);
