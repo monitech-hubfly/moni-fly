@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { DocumentArrowDownIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { SearchableSelect } from '@/components/SearchableSelect';
@@ -30,32 +30,89 @@ const CAMPOS_IMAGEM_LOTE = [
   { id: 'lote-foto-3', rotulo: 'Foto 3' },
 ] as const
 
-function lerImagemLote(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const imagem = new Image()
-    imagem.onload = () => {
-      const limite = 1400
-      const escala = Math.min(1, limite / Math.max(imagem.width, imagem.height))
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.max(1, Math.round(imagem.width * escala))
-      canvas.height = Math.max(1, Math.round(imagem.height * escala))
-      const contexto = canvas.getContext('2d')
-      if (!contexto) {
-        URL.revokeObjectURL(url)
-        reject(new Error('Não foi possível ler a imagem'))
-        return
-      }
-      contexto.drawImage(imagem, 0, 0, canvas.width, canvas.height)
-      URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL('image/jpeg', 0.82))
-    }
-    imagem.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('Não foi possível ler a imagem'))
-    }
-    imagem.src = url
-  })
+const LIMITE_IMAGEM_LOTE = 1400
+const MAX_BYTES_IMAGEM_LOTE = 25 * 1024 * 1024
+
+async function abrirBitmap(file: File): Promise<ImageBitmap> {
+  try {
+    return await createImageBitmap(file, { resizeWidth: LIMITE_IMAGEM_LOTE, resizeQuality: 'medium' })
+  } catch {
+    return await createImageBitmap(file)
+  }
+}
+
+async function lerImagemLote(file: File): Promise<string> {
+  if (!file || file.size <= 0) throw new Error('Não foi possível ler a imagem')
+  if (file.size > MAX_BYTES_IMAGEM_LOTE) {
+    throw new Error('A imagem é grande demais. Use um arquivo de até 25 MB.')
+  }
+  if (file.type && !/^image\/(jpeg|png|webp)$/i.test(file.type)) {
+    throw new Error('Use uma imagem JPG, PNG ou WebP.')
+  }
+
+  const bitmap = await abrirBitmap(file)
+  try {
+    const maior = Math.max(bitmap.width, bitmap.height, 1)
+    const escala = Math.min(1, LIMITE_IMAGEM_LOTE / maior)
+    const width = Math.max(1, Math.round(bitmap.width * escala))
+    const height = Math.max(1, Math.round(bitmap.height * escala))
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const contexto = canvas.getContext('2d')
+    if (!contexto) throw new Error('Não foi possível ler a imagem')
+    contexto.drawImage(bitmap, 0, 0, width, height)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.82)
+    if (!dataUrl.startsWith('data:image/')) throw new Error('Não foi possível ler a imagem')
+    return dataUrl
+  } finally {
+    bitmap.close()
+  }
+}
+
+function CampoImagemLote({
+  id,
+  rotulo,
+  valor,
+  onArquivo,
+}: {
+  id: string
+  rotulo: string
+  valor: string
+  onArquivo: (arquivo: File) => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  return (
+    <div className="relative flex min-h-11 flex-col gap-2 rounded-lg border border-[var(--moni-border)] p-3">
+      <span className="text-xs text-stone-500">{rotulo}</span>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="flex min-h-11 cursor-pointer flex-col text-left"
+      >
+        {valor ? (
+          <img src={valor} alt="" className="h-24 w-full rounded-md object-cover" />
+        ) : (
+          <span className="flex h-24 items-center text-sm text-[var(--moni-navy-800)]">Escolher imagem</span>
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        id={id}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+        className="absolute h-px w-px opacity-0"
+        tabIndex={-1}
+        onChange={(event) => {
+          const arquivo = event.target.files?.[0]
+          event.target.value = ''
+          event.target.blur()
+          if (!arquivo) return
+          onArquivo(arquivo)
+        }}
+      />
+    </div>
+  )
 }
 
 function palavrasDoCondominio(item: CondominioRow): string {
@@ -258,40 +315,26 @@ export function BookDoEmpreendimentoGerador({
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             {CAMPOS_IMAGEM_LOTE.map((campo, indice) => (
-              <label
+              <CampoImagemLote
                 key={campo.id}
-                htmlFor={campo.id}
-                className="flex min-h-11 cursor-pointer flex-col gap-2 rounded-lg border border-[var(--moni-border)] p-3"
-              >
-                <span className="text-xs text-stone-500">{campo.rotulo}</span>
-                {imagensLote[indice] ? (
-                  <img src={imagensLote[indice]} alt="" className="h-24 w-full rounded-md object-cover" />
-                ) : (
-                  <span className="flex h-24 items-center text-sm text-[var(--moni-navy-800)]">Escolher imagem</span>
-                )}
-                <input
-                  id={campo.id}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="sr-only"
-                  onChange={(event) => {
-                    const arquivo = event.target.files?.[0]
-                    if (!arquivo) return
-                    void lerImagemLote(arquivo)
-                      .then((dataUrl) => {
-                        setImagensLote((atual) => {
-                          const proxima: [string, string, string] = [...atual]
-                          proxima[indice] = dataUrl
-                          return proxima
-                        })
-                        setErro(null)
+                id={campo.id}
+                rotulo={campo.rotulo}
+                valor={imagensLote[indice]}
+                onArquivo={(arquivo) => {
+                  void lerImagemLote(arquivo)
+                    .then((dataUrl) => {
+                      setImagensLote((atual) => {
+                        const proxima: [string, string, string] = [atual[0], atual[1], atual[2]]
+                        proxima[indice] = dataUrl
+                        return proxima
                       })
-                      .catch((falha: unknown) => {
-                        setErro(falha instanceof Error ? falha.message : 'Não foi possível ler a imagem')
-                      })
-                  }}
-                />
-              </label>
+                      setErro(null)
+                    })
+                    .catch((falha: unknown) => {
+                      setErro(falha instanceof Error ? falha.message : 'Não foi possível ler a imagem')
+                    })
+                }}
+              />
             ))}
           </div>
         </div>
