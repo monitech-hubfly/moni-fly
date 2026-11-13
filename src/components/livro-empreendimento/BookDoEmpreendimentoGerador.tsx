@@ -282,6 +282,31 @@ export function BookDoEmpreendimentoGerador({
           {condominio ? (
             <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
               {CAMPOS_EXIBICAO_CONDOMINIO.map((campo) => {
+                const largo = campo.key === 'descricao_breve' || campo.key === 'site_url';
+                if (campo.key === 'site_url') {
+                  return (
+                    <div key={campo.key} className="sm:col-span-2">
+                      <label className="text-[11px] font-medium text-stone-400" htmlFor="site-condominio-livro">
+                        {campo.label}
+                      </label>
+                      <input
+                        id="site-condominio-livro"
+                        type="url"
+                        inputMode="url"
+                        value={siteUrl}
+                        onChange={(event) => setSiteUrl(event.target.value)}
+                        placeholder="https://siteDoCondominio.com.br"
+                        className="mt-0.5 w-full bg-white px-3 text-sm text-[var(--moni-navy-800)] outline-none"
+                        style={{
+                          minHeight: 44,
+                          borderRadius: 'var(--moni-radius-md)',
+                          border: 'var(--moni-border-width) solid var(--moni-border-default)',
+                          fontFamily: 'var(--moni-font-sans)',
+                        }}
+                      />
+                    </div>
+                  );
+                }
                 let valor = '—';
                 try {
                   valor = campo.valor(condominio);
@@ -289,7 +314,7 @@ export function BookDoEmpreendimentoGerador({
                   valor = '—';
                 }
                 return (
-                  <div key={campo.key} className={campo.key === 'descricao_breve' || campo.key === 'site_url' ? 'sm:col-span-2' : ''}>
+                  <div key={campo.key} className={largo ? 'sm:col-span-2' : ''}>
                     <dt className="text-[11px] font-medium text-stone-400">{campo.label}</dt>
                     <dd className="mt-0.5 whitespace-pre-wrap text-sm text-[var(--moni-navy-800)]">{valor}</dd>
                   </div>
@@ -302,7 +327,7 @@ export function BookDoEmpreendimentoGerador({
             </p>
           )}
           <p className="mt-3 text-xs text-stone-400">
-            O site cadastrado entra na leitura das folhas 2 e 3. Sem ele, essas folhas usam nome, cidade e a descrição já cadastrada.
+            O site pode ser ajustado aqui e entra na leitura das folhas 2 e 3. Sem ele, essas folhas usam nome, cidade e a descrição já cadastrada.
           </p>
         </div>
 
