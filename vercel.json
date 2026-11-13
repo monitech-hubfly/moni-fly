@@ -8,7 +8,7 @@
   },
   "functions": {
     "src/app/api/livro-empreendimento/generate/route.ts": {
-      "maxDuration": 60,
+      "maxDuration": 120,
       "memory": 2048
     }
   },

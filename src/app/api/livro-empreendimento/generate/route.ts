@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { renderBookHtml, type BookContext, type CondominioLivro } from '@/lib/livro-empreendimento/render-html'
-import { generatePdf } from '@/lib/livro-empreendimento/generate-pdf'
+import { generateBook } from '@/lib/livro-empreendimento/generate-pdf'
 import { cenariosDaPlanilhaBca } from '@/lib/livro-empreendimento/cenarios-bca'
 
 function colunaLivroAusente(error: { code?: string; message?: string }): boolean {
@@ -95,7 +95,7 @@ function conteudoSite(value: unknown): CondominioLivro | null {
 }
 
 export const runtime = 'nodejs' // Puppeteer requer Node.js runtime — NÃO Edge
-export const maxDuration = 60 // 60 segundos de timeout
+export const maxDuration = 120
 
 export async function POST(request: NextRequest) {
   try {
@@ -251,23 +251,30 @@ export async function POST(request: NextRequest) {
     // 4. Renderizar HTML das 27 páginas
     const html = renderBookHtml(ctx)
 
-    // 5. Converter para PDF via Puppeteer
-    const pdfBuffer = await generatePdf(html)
+    // 5. PDF e PowerPoint a partir do mesmo HTML
+    const { pdf, pptx } = await generateBook(html)
 
     // 6. Upload para Supabase Storage
     const timestamp = Date.now()
+    const nomeBase = `book-empreendimento-${casa.codigo}`
     const storagePath = `livros/${casa.codigo}/${timestamp}.pdf`
+    const storagePathPptx = `livros/${casa.codigo}/${timestamp}.pptx`
+    const bucket = supabase.storage.from('livros-empreendimento')
 
-    const { error: uploadError } = await supabase.storage
-      .from('livros-empreendimento')
-      .upload(storagePath, pdfBuffer, {
+    const [uploadPdf, uploadPptx] = await Promise.all([
+      bucket.upload(storagePath, pdf, {
         contentType: 'application/pdf',
         upsert: false,
-      })
+      }),
+      bucket.upload(storagePathPptx, pptx, {
+        contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        upsert: false,
+      }),
+    ])
 
-    if (uploadError) {
-      console.error('[livro-empreendimento] Upload error:', uploadError)
-      return NextResponse.json({ error: 'Falha ao salvar PDF' }, { status: 500 })
+    if (uploadPdf.error || uploadPptx.error) {
+      console.error('[livro-empreendimento] Upload error:', uploadPdf.error ?? uploadPptx.error)
+      return NextResponse.json({ error: 'Falha ao salvar o book' }, { status: 500 })
     }
 
     // 6. Registrar no banco
@@ -281,21 +288,25 @@ export async function POST(request: NextRequest) {
       contexto_json: {
         casa: ctx.casa,
         condominio: ctx.condominio,
+        storage_path_pptx: storagePathPptx,
       },
     })
 
-    // 7. Gerar URL assinada (válida por 1 hora)
-    const { data: signedData, error: signError } = await supabase.storage
-      .from('livros-empreendimento')
-      .createSignedUrl(storagePath, 3600)
+    // 7. URLs assinadas (válidas por 1 hora)
+    const [pdfAssinado, pptxAssinado] = await Promise.all([
+      bucket.createSignedUrl(storagePath, 3600, { download: `${nomeBase}.pdf` }),
+      bucket.createSignedUrl(storagePathPptx, 3600, { download: `${nomeBase}.pptx` }),
+    ])
 
-    if (signError || !signedData?.signedUrl) {
+    if (pdfAssinado.error || !pdfAssinado.data?.signedUrl || pptxAssinado.error || !pptxAssinado.data?.signedUrl) {
       return NextResponse.json({ error: 'Falha ao gerar URL de download' }, { status: 500 })
     }
 
     return NextResponse.json({
-      url: signedData.signedUrl,
+      url: pdfAssinado.data.signedUrl,
+      url_pptx: pptxAssinado.data.signedUrl,
       storage_path: storagePath,
+      storage_path_pptx: storagePathPptx,
       aviso_bca: avisoBca,
     })
 

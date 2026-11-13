@@ -10,6 +10,7 @@ const nextConfig = {
       'puppeteer',
       'puppeteer-core',
       '@sparticuz/chromium',
+      'pptxgenjs',
     ],
     outputFileTracingIncludes: {
       '/api/livro-empreendimento/generate': ['./node_modules/@sparticuz/chromium/bin/**'],

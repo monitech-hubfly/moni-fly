@@ -38,6 +38,17 @@ const CAMPOS_IMAGEM_LOTE = [
 const LIMITE_IMAGEM_LOTE = 1400
 const MAX_BYTES_IMAGEM_LOTE = 25 * 1024 * 1024
 
+function baixarArquivo(url: string, nome: string) {
+  const link = document.createElement('a')
+  link.href = url
+  link.target = '_blank'
+  link.rel = 'noopener noreferrer'
+  link.download = nome
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
 async function abrirBitmap(file: File): Promise<ImageBitmap> {
   try {
     return await createImageBitmap(file, { resizeWidth: LIMITE_IMAGEM_LOTE, resizeQuality: 'medium' })
@@ -224,29 +235,25 @@ export function BookDoEmpreendimentoGerador({
         }),
       });
 
-      const data = await res.json().catch(() => ({})) as { url?: string; error?: string; aviso_bca?: string };
+      const data = await res.json().catch(() => ({})) as { url?: string; url_pptx?: string; error?: string; aviso_bca?: string };
 
       if (!res.ok) {
         throw new Error(data.error ?? 'Erro ao gerar o book');
       }
 
-      if (!data.url) {
-        throw new Error('URL do PDF não retornada pela API');
+      if (!data.url || !data.url_pptx) {
+        throw new Error('Os arquivos do book não foram retornados pela API');
       }
 
       if (data.aviso_bca) {
         setErro((atual) => (atual ? `${atual} ${data.aviso_bca}` : data.aviso_bca ?? null));
       }
 
-      // Abre o PDF em nova aba — o signed URL do Storage permite download direto
-      const a = document.createElement('a');
-      a.href = data.url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.download = `book-empreendimento-${modeloSelecionado}-${Date.now()}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const carimbo = Date.now();
+      baixarArquivo(data.url, `book-empreendimento-${modeloSelecionado}-${carimbo}.pdf`);
+      window.setTimeout(() => {
+        baixarArquivo(data.url_pptx as string, `book-empreendimento-${modeloSelecionado}-${carimbo}.pptx`);
+      }, 400);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro desconhecido');
     } finally {
@@ -273,7 +280,7 @@ export function BookDoEmpreendimentoGerador({
           </div>
           <div>
             <h1 className="text-xl font-semibold text-[var(--moni-navy-800)]">Book do Empreendimento</h1>
-            <p className="text-sm text-stone-500">Selecione a casa e o condomínio. As folhas 2 e 3 saem dos dados do condomínio.</p>
+            <p className="text-sm text-stone-500">Selecione a casa e o condomínio. O book sai em PDF e em PowerPoint.</p>
           </div>
         </div>
 
@@ -489,10 +496,10 @@ export function BookDoEmpreendimentoGerador({
             type="button"
             onClick={handleGerar}
             disabled={!modeloSelecionado || !condominioId || gerando}
-            className="flex items-center gap-2 rounded-lg bg-[var(--moni-navy-800)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--moni-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-11 items-center gap-2 rounded-lg bg-[var(--moni-navy-800)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--moni-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <DocumentArrowDownIcon className="h-4 w-4 shrink-0" aria-hidden />
-            {gerando ? 'Gerando PDF…' : 'Gerar Book em PDF'}
+            {gerando ? 'Gerando PDF e PowerPoint…' : 'Gerar Book em PDF e PowerPoint'}
           </button>
         </div>
       </div>
