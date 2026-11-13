@@ -26,6 +26,15 @@ function urlHttp(value: unknown): string | undefined {
   }
 }
 
+function urlFoto(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const texto = value.trim().replace(/\s+/g, '')
+  if (/^data:image\/(jpeg|jpg|png|webp);base64,[a-z0-9+/=]+$/i.test(texto)) {
+    return texto.length > 2_500_000 ? undefined : texto
+  }
+  return urlHttp(value)
+}
+
 function imagensLote(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.slice(0, 3).map((item) => {
@@ -51,8 +60,8 @@ function conteudoSite(value: unknown): CondominioLivro | null {
     : []
   return {
     nome: '',
-    fotoPrincipal: urlHttp(raw.fotoPrincipal),
-    fotoSecundaria: urlHttp(raw.fotoSecundaria),
+    fotoPrincipal: urlFoto(raw.fotoPrincipal),
+    fotoSecundaria: urlFoto(raw.fotoSecundaria),
     frasePrincipal: textoCurto(raw.frasePrincipal),
     fraseSecundaria: textoCurto(raw.fraseSecundaria, 160),
     subtitulo: textoCurto(raw.subtitulo),

@@ -1,3 +1,5 @@
+import { ehLinkGoogle, fotosDoPainelGoogle } from '@/lib/livro-empreendimento/scrape-google'
+
 export interface VantagemLocalizacao {
   icone: string
   texto: string
@@ -192,6 +194,15 @@ function metaContent(html: string, property: string): string {
  * Cobre página estática (og:image, h1) e tema com foto em data-bg-image, como o da Artesano.
  */
 export async function scrapeSiteContent(siteUrl: string): Promise<ScrapedData> {
+  if (ehLinkGoogle(siteUrl)) {
+    const fotos = await fotosDoPainelGoogle(siteUrl)
+    return {
+      vantagens: [],
+      fotoPrincipal: fotos[0],
+      fotoSecundaria: fotos[1],
+    }
+  }
+
   const result: ScrapedData = { vantagens: [] }
 
   const res = await fetch(siteUrl, {

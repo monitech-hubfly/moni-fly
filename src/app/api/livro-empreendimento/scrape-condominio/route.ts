@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { isAdminRole, normalizeAccessRole } from '@/lib/authz'
+import { ehLinkGoogle } from '@/lib/livro-empreendimento/scrape-google'
 import { scrapeSiteContent, type ScrapedData } from '@/lib/livro-empreendimento/scrape-site'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -26,6 +27,9 @@ function colunaLivroAusente(error: { code?: string; message?: string }): boolean
     || error.code === 'PGRST204'
     || /does not exist|schema cache/i.test(error.message ?? '')
 }
+
+export const runtime = 'nodejs'
+export const maxDuration = 60
 
 // ── Handler ──────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -87,15 +91,21 @@ export async function POST(req: NextRequest) {
     }
 
     const scraped = await scrapeSiteContent(siteUrl)
-    const patch = {
-      site_url: siteUrl,
-      livro_foto_principal: scraped.fotoPrincipal ?? null,
-      livro_foto_secundaria: scraped.fotoSecundaria ?? null,
-      livro_frase_principal: scraped.frasePrincipal ?? null,
-      livro_frase_secundaria: scraped.fraseSecundaria ?? null,
-      livro_subtitulo: scraped.subtitulo ?? null,
-      livro_vantagens_localizacao: scraped.vantagens,
-    }
+    const patch = ehLinkGoogle(siteUrl)
+      ? {
+          site_url: siteUrl,
+          livro_foto_principal: scraped.fotoPrincipal ?? null,
+          livro_foto_secundaria: scraped.fotoSecundaria ?? null,
+        }
+      : {
+          site_url: siteUrl,
+          livro_foto_principal: scraped.fotoPrincipal ?? null,
+          livro_foto_secundaria: scraped.fotoSecundaria ?? null,
+          livro_frase_principal: scraped.frasePrincipal ?? null,
+          livro_frase_secundaria: scraped.fraseSecundaria ?? null,
+          livro_subtitulo: scraped.subtitulo ?? null,
+          livro_vantagens_localizacao: scraped.vantagens,
+        }
 
     let upErr: { code?: string; message: string } | null = null
     try {
