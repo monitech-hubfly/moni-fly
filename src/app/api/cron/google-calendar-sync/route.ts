@@ -30,6 +30,7 @@ type CalendarEvent = {
   attendees?: { email?: string; displayName?: string; responseStatus?: string }[];
   conferenceData?: { entryPoints?: { entryPointType?: string; uri?: string }[] };
   htmlLink?: string;
+  extendedProperties?: { private?: { hubfly_id?: string } };
 };
 
 // ── JWT / OAuth2 (Web Crypto — zero dependências) ────────────────────────────
@@ -252,29 +253,51 @@ async function syncUser(
   }
 
   // ── Limpeza de eventos [HUB-FLY] órfãos no Google Calendar ──────────────
-  // Detecta eventos GCal com prefixo [HUB-FLY] que não existem mais no banco
-  // (deletados via HUB-FLY com bug de race condition ou por qualquer outro motivo).
-  // Resolve retroativamente os eventos já perdidos e previne acúmulo futuro.
-  let orphansDeleted = 0;
+  // Remove eventos [HUB-FLY] que foram deletados do HUB-FLY mas ficaram no GCal.
+  // Versão robusta com 3 camadas de proteção:
+  //   1. Organizer check: só deleta eventos onde este usuário é o organizador.
+  //      Eventos compartilhados (onde o usuário é convidado) nunca são tocados.
+  //   2. hubfly_id check: só deleta se o evento tem extendedProperties.private.hubfly_id.
+  //      Eventos antigos sem esse campo são pulados com segurança.
+  //   3. Batch DB check: o UUID hubfly_id é verificado no banco em lote.
+  //      Se ainda existir → não é órfão → pula.
+
+  // Coletar candidatos a órfão
+  const candidatos: { gcalId: string; hubflyId: string }[] = [];
   for (const ev of events) {
     if (!ev.id || !ev.summary?.startsWith('[HUB-FLY]')) continue;
-    // Se está no hubflyPushMap → ainda existe no banco → não é órfão
-    if (hubflyPushMap.has(ev.id)) continue;
-    // Evento com prefixo [HUB-FLY] mas sem vínculo no banco → deletar do GCal
-    try {
-      const delRes = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${ev.id}`,
-        { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (delRes.ok || delRes.status === 410) {
-        orphansDeleted++;
-        console.log(`[gcal-sync] 🗑 órfão removido do GCal: ${ev.summary} (${ev.id})`);
-      } else {
-        const txt = await delRes.text();
-        console.warn(`[gcal-sync] ⚠ falha ao remover órfão ${ev.id}: ${delRes.status} ${txt.slice(0, 100)}`);
+    if (hubflyPushMap.has(ev.id)) continue; // já vinculado no banco → válido
+    if (ev.organizer?.email && ev.organizer.email !== userEmail) continue; // convidado → nunca deletar
+    const hubflyId = ev.extendedProperties?.private?.hubfly_id;
+    if (!hubflyId) continue; // evento antigo sem rastreio → pular com segurança
+    candidatos.push({ gcalId: ev.id, hubflyId });
+  }
+
+  // Verificar em batch quais UUIDs ainda existem no banco
+  let orphansDeleted = 0;
+  if (candidatos.length > 0) {
+    const { data: aindaExistem } = await (supabase.from('gantt_planejamento') as any)
+      .select('id')
+      .in('id', candidatos.map(c => c.hubflyId));
+    const existentes = new Set(((aindaExistem ?? []) as { id: string }[]).map((r: { id: string }) => r.id));
+
+    for (const { gcalId, hubflyId } of candidatos) {
+      if (existentes.has(hubflyId)) continue; // ainda existe no banco → não é órfão
+      try {
+        const delRes = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events/${gcalId}`,
+          { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (delRes.ok || delRes.status === 410) {
+          orphansDeleted++;
+          console.log(`[gcal-sync] orfao removido: ${gcalId} (hubfly_id=${hubflyId})`);
+        } else {
+          const txt = await delRes.text();
+          console.warn(`[gcal-sync] falha ao remover orfao ${gcalId}: ${delRes.status} ${txt.slice(0, 100)}`);
+        }
+      } catch (e) {
+        console.warn(`[gcal-sync] erro ao remover orfao ${gcalId}:`, e instanceof Error ? e.message : e);
       }
-    } catch (e) {
-      console.warn(`[gcal-sync] ⚠ erro ao remover órfão ${ev.id}:`, e instanceof Error ? e.message : e);
     }
   }
 
