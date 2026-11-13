@@ -138,9 +138,11 @@ function camposDoProcesso(dados: DadosNegocioLivro): { key: string; label: strin
 export function DadosNegocioBookSecao({
   funis = [],
   onLinkBca,
+  onValorTerreno,
 }: {
   funis?: FunilLivroOpcao[];
   onLinkBca?: (url: string) => void;
+  onValorTerreno?: (valor: string) => void;
 }) {
   const [funilId, setFunilId] = useState('');
   const [cards, setCards] = useState<CardFunilLivro[]>([]);
@@ -153,7 +155,9 @@ export function DadosNegocioBookSecao({
   useEffect(() => {
     const link = typeof dados?.processo?.link_bca === 'string' ? dados.processo.link_bca.trim() : '';
     onLinkBca?.(link);
-  }, [dados, onLinkBca]);
+    const terreno = dados?.processo?.valor_terreno;
+    onValorTerreno?.(terreno == null ? '' : String(terreno).trim());
+  }, [dados, onLinkBca, onValorTerreno]);
 
   async function selecionarFunil(id: string) {
     setFunilId(id);

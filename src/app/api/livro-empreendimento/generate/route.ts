@@ -36,6 +36,23 @@ function urlFoto(value: unknown): string | undefined {
   return urlHttp(value)
 }
 
+function moedaTerreno(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const texto = value.trim()
+  if (!texto || !/\d/.test(texto)) return null
+  let numero = texto.replace(/r\$/gi, '').replace(/\s/g, '')
+  const temVirgula = numero.includes(',')
+  const temPonto = numero.includes('.')
+  if (temVirgula && temPonto) numero = numero.replace(/\./g, '').replace(',', '.')
+  else if (/^\d{1,3}(,\d{3})+$/.test(numero)) numero = numero.replace(/,/g, '')
+  else if (temVirgula) numero = numero.replace(',', '.')
+  else if (temPonto && /^\d{1,3}(\.\d{3})+$/.test(numero)) numero = numero.replace(/\./g, '')
+  numero = numero.replace(/[^\d.-]/g, '')
+  const n = Number(numero)
+  if (!Number.isFinite(n)) return null
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n).replace(/\u00a0/g, ' ')
+}
+
 function imagensLote(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.slice(0, 3).map((item) => {
@@ -92,7 +109,7 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
@@ -100,6 +117,7 @@ export async function POST(request: NextRequest) {
       conteudo_site?: unknown
       imagens_lote?: unknown
       link_bca?: string
+      valor_terreno?: string
     }
     const site = conteudoSite(conteudo_site)
     const casa_codigo = (body.casa_codigo ?? body.codigo)?.trim()
@@ -223,6 +241,7 @@ export async function POST(request: NextRequest) {
       condominio: condominioLivro,
       imagensLote: imagensLote(imagens_lote),
       cenarios,
+      valorTerreno: moedaTerreno(valor_terreno),
     }
 
     // 4. Renderizar HTML das 27 páginas

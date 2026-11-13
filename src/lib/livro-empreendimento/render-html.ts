@@ -51,6 +51,7 @@ export interface BookContext {
   condominio?: CondominioLivro | null
   imagensLote?: string[]
   cenarios?: CenariosVenda | null
+  valorTerreno?: string | null
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -880,7 +881,8 @@ function renderPosicionamento(_ctx: BookContext): string {
   </section>`
 }
 
-function renderViabilidade(_ctx: BookContext): string {
+function renderViabilidade(ctx: BookContext): string {
+  const terreno = ctx.valorTerreno?.trim() || 'R$ 0'
   return `<section class="page page-via">
     <div class="via">
       <p class="via-kicker">Viabilidade</p>
@@ -888,7 +890,7 @@ function renderViabilidade(_ctx: BookContext): string {
       <div class="via-box">
         <div class="via-cell">
           <p class="via-label">Valor do terreno</p>
-          <p class="via-valor">R$ 0</p>
+          <p class="via-valor">${escapeHtml(terreno)}</p>
         </div>
         <div class="via-cell">
           <p class="via-label">Valor de obra</p>

@@ -158,8 +158,12 @@ export function BookDoEmpreendimentoGerador({
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [linkBca, setLinkBca] = useState('');
+  const [valorTerreno, setValorTerreno] = useState('');
   const definirLinkBca = useCallback((url: string) => {
     setLinkBca(url.trim());
+  }, []);
+  const definirValorTerreno = useCallback((valor: string) => {
+    setValorTerreno(valor.trim());
   }, []);
 
   const modelo = MODELOS_CASA.find((m) => m.codigo === modeloSelecionado);
@@ -206,6 +210,7 @@ export function BookDoEmpreendimentoGerador({
           conteudo_site: conteudoSite,
           imagens_lote: imagensLote,
           link_bca: linkBca || undefined,
+          valor_terreno: valorTerreno || undefined,
         }),
       });
 
@@ -362,7 +367,7 @@ export function BookDoEmpreendimentoGerador({
           </p>
         </div>
 
-        <DadosNegocioBookSecao funis={funis} onLinkBca={definirLinkBca} />
+        <DadosNegocioBookSecao funis={funis} onLinkBca={definirLinkBca} onValorTerreno={definirValorTerreno} />
 
         <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
           <h2 className="mb-1 text-sm font-semibold text-[var(--moni-navy-800)]">Imagens do condomínio</h2>
