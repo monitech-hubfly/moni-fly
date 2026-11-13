@@ -24,6 +24,11 @@ const MODELOS_CASA = [
   { codigo: 'LENA', nome: 'LENA', area: '708,3 m²',   suites: 6, banheiros: 8, dimensoes: '24 × 42 m',      preco: 'R$ 3.527.092,00' },
 ];
 
+const CAMPOS_IMAGEM_CONDOMINIO = [
+  { id: 'condominio-abertura', rotulo: 'Abertura' },
+  { id: 'condominio-localizacao', rotulo: 'Localização' },
+] as const
+
 const CAMPOS_IMAGEM_LOTE = [
   { id: 'lote-vista-aerea', rotulo: 'Vista aérea' },
   { id: 'lote-foto-2', rotulo: 'Foto 2' },
@@ -115,6 +120,17 @@ function CampoImagemLote({
   )
 }
 
+function comFotosDoCondominio(conteudo: unknown, imagens: [string, string]): unknown {
+  const base = conteudo && typeof conteudo === 'object' ? { ...(conteudo as Record<string, unknown>) } : {}
+  const principal = imagens[0] || (typeof base.fotoPrincipal === 'string' ? base.fotoPrincipal : undefined)
+  const secundaria = imagens[1] || (typeof base.fotoSecundaria === 'string' ? base.fotoSecundaria : undefined)
+  const anexou = Boolean(imagens[0] || imagens[1])
+  const fotos = anexou
+    ? [principal, secundaria].filter((foto): foto is string => Boolean(foto))
+    : base.fotos
+  return { ...base, fotoPrincipal: principal, fotoSecundaria: secundaria, fotos }
+}
+
 function palavrasDoCondominio(item: CondominioRow): string {
   const partes: string[] = [];
   for (const campo of CAMPOS_EXIBICAO_CONDOMINIO) {
@@ -137,6 +153,7 @@ export function BookDoEmpreendimentoGerador({
   const [modeloSelecionado, setModeloSelecionado] = useState<string | null>(null);
   const [condominioId, setCondominioId] = useState('');
   const [siteUrl, setSiteUrl] = useState('');
+  const [imagensCondominio, setImagensCondominio] = useState<[string, string]>(['', '']);
   const [imagensLote, setImagensLote] = useState<[string, string, string]>(['', '', '']);
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -149,6 +166,7 @@ export function BookDoEmpreendimentoGerador({
     const escolhido = condominios.find((item) => item.id === id);
     const site = escolhido?.site_url;
     setSiteUrl(typeof site === 'string' ? site.trim() : '');
+    if (id !== condominioId) setImagensCondominio(['', '']);
   }
 
   async function handleGerar() {
@@ -169,8 +187,11 @@ export function BookDoEmpreendimentoGerador({
           throw new Error(scrapeData.error ?? 'Não foi possível ler o site do condomínio');
         }
         conteudoSite = scrapeData.scraped;
-        if (scrapeData.scraped?.aviso) setErro(scrapeData.scraped.aviso);
+        if (scrapeData.scraped?.aviso && !imagensCondominio[0] && !imagensCondominio[1]) {
+          setErro(scrapeData.scraped.aviso);
+        }
       }
+      conteudoSite = comFotosDoCondominio(conteudoSite, imagensCondominio);
 
       const res = await fetch('/api/livro-empreendimento/generate', {
         method: 'POST',
@@ -333,6 +354,37 @@ export function BookDoEmpreendimentoGerador({
         </div>
 
         <DadosNegocioBookSecao funis={funis} />
+
+        <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
+          <h2 className="mb-1 text-sm font-semibold text-[var(--moni-navy-800)]">Imagens do condomínio</h2>
+          <p className="mb-4 text-xs text-stone-400">
+            Duas fotos: a primeira na abertura e a segunda na página de localização.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {CAMPOS_IMAGEM_CONDOMINIO.map((campo, indice) => (
+              <CampoImagemLote
+                key={campo.id}
+                id={campo.id}
+                rotulo={campo.rotulo}
+                valor={imagensCondominio[indice]}
+                onArquivo={(arquivo) => {
+                  void lerImagemLote(arquivo)
+                    .then((dataUrl) => {
+                      setImagensCondominio((atual) => {
+                        const proxima: [string, string] = [atual[0], atual[1]]
+                        proxima[indice] = dataUrl
+                        return proxima
+                      })
+                      setErro(null)
+                    })
+                    .catch((falha: unknown) => {
+                      setErro(falha instanceof Error ? falha.message : 'Não foi possível ler a imagem')
+                    })
+                }}
+              />
+            ))}
+          </div>
+        </div>
 
         <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
           <h2 className="mb-1 text-sm font-semibold text-[var(--moni-navy-800)]">Imagens do lote</h2>
