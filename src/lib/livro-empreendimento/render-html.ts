@@ -613,9 +613,8 @@ function renderFilosofiaModelo(ctx: BookContext): string {
 function renderLivingIntegrado(ctx: BookContext): string {
   const foto = encontrarPorAlt(ctx, 'Living')
   const fotoUrl = foto ? imgUrl(foto.path) : ''
-  const fotoHtml = fotoUrl
-    ? `<img class="living-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
-    : ''
+  if (!fotoUrl) return ''
+  const fotoHtml = `<img class="living-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
 
   return `<section class="page page-living">
     ${fotoHtml}
@@ -659,9 +658,8 @@ function fotoEstarJantar(ctx: BookContext): Imagem | undefined {
 function renderEstarJantar(ctx: BookContext): string {
   const foto = fotoEstarJantar(ctx)
   const fotoUrl = foto ? imgUrl(foto.path) : ''
-  const fotoHtml = fotoUrl
-    ? `<img class="ej-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
-    : '<div class="ej-foto ej-foto-vazia"></div>'
+  if (!fotoUrl) return ''
+  const fotoHtml = `<img class="ej-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
 
   return `<section class="page page-estar">
     <div class="ej">
@@ -679,9 +677,8 @@ function renderCentroConvivencia(ctx: BookContext): string {
   if (estar?.path) usadas.add(estar.path)
   const foto = fotosCatalogo(ctx, 'living').find((img) => !usadas.has(img.path))
   const fotoUrl = foto ? imgUrl(foto.path) : ''
-  const fotoHtml = fotoUrl
-    ? `<img class="conv-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
-    : ''
+  if (!fotoUrl) return ''
+  const fotoHtml = `<img class="conv-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
 
   return `<section class="page page-conv">
     ${fotoHtml}
@@ -720,9 +717,8 @@ function fotoSuiteMaster(ctx: BookContext): Imagem | undefined {
 function renderSuiteMaster(ctx: BookContext): string {
   const foto = fotoSuiteMaster(ctx)
   const fotoUrl = foto ? imgUrl(foto.path) : ''
-  const fotoHtml = fotoUrl
-    ? `<img class="suite-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
-    : ''
+  if (!fotoUrl) return ''
+  const fotoHtml = `<img class="suite-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
 
   return `<section class="page page-suite">
     ${fotoHtml}
@@ -751,9 +747,8 @@ function renderBanhoMaster(ctx: BookContext): string {
     ?? porAlt((alt) => alt.includes('banho') && !alt.includes('master'))
     ?? porAlt((alt) => alt.includes('banho') && alt.includes('master'))
   const fotoUrl = foto ? imgUrl(foto.path) : ''
-  const fotoHtml = fotoUrl
-    ? `<img class="bm-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
-    : '<div class="bm-foto bm-foto-vazia"></div>'
+  if (!fotoUrl) return ''
+  const fotoHtml = `<img class="bm-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
 
   return `<section class="page page-banho">
     <div class="bm">
@@ -768,9 +763,8 @@ function renderBanhoMaster(ctx: BookContext): string {
 function renderEasyToPlay(ctx: BookContext): string {
   const foto = listaImagens(ctx).find((img) => !ehPlantaTecnica(img) && semAcento(img.alt || '').includes('gourmet'))
   const fotoUrl = foto ? imgUrl(foto.path) : ''
-  const fotoHtml = fotoUrl
-    ? `<img class="play-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
-    : ''
+  if (!fotoUrl) return ''
+  const fotoHtml = `<img class="play-foto" src="${escapeHtml(fotoUrl)}" alt="" />`
 
   return `<section class="page page-play">
     ${fotoHtml}
