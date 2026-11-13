@@ -1,4 +1,4 @@
-import { ehLinkGoogle, fotosDoPainelGoogle } from '@/lib/livro-empreendimento/scrape-google'
+import { ehLinkGoogle, fotosDoPainelGoogle, LeituraGoogleBloqueada } from '@/lib/livro-empreendimento/scrape-google'
 
 export interface VantagemLocalizacao {
   icone: string
@@ -9,6 +9,7 @@ export interface ScrapedData {
   fotoPrincipal?: string
   fotoSecundaria?: string
   fotos?: string[]
+  aviso?: string
   frasePrincipal?: string
   fraseSecundaria?: string
   subtitulo?: string
@@ -196,12 +197,19 @@ function metaContent(html: string, property: string): string {
  */
 export async function scrapeSiteContent(siteUrl: string): Promise<ScrapedData> {
   if (ehLinkGoogle(siteUrl)) {
-    const fotos = await fotosDoPainelGoogle(siteUrl)
-    return {
-      vantagens: [],
-      fotoPrincipal: fotos[0],
-      fotoSecundaria: fotos[1],
-      fotos,
+    try {
+      const fotos = await fotosDoPainelGoogle(siteUrl)
+      return {
+        vantagens: [],
+        fotoPrincipal: fotos[0],
+        fotoSecundaria: fotos[1],
+        fotos,
+      }
+    } catch (err) {
+      if (err instanceof LeituraGoogleBloqueada) {
+        return { vantagens: [], aviso: err.message }
+      }
+      throw err
     }
   }
 

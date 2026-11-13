@@ -91,7 +91,10 @@ export async function POST(req: NextRequest) {
     }
 
     const scraped = await scrapeSiteContent(siteUrl)
-    const patch = ehLinkGoogle(siteUrl)
+    const googleSemFotos = ehLinkGoogle(siteUrl) && !scraped.fotoPrincipal && Boolean(scraped.aviso)
+    const patch = googleSemFotos
+      ? { site_url: siteUrl }
+      : ehLinkGoogle(siteUrl)
       ? {
           site_url: siteUrl,
           livro_foto_principal: scraped.fotoPrincipal ?? null,

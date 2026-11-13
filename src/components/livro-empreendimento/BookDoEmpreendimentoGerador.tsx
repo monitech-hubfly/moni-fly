@@ -164,11 +164,12 @@ export function BookDoEmpreendimentoGerador({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ condominio_id: condominioId, site_url: site }),
         });
-        const scrapeData = await scrape.json().catch(() => ({})) as { error?: string; scraped?: unknown };
+        const scrapeData = await scrape.json().catch(() => ({})) as { error?: string; scraped?: { aviso?: string } };
         if (!scrape.ok) {
           throw new Error(scrapeData.error ?? 'Não foi possível ler o site do condomínio');
         }
         conteudoSite = scrapeData.scraped;
+        if (scrapeData.scraped?.aviso) setErro(scrapeData.scraped.aviso);
       }
 
       const res = await fetch('/api/livro-empreendimento/generate', {

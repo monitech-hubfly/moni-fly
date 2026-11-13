@@ -37,6 +37,13 @@ export function ampliarFotoGoogle(url: string): string {
 
 const LIMITE_CARROSSEL = 24
 
+export class LeituraGoogleBloqueada extends Error {
+  constructor() {
+    super('O Google pediu uma verificação e não liberou as fotos do painel. O book segue sem essas fotos.')
+    this.name = 'LeituraGoogleBloqueada'
+  }
+}
+
 /** Fotos do lugar, na ordem do carrossel. O mapa e os ícones ficam de fora. */
 export function escolherFotosDoPainel(candidatos: CandidataFotoPainel[], limite = LIMITE_CARROSSEL): string[] {
   const vistos = new Set<string>()
@@ -228,7 +235,14 @@ async function avancarCarrossel(page: Page): Promise<boolean> {
  * carrossel da aba Fotos e só aparecem depois que a página abre.
  */
 export async function fotosDoPainelGoogle(siteUrl: string): Promise<string[]> {
-  const browser = await abrirChrome()
+  // No Vercel o Chrome sem janela cai na verificação e o book inteiro falhava.
+  if (process.env.VERCEL) throw new LeituraGoogleBloqueada()
+  let browser: Browser
+  try {
+    browser = await abrirChrome()
+  } catch {
+    throw new LeituraGoogleBloqueada()
+  }
   try {
     const page = await browser.newPage()
     await page.evaluateOnNewDocument(() => {
@@ -245,9 +259,7 @@ export async function fotosDoPainelGoogle(siteUrl: string): Promise<string[]> {
     }, { timeout: 12_000 }).catch(() => undefined)
 
     const primeiro = await lerPainel(page)
-    if (primeiro.bloqueado) {
-      throw new Error('O Google pediu uma verificação e não liberou as fotos do painel. Tente gerar de novo em alguns minutos.')
-    }
+    if (primeiro.bloqueado) throw new LeituraGoogleBloqueada()
 
     const acumulado = [...primeiro.imgs]
     await abrirCarrossel(page)
