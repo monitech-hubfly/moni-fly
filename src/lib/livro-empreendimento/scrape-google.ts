@@ -128,7 +128,7 @@ async function lerPainel(page: Page): Promise<{ bloqueado: boolean; imgs: Candid
   return page.evaluate(() => {
     const bloqueado = location.pathname.indexOf('/sorry') === 0
     const aviso = Array.from(document.querySelectorAll('span, div')).find((el) => {
-      const texto = (el.innerText || '').replace(/\s+/g, ' ').trim()
+      const texto = (el instanceof HTMLElement ? el.innerText : el.textContent || '').replace(/\s+/g, ' ').trim()
       return texto.indexOf('sujeitas a direitos autorais') >= 0 && texto.length < 90
     })
     let cursor = aviso?.parentElement || null
@@ -164,7 +164,7 @@ async function abrirCarrossel(page: Page): Promise<void> {
     if (!painel) return null
     const rotulos = Array.from(painel.querySelectorAll('a, button, [role="tab"], span, div'))
     const matches = rotulos.filter((el) => {
-      const texto = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()
+      const texto = (el instanceof HTMLElement ? el.innerText : el.textContent || '').replace(/\s+/g, ' ').trim()
       return texto === 'Ver fotos' || texto === 'Fotos'
     })
     const visiveis = matches.filter((el) => {
@@ -195,7 +195,7 @@ async function abrirCarrossel(page: Page): Promise<void> {
 async function avancarCarrossel(page: Page): Promise<boolean> {
   return page.evaluate(() => {
     const aviso = Array.from(document.querySelectorAll('span, div')).find((el) => {
-      const texto = (el.innerText || '').replace(/\s+/g, ' ').trim()
+      const texto = (el instanceof HTMLElement ? el.innerText : el.textContent || '').replace(/\s+/g, ' ').trim()
       return texto.indexOf('sujeitas a direitos autorais') >= 0 && texto.length < 90
     })
     let faixa = aviso?.parentElement || null
@@ -253,7 +253,7 @@ export async function fotosDoPainelGoogle(siteUrl: string): Promise<string[]> {
     await abrirCarrossel(page)
     await page.waitForFunction(() => {
       return Array.from(document.querySelectorAll('span, div')).some((el) => {
-        const texto = (el.innerText || '').replace(/\s+/g, ' ').trim()
+        const texto = (el instanceof HTMLElement ? el.innerText : el.textContent || '').replace(/\s+/g, ' ').trim()
         return texto.indexOf('sujeitas a direitos autorais') >= 0 && texto.length < 90
       })
     }, { timeout: 8_000 }).catch(() => undefined)
