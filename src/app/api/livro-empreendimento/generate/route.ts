@@ -58,10 +58,17 @@ function conteudoSite(value: unknown): CondominioLivro | null {
         return [{ icone, texto }]
       }).slice(0, 3)
     : []
+  const fotos = Array.isArray(raw.fotos)
+    ? raw.fotos.flatMap((item) => {
+        const url = urlFoto(item)
+        return url ? [url] : []
+      }).slice(0, 12)
+    : []
   return {
     nome: '',
-    fotoPrincipal: urlFoto(raw.fotoPrincipal),
-    fotoSecundaria: urlFoto(raw.fotoSecundaria),
+    fotoPrincipal: urlFoto(raw.fotoPrincipal) ?? fotos[0],
+    fotoSecundaria: urlFoto(raw.fotoSecundaria) ?? fotos[1],
+    fotos,
     frasePrincipal: textoCurto(raw.frasePrincipal),
     fraseSecundaria: textoCurto(raw.fraseSecundaria, 160),
     subtitulo: textoCurto(raw.subtitulo),
@@ -171,6 +178,7 @@ export async function POST(request: NextRequest) {
         estado: cond.estado ?? undefined,
         fotoPrincipal: site?.fotoPrincipal ?? livro?.livro_foto_principal ?? undefined,
         fotoSecundaria: site?.fotoSecundaria ?? livro?.livro_foto_secundaria ?? undefined,
+        fotos: site?.fotos?.length ? site.fotos : undefined,
         frasePrincipal: site?.frasePrincipal ?? livro?.livro_frase_principal ?? undefined,
         fraseSecundaria: site?.fraseSecundaria ?? livro?.livro_frase_secundaria ?? undefined,
         subtitulo: site?.subtitulo ?? livro?.livro_subtitulo ?? (descricao || undefined),

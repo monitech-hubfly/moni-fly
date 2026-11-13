@@ -33,6 +33,7 @@ export interface CondominioLivro {
   estado?: string
   fotoPrincipal?: string   // livro_foto_principal
   fotoSecundaria?: string  // livro_foto_secundaria
+  fotos?: string[]         // carrossel do Google; as duas primeiras repetem as de cima
   frasePrincipal?: string  // livro_frase_principal
   fraseSecundaria?: string // livro_frase_secundaria (itálico ouro)
   subtitulo?: string       // livro_subtitulo — descrição da região
@@ -362,6 +363,15 @@ function tituloLocalizacao(c: CondominioLivro): { bold: string; italic: string; 
     if (!repeteNome(bold, nome)) return { bold, italic, virgula: true }
   }
   return { bold: fonte.trim(), italic: '', virgula: false }
+}
+
+function renderFotosCarrossel(ctx: BookContext): string[] {
+  const fotos = ctx.condominio?.fotos ?? []
+  return fotos.slice(2).map((src) =>
+    '<section class="page page-cond-foto">' +
+      '<img class="full-bleed" src="' + escapeHtml(src) + '" alt="Condomínio" />' +
+    '</section>',
+  )
 }
 
 function renderLocalizacao(ctx: BookContext): string {
@@ -1271,6 +1281,7 @@ function estilos(): string {
 
     /* ── Folha 2: Abertura Condomínio ── */
     .page-cond-abertura { background: var(--navy); }
+    .page-cond-foto { background: var(--navy); }
 
     .cond-overlay {
       position: absolute;
@@ -3262,6 +3273,7 @@ export function renderBookHtml(ctx: BookContext): string {
     renderCover(ctx),
     renderAberturaCondominio(ctx),
     renderLocalizacao(ctx),
+    ...renderFotosCarrossel(ctx),
     renderFaixasLote(ctx),
     renderOcupacao(ctx),
     renderDetalheLote(ctx),

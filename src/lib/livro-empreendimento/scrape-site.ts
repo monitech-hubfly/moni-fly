@@ -8,6 +8,7 @@ export interface VantagemLocalizacao {
 export interface ScrapedData {
   fotoPrincipal?: string
   fotoSecundaria?: string
+  fotos?: string[]
   frasePrincipal?: string
   fraseSecundaria?: string
   subtitulo?: string
@@ -200,6 +201,7 @@ export async function scrapeSiteContent(siteUrl: string): Promise<ScrapedData> {
       vantagens: [],
       fotoPrincipal: fotos[0],
       fotoSecundaria: fotos[1],
+      fotos,
     }
   }
 
