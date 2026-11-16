@@ -31,6 +31,14 @@ export default function CardFormulariosSecao({
     <div className="space-y-2">
       <RespostasFormularioLista respostas={respostas} compacto vazio="Nenhum formulário neste card." />
       <GerarLinkFormularioButton
+        formularioId={FORMULARIO_IDS.CHECKLIST_ACOPLAMENTO_COMITE}
+        cardId={cardId}
+        redeFranqueadoId={redeFranqueadoId}
+        rotulo="Gerar link do checklist técnico"
+        compacto
+        ocultarCard
+      />
+      <GerarLinkFormularioButton
         formularioId={FORMULARIO_IDS.CHECKLIST_CREDITO_PRELIMINAR}
         cardId={cardId}
         redeFranqueadoId={redeFranqueadoId}

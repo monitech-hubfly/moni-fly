@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CampoCardPortfolio } from '@/components/formularios/CampoCardPortfolio';
 import {
   mascaraMoeda,
   mascaraTelefone,
   moedaParaNumero,
   normalizarCondicional,
+  sufixoUnidadeCampo,
 } from '@/lib/formularios/apresentacao';
+import { textoDaOrigem, type CardPortfolioFormulario } from '@/lib/formularios/card-portfolio';
 import {
   aplicarCampoComposicao,
   aplicarFaixaNaLinha,
@@ -52,6 +55,12 @@ const campoStyle: React.CSSProperties = {
   padding: '8px 12px',
 };
 
+const campoLeituraStyle: React.CSSProperties = {
+  ...campoStyle,
+  background: 'var(--moni-surface-100)',
+  color: 'var(--moni-text-secondary)',
+};
+
 const botao: React.CSSProperties = {
   minHeight: 44,
   borderRadius: 'var(--moni-radius-md)',
@@ -92,12 +101,14 @@ function condicaoOk(
   return atual.some((item) => normalizarCondicional(item) === alvo);
 }
 
-export function FormularioPublicoClient({ token, formulario }: Props) {
+export function FormularioPublicoClient({ token, formulario, cardId: cardIdInicial }: Props) {
   const secoes = formulario.secoes;
   const campos = useMemo(() => secoes.flatMap((secao) => secao.campos), [secoes]);
   const [textos, setTextos] = useState<Record<string, string>>({});
+  const [rotulos, setRotulos] = useState<Record<string, string>>({});
   const [listas, setListas] = useState<Record<string, string[]>>({});
   const [arquivos, setArquivos] = useState<Record<string, File[]>>({});
+  const preencheuCardInicial = useRef(false);
   const [passo, setPasso] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -128,6 +139,8 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
   });
   const secaoAtual = secoesVisiveis[Math.min(passo, Math.max(secoesVisiveis.length - 1, 0))] ?? null;
   const ultimo = passo >= secoesVisiveis.length - 1;
+  const camposDaSecao = secaoAtual?.campos.filter((campo) => visiveis.has(campo.id)) ?? [];
+  const vinculado = campos.some((campo) => campo.tipo === 'card_portfolio' && Boolean((textos[campo.id] ?? '').trim()));
 
   function setTexto(id: string, valor: string) {
     setErro(null);
@@ -142,6 +155,61 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
       return next;
     });
   }
+
+  const aplicarCard = useCallback(
+    (card: CardPortfolioFormulario) => {
+      setErro(null);
+      setTextos((atual) => {
+        const next = { ...atual };
+        for (const campo of campos) {
+          if (campo.tipo === 'card_portfolio') next[campo.id] = card.id;
+          const origem = campo.config?.origem_card;
+          if (origem) next[campo.id] = textoDaOrigem(card, origem);
+        }
+        return next;
+      });
+      setRotulos((atual) => {
+        const next = { ...atual };
+        for (const campo of campos) {
+          if (campo.tipo === 'card_portfolio') next[campo.id] = card.rotulo;
+        }
+        return next;
+      });
+    },
+    [campos],
+  );
+
+  const limparCard = useCallback(() => {
+    setTextos((atual) => {
+      const next = { ...atual };
+      for (const campo of campos) {
+        if (campo.tipo === 'card_portfolio' || campo.config?.origem_card) next[campo.id] = '';
+      }
+      return next;
+    });
+    setRotulos((atual) => {
+      const next = { ...atual };
+      for (const campo of campos) {
+        if (campo.tipo === 'card_portfolio') next[campo.id] = '';
+      }
+      return next;
+    });
+  }, [campos]);
+
+  useEffect(() => {
+    const inicial = String(cardIdInicial ?? '').trim();
+    if (!inicial || preencheuCardInicial.current) return;
+    if (!campos.some((campo) => campo.tipo === 'card_portfolio')) return;
+    preencheuCardInicial.current = true;
+    const params = new URLSearchParams({ token, id: inicial });
+    void fetch(`/api/formularios/cards-portfolio?${params}`)
+      .then(async (res) => {
+        const json = (await res.json()) as { cards?: CardPortfolioFormulario[] };
+        const card = json.cards?.[0];
+        if (card) aplicarCard(card);
+      })
+      .catch(() => undefined);
+  }, [aplicarCard, campos, cardIdInicial, token]);
 
   function setLista(id: string, valor: string[]) {
     setErro(null);
@@ -194,6 +262,16 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
         continue;
       }
       if (campo.tipo === 'arquivo_multiplo' && (arquivos[campo.id] ?? []).length === 0) return `Anexe: ${campo.label}`;
+      if (campo.tipo === 'card_portfolio' && !(textos[campo.id] ?? '').trim()) return 'Vincule um card do Funil Portfólio.';
+      if (campo.tipo === 'numero') {
+        const textoNumero = (textos[campo.id] ?? '').trim();
+        if (!textoNumero) return `Preencha: ${campo.label}`;
+        const numero = Number(textoNumero);
+        if (!Number.isFinite(numero) || numero < 0) return `Informe um número válido: ${campo.label}`;
+        if (campo.config?.inteiro && !Number.isInteger(numero)) return `Informe um número inteiro: ${campo.label}`;
+        if (campo.config?.unidade === '%' && numero > 100) return `Informe um percentual de 0 a 100: ${campo.label}`;
+        continue;
+      }
       if (campo.tipo === 'link_ou_arquivo') {
         const temUrl = Boolean((textos[campo.id] ?? '').trim());
         const temArquivo = (arquivos[campo.id] ?? []).length > 0;
@@ -204,6 +282,8 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
     }
     return null;
   }
+
+  const enviarBloqueado = enviando || (ultimo && Boolean(faltando(secaoAtual)));
 
   function avancar() {
     const msg = faltando(secaoAtual);
@@ -271,6 +351,14 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
             const texto = textos[campo.id] ?? '';
             const numeroValor = texto.trim() === '' ? null : Number(texto);
             return { campoId: campo.id, valorTexto: texto, valorNumero: Number.isFinite(numeroValor) ? numeroValor : null };
+          }
+          if (campo.tipo === 'card_portfolio') {
+            const id = (textos[campo.id] ?? '').trim();
+            return {
+              campoId: campo.id,
+              valorTexto: rotulos[campo.id] || id,
+              valorJson: id ? { card_id: id } : null,
+            };
           }
           if (campo.tipo === 'data') return { campoId: campo.id, valorData: textos[campo.id] || null };
           return { campoId: campo.id, valorTexto: textos[campo.id] ?? '' };
@@ -350,20 +438,35 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
             <h2 className="text-lg" style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}>
               {secaoAtual.titulo}
             </h2>
-            {secaoAtual.campos.filter((campo) => visiveis.has(campo.id)).map((campo) => (
-              <CampoPublico
-                key={campo.id}
-                campo={campo}
-                textos={textos}
-                listas={listas}
-                texto={textos[campo.id] ?? ''}
-                lista={listas[campo.id] ?? []}
-                arquivos={arquivos[campo.id] ?? []}
-                onTexto={(valor) => setTexto(campo.id, valor)}
-                onLista={(valor) => setLista(campo.id, valor)}
-                onArquivos={(valor) => setArquivos((atual) => ({ ...atual, [campo.id]: valor }))}
-              />
-            ))}
+            {camposDaSecao.map((campo, index) => {
+              const grupo = campo.config?.grupo?.trim() || null;
+              const grupoAnterior = index > 0 ? camposDaSecao[index - 1]?.config?.grupo?.trim() || null : null;
+              return (
+                <div key={campo.id} className="space-y-2">
+                  {grupo && grupo !== grupoAnterior ? (
+                    <h3 className="pt-2 text-base" style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}>
+                      {grupo}
+                    </h3>
+                  ) : null}
+                  <CampoPublico
+                    campo={campo}
+                    token={token}
+                    textos={textos}
+                    listas={listas}
+                    texto={textos[campo.id] ?? ''}
+                    lista={listas[campo.id] ?? []}
+                    arquivos={arquivos[campo.id] ?? []}
+                    rotuloCard={rotulos[campo.id] ?? ''}
+                    vinculado={vinculado}
+                    onTexto={(valor) => setTexto(campo.id, valor)}
+                    onLista={(valor) => setLista(campo.id, valor)}
+                    onArquivos={(valor) => setArquivos((atual) => ({ ...atual, [campo.id]: valor }))}
+                    onCard={aplicarCard}
+                    onLimparCard={limparCard}
+                  />
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
@@ -389,9 +492,19 @@ export function FormularioPublicoClient({ token, formulario }: Props) {
             </button>
           ) : null}
           {secaoAtual && ultimo ? (
-            <button type="button" disabled={enviando} onClick={() => void enviar()} style={botao}>
+            <button
+              type="button"
+              disabled={enviarBloqueado}
+              onClick={() => void enviar()}
+              style={{ ...botao, opacity: enviarBloqueado ? 0.45 : 1, cursor: enviarBloqueado ? 'not-allowed' : 'pointer' }}
+            >
               {enviando ? 'Enviando…' : 'Enviar'}
             </button>
+          ) : null}
+          {secaoAtual && ultimo && !enviando && enviarBloqueado ? (
+            <p className="w-full text-xs" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+              Marque a ciência para enviar o formulário.
+            </p>
           ) : null}
         </div>
       </div>
@@ -424,29 +537,46 @@ function parseGrupoRepetivel(raw: string | undefined): Record<string, unknown>[]
 
 function CampoPublico({
   campo,
+  token,
   textos,
   listas,
   texto,
   lista,
   arquivos,
+  rotuloCard,
+  vinculado,
   onTexto,
   onLista,
   onArquivos,
+  onCard,
+  onLimparCard,
 }: {
   campo: FormularioCampo;
+  token: string;
   textos: Record<string, string>;
   listas: Record<string, string[]>;
   texto: string;
   lista: string[];
   arquivos: File[];
+  rotuloCard: string;
+  vinculado: boolean;
   onTexto: (valor: string) => void;
   onLista: (valor: string[]) => void;
   onArquivos: (valor: File[]) => void;
+  onCard: (card: CardPortfolioFormulario) => void;
+  onLimparCard: () => void;
 }) {
+  const leitura = Boolean(campo.config?.somente_leitura);
+  const estilo = leitura ? campoLeituraStyle : campoStyle;
   const label = (
     <span className="mb-1 block whitespace-pre-line text-sm leading-relaxed" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
       {campo.label}
       {campo.obrigatorio ? ' *' : ''}
+      {campo.config?.ajuda ? (
+        <span className="mt-1 block text-xs leading-relaxed" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+          {campo.config.ajuda}
+        </span>
+      ) : null}
     </span>
   );
 
@@ -483,10 +613,28 @@ function CampoPublico({
     );
   }
   if (campo.tipo === 'numero') {
+    const sufixo = sufixoUnidadeCampo(campo.config?.unidade);
     return (
       <label className="block">
         {label}
-        <input type="number" value={texto} onChange={(e) => onTexto(e.target.value)} style={campoStyle} />
+        <span className="flex items-center gap-2">
+          <input
+            type={campo.config?.inteiro ? 'text' : 'number'}
+            inputMode={campo.config?.inteiro ? 'numeric' : 'decimal'}
+            step={campo.config?.inteiro ? undefined : '0.01'}
+            min={campo.config?.inteiro ? undefined : 0}
+            value={texto}
+            readOnly={leitura}
+            disabled={leitura}
+            onChange={(e) => onTexto(campo.config?.inteiro ? e.target.value.replace(/[^\d]/g, '') : e.target.value)}
+            style={estilo}
+          />
+          {sufixo ? (
+            <span className="shrink-0 text-sm" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+              {sufixo}
+            </span>
+          ) : null}
+        </span>
       </label>
     );
   }
@@ -625,6 +773,18 @@ function CampoPublico({
       </fieldset>
     );
   }
+  if (campo.tipo === 'card_portfolio') {
+    return (
+      <CampoCardPortfolio
+        token={token}
+        label={label}
+        cardId={texto}
+        rotulo={rotuloCard}
+        onSelecionar={onCard}
+        onLimpar={onLimparCard}
+      />
+    );
+  }
   if (campo.tipo === 'arquivo_multiplo' || campo.tipo === 'link_ou_arquivo') {
     return (
       <div>
@@ -655,7 +815,15 @@ function CampoPublico({
   return (
     <label className="block">
       {label}
-      <input type="text" value={texto} onChange={(e) => onTexto(e.target.value)} style={campoStyle} />
+      <input
+        type="text"
+        value={texto}
+        readOnly={leitura}
+        disabled={leitura}
+        placeholder={leitura ? (vinculado ? 'Não informado no card' : 'Vincule um card para preencher') : undefined}
+        onChange={(e) => onTexto(e.target.value)}
+        style={estilo}
+      />
     </label>
   );
 }

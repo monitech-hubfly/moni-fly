@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import { Fragment } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { buscarRespostaDetalhada } from '@/lib/actions/formulario-actions';
-import { formatarValorCampo, labelDoStatus, linhasDoGrupo, normalizarCondicional, opcoesParaLista } from '@/lib/formularios/apresentacao';
+import { camposVisiveis, formatarValorCampo, labelDoStatus, linhasDoGrupo, normalizarCondicional, opcoesParaLista } from '@/lib/formularios/apresentacao';
 import type { FormularioCampo, FormularioCampoTipo, FormularioResposta, FormularioSecao } from '@/types/formularios';
 
 interface Props {
@@ -184,6 +185,7 @@ const TIPOS: FormularioCampoTipo[] = [
   'arquivo_multiplo',
   'link_ou_arquivo',
   'grupo_repetivel',
+  'card_portfolio',
 ];
 
 export default async function RespostaDetalhadaPage({ params }: Props) {
@@ -228,17 +230,22 @@ export default async function RespostaDetalhadaPage({ params }: Props) {
       const row = campo as Record<string, unknown>;
       const secaoId = String(row.secao_id ?? '');
       const tipoRaw = String(row.tipo ?? 'texto');
+      const config = (row.config as FormularioCampo['config']) ?? null;
       const item: FormularioCampo = {
         id: String(row.id),
         secao_id: secaoId,
         label: String(row.nome ?? ''),
-        tipo: TIPOS.includes(tipoRaw as FormularioCampoTipo) ? (tipoRaw as FormularioCampoTipo) : 'texto',
+        tipo: config?.widget === 'card_portfolio'
+          ? 'card_portfolio'
+          : TIPOS.includes(tipoRaw as FormularioCampoTipo)
+            ? (tipoRaw as FormularioCampoTipo)
+            : 'texto',
         obrigatorio: false,
         ordem: Number(row.ordem ?? 0),
         placeholder: null,
         descricao: null,
         opcoes: opcoesParaLista(row.opcoes),
-        config: (row.config as FormularioCampo['config']) ?? null,
+        config,
         condicional_campo_id: (row.condicional_campo_id as string | null) ?? null,
         condicional_valor: (row.condicional_valor as string | null) ?? null,
         ativo: true,
@@ -348,15 +355,30 @@ export default async function RespostaDetalhadaPage({ params }: Props) {
                 {secao.titulo}
               </h2>
               <dl className="grid grid-cols-1 sm:grid-cols-2">
-                {secao.campos.map((campo) => (
-                  <div
-                    key={campo.id}
-                    className={`px-5 py-4 ${campoEhLongo(campo.tipo) ? 'sm:col-span-2' : ''}`}
-                    style={{ borderTop: 'var(--moni-border-width) solid var(--moni-border-default)' }}
-                  >
-                    <RespostaCampo campo={campo} dados={resposta.dados} />
-                  </div>
-                ))}
+                {camposVisiveis(secao.campos, resposta.dados).map((campo, index, lista) => {
+                  const grupo = campo.config?.grupo?.trim() || null;
+                  const grupoAnterior = index > 0 ? lista[index - 1]?.config?.grupo?.trim() || null : null;
+                  return (
+                    <Fragment key={campo.id}>
+                      {grupo && grupo !== grupoAnterior ? (
+                        <div
+                          className="px-5 py-3 sm:col-span-2"
+                          style={{ borderTop: 'var(--moni-border-width) solid var(--moni-border-default)' }}
+                        >
+                          <p className="text-base" style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-display)' }}>
+                            {grupo}
+                          </p>
+                        </div>
+                      ) : null}
+                      <div
+                        className={`px-5 py-4 ${campoEhLongo(campo.tipo) ? 'sm:col-span-2' : ''}`}
+                        style={{ borderTop: 'var(--moni-border-width) solid var(--moni-border-default)' }}
+                      >
+                        <RespostaCampo campo={campo} dados={resposta.dados} />
+                      </div>
+                    </Fragment>
+                  );
+                })}
               </dl>
             </section>
           ))}

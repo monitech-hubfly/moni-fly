@@ -41,6 +41,7 @@ const TIPOS: FormularioCampoTipo[] = [
   'arquivo_multiplo',
   'link_ou_arquivo',
   'grupo_repetivel',
+  'card_portfolio',
 ];
 
 function configCampo(raw: unknown): FormularioCampoConfig | null {
@@ -48,7 +49,8 @@ function configCampo(raw: unknown): FormularioCampoConfig | null {
   return raw as FormularioCampoConfig;
 }
 
-function tipoCampo(raw: string): FormularioCampoTipo {
+function tipoCampo(raw: string, config: FormularioCampoConfig | null): FormularioCampoTipo {
+  if (config?.widget === 'card_portfolio') return 'card_portfolio';
   return TIPOS.includes(raw as FormularioCampoTipo) ? (raw as FormularioCampoTipo) : 'texto';
 }
 
@@ -484,7 +486,11 @@ export async function gerarTokenFormulario(params: {
 
   const { data: jaExiste, error: buscaErr } = await existente.maybeSingle();
   if (buscaErr) return { token: null, error: 'Erro ao gerar link.' };
-  if (jaExiste?.token) return { token: String(jaExiste.token) };
+  if (jaExiste?.token) {
+    const tokenExistente = String(jaExiste.token);
+    if (cardId) await registrarLinkNoCard(supabase, params.formularioId, cardId, tokenExistente);
+    return { token: tokenExistente };
+  }
 
   const token = randomBytes(18).toString('hex').slice(0, 24);
   const { error } = await supabase.from('formulario_tokens').insert({
@@ -495,7 +501,32 @@ export async function gerarTokenFormulario(params: {
     expira_em: params.expirarEm ? params.expirarEm.toISOString() : null,
   });
   if (error) return { token: null, error: 'Erro ao gerar link.' };
+  if (cardId) await registrarLinkNoCard(supabase, params.formularioId, cardId, token);
   return { token };
+}
+
+async function registrarLinkNoCard(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  formularioId: string,
+  cardId: string,
+  token: string,
+) {
+  const { data: existente } = await supabase
+    .from('kanban_card_formularios')
+    .select('id')
+    .eq('card_id', cardId)
+    .eq('formulario_id', formularioId)
+    .eq('token', token)
+    .limit(1)
+    .maybeSingle();
+  if (existente?.id) return;
+  const { error } = await supabase.from('kanban_card_formularios').insert({
+    card_id: cardId,
+    formulario_id: formularioId,
+    token,
+    status: 'pendente',
+  });
+  if (error) console.error('Erro ao vincular formulário ao card:', error.message);
 }
 
 async function _buscarFormularioComSecoes(formularioId: string): Promise<Formulario | null> {
@@ -561,7 +592,7 @@ async function _buscarFormularioComSecoes(formularioId: string): Promise<Formula
           id: row.id,
           secao_id: row.secao_id,
           label: row.nome,
-          tipo: tipoCampo(row.tipo),
+          tipo: tipoCampo(row.tipo, configCampo(row.config)),
           obrigatorio: row.obrigatorio,
           ordem: row.ordem,
           placeholder: null,

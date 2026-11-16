@@ -9,7 +9,9 @@ import { KanbanCardModalDadosPreObraOperacoes } from '@/components/kanban-shared
 import { KanbanCardModalEmpresas } from '@/components/kanban-shared/KanbanCardModalEmpresas';
 import { KanbanCardModalNegociacaoLinhasField } from '@/components/kanban-shared/KanbanCardModalNegociacaoLinhasField';
 import { KanbanCardModalSimulacoesImob } from '@/components/kanban-shared/KanbanCardModalSimulacoesImob';
+import { GerarLinkFormularioButton } from '@/components/formularios/GerarLinkFormularioButton';
 import { RespostasFormularioLista } from '@/components/formularios/RespostasFormularioLista';
+import { FORMULARIO_IDS } from '@/lib/constants/formularios-ids';
 import { listarRespostasDoCard } from '@/lib/actions/formulario-actions';
 import { formatIsoDateOnlyPtBr } from '@/lib/dias-uteis';
 import {
@@ -368,7 +370,18 @@ function SecaoFormularios({ cardId }: { cardId: string }) {
   }, [cardId]);
 
   if (!respostas) return <TextoCarregando texto="Carregando formulários…" />;
-  return <RespostasFormularioLista respostas={respostas} compacto vazio="Nenhum formulário neste card." />;
+  return (
+    <div className="space-y-2">
+      <RespostasFormularioLista respostas={respostas} compacto vazio="Nenhum formulário neste card." />
+      <GerarLinkFormularioButton
+        formularioId={FORMULARIO_IDS.CHECKLIST_ACOPLAMENTO_COMITE}
+        cardId={cardId}
+        rotulo="Gerar link do checklist técnico"
+        compacto
+        ocultarCard
+      />
+    </div>
+  );
 }
 
 export function PipelineCardDrawerDadosSecoes({

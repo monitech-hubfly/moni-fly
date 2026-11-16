@@ -178,6 +178,22 @@ export function apresentarValorLista(valor: string): string {
   return texto;
 }
 
+export function sufixoUnidadeCampo(unidade: string | null | undefined): string {
+  if (unidade === 'm2') return 'm²';
+  if (unidade === 'm') return 'm';
+  if (unidade === '%') return '%';
+  return '';
+}
+
+export function textoNumeroComUnidade(valor: string, unidade: string | null | undefined): string {
+  const numero = Number(String(valor).replace(',', '.'));
+  const base = Number.isFinite(numero)
+    ? numero.toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+    : String(valor);
+  const sufixo = sufixoUnidadeCampo(unidade);
+  return sufixo ? `${base} ${sufixo}` : base;
+}
+
 export function formatarValorCampo(campo: FormularioCampo, valor: string | string[] | null | undefined): string {
   if (valor === null || valor === undefined || valor === '') return '—';
 
@@ -218,6 +234,10 @@ export function formatarValorCampo(campo: FormularioCampo, valor: string | strin
     return String(valor);
   }
 
+  if (campo.tipo === 'numero') {
+    return textoNumeroComUnidade(String(valor), campo.config?.unidade);
+  }
+
   return Array.isArray(valor) ? valor.join(', ') : String(valor);
 }
 
@@ -243,7 +263,7 @@ export function camposVisiveis(
     const resp = respostaDados[campo.condicional_campo_id];
     if (!resp) return false;
     const valorAtual = Array.isArray(resp.valor) ? resp.valor.join(',') : (resp.valor ?? '');
-    return valorAtual === campo.condicional_valor;
+    return normalizarCondicional(valorAtual) === normalizarCondicional(campo.condicional_valor);
   });
 }
 

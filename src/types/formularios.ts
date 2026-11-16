@@ -8,11 +8,28 @@ export type FormularioCampoGrupoDef = {
   opcoes?: string[];
 };
 
+export type OrigemCardFormulario =
+  | 'franqueado'
+  | 'condominio'
+  | 'cidade_uf'
+  | 'quadra_lote'
+  | 'casa'
+  | 'area_lote';
+
+export type FormularioCampoUnidade = 'm' | 'm2' | '%';
+
 export type FormularioCampoConfig = {
   estado_campo_id?: string;
   multiplo?: boolean;
   label_adicionar?: string;
   campos?: FormularioCampoGrupoDef[];
+  grupo?: string;
+  ajuda?: string;
+  unidade?: FormularioCampoUnidade;
+  inteiro?: boolean;
+  origem_card?: OrigemCardFormulario;
+  somente_leitura?: boolean;
+  widget?: 'card_portfolio';
 };
 
 export type FormularioCampoTipo =
@@ -31,7 +48,8 @@ export type FormularioCampoTipo =
   | 'checkbox'
   | 'arquivo_multiplo'
   | 'link_ou_arquivo'
-  | 'grupo_repetivel';
+  | 'grupo_repetivel'
+  | 'card_portfolio';
 
 export interface FormularioCampo {
   id: string;

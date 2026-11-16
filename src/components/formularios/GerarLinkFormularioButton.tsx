@@ -47,6 +47,7 @@ export function GerarLinkFormularioButton({
   rotulo = 'Gerar link público',
   compacto = false,
   denso = false,
+  ocultarCard = false,
 }: {
   formularioId: string;
   formularioNome?: string;
@@ -56,6 +57,8 @@ export function GerarLinkFormularioButton({
   compacto?: boolean;
   /** Catálogo: botão baixo, na largura da coluna do card. */
   denso?: boolean;
+  /** O link nasce no card aberto. Não pede o id de novo. */
+  ocultarCard?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const [card, setCard] = useState(cardId ?? '');
@@ -184,15 +187,21 @@ export function GerarLinkFormularioButton({
               Link público
             </h2>
 
-            <label className="block text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
-              Card <span style={{ color: 'var(--moni-text-tertiary)', fontWeight: 400 }}>(opcional)</span>
-              <input
-                value={card}
-                onChange={(e) => setCard(e.target.value)}
-                placeholder="ID do card"
-                style={{ ...campo, display: 'block', marginTop: 4 }}
-              />
-            </label>
+            {ocultarCard ? (
+              <p className="text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+                O link fica vinculado a este card. Quando o formulário for enviado, as respostas aparecem nesta seção.
+              </p>
+            ) : (
+              <label className="block text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
+                Card <span style={{ color: 'var(--moni-text-tertiary)', fontWeight: 400 }}>(opcional)</span>
+                <input
+                  value={card}
+                  onChange={(e) => setCard(e.target.value)}
+                  placeholder="ID do card"
+                  style={{ ...campo, display: 'block', marginTop: 4 }}
+                />
+              </label>
+            )}
 
             <div className="space-y-1">
               <p className="text-sm" style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}>
