@@ -154,16 +154,34 @@ function RespostaCampo({ campo, dados }: { campo: FormularioCampo; dados: Formul
   );
 }
 
+function campoTemResposta(campo: FormularioCampo, dados: FormularioResposta['dados']): boolean {
+  const valor = dados[campo.id];
+  if (valor?.arquivos?.length) return true;
+  const texto = formatarValorCampo(campo, valor?.valor).trim();
+  return Boolean(texto && texto !== '—');
+}
+
 export function FormularioRespostaCorpo({
   secoes,
   dados,
+  somentePreenchidos = false,
 }: {
   secoes: FormularioSecao[];
   dados: FormularioResposta['dados'];
+  somentePreenchidos?: boolean;
 }) {
+  const blocos = secoes
+    .map((secao) => {
+      const campos = camposVisiveis(secao.campos, dados).filter((campo) =>
+        somentePreenchidos ? campoTemResposta(campo, dados) : true,
+      );
+      return { secao, campos };
+    })
+    .filter((bloco) => !somentePreenchidos || bloco.campos.length > 0);
+
   return (
     <div className="space-y-5">
-      {secoes.map((secao) => (
+      {blocos.map(({ secao, campos }) => (
         <section
           key={secao.id}
           style={{
@@ -180,7 +198,7 @@ export function FormularioRespostaCorpo({
             {secao.titulo}
           </h2>
           <dl className="grid grid-cols-1 sm:grid-cols-2">
-            {camposVisiveis(secao.campos, dados).map((campo, index, lista) => {
+            {campos.map((campo, index, lista) => {
               const grupo = campo.config?.grupo?.trim() || null;
               const grupoAnterior = index > 0 ? lista[index - 1]?.config?.grupo?.trim() || null : null;
               return (

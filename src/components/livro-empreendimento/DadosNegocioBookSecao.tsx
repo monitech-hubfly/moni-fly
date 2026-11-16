@@ -16,6 +16,7 @@ import {
 } from '@/lib/kanban/dados-negocio-prazo';
 import { displayOrDash, fmtMoedaKanban } from '@/lib/kanban/kanban-card-modal-detalhes';
 import { isTipoPermutaParcial, isTipoPermutaVGV } from '@/lib/kanban/tipo-negociacao-terreno';
+import { FormulariosBookSecao } from '@/components/livro-empreendimento/FormulariosBookSecao';
 
 function dataBr(iso: string | null | undefined): string {
   const s = String(iso ?? '').trim().slice(0, 10);
@@ -237,6 +238,7 @@ export function DadosNegocioBookSecao({
   const semProcesso = Boolean(dados && !dados.processo);
 
   return (
+    <>
     <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
       <h2 className="mb-4 text-sm font-semibold text-[var(--moni-navy-800)]">Dados do Negócio</h2>
       <label className="mb-1 block text-xs text-stone-400" htmlFor="funil-livro">
@@ -304,5 +306,7 @@ export function DadosNegocioBookSecao({
         </p>
       ) : null}
     </div>
+    {cardId && dados?.processo && !carregandoDados ? <FormulariosBookSecao cardId={cardId} /> : null}
+    </>
   );
 }
