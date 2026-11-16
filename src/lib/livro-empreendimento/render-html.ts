@@ -73,6 +73,7 @@ export interface BookContext {
     casasAVenda: number | null
     anosCondominio: number | null
     lotesDisponiveis: number | null
+    totalLotes: number | null
   } | null
 }
 
@@ -508,8 +509,9 @@ function renderOcupacao(ctx: BookContext): string {
   const nome = escapeHtml(ctx.condominio?.nome ?? 'Condomínio')
   const ocupacao = ctx.ocupacao
   const disponiveis = numeroOcupacao(ocupacao?.lotesDisponiveis)
+  const totalLotes = numeroOcupacao(ocupacao?.totalLotes)
   const stats = [
-    { valor: '0', label: 'Lotes exclusivos', ouro: false },
+    { valor: totalLotes, label: 'Total de lotes', ouro: false },
     { valor: numeroOcupacao(ocupacao?.casasConstruidas), label: 'Casas construídas', ouro: false },
     { valor: numeroOcupacao(ocupacao?.casasEmConstrucao), label: 'Casas em construção', ouro: false },
     { valor: numeroOcupacao(ocupacao?.casasAVenda), label: 'Casas à venda no condomínio', ouro: true },
@@ -538,7 +540,7 @@ function renderOcupacao(ctx: BookContext): string {
       <div class="oc-rule"></div>
       <p class="oc-disp-lbl">Lotes ainda disponíveis</p>
       <p class="oc-disp-num">${disponiveis}</p>
-      <p class="oc-disp-txt">De 0 lotes exclusivos, cerca de ${disponiveis} seguem disponíveis<br/>— uma janela clara de oportunidade.</p>
+      <p class="oc-disp-txt">De ${totalLotes} lotes no total, cerca de ${disponiveis} seguem disponíveis<br/>— uma janela clara de oportunidade.</p>
     </div>
     <div class="oc-direita">
       <div class="oc-lote">

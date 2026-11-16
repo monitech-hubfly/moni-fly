@@ -27,6 +27,7 @@ export interface OcupacaoComite {
   casasAVenda: number | null
   anosCondominio: number | null
   lotesDisponiveis: number | null
+  totalLotes: number | null
 }
 
 export interface LeituraComite {
@@ -153,6 +154,11 @@ export function ocupacaoDoTexto(texto: string): OcupacaoComite | null {
       /restam\s*(\d+)\s*lotes?\s*(?:a\s*venda|disponiv)/,
       /(\d+)\s*lotes?\s*(?:ainda\s*)?disponiv/,
       /lotes?\s*(?:ainda\s*)?disponiv\w*\s*:?\s*(\d+)/,
+    ]),
+    totalLotes: primeiroNumero(plano, [
+      /total de lotes\s*:?\s*(\d+)/,
+      /(\d+)\s*lotes\s*(?:no total|totais)/,
+      /configuracao\s*:?\s*(\d+)\s*lotes\b/,
     ]),
   }
   if (Object.values(ocupacao).every((valor) => valor == null)) return null
