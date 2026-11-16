@@ -12,6 +12,18 @@ export interface PosicionamentoComite {
   superiores: number
 }
 
+export interface FichaCasaComite {
+  suites: number
+  banheiros: number
+  vagas: number
+  areaM2: number
+}
+
+export interface LeituraComite {
+  posicionamento: PosicionamentoComite | null
+  ficha: FichaCasaComite | null
+}
+
 const MIME_PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const MIME_SLIDES = 'application/vnd.google-apps.presentation'
 
@@ -25,28 +37,68 @@ export function contagemDasNotas(notas: number[]): PosicionamentoComite {
   return contagem
 }
 
-export async function notasDoPptx(buffer: Buffer): Promise<number[]> {
+async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: FichaCasaComite | null }> {
   const zip = await JSZip.loadAsync(buffer)
   const nomes = Object.keys(zip.files)
     .filter((nome) => /^ppt\/slides\/slide\d+\.xml$/i.test(nome))
     .sort((a, b) => numeroSlide(a) - numeroSlide(b))
   const notas: number[] = []
+  let ficha: FichaCasaComite | null = null
   for (const nome of nomes) {
     const xml = await zip.files[nome].async('string')
     notas.push(...notasDoSlide(xml))
+    const lida = fichaDoSlide(xml)
+    if (!lida) continue
+    if (!ficha || (ficha.vagas === 0 && lida.vagas > 0)) ficha = lida
   }
+  return { notas, ficha }
+}
+
+export async function notasDoPptx(buffer: Buffer): Promise<number[]> {
+  const { notas } = await lerSlides(buffer)
   return notas
+}
+
+export async function leituraDaApresentacaoComite(
+  link: string,
+  email?: string,
+): Promise<LeituraComite | null> {
+  const buffer = await baixarPptxComite(link, email)
+  if (!buffer) return null
+  const { notas, ficha } = await lerSlides(buffer)
+  return {
+    posicionamento: notas.length > 0 ? contagemDasNotas(notas) : null,
+    ficha,
+  }
 }
 
 export async function posicionamentoDaApresentacaoComite(
   link: string,
   email?: string,
 ): Promise<PosicionamentoComite | null> {
-  const buffer = await baixarPptxComite(link, email)
-  if (!buffer) return null
-  const notas = await notasDoPptx(buffer)
-  if (notas.length === 0) return null
-  return contagemDasNotas(notas)
+  const leitura = await leituraDaApresentacaoComite(link, email)
+  return leitura?.posicionamento ?? null
+}
+
+function fichaDoSlide(xml: string): FichaCasaComite | null {
+  const texto = [...xml.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)]
+    .map((achado) => decodeXml(achado[1]))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const plano = semAcento(texto)
+  if (!/\bcasa\s*:/.test(plano)) return null
+  const linha = plano.match(/(\d+)\s*quartos?\s*[-–—]\s*(\d+)\s*banhos?\s*[-–—]\s*(\d+(?:[.,]\d+)?)\s*m/)
+  if (!linha) return null
+  const vagas = plano.match(/vagas\s*cobertas\s*\??\s*(\d+)/)
+  const area = Number(linha[3].replace(',', '.'))
+  if (!Number.isFinite(area)) return null
+  return {
+    suites: Number(linha[1]),
+    banheiros: Number(linha[2]),
+    vagas: vagas ? Number(vagas[1]) : 0,
+    areaM2: area,
+  }
 }
 
 function numeroSlide(nome: string): number {

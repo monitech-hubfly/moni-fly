@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { renderBookHtml, type BookContext, type CondominioLivro } from '@/lib/livro-empreendimento/render-html'
 import { generateBook } from '@/lib/livro-empreendimento/generate-pdf'
 import { cenariosDaPlanilhaBca } from '@/lib/livro-empreendimento/cenarios-bca'
-import { posicionamentoDaApresentacaoComite } from '@/lib/livro-empreendimento/comite-pptx'
+import { leituraDaApresentacaoComite } from '@/lib/livro-empreendimento/comite-pptx'
 
 function colunaLivroAusente(error: { code?: string; message?: string }): boolean {
   return error.code === '42703'
@@ -218,6 +218,7 @@ export async function POST(request: NextRequest) {
     const linkComite = typeof link_apresentacao_comite === 'string' ? link_apresentacao_comite.trim().slice(0, 2000) : ''
     let cenarios: BookContext['cenarios'] = null
     let posicionamento: BookContext['posicionamento'] = null
+    let fichaCasa: BookContext['fichaCasa'] = null
     let avisoBca: string | undefined
     let avisoComite: string | undefined
     if (linkBca) {
@@ -234,7 +235,9 @@ export async function POST(request: NextRequest) {
 
     if (linkComite) {
       try {
-        posicionamento = await posicionamentoDaApresentacaoComite(linkComite, user.email ?? undefined)
+        const leitura = await leituraDaApresentacaoComite(linkComite, user.email ?? undefined)
+        posicionamento = leitura?.posicionamento ?? null
+        fichaCasa = leitura?.ficha ?? null
         if (!posicionamento) {
           avisoComite = 'A apresentação do comitê está fechada e o posicionamento ficou zerado.'
         }
@@ -266,6 +269,7 @@ export async function POST(request: NextRequest) {
       valorObra: moedaLivro(custo_obra),
       vgvTarget: moedaLivro(vgv_pretendido),
       posicionamento,
+      fichaCasa,
     }
 
     // 4. Renderizar HTML das 27 páginas

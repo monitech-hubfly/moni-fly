@@ -55,6 +55,7 @@ export interface BookContext {
   valorObra?: string | null
   vgvTarget?: string | null
   posicionamento?: { melhores: number; similares: number; superiores: number } | null
+  fichaCasa?: { suites: number; banheiros: number; vagas: number; areaM2: number } | null
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -804,18 +805,28 @@ function renderRooftop(ctx: BookContext): string {
   </section>`
 }
 
+function areaConstruida(area: number): string {
+  const texto = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(area)
+  return `${texto} m²`
+}
+
 function renderFichaTecnica(ctx: BookContext): string {
   const nome = escapeHtml(nomeCatalogo(ctx.casa).toUpperCase())
+  const ficha = ctx.fichaCasa
+  const suites = ficha?.suites ?? 0
+  const banheiros = ficha?.banheiros ?? 0
+  const vagas = ficha?.vagas ?? 0
+  const area = ficha && ficha.areaM2 > 0 ? areaConstruida(ficha.areaM2) : '0 m²'
 
   return `<section class="page page-esp">
     <div class="esp">
       <p class="esp-kicker">Ficha técnica · Casa ${nome}</p>
       <h2 class="esp-titulo">Especificações completas</h2>
       <div class="esp-cards">
-        <div class="esp-card"><p class="esp-num">0</p><p class="esp-label">Suítes</p></div>
-        <div class="esp-card"><p class="esp-num">0</p><p class="esp-label">Banheiros</p></div>
-        <div class="esp-card"><p class="esp-num">0</p><p class="esp-label">Vagas cobertas</p></div>
-        <div class="esp-card"><p class="esp-num esp-num-gold">0 m²</p><p class="esp-label">Área construída</p></div>
+        <div class="esp-card"><p class="esp-num">${suites}</p><p class="esp-label">Suítes</p></div>
+        <div class="esp-card"><p class="esp-num">${banheiros}</p><p class="esp-label">Banheiros</p></div>
+        <div class="esp-card"><p class="esp-num">${vagas}</p><p class="esp-label">Vagas cobertas</p></div>
+        <div class="esp-card"><p class="esp-num esp-num-gold">${escapeHtml(area)}</p><p class="esp-label">Área construída</p></div>
       </div>
       <div class="esp-mercado">
         <div class="esp-mercado-texto">
