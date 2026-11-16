@@ -72,23 +72,23 @@ export function FormularioRespostaPainel({
         </p>
       ) : (
         <div className="min-h-0 flex-1">
-          <header className="mb-6">
+          <header className="mb-3">
             {leitura.categoria ? (
               <p
-                className="text-xs uppercase tracking-[0.14em]"
+                className="text-[11px] uppercase tracking-[0.14em]"
                 style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}
               >
                 {leitura.categoria}
               </p>
             ) : null}
             <h3
-              className="mt-1 text-2xl leading-tight"
-              style={{ fontFamily: 'var(--moni-font-display)', color: 'var(--moni-text-primary)' }}
+              className="mt-1 text-sm font-semibold leading-tight"
+              style={{ fontFamily: 'var(--moni-font-sans)', color: 'var(--moni-text-secondary)' }}
             >
               {leitura.formularioNome || 'Formulário'}
             </h3>
             <div
-              className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
+              className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]"
               style={{ color: 'var(--moni-text-secondary)', fontFamily: 'var(--moni-font-sans)' }}
             >
               <span className={classeDoStatus(leitura.resposta.status)}>{labelDoStatus(leitura.resposta.status)}</span>
@@ -96,7 +96,7 @@ export function FormularioRespostaPainel({
               {quando ? <span>Enviado em {quando}</span> : null}
             </div>
           </header>
-          <FormularioRespostaCorpo secoes={leitura.secoes} dados={leitura.resposta.dados} />
+          <FormularioRespostaCorpo secoes={leitura.secoes} dados={leitura.resposta.dados} compacto />
         </div>
       )}
     </div>
