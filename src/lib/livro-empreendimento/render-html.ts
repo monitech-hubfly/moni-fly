@@ -682,7 +682,6 @@ function renderEstarJantar(ctx: BookContext): string {
 
   return `<section class="page page-estar">
     <div class="ej">
-      <p class="ej-kicker">Estar &amp; jantar</p>
       <h2 class="ej-titulo">Conforto em<br/>tons quentes</h2>
       <p class="ej-texto">O mobiliário de desenho contemporâneo compõe uma paleta acolhedora e convida a pausar — para a conversa, a leitura, o tempo em família.</p>
     </div>
@@ -743,7 +742,6 @@ function renderSuiteMaster(ctx: BookContext): string {
     ${fotoHtml}
     <div class="suite-overlay"></div>
     <div class="suite">
-      <p class="suite-kicker">Suíte master</p>
       <h2 class="suite-titulo">O refúgio<br/>do dia</h2>
       <p class="suite-texto">Luz difusa, materiais macios e o ripado que emoldura a paisagem. Um quarto que convida ao descanso e começa o dia com calma.</p>
     </div>
@@ -805,7 +803,6 @@ function renderRooftop(ctx: BookContext): string {
     <img class="terraco-foto" src="${escapeHtml(imgUrl(foto.path))}" alt="" />
     <div class="terraco-overlay"></div>
     <div class="terraco">
-      <p class="terraco-kicker">Terraço</p>
       <h2 class="terraco-titulo">A vista que <em>encerra o dia</em></h2>
       <p class="terraco-texto">No topo da GAL, a piscina de borda infinita se funde ao horizonte. Um lugar para respirar, contemplar e simplesmente estar.</p>
     </div>
@@ -1773,16 +1770,6 @@ function estilos(): string {
       padding: 72px 56px 72px 80px;
     }
 
-    .ej-kicker {
-      margin: 0 0 20px;
-      font-family: Inter, Arial, Helvetica, sans-serif;
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      color: var(--gold);
-    }
-
     .ej-titulo {
       margin: 0 0 22px;
       font-family: 'Playfair Display', Georgia, serif;
@@ -2023,16 +2010,6 @@ function estilos(): string {
       text-align: right;
     }
 
-    .suite-kicker {
-      margin: 0 0 14px;
-      font-family: Inter, Arial, Helvetica, sans-serif;
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      color: var(--gold);
-    }
-
     .suite-titulo {
       margin: 0 0 16px;
       font-family: 'Playfair Display', Georgia, serif;
@@ -2179,16 +2156,6 @@ function estilos(): string {
       bottom: 48px;
       z-index: 2;
       max-width: 760px;
-    }
-
-    .terraco-kicker {
-      margin: 0 0 12px;
-      font-family: Inter, Arial, Helvetica, sans-serif;
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-      color: var(--gold);
     }
 
     .terraco-titulo {
