@@ -35,12 +35,19 @@ export interface TopicoCondominio {
   resumo: string
 }
 
+export interface FaixaLote {
+  nome: string
+  area: string
+  preco: string
+}
+
 export interface LeituraComite {
   posicionamento: PosicionamentoComite | null
   ficha: FichaCasaComite | null
   topografia: TopografiaLote | null
   ocupacao: OcupacaoComite | null
   topicos: TopicoCondominio[]
+  faixas: FaixaLote[]
 }
 
 const MIME_PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
@@ -56,7 +63,7 @@ export function contagemDasNotas(notas: number[]): PosicionamentoComite {
   return contagem
 }
 
-async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: FichaCasaComite | null; topografia: TopografiaLote | null; ocupacao: OcupacaoComite | null; topicos: TopicoCondominio[] }> {
+async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: FichaCasaComite | null; topografia: TopografiaLote | null; ocupacao: OcupacaoComite | null; topicos: TopicoCondominio[]; faixas: FaixaLote[] }> {
   const zip = await JSZip.loadAsync(buffer)
   const nomes = Object.keys(zip.files)
     .filter((nome) => /^ppt\/slides\/slide\d+\.xml$/i.test(nome))
@@ -65,17 +72,20 @@ async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: Fich
   let ficha: FichaCasaComite | null = null
   let corpus = ''
   let topicos: TopicoCondominio[] = []
+  let faixas: FaixaLote[] = []
   for (const nome of nomes) {
     const xml = await zip.files[nome].async('string')
     notas.push(...notasDoSlide(xml))
     corpus += ` ${textoDoSlide(xml)}`
     const lidos = topicosDoSlide(xml)
     if (lidos.length > topicos.length) topicos = lidos
+    const faixasLidas = faixasDoSlide(xml)
+    if (faixasLidas.length > faixas.length) faixas = faixasLidas
     const lida = fichaDoSlide(xml)
     if (!lida) continue
     if (!ficha || (ficha.vagas === 0 && lida.vagas > 0)) ficha = lida
   }
-  return { notas, ficha, topografia: topografiaDoTexto(corpus), ocupacao: ocupacaoDoTexto(corpus), topicos }
+  return { notas, ficha, topografia: topografiaDoTexto(corpus), ocupacao: ocupacaoDoTexto(corpus), topicos, faixas }
 }
 
 export async function notasDoPptx(buffer: Buffer): Promise<number[]> {
@@ -89,13 +99,14 @@ export async function leituraDaApresentacaoComite(
 ): Promise<LeituraComite | null> {
   const buffer = await baixarPptxComite(link, email)
   if (!buffer) return null
-  const { notas, ficha, topografia, ocupacao, topicos } = await lerSlides(buffer)
+  const { notas, ficha, topografia, ocupacao, topicos, faixas } = await lerSlides(buffer)
   return {
     posicionamento: notas.length > 0 ? contagemDasNotas(notas) : null,
     ficha,
     topografia,
     ocupacao,
     topicos,
+    faixas,
   }
 }
 
@@ -129,6 +140,43 @@ function topografiaDoTexto(texto: string): TopografiaLote | null {
   if (aclive === maior) return 'Aclive'
   if (declive === maior) return 'Declive'
   return 'Plano'
+}
+
+function paragrafosDoXml(xml: string): string[] {
+  return [...xml.matchAll(/<a:p(?:\s[^>]*)?>[\s\S]*?<\/a:p>/g)].map((paragrafo) =>
+    [...paragrafo[0].matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)]
+      .map((achado) => decodeXml(achado[1]))
+      .join('')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  ).filter(Boolean)
+}
+
+export function faixasDosParagrafos(paragrafos: string[]): FaixaLote[] {
+  const plano = paragrafos.map((item) => semAcento(item))
+  const inicio = plano.findIndex((item) => /area do terreno|preco pedido/.test(item))
+  if (inicio < 0) return []
+  const fimRelativo = plano.slice(inicio + 1).findIndex((item) => /localizacao\s*-?\s*condo/.test(item))
+  const fim = fimRelativo >= 0 ? inicio + 1 + fimRelativo : paragrafos.length
+  const itens = paragrafos.slice(inicio + 1, fim).filter((item) => {
+    const texto = semAcento(item)
+    return texto.length > 0 && !/area do terreno|preco pedido/.test(texto)
+  })
+  const faixas: FaixaLote[] = []
+  for (let i = 0; i + 2 < itens.length && faixas.length < 3; i += 1) {
+    const nome = itens[i].trim()
+    const area = itens[i + 1].trim().replace(/m2/gi, 'm²')
+    const preco = itens[i + 2].trim()
+    if (/≈|r\$|m²/i.test(nome)) continue
+    if (!/m²/i.test(area) || !/r\$/i.test(preco)) continue
+    faixas.push({ nome, area, preco })
+    i += 2
+  }
+  return faixas.length >= 2 ? faixas : []
+}
+
+function faixasDoSlide(xml: string): FaixaLote[] {
+  return faixasDosParagrafos(paragrafosDoXml(xml))
 }
 
 function resumirTopico(texto: string): string {

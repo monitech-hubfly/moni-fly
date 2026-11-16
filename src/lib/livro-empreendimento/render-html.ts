@@ -76,6 +76,7 @@ export interface BookContext {
     totalLotes: number | null
   } | null
   topicosCondominio?: { titulo: string; resumo: string }[] | null
+  faixasLote?: { nome: string; area: string; preco: string }[] | null
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -472,41 +473,39 @@ function renderLocalizacao(ctx: BookContext): string {
     '</section>'
 }
 
+function precoFaixa(preco: string): string {
+  const partes = preco.split(/\s*[–—-]\s*/)
+  if (partes.length < 2) return escapeHtml(preco)
+  return `${escapeHtml(partes[0])}<br/>– ${escapeHtml(partes.slice(1).join(' – '))}`
+}
+
 function renderFaixasLote(ctx: BookContext): string {
   const nomeCondominio = escapeHtml(ctx.condominio?.nome ?? 'Condomínio')
+  const padrao = [
+    { nome: 'Médios', area: '≈ 450–500 m²', preco: 'R$ 890 mil–1,1 mi' },
+    { nome: 'Grandes', area: '≈ 550–650 m²', preco: 'R$ 1,0 mi–1,35 mi' },
+    { nome: 'Extra grandes', area: '≈ 800–950 m²', preco: 'R$ 1,2 mi–1,6 mi+' },
+  ]
+  const faixas = (ctx.faixasLote ?? []).filter((item) => item.nome && item.area && item.preco).slice(0, 3)
+  const cards = (faixas.length >= 2 ? faixas : padrao).map((faixa, indice) => {
+    const destaque = indice === 1
+    return `<div class="fx-card${destaque ? ' fx-card--destaque' : ''}">
+          <div class="fx-card-inner">
+            <p class="fx-card-nome">${escapeHtml(faixa.nome)}</p>
+            <p class="fx-card-area">${escapeHtml(faixa.area)}</p>
+            <hr class="fx-rule${destaque ? ' fx-rule--light' : ''}" />
+            <p class="fx-card-label">VALOR DE REFERÊNCIA</p>
+            <p class="fx-card-preco">${precoFaixa(faixa.preco)}</p>
+          </div>
+        </div>`
+  }).join('')
   return `<section class="page page-faixas">
     <div class="fx-body">
       <p class="fx-logo">${nomeCondominio}</p>
       <p class="fx-label">LOTES &amp; VALORES</p>
       <h2 class="fx-titulo">Faixas de lote</h2>
       <div class="fx-cards">
-        <div class="fx-card">
-          <div class="fx-card-inner">
-            <p class="fx-card-nome">Médios</p>
-            <p class="fx-card-area">≈ 450–500 m²</p>
-            <hr class="fx-rule" />
-            <p class="fx-card-label">VALOR DE REFERÊNCIA</p>
-            <p class="fx-card-preco">R$ 890 mil<br/>– 1,1 mi</p>
-          </div>
-        </div>
-        <div class="fx-card fx-card--destaque">
-          <div class="fx-card-inner">
-            <p class="fx-card-nome">Grandes</p>
-            <p class="fx-card-area">≈ 550–650 m²</p>
-            <hr class="fx-rule fx-rule--light" />
-            <p class="fx-card-label">VALOR DE REFERÊNCIA</p>
-            <p class="fx-card-preco">R$ 1,0 mi<br/>– 1,35 mi</p>
-          </div>
-        </div>
-        <div class="fx-card">
-          <div class="fx-card-inner">
-            <p class="fx-card-nome">Extra grandes</p>
-            <p class="fx-card-area">≈ 800–950 m²</p>
-            <hr class="fx-rule" />
-            <p class="fx-card-label">VALOR DE REFERÊNCIA</p>
-            <p class="fx-card-preco">R$ 1,2 mi<br/>– 1,6 mi+</p>
-          </div>
-        </div>
+        ${cards}
       </div>
     </div>
   </section>`
@@ -2956,6 +2955,7 @@ function estilos(): string {
     .fx-card-nome {
       font-family: 'Playfair Display', Georgia, serif;
       font-size: 26px;
+      line-height: 1.05;
       color: var(--navy);
       margin-bottom: 10px;
     }
