@@ -511,23 +511,22 @@ function renderFaixasLote(ctx: BookContext): string {
   </section>`
 }
 
-function numeroOcupacao(valor: number | null | undefined): string {
-  return valor != null && Number.isFinite(valor) ? String(Math.round(valor)) : '0'
+function numeroEncontrado(valor: number | null | undefined): string | null {
+  return valor != null && Number.isFinite(valor) ? String(Math.round(valor)) : null
 }
 
 function renderOcupacao(ctx: BookContext): string {
   const nome = escapeHtml(ctx.condominio?.nome ?? 'Condomínio')
   const ocupacao = ctx.ocupacao
-  const disponiveis = numeroOcupacao(ocupacao?.lotesDisponiveis)
-  const totalLotes = numeroOcupacao(ocupacao?.totalLotes)
+  const disponiveis = numeroEncontrado(ocupacao?.lotesDisponiveis)
+  const totalLotes = numeroEncontrado(ocupacao?.totalLotes)
   const stats = [
     { valor: totalLotes, label: 'Total de lotes', ouro: false },
-    { valor: numeroOcupacao(ocupacao?.casasConstruidas), label: 'Casas construídas', ouro: false },
-    { valor: numeroOcupacao(ocupacao?.casasEmConstrucao), label: 'Casas em construção', ouro: false },
-    { valor: numeroOcupacao(ocupacao?.casasAVenda), label: 'Casas à venda no condomínio', ouro: true },
-    { valor: numeroOcupacao(ocupacao?.anosCondominio), label: 'Anos de condomínio', ouro: false },
-    { valor: '0', label: 'Estações de lazer', ouro: false },
-  ]
+    { valor: numeroEncontrado(ocupacao?.casasConstruidas), label: 'Casas construídas', ouro: false },
+    { valor: numeroEncontrado(ocupacao?.casasEmConstrucao), label: 'Casas em construção', ouro: false },
+    { valor: numeroEncontrado(ocupacao?.casasAVenda), label: 'Casas à venda no condomínio', ouro: true },
+    { valor: numeroEncontrado(ocupacao?.anosCondominio), label: 'Anos de condomínio', ouro: false },
+  ].filter((item): item is { valor: string; label: string; ouro: boolean } => item.valor != null)
   const statsHtml = stats.map((item) =>
     '<div class="oc-stat">' +
       '<p class="oc-stat-num' + (item.ouro ? ' oc-stat-num--ouro' : '') + '">' + item.valor + '</p>' +
@@ -537,33 +536,36 @@ function renderOcupacao(ctx: BookContext): string {
 
   const lote = ctx.lote?.trim() || ''
   const quadra = ctx.quadra?.trim() || ''
-  const rotuloLote = lote ? `Lote ${lote}` : 'Lote'
-  const rotuloQuadra = quadra ? `Quadra ${quadra}` : 'Quadra'
-  const areaLote = ctx.areaTerreno?.trim() || '0 m²'
-  const valorLote = ctx.valorTerreno?.trim() || 'R$ 0'
+  const rotulo = [lote ? `Lote ${lote}` : '', quadra ? `Quadra ${quadra}` : ''].filter(Boolean).join(' · ')
+  const areaLote = ctx.areaTerreno?.trim() || ''
+  const valorLote = ctx.valorTerreno?.trim() || ''
+  const frase = disponiveis && totalLotes
+    ? `De ${totalLotes} lotes no total, cerca de ${disponiveis} seguem disponíveis<br/>— uma janela clara de oportunidade.`
+    : disponiveis
+      ? `Cerca de ${disponiveis} seguem disponíveis<br/>— uma janela clara de oportunidade.`
+      : ''
 
   return `<section class="page page-ocupacao">
     <div class="oc-esquerda">
       <p class="oc-nome">${nome}</p>
-      <p class="oc-kicker">Estágio de ocupação</p>
       <h2 class="oc-titulo">Ocupação</h2>
       <div class="oc-rule"></div>
-      <p class="oc-disp-lbl">Lotes ainda disponíveis</p>
-      <p class="oc-disp-num">${disponiveis}</p>
-      <p class="oc-disp-txt">De ${totalLotes} lotes no total, cerca de ${disponiveis} seguem disponíveis<br/>— uma janela clara de oportunidade.</p>
+      ${disponiveis ? `<p class="oc-disp-lbl">Lotes ainda disponíveis</p>
+      <p class="oc-disp-num">${disponiveis}</p>` : ''}
+      ${frase ? `<p class="oc-disp-txt">${frase}</p>` : ''}
     </div>
     <div class="oc-direita">
-      <div class="oc-lote">
+      ${areaLote || valorLote || rotulo ? `<div class="oc-lote">
         <div>
-          <p class="oc-lote-lbl">${escapeHtml(rotuloLote)} · ${escapeHtml(rotuloQuadra)}</p>
-          <p class="oc-lote-num">${escapeHtml(areaLote)}</p>
+          ${rotulo ? `<p class="oc-lote-lbl">${escapeHtml(rotulo)}</p>` : ''}
+          ${areaLote ? `<p class="oc-lote-num">${escapeHtml(areaLote)}</p>` : ''}
         </div>
-        <div class="oc-lote-valor-bloco">
+        ${valorLote ? `<div class="oc-lote-valor-bloco">
           <p class="oc-lote-lbl">Valor</p>
           <p class="oc-lote-valor">${escapeHtml(valorLote)}</p>
-        </div>
-      </div>
-      <div class="oc-card">${statsHtml}</div>
+        </div>` : ''}
+      </div>` : ''}
+      ${statsHtml ? `<div class="oc-card">${statsHtml}</div>` : ''}
     </div>
   </section>`
 }

@@ -301,14 +301,32 @@ export function DadosNegocioBookSecao({
         <p className="mt-3 text-xs text-stone-400">Sem processo vinculado — dados de negócio indisponíveis.</p>
       ) : null}
       {campos.length > 0 ? (
-        <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
-          {campos.map((campo) => (
-            <div key={campo.key} className={campo.largo ? 'sm:col-span-2' : ''}>
-              <dt className="text-[11px] font-medium text-stone-400">{campo.label}</dt>
-              <dd className="mt-0.5 whitespace-pre-wrap break-all text-sm text-[var(--moni-navy-800)]">{campo.valor}</dd>
-            </div>
-          ))}
-        </dl>
+        <details
+          className="mt-4 overflow-hidden"
+          style={{
+            borderRadius: 'var(--moni-radius-md)',
+            border: 'var(--moni-border-width) solid var(--moni-border-default)',
+          }}
+        >
+          <summary
+            className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm text-[var(--moni-navy-800)] [&::-webkit-details-marker]:hidden"
+            style={{ fontFamily: 'var(--moni-font-sans)' }}
+          >
+            <span>Campos do negócio</span>
+            <span className="text-xs text-stone-400">{campos.length}</span>
+          </summary>
+          <dl
+            className="grid grid-cols-1 gap-x-6 gap-y-3 px-3 py-4 sm:grid-cols-2"
+            style={{ borderTop: 'var(--moni-border-width) solid var(--moni-border-default)' }}
+          >
+            {campos.map((campo) => (
+              <div key={campo.key} className={campo.largo ? 'sm:col-span-2' : ''}>
+                <dt className="text-[11px] font-medium text-stone-400">{campo.label}</dt>
+                <dd className="mt-0.5 whitespace-pre-wrap break-all text-sm text-[var(--moni-navy-800)]">{campo.valor}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
       ) : !carregandoDados && !semProcesso ? (
         <p className="mt-3 text-xs text-stone-400">
           Escolha o funil e o card para ver os campos de Dados do Negócio.

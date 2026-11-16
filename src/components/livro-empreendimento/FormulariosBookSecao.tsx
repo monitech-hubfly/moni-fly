@@ -47,14 +47,28 @@ export function FormulariosBookSecao({ cardId }: { cardId: string }) {
   return (
     <section className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
       <h2 className="mb-1 text-sm font-semibold text-[var(--moni-navy-800)]">Formulários</h2>
-      <p className="mb-5 text-xs text-stone-400">Respostas já enviadas neste card, separadas por formulário.</p>
-      <div className="space-y-8">
+      <p className="mb-4 text-xs text-stone-400">Respostas já enviadas neste card, separadas por formulário.</p>
+      <div className="space-y-2">
         {grupos.map((grupo) => (
-          <div key={grupo.id}>
-            <h3 className="mb-3 text-base text-[var(--moni-navy-800)]" style={{ fontFamily: 'var(--moni-font-display)' }}>
-              {grupo.nome}
-            </h3>
-            <div className="space-y-6">
+          <details
+            key={grupo.id}
+            className="overflow-hidden"
+            style={{
+              borderRadius: 'var(--moni-radius-md)',
+              border: 'var(--moni-border-width) solid var(--moni-border-default)',
+            }}
+          >
+            <summary
+              className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm text-[var(--moni-navy-800)] [&::-webkit-details-marker]:hidden"
+              style={{ fontFamily: 'var(--moni-font-sans)' }}
+            >
+              <span>{grupo.nome}</span>
+              <span className="text-xs text-stone-400">{grupo.leituras.length}</span>
+            </summary>
+            <div
+              className="space-y-6 px-3 py-4"
+              style={{ borderTop: 'var(--moni-border-width) solid var(--moni-border-default)' }}
+            >
               {grupo.leituras.map((leitura) => (
                 <FormularioRespostaCorpo
                   key={leitura.resposta.id}
@@ -64,7 +78,7 @@ export function FormulariosBookSecao({ cardId }: { cardId: string }) {
                 />
               ))}
             </div>
-          </div>
+          </details>
         ))}
       </div>
     </section>
