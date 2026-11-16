@@ -75,6 +75,7 @@ export interface BookContext {
     lotesDisponiveis: number | null
     totalLotes: number | null
   } | null
+  topicosCondominio?: { titulo: string; resumo: string }[] | null
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -442,20 +443,30 @@ function renderLocalizacao(ctx: BookContext): string {
     '</div>'
   }
 
+  const topicos = (ctx.topicosCondominio ?? []).slice(0, 3).filter((item) => item.titulo && item.resumo)
+  const topicosHtml = topicos.map((item) =>
+    '<div class="loc-topico">' +
+      '<p class="loc-topico-titulo">' + escapeHtml(item.titulo) + '</p>' +
+      '<p class="loc-topico-txt">' + escapeHtml(item.resumo) + '</p>' +
+    '</div>',
+  ).join('')
+
   return '<section class="page page-loc">' +
     '<div class="loc-esquerda">' +
       '<p class="loc-nome">' + nomeEsc + '</p>' +
       (cidadeEstado ? '<p class="loc-cidade">O CONDOMÍNIO &middot; ' + cidadeEstado + '</p>' : '') +
-      (tituloNegrito
-        ? '<h2 class="loc-titulo">' +
-            '<span class="loc-titulo-bold">' + tituloNegrito + '</span>' +
-            (tituloItalico
-              ? (titulo.virgula ? ',<br/>' : '<br/>') + '<em class="loc-titulo-italic">' + tituloItalico + '</em>'
-              : '') +
-          '</h2>'
-        : '') +
-      (subtituloEsc ? '<p class="loc-sub">' + subtituloEsc + '</p>' : '') +
-      '<div class="loc-vantagens">' + vantagensHtml + '</div>' +
+      (topicosHtml
+        ? '<div class="loc-topicos">' + topicosHtml + '</div>'
+        : (tituloNegrito
+          ? '<h2 class="loc-titulo">' +
+              '<span class="loc-titulo-bold">' + tituloNegrito + '</span>' +
+              (tituloItalico
+                ? (titulo.virgula ? ',<br/>' : '<br/>') + '<em class="loc-titulo-italic">' + tituloItalico + '</em>'
+                : '') +
+            '</h2>'
+          : '') +
+          (subtituloEsc ? '<p class="loc-sub">' + subtituloEsc + '</p>' : '') +
+          '<div class="loc-vantagens">' + vantagensHtml + '</div>') +
     '</div>' +
     '<div class="loc-direita">' + foto2Html + '</div>' +
     '</section>'
@@ -1536,6 +1547,31 @@ function estilos(): string {
       display: flex;
       flex-direction: column;
       margin-top: 2mm;
+    }
+
+    .loc-topicos {
+      display: flex;
+      flex-direction: column;
+      gap: 5.5mm;
+      margin-top: 6mm;
+      max-width: 118mm;
+    }
+
+    .loc-topico-titulo {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--navy);
+      margin: 0 0 1.4mm;
+    }
+
+    .loc-topico-txt {
+      font-family: Inter, Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      line-height: 1.45;
+      color: var(--earth);
+      margin: 0;
     }
 
     .loc-item {

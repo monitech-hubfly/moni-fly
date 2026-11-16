@@ -239,6 +239,7 @@ export async function POST(request: NextRequest) {
     let fichaCasa: BookContext['fichaCasa'] = null
     let topografia: BookContext['topografia'] = null
     let ocupacao: BookContext['ocupacao'] = null
+    let topicosCondominio: BookContext['topicosCondominio'] = null
     let mercado: BookContext['mercado'] = null
     let avisoBca: string | undefined
     let avisoComite: string | undefined
@@ -274,6 +275,7 @@ export async function POST(request: NextRequest) {
         fichaCasa = leitura?.ficha ?? null
         topografia = leitura?.topografia ?? null
         ocupacao = leitura?.ocupacao ?? null
+        topicosCondominio = leitura?.topicos?.length ? leitura.topicos : null
         if (!posicionamento) {
           avisoComite = 'A apresentação do comitê está fechada e o posicionamento ficou zerado.'
         }
@@ -307,6 +309,7 @@ export async function POST(request: NextRequest) {
       quadra: textoCurto(quadra, 40) ?? null,
       topografia,
       ocupacao,
+      topicosCondominio,
       valorObra: moedaLivro(custo_obra),
       vgvTarget: moedaLivro(vgv_pretendido),
       posicionamento,

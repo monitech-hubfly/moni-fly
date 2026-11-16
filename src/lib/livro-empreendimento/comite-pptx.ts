@@ -30,11 +30,17 @@ export interface OcupacaoComite {
   totalLotes: number | null
 }
 
+export interface TopicoCondominio {
+  titulo: string
+  resumo: string
+}
+
 export interface LeituraComite {
   posicionamento: PosicionamentoComite | null
   ficha: FichaCasaComite | null
   topografia: TopografiaLote | null
   ocupacao: OcupacaoComite | null
+  topicos: TopicoCondominio[]
 }
 
 const MIME_PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
@@ -50,7 +56,7 @@ export function contagemDasNotas(notas: number[]): PosicionamentoComite {
   return contagem
 }
 
-async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: FichaCasaComite | null; topografia: TopografiaLote | null; ocupacao: OcupacaoComite | null }> {
+async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: FichaCasaComite | null; topografia: TopografiaLote | null; ocupacao: OcupacaoComite | null; topicos: TopicoCondominio[] }> {
   const zip = await JSZip.loadAsync(buffer)
   const nomes = Object.keys(zip.files)
     .filter((nome) => /^ppt\/slides\/slide\d+\.xml$/i.test(nome))
@@ -58,15 +64,18 @@ async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: Fich
   const notas: number[] = []
   let ficha: FichaCasaComite | null = null
   let corpus = ''
+  let topicos: TopicoCondominio[] = []
   for (const nome of nomes) {
     const xml = await zip.files[nome].async('string')
     notas.push(...notasDoSlide(xml))
     corpus += ` ${textoDoSlide(xml)}`
+    const lidos = topicosDoSlide(xml)
+    if (lidos.length > topicos.length) topicos = lidos
     const lida = fichaDoSlide(xml)
     if (!lida) continue
     if (!ficha || (ficha.vagas === 0 && lida.vagas > 0)) ficha = lida
   }
-  return { notas, ficha, topografia: topografiaDoTexto(corpus), ocupacao: ocupacaoDoTexto(corpus) }
+  return { notas, ficha, topografia: topografiaDoTexto(corpus), ocupacao: ocupacaoDoTexto(corpus), topicos }
 }
 
 export async function notasDoPptx(buffer: Buffer): Promise<number[]> {
@@ -80,12 +89,13 @@ export async function leituraDaApresentacaoComite(
 ): Promise<LeituraComite | null> {
   const buffer = await baixarPptxComite(link, email)
   if (!buffer) return null
-  const { notas, ficha, topografia, ocupacao } = await lerSlides(buffer)
+  const { notas, ficha, topografia, ocupacao, topicos } = await lerSlides(buffer)
   return {
     posicionamento: notas.length > 0 ? contagemDasNotas(notas) : null,
     ficha,
     topografia,
     ocupacao,
+    topicos,
   }
 }
 
@@ -119,6 +129,51 @@ function topografiaDoTexto(texto: string): TopografiaLote | null {
   if (aclive === maior) return 'Aclive'
   if (declive === maior) return 'Declive'
   return 'Plano'
+}
+
+function resumirTopico(texto: string): string {
+  const limpo = texto.replace(/\s+/g, ' ').trim()
+  const frases = limpo.split(/(?<=[.!?])\s+/).filter(Boolean)
+  const duas = frases.slice(0, 2).join(' ')
+  const base = duas.length <= 170 ? duas : (frases[0] || limpo)
+  if (base.length <= 155) return base.replace(/[.]+$/, '')
+  const corte = base.slice(0, 155)
+  const virgula = corte.lastIndexOf(', ')
+  const espaco = corte.lastIndexOf(' ')
+  const fim = virgula >= 90 ? virgula : espaco
+  return base.slice(0, fim > 40 ? fim : 155).replace(/[,.\s]+$/, '')
+}
+
+function ehTituloTopico(texto: string): boolean {
+  const limpo = texto.replace(/\s+/g, ' ').trim()
+  if (limpo.length < 12 || limpo.length > 72) return false
+  if (/[.!?:]/.test(limpo)) return false
+  if (/range|obrigatorio|arquivo exemplo|breve descri/.test(semAcento(limpo))) return false
+  const palavras = limpo.split(' ').filter(Boolean)
+  return palavras.length >= 3 && palavras.length <= 10
+}
+
+export function topicosDosParagrafos(paragrafos: string[]): TopicoCondominio[] {
+  const topicos: TopicoCondominio[] = []
+  for (let i = 0; i < paragrafos.length - 1 && topicos.length < 3; i += 1) {
+    const titulo = paragrafos[i].replace(/\s+/g, ' ').trim()
+    const corpo = paragrafos[i + 1].replace(/\s+/g, ' ').trim()
+    if (!ehTituloTopico(titulo) || corpo.length < 40 || ehTituloTopico(corpo)) continue
+    topicos.push({ titulo, resumo: resumirTopico(corpo) })
+    i += 1
+  }
+  return topicos.length >= 2 ? topicos : []
+}
+
+function topicosDoSlide(xml: string): TopicoCondominio[] {
+  const paragrafos = [...xml.matchAll(/<a:p(?:\s[^>]*)?>[\s\S]*?<\/a:p>/g)].map((paragrafo) =>
+    [...paragrafo[0].matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)]
+      .map((achado) => decodeXml(achado[1]))
+      .join('')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  ).filter(Boolean)
+  return topicosDosParagrafos(paragrafos)
 }
 
 function primeiroNumero(texto: string, regras: RegExp[]): number | null {
