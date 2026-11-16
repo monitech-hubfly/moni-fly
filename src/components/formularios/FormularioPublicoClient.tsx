@@ -256,7 +256,10 @@ export function FormularioPublicoClient({ token, formulario, cardId: cardIdInici
         }
         continue;
       }
-      if (campo.tipo === 'checkbox' && (listas[campo.id] ?? []).length === 0) return `Preencha: ${campo.label}`;
+      if (campo.tipo === 'checkbox') {
+        if ((listas[campo.id] ?? []).length === 0) return `Preencha: ${campo.label}`;
+        continue;
+      }
       if ((campo.tipo === 'select_estado' || campo.tipo === 'select_cidade') && campo.config?.multiplo) {
         if ((listas[campo.id] ?? []).length === 0) return `Preencha: ${campo.label}`;
         continue;
