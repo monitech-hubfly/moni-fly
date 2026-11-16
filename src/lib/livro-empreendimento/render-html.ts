@@ -3,6 +3,23 @@
  * Requer Google Fonts (Playfair Display + Inter) via @import — Puppeteer com waitUntil:load.
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { textoLinhaRecuos, type RecuosLote } from './recuos-lote'
+
+let logoMoniCache: string | null = null
+
+function logoMoniBranco(): string {
+  if (logoMoniCache) return logoMoniCache
+  const arquivo = readFileSync(join(process.cwd(), 'public', 'logo-moni-branco-crop.png'))
+  logoMoniCache = `data:image/png;base64,${arquivo.toString('base64')}`
+  return logoMoniCache
+}
+
+function marcaMoni(classe: string): string {
+  return `<img class="${classe}" src="${logoMoniBranco()}" alt="Moní" />`
+}
+
 export interface Imagem {
   path: string
   alt: string
@@ -56,6 +73,7 @@ export interface BookContext {
   lote?: string | null
   quadra?: string | null
   topografia?: string | null
+  recuos?: RecuosLote | null
   valorObra?: string | null
   vgvTarget?: string | null
   posicionamento?: { melhores: number; similares: number; superiores: number } | null
@@ -258,9 +276,8 @@ function renderCover(ctx: BookContext): string {
 
   const loteSvg = '<svg class="meta-icon meta-icon-lote" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0.5" y="0.5" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/><rect x="7" y="0.5" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/><rect x="0.5" y="7" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/><rect x="7" y="7" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/></svg>'
 
-  const moniWordmarkSvg = '<svg class="moni-wordmark" viewBox="0 0 72 16" xmlns="http://www.w3.org/2000/svg"><text x="0" y="13" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="white" font-weight="300" letter-spacing="1">M</text><ellipse cx="24.5" cy="8" rx="6.8" ry="7.2" fill="none" stroke="white" stroke-width="1.1"/><line x1="17.7" y1="8" x2="31.3" y2="8" stroke="white" stroke-width="1.1"/><text x="34" y="13" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="white" font-weight="300" letter-spacing="1">NÍ</text></svg>'
-
-  const topIconSvg = '<svg class="cover-top-icon" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="10" stroke="rgba(255,255,255,0.65)" stroke-width="0.8"/><line x1="1" y1="11" x2="21" y2="11" stroke="rgba(255,255,255,0.65)" stroke-width="0.8"/></svg>'
+  const moniWordmark = marcaMoni('moni-wordmark')
+  const topIcon = marcaMoni('cover-top-icon')
 
   return `<section class="page page-cover">
     ${imgHtml}
@@ -577,6 +594,7 @@ function renderDetalheLote(ctx: BookContext): string {
   const areaLote = ctx.areaTerreno?.trim() || '0 m²'
   const valorLote = ctx.valorTerreno?.trim() || 'R$ 0'
   const topografia = ctx.topografia?.trim() || ''
+  const linhaRecuos = textoLinhaRecuos(ctx.recuos)
   const fotoHtml = (indice: number, legenda?: string) => {
     const src = fotos[indice]
     const img = src ? '<img src="' + escapeHtml(src) + '" alt="" />' : ''
@@ -594,7 +612,7 @@ function renderDetalheLote(ctx: BookContext): string {
       <p class="lt-medida-valor">${escapeHtml(valorLote)}</p>
       <div class="lt-itens">
         <div class="lt-item">${topo}<span>Topografia · ${escapeHtml(topografia)}</span></div>
-        <div class="lt-item">${recuo}<span>Recuos · 0 m frente · 0 m fundo · 0 m laterais</span></div>
+        ${linhaRecuos ? `<div class="lt-item">${recuo}<span>${escapeHtml(linhaRecuos)}</span></div>` : ''}
       </div>
     </div>
     <div class="lt-direita">

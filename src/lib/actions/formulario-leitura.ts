@@ -4,6 +4,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { FORMULARIOS_BUCKET } from '@/lib/constants/formularios-ids';
 import { opcoesParaLista } from '@/lib/formularios/apresentacao';
+import { listarKanbanCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
+import {
+  CHAVES_RECUO_CHECKLIST,
+  FORMULARIO_CHECKLIST_ACOPLAMENTO_ID,
+  FORMULARIO_CHECKLIST_ACOPLAMENTO_NOME,
+  RECUOS_VAZIOS,
+  recuosDosValores,
+  type RecuosLote,
+} from '@/lib/livro-empreendimento/recuos-lote';
 import type {
   FormularioCampo,
   FormularioCampoConfig,
@@ -221,4 +230,91 @@ export async function carregarLeituraResposta(respostaId: string): Promise<Leitu
     resposta,
     secoes: secoesMontadas,
   };
+}
+
+function nomeChecklist(valor: string): string {
+  return valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+const NOME_CHECKLIST = nomeChecklist(FORMULARIO_CHECKLIST_ACOPLAMENTO_NOME);
+
+/** Recuos já enviados no Checklist Técnico | Acoplamento para Comitê do card (e do grupo de sync). */
+export async function carregarRecuosChecklistDoCard(cardId: string): Promise<RecuosLote> {
+  const id = cardId.trim();
+  if (!id) return RECUOS_VAZIOS;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return RECUOS_VAZIOS;
+
+  let ids = [id];
+  try {
+    const grupo = await listarKanbanCardIdsSyncGroup(supabase, id);
+    if (grupo.length > 0) ids = grupo;
+  } catch {
+    ids = [id];
+  }
+
+  const { data: respostas, error } = await supabase
+    .from('formulario_respostas')
+    .select('id, formulario_id, created_at, formularios(nome)')
+    .in('card_id', ids)
+    .eq('status', 'enviado')
+    .order('created_at', { ascending: false });
+  if (error || !respostas?.length) return RECUOS_VAZIOS;
+
+  const checklist = (respostas as Array<Record<string, unknown>>).filter((row) => {
+    const formularioId = String(row.formulario_id ?? '');
+    const form = um(row.formularios as { nome?: string | null } | { nome?: string | null }[] | null);
+    const nome = nomeChecklist(String(form?.nome ?? ''));
+    return formularioId === FORMULARIO_CHECKLIST_ACOPLAMENTO_ID || nome === NOME_CHECKLIST;
+  });
+  const escolhida = checklist[0];
+  if (!escolhida) return RECUOS_VAZIOS;
+
+  const formularioId = String(escolhida.formulario_id ?? FORMULARIO_CHECKLIST_ACOPLAMENTO_ID);
+  const { data: secoes } = await supabase
+    .from('formulario_secoes')
+    .select('formulario_campos!formulario_campos_secao_id_fkey(id, nome)')
+    .eq('formulario_id', formularioId);
+
+  const campos = (secoes ?? []).flatMap((secao) => {
+    const row = secao as { formulario_campos?: { id?: string; nome?: string | null } | { id?: string; nome?: string | null }[] };
+    return lista(row.formulario_campos).flatMap((campo) => {
+      const campoId = String(campo?.id ?? '').trim();
+      if (!campoId) return [];
+      return [{ id: campoId, nome: campo?.nome ?? null }];
+    });
+  });
+
+  const { data: valores } = await supabase
+    .from('formulario_resposta_valores')
+    .select('campo_id, valor_texto, valor_numero')
+    .eq('resposta_id', String(escolhida.id));
+
+  const definicao = campos.length > 0
+    ? campos
+    : (Object.keys(CHAVES_RECUO_CHECKLIST) as Array<keyof typeof CHAVES_RECUO_CHECKLIST>).map((papel) => ({
+        id: CHAVES_RECUO_CHECKLIST[papel].id,
+        nome: CHAVES_RECUO_CHECKLIST[papel].rotulo,
+      }));
+
+  return recuosDosValores(
+    definicao,
+    (valores ?? []).map((valor) => {
+      const row = valor as { campo_id?: string; valor_texto?: string | null; valor_numero?: number | string | null };
+      return {
+        campo_id: String(row.campo_id ?? ''),
+        valor_texto: row.valor_texto ?? null,
+        valor_numero: row.valor_numero ?? null,
+      };
+    }),
+  );
 }

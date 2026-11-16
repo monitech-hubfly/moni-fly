@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, m2_terreno, lote, quadra, custo_obra, vgv_pretendido, formato, link_apresentacao_comite, link_mapa_competidores } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, m2_terreno, lote, quadra, custo_obra, vgv_pretendido, formato, link_apresentacao_comite, link_mapa_competidores, recuo_frontal, recuo_fundos, recuo_lateral_direita, recuo_lateral_esquerda } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
@@ -140,6 +140,10 @@ export async function POST(request: NextRequest) {
       formato?: string
       link_apresentacao_comite?: string
       link_mapa_competidores?: string
+      recuo_frontal?: string
+      recuo_fundos?: string
+      recuo_lateral_direita?: string
+      recuo_lateral_esquerda?: string
     }
     const formatoBook = formato === 'pptx' ? 'pptx' : 'pdf'
     const site = conteudoSite(conteudo_site)
@@ -310,6 +314,12 @@ export async function POST(request: NextRequest) {
       lote: textoCurto(lote, 40) ?? null,
       quadra: textoCurto(quadra, 40) ?? null,
       topografia,
+      recuos: {
+        frontal: textoCurto(recuo_frontal, 80) ?? null,
+        fundos: textoCurto(recuo_fundos, 80) ?? null,
+        direita: textoCurto(recuo_lateral_direita, 80) ?? null,
+        esquerda: textoCurto(recuo_lateral_esquerda, 80) ?? null,
+      },
       ocupacao,
       topicosCondominio,
       faixasLote,

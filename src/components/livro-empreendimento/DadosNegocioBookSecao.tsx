@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import {
   carregarDadosNegocioLivro,
@@ -17,6 +17,8 @@ import {
 import { displayOrDash, fmtMoedaKanban } from '@/lib/kanban/kanban-card-modal-detalhes';
 import { isTipoPermutaParcial, isTipoPermutaVGV } from '@/lib/kanban/tipo-negociacao-terreno';
 import { FormulariosBookSecao } from '@/components/livro-empreendimento/FormulariosBookSecao';
+import { carregarRecuosChecklistDoCard } from '@/lib/actions/formulario-leitura';
+import { RECUOS_VAZIOS, type RecuosLote } from '@/lib/livro-empreendimento/recuos-lote';
 
 function dataBr(iso: string | null | undefined): string {
   const s = String(iso ?? '').trim().slice(0, 10);
@@ -147,6 +149,7 @@ export function DadosNegocioBookSecao({
   onVgv,
   onLinkComite,
   onLinkMapa,
+  onRecuos,
 }: {
   funis?: FunilLivroOpcao[];
   onLinkBca?: (url: string) => void;
@@ -158,6 +161,7 @@ export function DadosNegocioBookSecao({
   onVgv?: (valor: string) => void;
   onLinkComite?: (url: string) => void;
   onLinkMapa?: (url: string) => void;
+  onRecuos?: (recuos: RecuosLote) => void;
 }) {
   const [funilId, setFunilId] = useState('');
   const [cards, setCards] = useState<CardFunilLivro[]>([]);
@@ -166,6 +170,7 @@ export function DadosNegocioBookSecao({
   const [carregandoCards, setCarregandoCards] = useState(false);
   const [carregandoDados, setCarregandoDados] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const pedidoCardRef = useRef(0);
 
   useEffect(() => {
     const link = typeof dados?.processo?.link_bca === 'string' ? dados.processo.link_bca.trim() : '';
@@ -194,11 +199,13 @@ export function DadosNegocioBookSecao({
   }, [dados, cards, cardId, onLinkBca, onValorTerreno, onM2Terreno, onLote, onQuadra, onCustoObra, onVgv, onLinkComite, onLinkMapa]);
 
   async function selecionarFunil(id: string) {
+    pedidoCardRef.current += 1;
     setFunilId(id);
     setCardId('');
     setCards([]);
     setDados(null);
     setErro(null);
+    onRecuos?.(RECUOS_VAZIOS);
     if (!id) return;
     setCarregandoCards(true);
     try {
@@ -216,22 +223,30 @@ export function DadosNegocioBookSecao({
   }
 
   async function selecionarCard(id: string) {
+    const pedido = ++pedidoCardRef.current;
     setCardId(id);
     setDados(null);
     setErro(null);
+    onRecuos?.(RECUOS_VAZIOS);
     if (!id) return;
     setCarregandoDados(true);
     try {
-      const res = await carregarDadosNegocioLivro(id);
+      const [res, recuos] = await Promise.all([
+        carregarDadosNegocioLivro(id),
+        carregarRecuosChecklistDoCard(id).catch(() => RECUOS_VAZIOS),
+      ]);
+      if (pedido !== pedidoCardRef.current) return;
+      onRecuos?.(recuos);
       if (!res.ok) {
         setErro(res.error);
         return;
       }
       setDados(res.dados);
     } catch (falha) {
+      if (pedido !== pedidoCardRef.current) return;
       setErro(falha instanceof Error ? falha.message : 'Não foi possível carregar os dados do negócio.');
     } finally {
-      setCarregandoDados(false);
+      if (pedido === pedidoCardRef.current) setCarregandoDados(false);
     }
   }
 

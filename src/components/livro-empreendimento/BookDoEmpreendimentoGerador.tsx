@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import { RECUOS_VAZIOS, type RecuosLote } from '@/lib/livro-empreendimento/recuos-lote';
 import { DocumentArrowDownIcon, BookOpenIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { SearchableSelect } from '@/components/SearchableSelect';
@@ -177,6 +178,7 @@ export function BookDoEmpreendimentoGerador({
   const [vgvPretendido, setVgvPretendido] = useState('');
   const [linkComite, setLinkComite] = useState('');
   const [linkMapa, setLinkMapa] = useState('');
+  const [recuos, setRecuos] = useState<RecuosLote>(RECUOS_VAZIOS);
   const definirLinkBca = useCallback((url: string) => {
     setLinkBca(url.trim());
   }, []);
@@ -203,6 +205,9 @@ export function BookDoEmpreendimentoGerador({
   }, []);
   const definirLinkMapa = useCallback((url: string) => {
     setLinkMapa(url.trim());
+  }, []);
+  const definirRecuos = useCallback((valor: RecuosLote) => {
+    setRecuos(valor);
   }, []);
 
   const modelo = MODELOS_CASA.find((m) => m.codigo === modeloSelecionado);
@@ -257,6 +262,10 @@ export function BookDoEmpreendimentoGerador({
           vgv_pretendido: vgvPretendido || undefined,
           link_apresentacao_comite: linkComite || undefined,
           link_mapa_competidores: linkMapa || undefined,
+          recuo_frontal: recuos.frontal || undefined,
+          recuo_fundos: recuos.fundos || undefined,
+          recuo_lateral_direita: recuos.direita || undefined,
+          recuo_lateral_esquerda: recuos.esquerda || undefined,
           formato,
         }),
       });
@@ -418,6 +427,7 @@ export function BookDoEmpreendimentoGerador({
           onVgv={definirVgv}
           onLinkComite={definirLinkComite}
           onLinkMapa={definirLinkMapa}
+          onRecuos={definirRecuos}
         />
 
         <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
