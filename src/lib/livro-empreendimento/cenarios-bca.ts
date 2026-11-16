@@ -175,7 +175,7 @@ async function baixarPlanilha(id: string, email?: string): Promise<Buffer | null
   return null
 }
 
-async function baixar(url: string, token?: string): Promise<Buffer | null> {
+export async function baixar(url: string, token?: string): Promise<Buffer | null> {
   try {
     const res = await fetch(url, {
       redirect: 'follow',
@@ -199,7 +199,7 @@ async function idPlanilhaNaPasta(folderId: string, email?: string): Promise<stri
   return null
 }
 
-type ArquivoDrive = { id: string; nome: string; mime: string }
+export type ArquivoDrive = { id: string; nome: string; mime: string }
 
 async function idNaArvore(folderId: string, token: string, profundidade: number): Promise<string | null> {
   const arquivos = await listarPasta(folderId, token)
@@ -214,7 +214,7 @@ async function idNaArvore(folderId: string, token: string, profundidade: number)
   return null
 }
 
-async function listarPasta(folderId: string, token: string): Promise<ArquivoDrive[]> {
+export async function listarPasta(folderId: string, token: string): Promise<ArquivoDrive[]> {
   const q = `'${folderId}' in parents and trashed = false`
   const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=100`
   try {
@@ -279,7 +279,7 @@ function escolherPlanilha(arquivos: { id: string; nome: string }[]): string | nu
 
 type ContaServico = { client_email: string; private_key: string }
 
-async function tokensDrive(email?: string): Promise<string[]> {
+export async function tokensDrive(email?: string): Promise<string[]> {
   const tokens: string[] = []
   const conta = email?.includes('@') ? await tokenDrive(email) : null
   if (conta) tokens.push(conta)

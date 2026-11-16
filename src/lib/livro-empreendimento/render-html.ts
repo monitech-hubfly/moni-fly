@@ -54,6 +54,7 @@ export interface BookContext {
   valorTerreno?: string | null
   valorObra?: string | null
   vgvTarget?: string | null
+  posicionamento?: { melhores: number; similares: number; superiores: number } | null
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -849,7 +850,13 @@ function renderFichaTecnica(ctx: BookContext): string {
   </section>`
 }
 
-function renderPosicionamento(_ctx: BookContext): string {
+function renderPosicionamento(ctx: BookContext): string {
+  const melhores = ctx.posicionamento?.melhores ?? 0
+  const similares = ctx.posicionamento?.similares ?? 0
+  const superiores = ctx.posicionamento?.superiores ?? 0
+  const total = melhores + similares + superiores
+  const ouro = total > 0 ? `${(melhores / total) * 100}%` : '50%'
+  const cinza = total > 0 ? `${((similares + superiores) / total) * 100}%` : '50%'
   return `<section class="page page-pos">
     <div class="pos">
       <div class="pos-esq">
@@ -860,24 +867,24 @@ function renderPosicionamento(_ctx: BookContext): string {
       <div class="pos-dir">
         <p class="pos-frente">Frente aos concorrentes mais prováveis</p>
         <div class="pos-bar" aria-hidden="true">
-          <span class="pos-bar-ouro"></span>
-          <span class="pos-bar-cinza"></span>
+          <span class="pos-bar-ouro" style="width:${ouro}"></span>
+          <span class="pos-bar-cinza" style="width:${cinza}"></span>
         </div>
         <div class="pos-nums">
           <div>
-            <p class="pos-num pos-num-ouro">0</p>
+            <p class="pos-num pos-num-ouro">${melhores}</p>
             <p class="pos-rotulo">Avaliações <strong>melhores</strong></p>
           </div>
           <div>
-            <p class="pos-num">0</p>
+            <p class="pos-num">${similares}</p>
             <p class="pos-rotulo">Avaliações <strong>similares</strong></p>
           </div>
           <div>
-            <p class="pos-num pos-num-cinza">0</p>
+            <p class="pos-num pos-num-cinza">${superiores}</p>
             <p class="pos-rotulo">Concorrentes <strong>superiores</strong></p>
           </div>
         </div>
-        <p class="pos-fecho">Perde apenas para <span class="pos-fecho-num">0</span> — <em>a alternativa ideal.</em></p>
+        <p class="pos-fecho">Perde apenas para <span class="pos-fecho-num">${superiores}</span> — <em>a alternativa ideal.</em></p>
       </div>
     </div>
   </section>`
@@ -2445,7 +2452,11 @@ function estilos(): string {
     }
 
     .pos-bar-ouro,
-    .pos-bar-cinza { flex: 1; }
+    .pos-bar-cinza {
+      display: block;
+      height: 100%;
+      flex: none;
+    }
 
     .pos-bar-ouro { background: var(--gold); }
     .pos-bar-cinza { background: var(--gray-mid); }

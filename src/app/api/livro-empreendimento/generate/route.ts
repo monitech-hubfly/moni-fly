@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { renderBookHtml, type BookContext, type CondominioLivro } from '@/lib/livro-empreendimento/render-html'
 import { generateBook } from '@/lib/livro-empreendimento/generate-pdf'
 import { cenariosDaPlanilhaBca } from '@/lib/livro-empreendimento/cenarios-bca'
+import { posicionamentoDaApresentacaoComite } from '@/lib/livro-empreendimento/comite-pptx'
 
 function colunaLivroAusente(error: { code?: string; message?: string }): boolean {
   return error.code === '42703'
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, custo_obra, vgv_pretendido, formato } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, custo_obra, vgv_pretendido, formato, link_apresentacao_comite } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
@@ -121,6 +122,7 @@ export async function POST(request: NextRequest) {
       custo_obra?: string
       vgv_pretendido?: string
       formato?: string
+      link_apresentacao_comite?: string
     }
     const formatoBook = formato === 'pptx' ? 'pptx' : 'pdf'
     const site = conteudoSite(conteudo_site)
@@ -213,8 +215,11 @@ export async function POST(request: NextRequest) {
     }
 
     const linkBca = typeof link_bca === 'string' ? link_bca.trim().slice(0, 2000) : ''
+    const linkComite = typeof link_apresentacao_comite === 'string' ? link_apresentacao_comite.trim().slice(0, 2000) : ''
     let cenarios: BookContext['cenarios'] = null
+    let posicionamento: BookContext['posicionamento'] = null
     let avisoBca: string | undefined
+    let avisoComite: string | undefined
     if (linkBca) {
       try {
         cenarios = await cenariosDaPlanilhaBca(linkBca, user.email ?? undefined)
@@ -224,6 +229,18 @@ export async function POST(request: NextRequest) {
       } catch (falha) {
         console.error('[livro-empreendimento] BCA', falha)
         avisoBca = 'Não foi possível ler a planilha do BCA. Os cenários de venda ficaram zerados.'
+      }
+    }
+
+    if (linkComite) {
+      try {
+        posicionamento = await posicionamentoDaApresentacaoComite(linkComite, user.email ?? undefined)
+        if (!posicionamento) {
+          avisoComite = 'A apresentação do comitê está fechada e o posicionamento ficou zerado.'
+        }
+      } catch (falha) {
+        console.error('[livro-empreendimento] Comitê', falha)
+        avisoComite = 'Não foi possível ler a apresentação do comitê. O posicionamento ficou zerado.'
       }
     }
 
@@ -248,6 +265,7 @@ export async function POST(request: NextRequest) {
       valorTerreno: moedaLivro(valor_terreno),
       valorObra: moedaLivro(custo_obra),
       vgvTarget: moedaLivro(vgv_pretendido),
+      posicionamento,
     }
 
     // 4. Renderizar HTML das 27 páginas
@@ -305,6 +323,7 @@ export async function POST(request: NextRequest) {
       formato: formatoBook,
       storage_path: storagePath,
       aviso_bca: avisoBca,
+      aviso_comite: avisoComite,
     })
 
   } catch (error) {

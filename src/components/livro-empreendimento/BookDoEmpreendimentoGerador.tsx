@@ -172,6 +172,7 @@ export function BookDoEmpreendimentoGerador({
   const [valorTerreno, setValorTerreno] = useState('');
   const [custoObra, setCustoObra] = useState('');
   const [vgvPretendido, setVgvPretendido] = useState('');
+  const [linkComite, setLinkComite] = useState('');
   const definirLinkBca = useCallback((url: string) => {
     setLinkBca(url.trim());
   }, []);
@@ -183,6 +184,9 @@ export function BookDoEmpreendimentoGerador({
   }, []);
   const definirVgv = useCallback((valor: string) => {
     setVgvPretendido(valor.trim());
+  }, []);
+  const definirLinkComite = useCallback((url: string) => {
+    setLinkComite(url.trim());
   }, []);
 
   const modelo = MODELOS_CASA.find((m) => m.codigo === modeloSelecionado);
@@ -232,11 +236,12 @@ export function BookDoEmpreendimentoGerador({
           valor_terreno: valorTerreno || undefined,
           custo_obra: custoObra || undefined,
           vgv_pretendido: vgvPretendido || undefined,
+          link_apresentacao_comite: linkComite || undefined,
           formato,
         }),
       });
 
-      const data = await res.json().catch(() => ({})) as { url?: string; error?: string; aviso_bca?: string };
+      const data = await res.json().catch(() => ({})) as { url?: string; error?: string; aviso_bca?: string; aviso_comite?: string };
 
       if (!res.ok) {
         throw new Error(data.error ?? 'Erro ao gerar o book');
@@ -246,8 +251,9 @@ export function BookDoEmpreendimentoGerador({
         throw new Error('O arquivo do book não foi retornado pela API');
       }
 
-      if (data.aviso_bca) {
-        setErro((atual) => (atual ? `${atual} ${data.aviso_bca}` : data.aviso_bca ?? null));
+      const avisos = [data.aviso_bca, data.aviso_comite].filter(Boolean).join(' ');
+      if (avisos) {
+        setErro((atual) => (atual ? `${atual} ${avisos}` : avisos));
       }
 
       baixarArquivo(data.url, `book-empreendimento-${modeloSelecionado}-${Date.now()}.${formato}`);
@@ -387,6 +393,7 @@ export function BookDoEmpreendimentoGerador({
           onValorTerreno={definirValorTerreno}
           onCustoObra={definirCustoObra}
           onVgv={definirVgv}
+          onLinkComite={definirLinkComite}
         />
 
         <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">
