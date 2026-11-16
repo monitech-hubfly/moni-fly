@@ -4,6 +4,7 @@ import { renderBookHtml, type BookContext, type CondominioLivro } from '@/lib/li
 import { generateBook } from '@/lib/livro-empreendimento/generate-pdf'
 import { cenariosDaPlanilhaBca } from '@/lib/livro-empreendimento/cenarios-bca'
 import { leituraDaApresentacaoComite } from '@/lib/livro-empreendimento/comite-pptx'
+import { mercadoDaPlanilha } from '@/lib/livro-empreendimento/mapa-competidores'
 
 function colunaLivroAusente(error: { code?: string; message?: string }): boolean {
   return error.code === '42703'
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, custo_obra, vgv_pretendido, formato, link_apresentacao_comite } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, custo_obra, vgv_pretendido, formato, link_apresentacao_comite, link_mapa_competidores } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
@@ -123,6 +124,7 @@ export async function POST(request: NextRequest) {
       vgv_pretendido?: string
       formato?: string
       link_apresentacao_comite?: string
+      link_mapa_competidores?: string
     }
     const formatoBook = formato === 'pptx' ? 'pptx' : 'pdf'
     const site = conteudoSite(conteudo_site)
@@ -216,11 +218,14 @@ export async function POST(request: NextRequest) {
 
     const linkBca = typeof link_bca === 'string' ? link_bca.trim().slice(0, 2000) : ''
     const linkComite = typeof link_apresentacao_comite === 'string' ? link_apresentacao_comite.trim().slice(0, 2000) : ''
+    const linkMapa = typeof link_mapa_competidores === 'string' ? link_mapa_competidores.trim().slice(0, 2000) : ''
     let cenarios: BookContext['cenarios'] = null
     let posicionamento: BookContext['posicionamento'] = null
     let fichaCasa: BookContext['fichaCasa'] = null
+    let mercado: BookContext['mercado'] = null
     let avisoBca: string | undefined
     let avisoComite: string | undefined
+    let avisoMapa: string | undefined
     if (linkBca) {
       try {
         cenarios = await cenariosDaPlanilhaBca(linkBca, user.email ?? undefined)
@@ -230,6 +235,18 @@ export async function POST(request: NextRequest) {
       } catch (falha) {
         console.error('[livro-empreendimento] BCA', falha)
         avisoBca = 'Não foi possível ler a planilha do BCA. Os cenários de venda ficaram zerados.'
+      }
+    }
+
+    if (linkMapa) {
+      try {
+        mercado = await mercadoDaPlanilha(linkMapa, user.email ?? undefined)
+        if (!mercado) {
+          avisoMapa = 'A planilha do mapa de competidores está fechada e a análise de mercado ficou zerada.'
+        }
+      } catch (falha) {
+        console.error('[livro-empreendimento] Mapa', falha)
+        avisoMapa = 'Não foi possível ler o mapa de competidores. A análise de mercado ficou zerada.'
       }
     }
 
@@ -270,6 +287,7 @@ export async function POST(request: NextRequest) {
       vgvTarget: moedaLivro(vgv_pretendido),
       posicionamento,
       fichaCasa,
+      mercado,
     }
 
     // 4. Renderizar HTML das 27 páginas
@@ -328,6 +346,7 @@ export async function POST(request: NextRequest) {
       storage_path: storagePath,
       aviso_bca: avisoBca,
       aviso_comite: avisoComite,
+      aviso_mapa: avisoMapa,
     })
 
   } catch (error) {

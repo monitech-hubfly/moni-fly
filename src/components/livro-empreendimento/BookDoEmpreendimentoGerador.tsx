@@ -173,6 +173,7 @@ export function BookDoEmpreendimentoGerador({
   const [custoObra, setCustoObra] = useState('');
   const [vgvPretendido, setVgvPretendido] = useState('');
   const [linkComite, setLinkComite] = useState('');
+  const [linkMapa, setLinkMapa] = useState('');
   const definirLinkBca = useCallback((url: string) => {
     setLinkBca(url.trim());
   }, []);
@@ -187,6 +188,9 @@ export function BookDoEmpreendimentoGerador({
   }, []);
   const definirLinkComite = useCallback((url: string) => {
     setLinkComite(url.trim());
+  }, []);
+  const definirLinkMapa = useCallback((url: string) => {
+    setLinkMapa(url.trim());
   }, []);
 
   const modelo = MODELOS_CASA.find((m) => m.codigo === modeloSelecionado);
@@ -237,11 +241,12 @@ export function BookDoEmpreendimentoGerador({
           custo_obra: custoObra || undefined,
           vgv_pretendido: vgvPretendido || undefined,
           link_apresentacao_comite: linkComite || undefined,
+          link_mapa_competidores: linkMapa || undefined,
           formato,
         }),
       });
 
-      const data = await res.json().catch(() => ({})) as { url?: string; error?: string; aviso_bca?: string; aviso_comite?: string };
+      const data = await res.json().catch(() => ({})) as { url?: string; error?: string; aviso_bca?: string; aviso_comite?: string; aviso_mapa?: string };
 
       if (!res.ok) {
         throw new Error(data.error ?? 'Erro ao gerar o book');
@@ -251,7 +256,7 @@ export function BookDoEmpreendimentoGerador({
         throw new Error('O arquivo do book não foi retornado pela API');
       }
 
-      const avisos = [data.aviso_bca, data.aviso_comite].filter(Boolean).join(' ');
+      const avisos = [data.aviso_bca, data.aviso_comite, data.aviso_mapa].filter(Boolean).join(' ');
       if (avisos) {
         setErro((atual) => (atual ? `${atual} ${avisos}` : avisos));
       }
@@ -394,6 +399,7 @@ export function BookDoEmpreendimentoGerador({
           onCustoObra={definirCustoObra}
           onVgv={definirVgv}
           onLinkComite={definirLinkComite}
+          onLinkMapa={definirLinkMapa}
         />
 
         <div className="mb-6 rounded-xl border border-[var(--moni-border)] bg-white p-6 shadow-sm">

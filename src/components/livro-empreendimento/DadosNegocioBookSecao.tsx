@@ -142,6 +142,7 @@ export function DadosNegocioBookSecao({
   onCustoObra,
   onVgv,
   onLinkComite,
+  onLinkMapa,
 }: {
   funis?: FunilLivroOpcao[];
   onLinkBca?: (url: string) => void;
@@ -149,6 +150,7 @@ export function DadosNegocioBookSecao({
   onCustoObra?: (valor: string) => void;
   onVgv?: (valor: string) => void;
   onLinkComite?: (url: string) => void;
+  onLinkMapa?: (url: string) => void;
 }) {
   const [funilId, setFunilId] = useState('');
   const [cards, setCards] = useState<CardFunilLivro[]>([]);
@@ -171,7 +173,11 @@ export function DadosNegocioBookSecao({
       ? dados.processo.link_apresentacao_comite.trim()
       : '';
     onLinkComite?.(comite);
-  }, [dados, onLinkBca, onValorTerreno, onCustoObra, onVgv, onLinkComite]);
+    const mapa = typeof dados?.processo?.link_mapa_competidores === 'string'
+      ? dados.processo.link_mapa_competidores.trim()
+      : '';
+    onLinkMapa?.(mapa);
+  }, [dados, onLinkBca, onValorTerreno, onCustoObra, onVgv, onLinkComite, onLinkMapa]);
 
   async function selecionarFunil(id: string) {
     setFunilId(id);

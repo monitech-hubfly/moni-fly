@@ -56,6 +56,13 @@ export interface BookContext {
   vgvTarget?: string | null
   posicionamento?: { melhores: number; similares: number; superiores: number } | null
   fichaCasa?: { suites: number; banheiros: number; vagas: number; areaM2: number } | null
+  mercado?: {
+    alta: number
+    media: number
+    baixa: number
+    precoMedio: number | null
+    valorM2: number | null
+  } | null
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -810,6 +817,14 @@ function areaConstruida(area: number): string {
   return `${texto} m²`
 }
 
+function moedaInteira(valor: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    maximumFractionDigits: 0,
+  }).format(valor).replace(/\u00a0/g, ' ')
+}
+
 function renderFichaTecnica(ctx: BookContext): string {
   const nome = escapeHtml(nomeCatalogo(ctx.casa).toUpperCase())
   const ficha = ctx.fichaCasa
@@ -817,6 +832,13 @@ function renderFichaTecnica(ctx: BookContext): string {
   const banheiros = ficha?.banheiros ?? 0
   const vagas = ficha?.vagas ?? 0
   const area = ficha && ficha.areaM2 > 0 ? areaConstruida(ficha.areaM2) : '0 m²'
+  const alta = ctx.mercado?.alta ?? 0
+  const media = ctx.mercado?.media ?? 0
+  const baixa = ctx.mercado?.baixa ?? 0
+  const totalMercado = alta + media + baixa
+  const faixa = (quantidade: number) => (totalMercado > 0 ? `${(quantidade / totalMercado) * 100}%` : '33.333%')
+  const precoMedio = ctx.mercado?.precoMedio != null ? moedaInteira(ctx.mercado.precoMedio) : 'R$ 0'
+  const valorM2 = ctx.mercado?.valorM2 != null ? moedaInteira(ctx.mercado.valorM2) : 'R$ 0'
 
   return `<section class="page page-esp">
     <div class="esp">
@@ -836,23 +858,23 @@ function renderFichaTecnica(ctx: BookContext): string {
         <div class="esp-mercado-painel">
           <p class="esp-comp-kicker">Compatibilidade com o padrão Moní</p>
           <div class="esp-bar" aria-hidden="true">
-            <span class="esp-bar-alta">0 alta</span>
-            <span class="esp-bar-media"></span>
-            <span class="esp-bar-baixa"></span>
+            <span class="esp-bar-alta" style="width:${faixa(alta)}">${alta} alta</span>
+            <span class="esp-bar-media" style="width:${faixa(media)}"></span>
+            <span class="esp-bar-baixa" style="width:${faixa(baixa)}"></span>
           </div>
           <div class="esp-legenda">
-            <span><i class="esp-dot esp-dot-alta"></i>0 alta compatibilidade</span>
-            <span><i class="esp-dot esp-dot-media"></i>0 média</span>
-            <span><i class="esp-dot esp-dot-baixa"></i>0 baixa</span>
+            <span><i class="esp-dot esp-dot-alta"></i>${alta} alta compatibilidade</span>
+            <span><i class="esp-dot esp-dot-media"></i>${media} média</span>
+            <span><i class="esp-dot esp-dot-baixa"></i>${baixa} baixa</span>
           </div>
           <div class="esp-precos">
             <div class="esp-preco">
               <p class="esp-preco-label">Preço médio</p>
-              <p class="esp-preco-valor">R$ 0</p>
+              <p class="esp-preco-valor">${escapeHtml(precoMedio)}</p>
             </div>
             <div class="esp-preco esp-preco-gold">
               <p class="esp-preco-label">Valor médio do m²</p>
-              <p class="esp-preco-valor esp-preco-valor-gold">R$ 0</p>
+              <p class="esp-preco-valor esp-preco-valor-gold">${escapeHtml(valorM2)}</p>
             </div>
           </div>
         </div>
@@ -2313,7 +2335,8 @@ function estilos(): string {
     .esp-bar-baixa {
       display: flex;
       align-items: center;
-      flex: 1;
+      flex: none;
+      height: 100%;
     }
 
     .esp-bar-alta {

@@ -155,7 +155,7 @@ function ehZip(buffer: Buffer): boolean {
   return buffer.length > 4 && buffer[0] === 0x50 && buffer[1] === 0x4b
 }
 
-async function baixarPlanilha(id: string, email?: string): Promise<Buffer | null> {
+export async function baixarPlanilha(id: string, email?: string): Promise<Buffer | null> {
   const publica = await baixar(`https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`)
   if (publica && ehZip(publica)) return publica
   const arquivo = await baixar(`https://drive.google.com/uc?export=download&id=${id}`)
