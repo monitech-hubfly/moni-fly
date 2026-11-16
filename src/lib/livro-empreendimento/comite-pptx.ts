@@ -21,10 +21,19 @@ export interface FichaCasaComite {
 
 export type TopografiaLote = 'Aclive' | 'Declive' | 'Plano'
 
+export interface OcupacaoComite {
+  casasConstruidas: number | null
+  casasEmConstrucao: number | null
+  casasAVenda: number | null
+  anosCondominio: number | null
+  lotesDisponiveis: number | null
+}
+
 export interface LeituraComite {
   posicionamento: PosicionamentoComite | null
   ficha: FichaCasaComite | null
   topografia: TopografiaLote | null
+  ocupacao: OcupacaoComite | null
 }
 
 const MIME_PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
@@ -40,7 +49,7 @@ export function contagemDasNotas(notas: number[]): PosicionamentoComite {
   return contagem
 }
 
-async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: FichaCasaComite | null; topografia: TopografiaLote | null }> {
+async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: FichaCasaComite | null; topografia: TopografiaLote | null; ocupacao: OcupacaoComite | null }> {
   const zip = await JSZip.loadAsync(buffer)
   const nomes = Object.keys(zip.files)
     .filter((nome) => /^ppt\/slides\/slide\d+\.xml$/i.test(nome))
@@ -56,7 +65,7 @@ async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: Fich
     if (!lida) continue
     if (!ficha || (ficha.vagas === 0 && lida.vagas > 0)) ficha = lida
   }
-  return { notas, ficha, topografia: topografiaDoTexto(corpus) }
+  return { notas, ficha, topografia: topografiaDoTexto(corpus), ocupacao: ocupacaoDoTexto(corpus) }
 }
 
 export async function notasDoPptx(buffer: Buffer): Promise<number[]> {
@@ -70,11 +79,12 @@ export async function leituraDaApresentacaoComite(
 ): Promise<LeituraComite | null> {
   const buffer = await baixarPptxComite(link, email)
   if (!buffer) return null
-  const { notas, ficha, topografia } = await lerSlides(buffer)
+  const { notas, ficha, topografia, ocupacao } = await lerSlides(buffer)
   return {
     posicionamento: notas.length > 0 ? contagemDasNotas(notas) : null,
     ficha,
     topografia,
+    ocupacao,
   }
 }
 
@@ -108,6 +118,45 @@ function topografiaDoTexto(texto: string): TopografiaLote | null {
   if (aclive === maior) return 'Aclive'
   if (declive === maior) return 'Declive'
   return 'Plano'
+}
+
+function primeiroNumero(texto: string, regras: RegExp[]): number | null {
+  for (const regra of regras) {
+    const achado = texto.match(regra)
+    if (!achado?.[1]) continue
+    const n = Number(achado[1])
+    if (Number.isFinite(n)) return n
+  }
+  return null
+}
+
+export function ocupacaoDoTexto(texto: string): OcupacaoComite | null {
+  const plano = semAcento(texto)
+  const ocupacao: OcupacaoComite = {
+    casasConstruidas: primeiroNumero(plano, [/(\d+)\s*casas?\s*construid/]),
+    casasEmConstrucao: primeiroNumero(plano, [
+      /(\d+)\s*(?:casas?\s*)?em\s*constru/,
+      /em\s*constru\w*\s*:?\s*(\d+)/,
+    ]),
+    casasAVenda: primeiroNumero(plano, [
+      /quantas casas estao a venda\s*:?\s*(\d+)/,
+      /(\d+)\s*casas?\s*(?:estao\s*)?a\s*venda/,
+      /casas?\s*a\s*venda\s*:?\s*(?:em torno de\s*|cerca de\s*)?(\d+)/,
+    ]),
+    anosCondominio: primeiroNumero(plano, [
+      /tempo de condominio\s*:?[^.]*?(\d+)\s*anos/,
+      /idade(?:\s+do\s+condominio)?\s*:?[^.]*?(\d+)\s*anos/,
+      /condominio com\s*(\d+)\s*anos/,
+      /(\d+)\s*anos?\s+de\s+condominio/,
+    ]),
+    lotesDisponiveis: primeiroNumero(plano, [
+      /restam\s*(\d+)\s*lotes?\s*(?:a\s*venda|disponiv)/,
+      /(\d+)\s*lotes?\s*(?:ainda\s*)?disponiv/,
+      /lotes?\s*(?:ainda\s*)?disponiv\w*\s*:?\s*(\d+)/,
+    ]),
+  }
+  if (Object.values(ocupacao).every((valor) => valor == null)) return null
+  return ocupacao
 }
 
 function fichaDoSlide(xml: string): FichaCasaComite | null {

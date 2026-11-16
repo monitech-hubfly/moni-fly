@@ -67,6 +67,13 @@ export interface BookContext {
     precoMedio: number | null
     valorM2: number | null
   } | null
+  ocupacao?: {
+    casasConstruidas: number | null
+    casasEmConstrucao: number | null
+    casasAVenda: number | null
+    anosCondominio: number | null
+    lotesDisponiveis: number | null
+  } | null
 }
 
 const BASE_IMAGENS = 'https://pub-f88479dcde19436782f2cdc1eb048fdb.r2.dev/'
@@ -493,14 +500,20 @@ function renderFaixasLote(ctx: BookContext): string {
   </section>`
 }
 
+function numeroOcupacao(valor: number | null | undefined): string {
+  return valor != null && Number.isFinite(valor) ? String(Math.round(valor)) : '0'
+}
+
 function renderOcupacao(ctx: BookContext): string {
   const nome = escapeHtml(ctx.condominio?.nome ?? 'Condomínio')
+  const ocupacao = ctx.ocupacao
+  const disponiveis = numeroOcupacao(ocupacao?.lotesDisponiveis)
   const stats = [
     { valor: '0', label: 'Lotes exclusivos', ouro: false },
-    { valor: '0', label: 'Casas construídas', ouro: false },
-    { valor: '0', label: 'Casas em construção', ouro: false },
-    { valor: '0', label: 'Casas à venda no condomínio', ouro: true },
-    { valor: '0', label: 'Anos de condomínio', ouro: false },
+    { valor: numeroOcupacao(ocupacao?.casasConstruidas), label: 'Casas construídas', ouro: false },
+    { valor: numeroOcupacao(ocupacao?.casasEmConstrucao), label: 'Casas em construção', ouro: false },
+    { valor: numeroOcupacao(ocupacao?.casasAVenda), label: 'Casas à venda no condomínio', ouro: true },
+    { valor: numeroOcupacao(ocupacao?.anosCondominio), label: 'Anos de condomínio', ouro: false },
     { valor: '0', label: 'Estações de lazer', ouro: false },
   ]
   const statsHtml = stats.map((item) =>
@@ -524,8 +537,8 @@ function renderOcupacao(ctx: BookContext): string {
       <h2 class="oc-titulo">Ocupação</h2>
       <div class="oc-rule"></div>
       <p class="oc-disp-lbl">Lotes ainda disponíveis</p>
-      <p class="oc-disp-num">0</p>
-      <p class="oc-disp-txt">De 0 lotes exclusivos, cerca de 0 seguem disponíveis<br/>— uma janela clara de oportunidade.</p>
+      <p class="oc-disp-num">${disponiveis}</p>
+      <p class="oc-disp-txt">De 0 lotes exclusivos, cerca de ${disponiveis} seguem disponíveis<br/>— uma janela clara de oportunidade.</p>
     </div>
     <div class="oc-direita">
       <div class="oc-lote">
