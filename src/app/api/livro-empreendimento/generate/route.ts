@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, m2_terreno, custo_obra, vgv_pretendido, formato, link_apresentacao_comite, link_mapa_competidores } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, m2_terreno, lote, quadra, custo_obra, vgv_pretendido, formato, link_apresentacao_comite, link_mapa_competidores } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
@@ -133,6 +133,8 @@ export async function POST(request: NextRequest) {
       link_bca?: string
       valor_terreno?: string
       m2_terreno?: string
+      lote?: string
+      quadra?: string
       custo_obra?: string
       vgv_pretendido?: string
       formato?: string
@@ -299,6 +301,8 @@ export async function POST(request: NextRequest) {
       cenarios,
       valorTerreno: moedaLivro(valor_terreno),
       areaTerreno: metroLivro(m2_terreno),
+      lote: textoCurto(lote, 40) ?? null,
+      quadra: textoCurto(quadra, 40) ?? null,
       topografia,
       valorObra: moedaLivro(custo_obra),
       vgvTarget: moedaLivro(vgv_pretendido),

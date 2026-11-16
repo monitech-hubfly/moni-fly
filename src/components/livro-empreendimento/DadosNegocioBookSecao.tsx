@@ -141,6 +141,8 @@ export function DadosNegocioBookSecao({
   onLinkBca,
   onValorTerreno,
   onM2Terreno,
+  onLote,
+  onQuadra,
   onCustoObra,
   onVgv,
   onLinkComite,
@@ -150,6 +152,8 @@ export function DadosNegocioBookSecao({
   onLinkBca?: (url: string) => void;
   onValorTerreno?: (valor: string) => void;
   onM2Terreno?: (valor: string) => void;
+  onLote?: (valor: string) => void;
+  onQuadra?: (valor: string) => void;
   onCustoObra?: (valor: string) => void;
   onVgv?: (valor: string) => void;
   onLinkComite?: (url: string) => void;
@@ -170,6 +174,11 @@ export function DadosNegocioBookSecao({
     onValorTerreno?.(terreno == null ? '' : String(terreno).trim());
     const metros = dados?.processo?.m2_terreno;
     onM2Terreno?.(metros == null ? '' : String(metros).trim());
+    const card = cards.find((item) => item.id === cardId);
+    const lote = String(card?.lote || dados?.processo?.lote || '').trim();
+    const quadra = String(card?.quadra || dados?.processo?.quadra || '').trim();
+    onLote?.(lote);
+    onQuadra?.(quadra);
     const obra = dados?.processo?.custo_obra;
     onCustoObra?.(obra == null ? '' : String(obra).trim());
     const vgv = dados?.processo?.vgv_pretendido;
@@ -182,7 +191,7 @@ export function DadosNegocioBookSecao({
       ? dados.processo.link_mapa_competidores.trim()
       : '';
     onLinkMapa?.(mapa);
-  }, [dados, onLinkBca, onValorTerreno, onM2Terreno, onCustoObra, onVgv, onLinkComite, onLinkMapa]);
+  }, [dados, cards, cardId, onLinkBca, onValorTerreno, onM2Terreno, onLote, onQuadra, onCustoObra, onVgv, onLinkComite, onLinkMapa]);
 
   async function selecionarFunil(id: string) {
     setFunilId(id);

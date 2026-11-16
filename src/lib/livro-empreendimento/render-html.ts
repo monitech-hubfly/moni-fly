@@ -53,6 +53,8 @@ export interface BookContext {
   cenarios?: CenariosVenda | null
   valorTerreno?: string | null
   areaTerreno?: string | null
+  lote?: string | null
+  quadra?: string | null
   topografia?: string | null
   valorObra?: string | null
   vgvTarget?: string | null
@@ -508,6 +510,13 @@ function renderOcupacao(ctx: BookContext): string {
     '</div>',
   ).join('')
 
+  const lote = ctx.lote?.trim() || ''
+  const quadra = ctx.quadra?.trim() || ''
+  const rotuloLote = lote ? `Lote ${lote}` : 'Lote'
+  const rotuloQuadra = quadra ? `Quadra ${quadra}` : 'Quadra'
+  const areaLote = ctx.areaTerreno?.trim() || '0 m²'
+  const valorLote = ctx.valorTerreno?.trim() || 'R$ 0'
+
   return `<section class="page page-ocupacao">
     <div class="oc-esquerda">
       <p class="oc-nome">${nome}</p>
@@ -521,12 +530,12 @@ function renderOcupacao(ctx: BookContext): string {
     <div class="oc-direita">
       <div class="oc-lote">
         <div>
-          <p class="oc-lote-lbl">Lote · Setor</p>
-          <p class="oc-lote-num">0 m²</p>
+          <p class="oc-lote-lbl">${escapeHtml(rotuloLote)} · ${escapeHtml(rotuloQuadra)}</p>
+          <p class="oc-lote-num">${escapeHtml(areaLote)}</p>
         </div>
         <div class="oc-lote-valor-bloco">
           <p class="oc-lote-lbl">Valor</p>
-          <p class="oc-lote-valor">R$ 0</p>
+          <p class="oc-lote-valor">${escapeHtml(valorLote)}</p>
         </div>
       </div>
       <div class="oc-card">${statsHtml}</div>
