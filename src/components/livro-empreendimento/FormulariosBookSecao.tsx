@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { FormularioRespostaCorpo } from '@/components/formularios/FormularioRespostaCorpo';
-import { carregarLeituraResposta, listarRespostasDoCard, type LeituraFormularioResposta } from '@/lib/actions/formulario-actions';
+import { listarRespostasDoCard } from '@/lib/actions/formulario-actions';
+import { carregarLeituraResposta, type LeituraFormularioResposta } from '@/lib/actions/formulario-leitura';
 
 type GrupoFormulario = {
   id: string;

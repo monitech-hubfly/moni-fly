@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { carregarLeituraResposta, type LeituraFormularioResposta } from '@/lib/actions/formulario-actions';
+import { carregarLeituraResposta, type LeituraFormularioResposta } from '@/lib/actions/formulario-leitura';
 import { labelDoStatus } from '@/lib/formularios/apresentacao';
 import { FormularioRespostaCorpo } from './FormularioRespostaCorpo';
 
@@ -26,11 +26,15 @@ export function FormularioRespostaPainel({
     let ativo = true;
     setLeitura(null);
     setErro(null);
-    void carregarLeituraResposta(respostaId).then((res) => {
-      if (!ativo) return;
-      if (!res) setErro('Não foi possível abrir esta resposta.');
-      else setLeitura(res);
-    });
+    void carregarLeituraResposta(respostaId)
+      .then((res) => {
+        if (!ativo) return;
+        if (!res) setErro('Não foi possível abrir esta resposta.');
+        else setLeitura(res);
+      })
+      .catch(() => {
+        if (ativo) setErro('Não foi possível abrir esta resposta.');
+      });
     return () => {
       ativo = false;
     };
