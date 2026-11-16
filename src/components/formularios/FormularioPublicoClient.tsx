@@ -261,7 +261,10 @@ export function FormularioPublicoClient({ token, formulario, cardId: cardIdInici
         if ((listas[campo.id] ?? []).length === 0) return `Preencha: ${campo.label}`;
         continue;
       }
-      if (campo.tipo === 'arquivo_multiplo' && (arquivos[campo.id] ?? []).length === 0) return `Anexe: ${campo.label}`;
+      if (campo.tipo === 'arquivo_multiplo') {
+        if ((arquivos[campo.id] ?? []).length === 0) return `Anexe: ${campo.label}`;
+        continue;
+      }
       if (campo.tipo === 'card_portfolio' && !(textos[campo.id] ?? '').trim()) return 'Vincule um card do Funil Portfólio.';
       if (campo.tipo === 'numero') {
         const textoNumero = (textos[campo.id] ?? '').trim();
