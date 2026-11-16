@@ -53,20 +53,87 @@ function numeroSlide(nome: string): number {
   return Number(nome.match(/slide(\d+)/i)?.[1] ?? 0)
 }
 
+interface Caixa {
+  x: number
+  y: number
+  cx: number
+  cy: number
+}
+
 function notasDoSlide(xml: string): number[] {
-  const tabelas = xml.match(/<a:tbl[\s\S]*?<\/a:tbl>/g) ?? []
+  const plano = semAcento(xml)
+  if (!/analise de mercado|batalha de casas|score\s*moni/.test(plano)) return []
+  const rotulosScore = caixasComTexto(xml, /^score\s*moni$/)
+  const rotulosPreco = caixasComTexto(xml, /^preco$/)
   const notas: number[] = []
-  for (const tabela of tabelas) {
-    const linhas = (tabela.match(/<a:tr[\s\S]*?<\/a:tr>/g) ?? []).map(celulasDaLinha)
-    const cabecalho = linhas.findIndex((linha) => linha.some((celula) => /score\s*moni/i.test(semAcento(celula))))
-    if (cabecalho < 0) continue
-    const coluna = linhas[cabecalho].findIndex((celula) => /score\s*moni/i.test(semAcento(celula)))
-    for (const linha of linhas.slice(cabecalho + 1)) {
+  for (const frame of xml.match(/<p:graphicFrame[\s\S]*?<\/p:graphicFrame>/g) ?? []) {
+    if (!frame.includes('<a:tbl')) continue
+    const linhas = (frame.match(/<a:tr[\s\S]*?<\/a:tr>/g) ?? []).map(celulasDaLinha)
+    const cabecalho = linhas.findIndex((linha) => linha.some((celula) => /^score\s*moni$/.test(semAcento(celula).trim())))
+    const coluna = cabecalho >= 0
+      ? linhas[cabecalho].findIndex((celula) => /^score\s*moni$/.test(semAcento(celula).trim()))
+      : colunaScoreMoni(frame, rotulosScore, rotulosPreco)
+    if (coluna == null || coluna < 0) continue
+    for (const linha of linhas.slice(cabecalho >= 0 ? cabecalho + 1 : 0)) {
       const nota = notaCelula(linha[coluna] ?? '')
       if (nota != null) notas.push(nota)
     }
   }
   return notas
+}
+
+function colunaScoreMoni(frame: string, rotulosScore: Caixa[], rotulosPreco: Caixa[]): number | null {
+  const faixas = faixasDaTabela(frame)
+  if (faixas.length === 0) return null
+  const topo = caixaDe(frame.match(/<p:xfrm[\s\S]*?<\/p:xfrm>/)?.[0] ?? '')?.y ?? 0
+  const acima = (caixa: Caixa) => caixa.y < topo + 200000
+  const alinhada = rotulosScore.filter(acima).map((caixa) => indiceDaFaixa(faixas, caixa)).find((indice) => indice != null)
+  if (alinhada != null) return alinhada
+  const preco = rotulosPreco.filter(acima).map((caixa) => indiceDaFaixa(faixas, caixa)).find((indice) => indice != null)
+  if (preco != null && preco + 1 < faixas.length) return preco + 1
+  return null
+}
+
+function faixasDaTabela(frame: string): Array<{ x0: number; x1: number }> {
+  const origem = caixaDe(frame.match(/<p:xfrm[\s\S]*?<\/p:xfrm>/)?.[0] ?? '')
+  if (!origem) return []
+  const larguras = [...frame.matchAll(/<a:gridCol[^>]*\bw="(\d+)"/g)].map((achado) => Number(achado[1]))
+  let x = origem.x
+  return larguras.map((largura) => {
+    const faixa = { x0: x, x1: x + largura }
+    x += largura
+    return faixa
+  })
+}
+
+function indiceDaFaixa(faixas: Array<{ x0: number; x1: number }>, caixa: Caixa): number | null {
+  const centro = caixa.x + caixa.cx / 2
+  const indice = faixas.findIndex((faixa, posicao) => centro >= faixa.x0 && (posicao === faixas.length - 1 ? centro <= faixa.x1 : centro < faixa.x1))
+  return indice >= 0 ? indice : null
+}
+
+function caixasComTexto(xml: string, texto: RegExp): Caixa[] {
+  const caixas: Caixa[] = []
+  for (const shape of xml.match(/<p:sp(?:\s[^>]*)?>[\s\S]*?<\/p:sp>/g) ?? []) {
+    const lido = [...shape.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)].map((achado) => decodeXml(achado[1])).join(' ').replace(/\s+/g, ' ').trim()
+    if (!texto.test(semAcento(lido))) continue
+    const caixa = caixaDe(shape.match(/<a:xfrm[\s\S]*?<\/a:xfrm>/)?.[0] ?? '')
+    if (!caixa || caixa.cx <= 0) continue
+    caixas.push(caixa)
+  }
+  return caixas
+}
+
+function caixaDe(bloco: string): Caixa | null {
+  const off = bloco.match(/<a:off[^>]*\bx="(-?\d+)"[^>]*\by="(-?\d+)"/)
+  const ext = bloco.match(/<a:ext[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/)
+  if (!off) return null
+  return {
+    x: Number(off[1]),
+    y: Number(off[2]),
+    cx: ext ? Number(ext[1]) : 0,
+    cy: ext ? Number(ext[2]) : 0,
+  }
 }
 
 function celulasDaLinha(linha: string): string[] {
