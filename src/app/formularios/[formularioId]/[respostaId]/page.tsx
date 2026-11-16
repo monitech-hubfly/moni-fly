@@ -101,6 +101,17 @@ function GrupoRepetivelLeitura({ campo, valor }: { campo: FormularioCampo; valor
   );
 }
 
+function partesDeAnexo(valor: string | string[] | null | undefined): { links: string[]; texto: string } {
+  const bruto = Array.isArray(valor) ? valor.filter(Boolean).join('\n') : String(valor ?? '');
+  const links = bruto.match(/https?:\/\/[^\s<>"]+/g) ?? [];
+  const texto = bruto
+    .replace(/https?:\/\/[^\s<>"]+/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return { links, texto };
+}
+
 function RespostaCampo({ campo, dados }: { campo: FormularioCampo; dados: FormularioResposta['dados'] }) {
   const rv = dados[campo.id];
   if (campo.tipo === 'grupo_repetivel') {
@@ -114,8 +125,9 @@ function RespostaCampo({ campo, dados }: { campo: FormularioCampo; dados: Formul
     );
   }
   const valorFormatado = formatarValorCampo(campo, rv?.valor);
+  const anexo = campo.tipo === 'arquivo_multiplo' || campo.tipo === 'link_ou_arquivo' ? partesDeAnexo(rv?.valor) : null;
   const temArquivo = Boolean(rv?.arquivos?.length);
-  const temLink = campo.tipo === 'link_ou_arquivo' && Boolean(rv?.valor);
+  const temLink = Boolean(anexo && (anexo.links.length > 0 || anexo.texto));
   const vazio = !temArquivo && !temLink && (!valorFormatado || valorFormatado === '—');
 
   return (
@@ -130,7 +142,7 @@ function RespostaCampo({ campo, dados }: { campo: FormularioCampo; dados: Formul
           fontFamily: 'var(--moni-font-sans)',
         }}
       >
-        {campo.tipo === 'arquivo_multiplo' || campo.tipo === 'link_ou_arquivo' ? (
+        {anexo ? (
           <div className="space-y-1">
             {temArquivo
               ? rv?.arquivos?.map((arq, i) => (
@@ -145,20 +157,21 @@ function RespostaCampo({ campo, dados }: { campo: FormularioCampo; dados: Formul
                     {arq.nome}
                   </a>
                 ))
-              : vazio
-                ? '—'
-                : null}
-            {temLink ? (
+              : null}
+            {anexo.links.map((url) => (
               <a
-                href={String(rv?.valor)}
+                key={url}
+                href={url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex min-h-11 items-center break-all underline"
                 style={{ color: 'var(--moni-green-800)' }}
               >
-                {String(rv?.valor)}
+                {url}
               </a>
-            ) : null}
+            ))}
+            {anexo.texto ? <span className="block whitespace-pre-wrap">{anexo.texto}</span> : null}
+            {vazio ? '—' : null}
           </div>
         ) : (
           valorFormatado
