@@ -535,7 +535,6 @@ function renderOcupacao(ctx: BookContext): string {
 }
 
 function renderDetalheLote(ctx: BookContext): string {
-  const sol = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="2.4" stroke="currentColor" stroke-width="1.1"/><path d="M8 1.5v1.8M8 12.7v1.8M1.5 8h1.8M12.7 8h1.8M3.4 3.4l1.3 1.3M11.3 11.3l1.3 1.3M3.4 12.6l1.3-1.3M11.3 4.7l1.3-1.3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>'
   const topo = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.5 12.5l4.2-5.2 2.6 2.8 2.2-2.6 4 5" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>'
   const recuo = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8h10M3 8l2-2M3 8l2 2M13 8l-2-2M13 8l-2 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   const fotos = ctx.imagensLote ?? []
@@ -558,13 +557,12 @@ function renderDetalheLote(ctx: BookContext): string {
       <p class="lt-medida-lbl">Valor do lote</p>
       <p class="lt-medida-valor">${escapeHtml(valorLote)}</p>
       <div class="lt-itens">
-        <div class="lt-item">${sol}<span>Posição do sol ·</span></div>
         <div class="lt-item">${topo}<span>Topografia · ${escapeHtml(topografia)}</span></div>
         <div class="lt-item">${recuo}<span>Recuos · 0 m frente · 0 m fundo · 0 m laterais</span></div>
       </div>
     </div>
     <div class="lt-direita">
-      <div class="lt-foto lt-foto-grande">${fotoHtml(0, 'Vista aérea')}</div>
+      <div class="lt-foto lt-foto-grande">${fotoHtml(0)}</div>
       <div class="lt-fotos">
         <div class="lt-foto">${fotoHtml(1)}</div>
         <div class="lt-foto">${fotoHtml(2)}</div>
