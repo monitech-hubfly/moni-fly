@@ -265,6 +265,14 @@ function blank(value?: string | number, unit = ''): string {
   return `<span class="blank">—${unit}</span>`
 }
 
+function juntarBarra(partes: Array<string | null | undefined>): string {
+  return partes
+    .map((parte) => parte?.trim() ?? '')
+    .filter(Boolean)
+    .map((parte) => escapeHtml(parte))
+    .join(' | ')
+}
+
 function renderCover(ctx: BookContext): string {
   const codigo = escapeHtml(nomeCatalogo(ctx.casa))
   const fachada = getImagemPorAlt(ctx, 'Fachada') ?? getImagem(ctx, 0)
@@ -275,6 +283,12 @@ function renderCover(ctx: BookContext): string {
   const pinSvg = '<svg class="meta-icon" viewBox="0 0 12 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 1C3.24 1 1 3.24 1 6C1 9.5 6 15.5 6 15.5C6 15.5 11 9.5 11 6C11 3.24 8.76 1 6 1Z" stroke="currentColor" stroke-width="1.1"/><circle cx="6" cy="6" r="2" stroke="currentColor" stroke-width="1"/></svg>'
 
   const loteSvg = '<svg class="meta-icon meta-icon-lote" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0.5" y="0.5" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/><rect x="7" y="0.5" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/><rect x="0.5" y="7" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/><rect x="7" y="7" width="4.5" height="4.5" stroke="currentColor" stroke-width="1"/></svg>'
+
+  const localCapa = juntarBarra([ctx.condominio?.cidade, ctx.condominio?.estado])
+  const loteCapa = juntarBarra([ctx.condominio?.nome, ctx.quadra, ctx.lote])
+  const itemLocal = localCapa ? `<span class="cover-meta-item">${pinSvg}<span class="cover-meta-txt">${localCapa}</span></span>` : ''
+  const itemLote = loteCapa ? `<span class="cover-meta-item">${loteSvg}<span class="cover-meta-txt">${loteCapa}</span></span>` : ''
+  const sepMeta = itemLocal && itemLote ? '<span class="cover-meta-sep">·</span>' : ''
 
   const moniWordmark = marcaMoni('moni-wordmark')
   const topIcon = marcaMoni('cover-top-icon')
@@ -288,9 +302,9 @@ function renderCover(ctx: BookContext): string {
       <h1 class="cover-titulo"><span class="cover-word-casa">Casa</span><span class="cover-word-codigo"> ${codigo}</span></h1>
       <p class="cover-subtitulo">Um modelo residencial da coleção Casa Moní</p>
       <div class="cover-meta">
-        <span class="cover-meta-item">${pinSvg}</span>
-        <span class="cover-meta-sep">·</span>
-        <span class="cover-meta-item">${loteSvg}</span>
+        ${itemLocal}
+        ${sepMeta}
+        ${itemLote}
       </div>
     </div>
     <div class="moni-wm">
@@ -1312,10 +1326,14 @@ function estilos(): string {
       display: flex;
       align-items: center;
       gap: 2mm;
+      color: rgba(255,255,255,0.82);
+    }
+
+    .cover-meta-txt {
       font-family: Inter, Arial, Helvetica, sans-serif;
       font-size: 13px;
-      letter-spacing: 0.18em;
-      color: rgba(255,255,255,0.60);
+      letter-spacing: 0.02em;
+      line-height: 1.3;
     }
 
     .meta-icon { width: 14px; height: 16px; color: rgba(255,255,255,0.60); flex-shrink: 0; }
