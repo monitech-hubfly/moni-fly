@@ -13,10 +13,14 @@ export function RespostasFormularioLista({
   respostas,
   compacto = false,
   vazio = 'Nenhuma resposta ainda.',
+  onAbrir,
+  respostaAbertaId = null,
 }: {
   respostas: FormularioRespostaListaItem[];
   compacto?: boolean;
   vazio?: string;
+  onAbrir?: (respostaId: string) => void;
+  respostaAbertaId?: string | null;
 }) {
   if (respostas.length === 0) {
     return (
@@ -36,16 +40,9 @@ export function RespostasFormularioLista({
         ]
           .filter(Boolean)
           .join(' · ');
-        return (
-          <li
-            key={resposta.id}
-            className="p-3"
-            style={{
-              border: 'var(--moni-border-width) solid var(--moni-border-default)',
-              borderRadius: 'var(--moni-radius-md)',
-              background: 'var(--moni-surface-0)',
-            }}
-          >
+        const aberta = respostaAbertaId === resposta.id;
+        const miolo = (
+          <>
             <p className={compacto ? 'text-[11px] font-medium' : 'text-sm font-medium'} style={{ color: 'var(--moni-text-primary)', fontFamily: 'var(--moni-font-sans)' }}>
               {resposta.formulario_nome}
             </p>
@@ -57,13 +54,35 @@ export function RespostasFormularioLista({
                 {vinculo}
               </p>
             ) : null}
-            <Link
-              href={`/formularios/${resposta.formulario_id}/${resposta.id}`}
-              className={compacto ? 'mt-1 inline-block text-[10px] underline' : 'mt-2 inline-block text-sm underline'}
-              style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
-            >
-              Ver detalhe
-            </Link>
+          </>
+        );
+        return (
+          <li
+            key={resposta.id}
+            className="p-3"
+            style={{
+              border: 'var(--moni-border-width) solid var(--moni-border-default)',
+              borderRadius: 'var(--moni-radius-md)',
+              background: aberta ? 'var(--moni-surface-100)' : 'var(--moni-surface-0)',
+              boxShadow: aberta ? 'inset 0 0 0 var(--moni-border-width) var(--moni-navy-800)' : undefined,
+            }}
+          >
+            {onAbrir ? (
+              <button type="button" onClick={() => onAbrir(resposta.id)} className="w-full min-h-11 text-left">
+                {miolo}
+              </button>
+            ) : (
+              <>
+                {miolo}
+                <Link
+                  href={`/formularios/${resposta.formulario_id}/${resposta.id}`}
+                  className={compacto ? 'mt-1 inline-flex min-h-11 items-center text-[10px] underline' : 'mt-2 inline-flex min-h-11 items-center text-sm underline'}
+                  style={{ color: 'var(--moni-navy-800)', fontFamily: 'var(--moni-font-sans)' }}
+                >
+                  Ver detalhe
+                </Link>
+              </>
+            )}
           </li>
         );
       })}

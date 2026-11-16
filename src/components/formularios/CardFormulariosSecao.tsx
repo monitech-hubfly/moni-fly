@@ -10,9 +10,13 @@ import { RespostasFormularioLista } from './RespostasFormularioLista';
 export default function CardFormulariosSecao({
   cardId,
   redeFranqueadoId,
+  onAbrirResposta,
+  respostaAbertaId = null,
 }: {
   cardId: string;
   redeFranqueadoId?: string | null;
+  onAbrirResposta?: (respostaId: string) => void;
+  respostaAbertaId?: string | null;
 }) {
   const [respostas, setRespostas] = useState<FormularioRespostaListaItem[]>([]);
 
@@ -29,7 +33,18 @@ export default function CardFormulariosSecao({
 
   return (
     <div className="space-y-2">
-      <RespostasFormularioLista respostas={respostas} compacto vazio="Nenhum formulário neste card." />
+      <RespostasFormularioLista
+        respostas={respostas}
+        compacto
+        vazio="Nenhum formulário neste card."
+        onAbrir={onAbrirResposta}
+        respostaAbertaId={respostaAbertaId}
+      />
+      {respostaAbertaId ? (
+        <p className="text-[10px]" style={{ color: 'var(--moni-text-tertiary)', fontFamily: 'var(--moni-font-sans)' }}>
+          Respostas abertas no centro do card. Use Voltar para retornar.
+        </p>
+      ) : null}
       <GerarLinkFormularioButton
         formularioId={FORMULARIO_IDS.CHECKLIST_ACOPLAMENTO_COMITE}
         cardId={cardId}

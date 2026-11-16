@@ -7,6 +7,7 @@ import { FORMULARIOS_BUCKET } from '@/lib/constants/formularios-ids';
 import { categoriaHubOuNull } from '@/lib/constants/categorias-hub';
 import { isFrankOrFranqueadoRole } from '@/lib/authz';
 import { apresentarValorLista, opcoesParaLista } from '@/lib/formularios/apresentacao';
+import { listarKanbanCardIdsSyncGroup } from '@/lib/kanban/card-sync-group';
 import {
   camposIdentidadeResposta,
   chaveUltimoPreenchimento,
@@ -357,14 +358,103 @@ export async function listarRespostasDoFormulario(formularioId: string): Promise
 
 export async function listarRespostasDoCard(cardId: string): Promise<FormularioRespostaListaItem[]> {
   const supabase = await createClient();
+  let ids = [cardId];
+  try {
+    const grupo = await listarKanbanCardIdsSyncGroup(supabase, cardId);
+    if (grupo.length > 0) ids = grupo;
+  } catch {
+    ids = [cardId];
+  }
   const { data, error } = await supabase
     .from('formulario_respostas')
     .select(SELECT_LISTA)
-    .eq('card_id', cardId)
+    .in('card_id', ids)
     .order('created_at', { ascending: false });
 
   if (error || !data) return [];
   return (data as unknown as ListaRow[]).map(mapLista);
+}
+
+export type LeituraFormularioResposta = {
+  formularioNome: string;
+  categoria: string | null;
+  resposta: FormularioResposta;
+  secoes: FormularioSecao[];
+};
+
+export async function carregarLeituraResposta(respostaId: string): Promise<LeituraFormularioResposta | null> {
+  const resposta = await buscarRespostaDetalhada(respostaId);
+  if (!resposta) return null;
+  const supabase = await createClient();
+  const formularioId = resposta.formulario_id;
+  const [{ data: formulario }, { data: secoes }] = await Promise.all([
+    supabase.from('formularios').select('nome, categoria').eq('id', formularioId).maybeSingle(),
+    supabase
+      .from('formulario_secoes')
+      .select('id, nome, ordem, condicional_campo_id, condicional_valor')
+      .eq('formulario_id', formularioId)
+      .order('ordem'),
+  ]);
+
+  const secaoIds = (secoes ?? []).map((secao) => String((secao as { id: string }).id));
+  const camposPorSecao = new Map<string, FormularioCampo[]>();
+  if (secaoIds.length > 0) {
+    const { data: camposRows } = await supabase
+      .from('formulario_campos')
+      .select('id, secao_id, nome, tipo, ordem, opcoes, config, condicional_campo_id, condicional_valor')
+      .in('secao_id', secaoIds);
+    for (const campo of camposRows ?? []) {
+      const row = campo as Record<string, unknown>;
+      const secaoId = String(row.secao_id ?? '');
+      const config = configCampo(row.config);
+      const item: FormularioCampo = {
+        id: String(row.id),
+        secao_id: secaoId,
+        label: String(row.nome ?? ''),
+        tipo: tipoCampo(String(row.tipo ?? 'texto'), config),
+        obrigatorio: false,
+        ordem: Number(row.ordem ?? 0),
+        placeholder: null,
+        descricao: null,
+        opcoes: opcoesParaLista(row.opcoes),
+        config,
+        condicional_campo_id: (row.condicional_campo_id as string | null) ?? null,
+        condicional_valor: (row.condicional_valor as string | null) ?? null,
+        ativo: true,
+      };
+      const lista = camposPorSecao.get(secaoId) ?? [];
+      lista.push(item);
+      camposPorSecao.set(secaoId, lista);
+    }
+  }
+
+  const secoesMontadas: FormularioSecao[] = (secoes ?? []).map((secao) => {
+    const row = secao as {
+      id: string;
+      nome: string;
+      ordem: number;
+      condicional_campo_id: string | null;
+      condicional_valor: string | null;
+    };
+    return {
+      id: row.id,
+      formulario_id: formularioId,
+      titulo: row.nome,
+      descricao: null,
+      ordem: row.ordem,
+      condicional_campo_id: row.condicional_campo_id,
+      condicional_valor: row.condicional_valor,
+      campos: (camposPorSecao.get(row.id) ?? []).sort((a, b) => a.ordem - b.ordem),
+    };
+  });
+
+  const formRow = formulario as { nome?: string | null; categoria?: string | null } | null;
+  return {
+    formularioNome: String(formRow?.nome ?? ''),
+    categoria: String(formRow?.categoria ?? '').trim() || null,
+    resposta,
+    secoes: secoesMontadas,
+  };
 }
 
 export async function listarRespostasDoFranqueado(redeFranqueadoId: string): Promise<FormularioRespostaListaItem[]> {

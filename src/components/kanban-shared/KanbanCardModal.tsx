@@ -270,6 +270,7 @@ import {
 } from './KanbanCardModalOperacoesTrancheVinculos';
 import { KanbanCardModalCondominio } from './KanbanCardModalCondominio';
 import CardFormulariosSecao from '@/components/formularios/CardFormulariosSecao';
+import { FormularioRespostaPainel } from '@/components/formularios/FormularioRespostaPainel';
 import { KanbanCardModalAtasReuniao } from './KanbanCardModalAtasReuniao';
 import { KanbanCardDatasFields } from './KanbanCardDatasFields';
 import { KanbanCardSlaBolinha } from './KanbanCardPrazoIndicadores';
@@ -733,8 +734,9 @@ export function KanbanCardModal({
   const [totalCardsSyncGrupo, setTotalCardsSyncGrupo] = useState(0);
   const [abaComentarios, setAbaComentarios] = useState<'comentarios' | 'email'>('comentarios');
   const [abaCentro, setAbaCentro] = useState<
-    'detalhes' | 'chamados' | 'proximasAtividades' | 'trancheVinculo' | 'calculadora' | 'corretores'
+    'detalhes' | 'chamados' | 'proximasAtividades' | 'trancheVinculo' | 'calculadora' | 'corretores' | 'formulario'
   >('detalhes');
+  const [formularioRespostaId, setFormularioRespostaId] = useState<string | null>(null);
   const [proximasAtividadesResumo, setProximasAtividadesResumo] = useState({ abertas: 0, total: 0 });
   const [corretoresPainelTick, setCorretoresPainelTick] = useState(0);
 
@@ -3548,9 +3550,17 @@ export function KanbanCardModal({
     setSecaoAberta((prev) => ({ ...prev, relacionamentos: true }));
   }
 
+  function abrirPainelFormulario(respostaId: string) {
+    setFormularioRespostaId(respostaId);
+    setAbaCentro('formulario');
+    setTrancheVinculoIndex(null);
+    setSecaoAberta((prev) => ({ ...prev, formularios: true }));
+  }
+
   function voltarPainelDetalhes() {
     setAbaCentro('detalhes');
     setTrancheVinculoIndex(null);
+    setFormularioRespostaId(null);
   }
 
   function abrirAnexosSirene() {
@@ -5075,12 +5085,14 @@ export function KanbanCardModal({
     abaCentro === 'proximasAtividades' ||
     abaCentro === 'trancheVinculo' ||
     abaCentro === 'calculadora' ||
-    abaCentro === 'corretores';
+    abaCentro === 'corretores' ||
+    abaCentro === 'formulario';
   const jornadaVclOcultaCentro =
     exibirJornadaVcl &&
     abaCentro !== 'chamados' &&
     abaCentro !== 'corretores' &&
-    abaCentro !== 'proximasAtividades';
+    abaCentro !== 'proximasAtividades' &&
+    abaCentro !== 'formulario';
   const cardTitulo = card.titulo;
   const checklistExtra = card.fase_id && camposPorFase?.[card.fase_id];
   const faseChecklistFaseId = card.fase_id ?? '';
@@ -6573,6 +6585,8 @@ export function KanbanCardModal({
             )}
             </div>
             </>
+            ) : abaCentro === 'formulario' && formularioRespostaId ? (
+              <FormularioRespostaPainel respostaId={formularioRespostaId} onVoltar={voltarPainelDetalhes} />
             ) : abaCentro === 'corretores' ? (
               <KanbanCardCorretoresPainel
                 cardId={card.id}
@@ -8850,6 +8864,8 @@ export function KanbanCardModal({
                   <CardFormulariosSecao
                     cardId={card.id}
                     redeFranqueadoId={card.rede_franqueado_id ?? null}
+                    onAbrirResposta={abrirPainelFormulario}
+                    respostaAbertaId={abaCentro === 'formulario' ? formularioRespostaId : null}
                   />,
                 )
               : null}
