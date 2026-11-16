@@ -19,9 +19,12 @@ export interface FichaCasaComite {
   areaM2: number
 }
 
+export type TopografiaLote = 'Aclive' | 'Declive' | 'Plano'
+
 export interface LeituraComite {
   posicionamento: PosicionamentoComite | null
   ficha: FichaCasaComite | null
+  topografia: TopografiaLote | null
 }
 
 const MIME_PPTX = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
@@ -37,21 +40,23 @@ export function contagemDasNotas(notas: number[]): PosicionamentoComite {
   return contagem
 }
 
-async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: FichaCasaComite | null }> {
+async function lerSlides(buffer: Buffer): Promise<{ notas: number[]; ficha: FichaCasaComite | null; topografia: TopografiaLote | null }> {
   const zip = await JSZip.loadAsync(buffer)
   const nomes = Object.keys(zip.files)
     .filter((nome) => /^ppt\/slides\/slide\d+\.xml$/i.test(nome))
     .sort((a, b) => numeroSlide(a) - numeroSlide(b))
   const notas: number[] = []
   let ficha: FichaCasaComite | null = null
+  let corpus = ''
   for (const nome of nomes) {
     const xml = await zip.files[nome].async('string')
     notas.push(...notasDoSlide(xml))
+    corpus += ` ${textoDoSlide(xml)}`
     const lida = fichaDoSlide(xml)
     if (!lida) continue
     if (!ficha || (ficha.vagas === 0 && lida.vagas > 0)) ficha = lida
   }
-  return { notas, ficha }
+  return { notas, ficha, topografia: topografiaDoTexto(corpus) }
 }
 
 export async function notasDoPptx(buffer: Buffer): Promise<number[]> {
@@ -65,10 +70,11 @@ export async function leituraDaApresentacaoComite(
 ): Promise<LeituraComite | null> {
   const buffer = await baixarPptxComite(link, email)
   if (!buffer) return null
-  const { notas, ficha } = await lerSlides(buffer)
+  const { notas, ficha, topografia } = await lerSlides(buffer)
   return {
     posicionamento: notas.length > 0 ? contagemDasNotas(notas) : null,
     ficha,
+    topografia,
   }
 }
 
@@ -80,12 +86,32 @@ export async function posicionamentoDaApresentacaoComite(
   return leitura?.posicionamento ?? null
 }
 
-function fichaDoSlide(xml: string): FichaCasaComite | null {
-  const texto = [...xml.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)]
+function textoDoSlide(xml: string): string {
+  return [...xml.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)]
     .map((achado) => decodeXml(achado[1]))
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function topografiaDoTexto(texto: string): TopografiaLote | null {
+  const plano = semAcento(texto)
+  const perto = (palavra: string) => {
+    const regra = new RegExp(`\\b(?:terreno|topografia|lote|relevo)\\b.{0,80}\\b${palavra}\\b|\\b${palavra}\\b.{0,40}\\b(?:terreno|topografia|lote|relevo)\\b`, 'g')
+    return (plano.match(regra) ?? []).length
+  }
+  const aclive = perto('aclive') || (plano.match(/\baclive\b/g) ?? []).length
+  const declive = perto('declive') || (plano.match(/\bdeclive\b/g) ?? []).length
+  const planoTerreno = perto('plan[oa]')
+  const maior = Math.max(aclive, declive, planoTerreno)
+  if (maior === 0) return null
+  if (aclive === maior) return 'Aclive'
+  if (declive === maior) return 'Declive'
+  return 'Plano'
+}
+
+function fichaDoSlide(xml: string): FichaCasaComite | null {
+  const texto = textoDoSlide(xml)
   const plano = semAcento(texto)
   if (!/\bcasa\s*:/.test(plano)) return null
   const linha = plano.match(/(\d+)\s*quartos?\s*[-–—]\s*(\d+)\s*banhos?\s*[-–—]\s*(\d+(?:[.,]\d+)?)\s*m/)

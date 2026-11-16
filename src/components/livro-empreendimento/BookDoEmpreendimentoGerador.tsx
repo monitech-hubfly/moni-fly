@@ -170,6 +170,7 @@ export function BookDoEmpreendimentoGerador({
   const [erro, setErro] = useState<string | null>(null);
   const [linkBca, setLinkBca] = useState('');
   const [valorTerreno, setValorTerreno] = useState('');
+  const [m2Terreno, setM2Terreno] = useState('');
   const [custoObra, setCustoObra] = useState('');
   const [vgvPretendido, setVgvPretendido] = useState('');
   const [linkComite, setLinkComite] = useState('');
@@ -179,6 +180,9 @@ export function BookDoEmpreendimentoGerador({
   }, []);
   const definirValorTerreno = useCallback((valor: string) => {
     setValorTerreno(valor.trim());
+  }, []);
+  const definirM2Terreno = useCallback((valor: string) => {
+    setM2Terreno(valor.trim());
   }, []);
   const definirCustoObra = useCallback((valor: string) => {
     setCustoObra(valor.trim());
@@ -238,6 +242,7 @@ export function BookDoEmpreendimentoGerador({
           imagens_lote: imagensLote,
           link_bca: linkBca || undefined,
           valor_terreno: valorTerreno || undefined,
+          m2_terreno: m2Terreno || undefined,
           custo_obra: custoObra || undefined,
           vgv_pretendido: vgvPretendido || undefined,
           link_apresentacao_comite: linkComite || undefined,
@@ -396,6 +401,7 @@ export function BookDoEmpreendimentoGerador({
           funis={funis}
           onLinkBca={definirLinkBca}
           onValorTerreno={definirValorTerreno}
+          onM2Terreno={definirM2Terreno}
           onCustoObra={definirCustoObra}
           onVgv={definirVgv}
           onLinkComite={definirLinkComite}

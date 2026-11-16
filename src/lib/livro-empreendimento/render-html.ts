@@ -52,6 +52,8 @@ export interface BookContext {
   imagensLote?: string[]
   cenarios?: CenariosVenda | null
   valorTerreno?: string | null
+  areaTerreno?: string | null
+  topografia?: string | null
   valorObra?: string | null
   vgvTarget?: string | null
   posicionamento?: { melhores: number; similares: number; superiores: number } | null
@@ -537,6 +539,9 @@ function renderDetalheLote(ctx: BookContext): string {
   const topo = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.5 12.5l4.2-5.2 2.6 2.8 2.2-2.6 4 5" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>'
   const recuo = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8h10M3 8l2-2M3 8l2 2M13 8l-2-2M13 8l-2 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
   const fotos = ctx.imagensLote ?? []
+  const areaLote = ctx.areaTerreno?.trim() || '0 m²'
+  const valorLote = ctx.valorTerreno?.trim() || 'R$ 0'
+  const topografia = ctx.topografia?.trim() || ''
   const fotoHtml = (indice: number, legenda?: string) => {
     const src = fotos[indice]
     const img = src ? '<img src="' + escapeHtml(src) + '" alt="" />' : ''
@@ -549,12 +554,12 @@ function renderDetalheLote(ctx: BookContext): string {
       <p class="lt-kicker">O terreno</p>
       <h2 class="lt-titulo">A ficha do <em>lote</em></h2>
       <p class="lt-medida-lbl">Área do lote</p>
-      <p class="lt-medida-num">0 m²</p>
+      <p class="lt-medida-num">${escapeHtml(areaLote)}</p>
       <p class="lt-medida-lbl">Valor do lote</p>
-      <p class="lt-medida-valor">R$ 0</p>
+      <p class="lt-medida-valor">${escapeHtml(valorLote)}</p>
       <div class="lt-itens">
         <div class="lt-item">${sol}<span>Posição do sol ·</span></div>
-        <div class="lt-item">${topo}<span>Topografia ·</span></div>
+        <div class="lt-item">${topo}<span>Topografia · ${escapeHtml(topografia)}</span></div>
         <div class="lt-item">${recuo}<span>Recuos · 0 m frente · 0 m fundo · 0 m laterais</span></div>
       </div>
     </div>

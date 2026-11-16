@@ -38,11 +38,11 @@ function urlFoto(value: unknown): string | undefined {
   return urlHttp(value)
 }
 
-function moedaLivro(value: unknown): string | null {
+function numeroLivro(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value !== 'string') return null
-  const texto = value.trim()
-  if (!texto || !/\d/.test(texto)) return null
-  let numero = texto.replace(/r\$/gi, '').replace(/\s/g, '')
+  let numero = value.trim().replace(/r\$/gi, '').replace(/m²|m2/gi, '').replace(/\s/g, '')
+  if (!numero || !/\d/.test(numero)) return null
   const temVirgula = numero.includes(',')
   const temPonto = numero.includes('.')
   if (temVirgula && temPonto) numero = numero.replace(/\./g, '').replace(',', '.')
@@ -51,8 +51,20 @@ function moedaLivro(value: unknown): string | null {
   else if (temPonto && /^\d{1,3}(\.\d{3})+$/.test(numero)) numero = numero.replace(/\./g, '')
   numero = numero.replace(/[^\d.-]/g, '')
   const n = Number(numero)
-  if (!Number.isFinite(n)) return null
+  return Number.isFinite(n) ? n : null
+}
+
+function moedaLivro(value: unknown): string | null {
+  const n = numeroLivro(value)
+  if (n == null) return null
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n).replace(/\u00a0/g, ' ')
+}
+
+function metroLivro(value: unknown): string | null {
+  const n = numeroLivro(value)
+  if (n == null) return null
+  const texto = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(n)
+  return `${texto} m²`
 }
 
 function imagensLote(value: unknown): string[] {
@@ -111,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     // Receber parâmetros. O gerador atual envia `codigo`; o contrato novo é `casa_codigo`.
     const body = await request.json()
-    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, custo_obra, vgv_pretendido, formato, link_apresentacao_comite, link_mapa_competidores } = body as {
+    const { condominio_id, kanban_card_id, conteudo_site, imagens_lote, link_bca, valor_terreno, m2_terreno, custo_obra, vgv_pretendido, formato, link_apresentacao_comite, link_mapa_competidores } = body as {
       casa_codigo?: string
       codigo?: string
       condominio_id?: string
@@ -120,6 +132,7 @@ export async function POST(request: NextRequest) {
       imagens_lote?: unknown
       link_bca?: string
       valor_terreno?: string
+      m2_terreno?: string
       custo_obra?: string
       vgv_pretendido?: string
       formato?: string
@@ -222,6 +235,7 @@ export async function POST(request: NextRequest) {
     let cenarios: BookContext['cenarios'] = null
     let posicionamento: BookContext['posicionamento'] = null
     let fichaCasa: BookContext['fichaCasa'] = null
+    let topografia: BookContext['topografia'] = null
     let mercado: BookContext['mercado'] = null
     let avisoBca: string | undefined
     let avisoComite: string | undefined
@@ -255,6 +269,7 @@ export async function POST(request: NextRequest) {
         const leitura = await leituraDaApresentacaoComite(linkComite, user.email ?? undefined)
         posicionamento = leitura?.posicionamento ?? null
         fichaCasa = leitura?.ficha ?? null
+        topografia = leitura?.topografia ?? null
         if (!posicionamento) {
           avisoComite = 'A apresentação do comitê está fechada e o posicionamento ficou zerado.'
         }
@@ -283,6 +298,8 @@ export async function POST(request: NextRequest) {
       imagensLote: imagensLote(imagens_lote),
       cenarios,
       valorTerreno: moedaLivro(valor_terreno),
+      areaTerreno: metroLivro(m2_terreno),
+      topografia,
       valorObra: moedaLivro(custo_obra),
       vgvTarget: moedaLivro(vgv_pretendido),
       posicionamento,

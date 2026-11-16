@@ -180,7 +180,7 @@ export async function baixar(url: string, token?: string): Promise<Buffer | null
     const res = await fetch(url, {
       redirect: 'follow',
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(60000),
     })
     if (!res.ok) return null
     return Buffer.from(await res.arrayBuffer())
