@@ -13,6 +13,7 @@ import type { FranqueadoEmpresaStatus } from '@/lib/franqueado-empresas';
 import { criarCadastroMoniCapital, verificarDuplicataMoniCapital } from '@/lib/moni-capital-cadastros-actions';
 import type { RedeLoteadorStatus } from '@/lib/rede-loteadores';
 import { formatLOValue, getNextLOFromRedeLoteadores, parseLOValue } from '@/lib/next-lo-loteador';
+import { normalizarSiteCondominio } from '@/lib/condominios';
 import { normalizeNFranquiaCsv } from '@/lib/import-rede-csv';
 
 type Ok = { ok: true; mensagem: string };
@@ -173,7 +174,7 @@ function rowCondominioFromCsv(row: Record<string, string>): Record<string, unkno
       if (iso) out[k] = iso;
       continue;
     }
-    out[k] = v;
+    out[k] = k === 'site_url' ? normalizarSiteCondominio(v) : v;
   }
   for (const k of [
     'estimativa_casas_vendidas_ano',

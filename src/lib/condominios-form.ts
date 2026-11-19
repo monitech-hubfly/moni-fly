@@ -3,6 +3,7 @@
 import type { SlaTipo } from '@/lib/dias-uteis';
 import {
   integerInputFromValue,
+  normalizarSiteCondominio,
   parseIntegerInput,
   type CondominioPatch,
   type CondominioRow,
@@ -122,7 +123,7 @@ export function condominioFormDraftToPatch(d: CondominioFormDraft): CondominioPa
     planta_cadastral: d.planta_cadastral.trim() || null,
     manual_obras: d.manual_obras.trim() || null,
     casas_concorrentes: d.casas_concorrentes.trim() || null,
-    site_url: d.site_url.trim() || null,
+    site_url: normalizarSiteCondominio(d.site_url),
     ...prazosAprovacaoPatchFromDraft({
       prazo_aprovacao_condominio_dias: d.prazo_aprovacao_condominio_dias,
       prazo_aprovacao_condominio_sla_tipo: d.prazo_aprovacao_condominio_sla_tipo,

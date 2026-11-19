@@ -1,3 +1,4 @@
+import { normalizarSiteCondominio } from '@/lib/condominios'
 import { ehLinkGoogle, fotosDoPainelGoogle, LeituraGoogleBloqueada } from '@/lib/livro-empreendimento/scrape-google'
 
 export interface VantagemLocalizacao {
@@ -196,9 +197,10 @@ function metaContent(html: string, property: string): string {
  * Cobre página estática (og:image, h1) e tema com foto em data-bg-image, como o da Artesano.
  */
 export async function scrapeSiteContent(siteUrl: string): Promise<ScrapedData> {
-  if (ehLinkGoogle(siteUrl)) {
+  const url = normalizarSiteCondominio(siteUrl) ?? siteUrl.trim()
+  if (ehLinkGoogle(url)) {
     try {
-      const fotos = await fotosDoPainelGoogle(siteUrl)
+      const fotos = await fotosDoPainelGoogle(url)
       return {
         vantagens: [],
         fotoPrincipal: fotos[0],
@@ -215,7 +217,7 @@ export async function scrapeSiteContent(siteUrl: string): Promise<ScrapedData> {
 
   const result: ScrapedData = { vantagens: [] }
 
-  const res = await fetch(siteUrl, {
+  const res = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; CasaMoniBot/1.0; +https://moni.casa)',
       Accept: 'text/html',
@@ -224,11 +226,11 @@ export async function scrapeSiteContent(siteUrl: string): Promise<ScrapedData> {
   })
 
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status} ao acessar ${siteUrl}`)
+    throw new Error(`HTTP ${res.status} ao acessar ${url}`)
   }
 
   const html = await res.text()
-  const fotos = fotosDoHtml(html, siteUrl)
+  const fotos = fotosDoHtml(html, url)
   if (fotos[0]) result.fotoPrincipal = fotos[0]
   if (fotos[1]) result.fotoSecundaria = fotos[1]
 

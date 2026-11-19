@@ -376,11 +376,12 @@ export function BookDoEmpreendimentoGerador({
                       </label>
                       <input
                         id="site-condominio-livro"
-                        type="url"
+                        type="text"
                         inputMode="url"
+                        autoComplete="url"
                         value={siteUrl}
                         onChange={(event) => setSiteUrl(event.target.value)}
-                        placeholder="https://siteDoCondominio.com.br"
+                        placeholder="siteDoCondominio.com.br"
                         className="mt-0.5 w-full bg-white px-3 text-sm text-[var(--moni-navy-800)] outline-none"
                         style={{
                           minHeight: 44,

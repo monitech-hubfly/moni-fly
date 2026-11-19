@@ -113,12 +113,13 @@ export function CondominioCamposForm({
       <label className="col-span-2 block">
         <span className="text-[11px] font-medium text-stone-500">Site do condomínio</span>
         <input
-          type="url"
+          type="text"
           inputMode="url"
+          autoComplete="url"
           value={draft.site_url}
           onChange={(e) => onChange({ site_url: e.target.value })}
           className={inputCls}
-          placeholder="https://siteDoCondominio.com.br"
+          placeholder="siteDoCondominio.com.br"
         />
       </label>
       <label className="block">

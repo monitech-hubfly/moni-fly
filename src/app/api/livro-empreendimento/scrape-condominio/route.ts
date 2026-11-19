@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { isAdminRole, normalizeAccessRole } from '@/lib/authz'
+import { normalizarSiteCondominio } from '@/lib/condominios'
 import { ehLinkGoogle } from '@/lib/livro-empreendimento/scrape-google'
 import { scrapeSiteContent, type ScrapedData } from '@/lib/livro-empreendimento/scrape-site'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const siteUrl = bodySiteUrl?.trim()
+    const siteUrl = normalizarSiteCondominio(bodySiteUrl) ?? ''
     if (!siteUrl) {
       return NextResponse.json(
         { error: 'Informe a URL do site do condomínio.' },

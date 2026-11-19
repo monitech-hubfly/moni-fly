@@ -48,6 +48,15 @@ export function filtrarLinhasEmBrancoCondominios<T extends { nome?: string | nul
   return rows.filter((r) => !isCondominioLinhaEmBranco(r));
 }
 
+/** Aceita domínio sem esquema (`urbansquare.com.br`) e devolve uma URL http(s). */
+export function normalizarSiteCondominio(valor: string | null | undefined): string | null {
+  const t = String(valor ?? '').trim();
+  if (!t) return null;
+  if (/^https?:\/\//i.test(t)) return t;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return t;
+  return `https://${t.replace(/^\/+/, '')}`;
+}
+
 export const CONDOMINIO_CURRENCY_FMT = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',

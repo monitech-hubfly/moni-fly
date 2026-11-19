@@ -12,6 +12,7 @@ import {
   integerInputFromValue,
   ordenarCondominiosPorNome,
   parseIntegerInput,
+  normalizarSiteCondominio,
   type CondominioRow,
 } from '@/lib/condominios';
 import type { SlaTipo } from '@/lib/dias-uteis';
@@ -140,7 +141,7 @@ function draftToPatch(d: Draft) {
     planta_cadastral: d.planta_cadastral.trim() || null,
     manual_obras: d.manual_obras.trim() || null,
     casas_concorrentes: d.casas_concorrentes.trim() || null,
-    site_url: d.site_url.trim() || null,
+    site_url: normalizarSiteCondominio(d.site_url),
     ...prazosAprovacaoPatchFromDraft({
       prazo_aprovacao_condominio_dias: d.prazo_aprovacao_condominio_dias,
       prazo_aprovacao_condominio_sla_tipo: d.prazo_aprovacao_condominio_sla_tipo,
@@ -654,12 +655,13 @@ function CondominioEditRow({
       </td>
       <td className="px-3 py-2">
         <input
-          type="url"
+          type="text"
           inputMode="url"
+          autoComplete="url"
           value={draft.site_url}
           onChange={(e) => setDraft((d) => ({ ...d, site_url: e.target.value }))}
           className={`${inputCls} min-w-[12rem]`}
-          placeholder="https://siteDoCondominio.com.br"
+          placeholder="siteDoCondominio.com.br"
         />
       </td>
       <td className="px-3 py-2">
